@@ -16,6 +16,11 @@
 //! - When a new edit (adding a smart album, moving an album or folder, changing rules, alone or
 //!   in a batch) would put a smart album on a loop, then it is refused, names the album, and
 //!   nothing changed.
+//! - Given a long chain of folders whose smart albums are each limited to the next folder (no
+//!   loop), then counting every album, as the sidebar does after each edit, takes what it took
+//!   before the rule: which albums are on a loop is worked out once per change to the albums.
+//! - Given a batch of edits that fails part-way in a library whose saved rules the catalog
+//!   would no longer take, then everything is as it was: no rules half-changed, no loop left.
 //! - Given a library that already holds a loop, then it opens, the albums on the loop can still
 //!   be edited and the loop undone, and edits elsewhere go through.
 
@@ -418,7 +423,7 @@ fn a_refused_edit_never_touched_the_library() {
 fn a_folder_that_would_adopt_a_looping_album_is_refused() {
     let mut c = Catalog::new();
     let s = smart(&mut c, "Orphan", None, limited_to(AlbumId(2)));
-    c.albums.get_mut(&s).unwrap().parent = Some(AlbumId(2));
+    c.damage(s, |a| a.parent = Some(AlbumId(2)));
     let e = c.apply_new(Op::AddAlbum { album: Album { folder: true, ..Album::new(AlbumId(2), "Back") } }).unwrap_err().to_string();
     assert!(e.contains("Orphan"), "{e}");
     assert!(c.album(AlbumId(2)).is_none());
@@ -430,7 +435,7 @@ fn a_folder_that_would_adopt_a_looping_album_is_refused() {
 fn a_folder_with_rules_is_marked_as_it_is_treated() {
     let mut c = Catalog::new();
     let f = folder(&mut c, "F", None);
-    c.albums.get_mut(&f).unwrap().smart = Some(Box::new(limited_to(f)));
+    c.damage(f, |a| a.smart = Some(Box::new(limited_to(f))));
     assert!(c.albums_on_a_loop().is_empty());
     assert!(c.smart_album_problems(f).is_empty());
 }
@@ -472,6 +477,62 @@ fn asking_for_loops_in_a_long_chain_is_quick() {
     // closing the chain is still seen
     let e = c2.apply_new(Op::SetAlbumRules { id: smarts[0], rules: Box::new(limited_to(folders[0])) });
     assert!(e.is_err());
+}
+
+/// The sidebar counts every album after every edit. With 300 folders whose smart albums are
+/// each limited to the next folder, asking each smart album along the way whether it is on a loop
+/// made one recount take a quarter of a minute; it takes a fraction of a second.
+#[test]
+fn counting_every_album_of_a_long_chain_is_quick() {
+    let mut c = Catalog::new();
+    let photos: Vec<PhotoId> = (0..200).map(|i| photo(&mut c, &format!("p{i}.jpg"))).collect();
+    let folders: Vec<AlbumId> = (0..300).map(|i| folder(&mut c, &format!("F{i}"), None)).collect();
+    for i in 0..1400 {
+        album(&mut c, &format!("A{i}"), Some(folders[i % 300]), &photos[i % 200..(i % 200 + 1)]);
+    }
+    let smarts: Vec<AlbumId> = (0..299).map(|i| smart(&mut c, &format!("S{i}"), Some(folders[i]), limited_to(folders[i + 1]))).collect();
+    let start = std::time::Instant::now();
+    let total: usize = smarts.iter().map(|s| c.album_count(*s)).sum();
+    let counted = start.elapsed();
+    assert!(total > 0);
+    assert!(counted < std::time::Duration::from_secs(3), "one recount took {counted:?}");
+    let start = std::time::Instant::now();
+    for p in &photos[..5] {
+        assert!(!c.albums_of(*p).is_empty());
+    }
+    let asked = start.elapsed();
+    assert!(asked < std::time::Duration::from_secs(3), "the albums of five photos took {asked:?}");
+    // an edit to the albums is seen at once: the chain closed (as an old library could hold it)
+    assert!(c.albums_on_a_loop().is_empty());
+    c.apply(Op::SetAlbumRules { id: smarts[298], rules: Box::new(limited_to(folders[0])) }).unwrap();
+    assert_eq!(c.albums_on_a_loop().len(), 299);
+    assert_eq!(c.album_count(smarts[0]), 0);
+    // and so is one taken back
+    c.apply(Op::SetAlbumRules { id: smarts[298], rules: Box::new(Filter::default()) }).unwrap();
+    assert!(c.albums_on_a_loop().is_empty());
+    assert!(c.album_count(smarts[0]) > 0);
+}
+
+/// A batch that fails part-way is taken back whole, also where the rules it has to put back are
+/// rules `apply` would no longer take as a new edit (T limited to what has since become a smart
+/// album): taking back is not checked like an edit. Before, T kept its new rules and a loop.
+#[test]
+fn a_batch_that_fails_is_taken_back_whole() {
+    let mut c = Catalog::new();
+    let t = smart(&mut c, "T", None, limited_to(AlbumId(2)));
+    let u = smart(&mut c, "U", None, Filter { rating: 3, ..Default::default() });
+    let v = smart(&mut c, "V", None, tests(&[("is", t)]));
+    assert_eq!((t, u, v), (AlbumId(1), AlbumId(2), AlbumId(3)));
+    let (before, revision) = (c.to_snapshot(), c.revision);
+    let batch = || Op::Batch {
+        ops: vec![Op::SetAlbumRules { id: t, rules: Box::new(tests(&[("is", v)])) }, Op::RemoveAlbum { id: AlbumId(999) }, Op::RemoveAlbum { id: v }],
+    };
+    for result in [c.apply_new(batch()), c.apply(batch())] {
+        assert!(result.unwrap_err().to_string().contains("999"));
+        assert_eq!(c.to_snapshot(), before);
+        assert_eq!(c.revision, revision);
+        assert!(c.albums_on_a_loop().is_empty());
+    }
 }
 
 #[test]
