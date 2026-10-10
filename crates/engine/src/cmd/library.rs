@@ -900,6 +900,10 @@ pub fn specs() -> Vec<CommandSpec> {
                     None => view_rules(s),
                 };
                 let parent = p.get("parent").and_then(Value::as_u64).map(AlbumId);
+                // the view of a folder, saved inside that folder, would be limited to itself
+                if let Some(folder) = parent {
+                    smart_loop_in(&s.catalog, &name, &rules, folder).map_or(Ok(()), |why| Err(bad("album.createSmart", why)))?;
+                }
                 let id = s.catalog.alloc_album_id();
                 let album = Album { parent, smart: Some(Box::new(rules)), ..Album::new(id, name) };
                 s.commit("New Smart Album", Op::AddAlbum { album })?;
@@ -1027,6 +1031,7 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("album.move", "Move Album", [], None, "{id, parent?: folderId|null}", always, |s, p| {
             let id = album_param(p, "id", "album.move")?;
             let parent = p.get("parent").and_then(Value::as_u64).map(AlbumId);
+            moved_loop_in(&s.catalog, id, parent).map_or(Ok(()), |why| Err(bad("album.move", why)))?;
             s.commit("Move Album", Op::MoveAlbum { id, parent })?;
             ok()
         }),
@@ -1060,6 +1065,9 @@ pub fn specs() -> Vec<CommandSpec> {
                 };
                 order.insert(at.min(order.len()), id);
                 let moved = me.parent != parent;
+                if moved {
+                    moved_loop_in(&s.catalog, id, parent).map_or(Ok(()), |why| Err(bad("album.reorder", why)))?;
+                }
                 let mut ops = Vec::new();
                 if moved {
                     ops.push(Op::MoveAlbum { id, parent });
@@ -1284,6 +1292,9 @@ pub fn specs() -> Vec<CommandSpec> {
         }),
         cmd!("album.setCover", "Set as Album Cover", [], None, "{id: albumId, photo?: photoId}", has_active, |s, p| {
             let id = album_param(p, "id", "album.setCover")?;
+            if s.catalog.album(id).is_some_and(|a| a.folder) {
+                return Err(bad("album.setCover", "a folder has no cover: set one on an album in it"));
+            }
             let photo = p.get("photo").and_then(Value::as_u64).map(PhotoId).or(s.active());
             s.commit("Set Album Cover", Op::SetAlbumCover { id, cover: photo })?;
             ok()
@@ -1453,6 +1464,24 @@ fn merge_rules(
         return Err(bad(c, problems.iter().map(ToString::to_string).collect::<Vec<_>>().join("; ")));
     }
     Ok(f)
+}
+
+/// Why a smart album called `name` with `rules` can't be in folder `parent`: its rules lead to
+/// that folder or one around it (the view of a folder, saved inside it), so it would be one of
+/// the albums it asks about. `None` when it can.
+fn smart_loop_in(cat: &lightcraft_catalog::Catalog, name: &str, rules: &lightcraft_catalog::Filter, parent: AlbumId) -> Option<String> {
+    cat.smart_album_would_loop_in(rules, parent).then(|| {
+        let folder = cat.album(parent).map(|f| f.name.as_str()).unwrap_or_default();
+        format!("smart album “{name}” would include itself in folder “{folder}”: its rules show that folder or one around it. Put it outside them")
+    })
+}
+
+/// [`smart_loop_in`] for album or folder `id` on its way into `parent` (`None`: the top level,
+/// where nothing loops): the first smart album among what moves that would include itself.
+fn moved_loop_in(cat: &lightcraft_catalog::Catalog, id: AlbumId, parent: Option<AlbumId>) -> Option<String> {
+    let parent = parent?;
+    let moved = cat.album_members(id);
+    moved.iter().filter_map(|m| cat.album(*m)).find_map(|m| smart_loop_in(cat, &m.name, m.smart.as_deref()?, parent))
 }
 
 /// Whether `path` lies above a disk: some of its `ids` photos are on a disk (not the startup
