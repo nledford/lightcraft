@@ -196,7 +196,7 @@ fn crop(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     let ang = lightcraft_develop::controls::find("crop.angle").copied();
     if let Some(spec) = ang {
         let out = slider(ui, &spec, d.crop.geometry.angle, true, Some("Straighten"));
-        super::edit::apply_slider_out(app, &spec, out, |app, v| app.run("crop.straighten", json!({"angle": v})));
+        super::edit::apply_slider_out(app, &spec, out, |app, v| app.act("crop.straighten", json!({"angle": v})));
         // an exact angle, typed (issue #534): a field of its own, besides the slider's value
         padded(ui, |ui| {
             ui.horizontal(|ui| {
@@ -340,7 +340,7 @@ fn crop(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     for spec in lightcraft_develop::controls::in_section(lightcraft_develop::Section::Geometry).filter(|c| c.id != "crop.angle") {
         let v = lightcraft_develop::controls::get(&d, spec.id).unwrap_or(spec.default);
         let out = slider(ui, spec, v, true, None);
-        super::edit::apply_slider_out(app, spec, out, |app, v| app.run("develop.set", json!({"control": spec.id, "value": v})));
+        super::edit::apply_slider_out(app, spec, out, |app, v| app.act("develop.set", json!({"control": spec.id, "value": v})));
     }
 }
 
@@ -419,7 +419,7 @@ fn remove(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             }
         }
         if sel.is_some() {
-            super::edit::apply_slider_out(app, &spec, out, |app, v| app.run("spot.update", json!({key: v / scale})));
+            super::edit::apply_slider_out(app, &spec, out, |app, v| app.act("spot.update", json!({key: v / scale})));
         }
     }
     if sel.is_some() {
@@ -506,7 +506,7 @@ fn red_eye(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let Some(spec) = lightcraft_develop::controls::find(&cid) else { continue };
         let v = lightcraft_develop::controls::get(&d, &cid).unwrap_or(spec.default);
         let out = slider(ui, spec, v, true, None);
-        super::edit::apply_slider_out(app, spec, out, |app, v| app.run("develop.set", json!({"control": cid, "value": v})));
+        super::edit::apply_slider_out(app, spec, out, |app, v| app.act("develop.set", json!({"control": cid, "value": v})));
     }
     padded(ui, |ui| {
         if eye.pet {

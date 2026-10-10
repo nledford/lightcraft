@@ -15,18 +15,13 @@ use crate::theme::Tokens;
 use crate::widgets::{BAND_COLORS, SliderOut, divider, flyout_row, hex, register, section_header, slider, text_button};
 
 /// Commit a slider interaction: begin → live updates → end, so a drag is one undo step.
-pub fn apply_slider_out(
-    app: &mut LightcraftApp,
-    spec: &ControlSpec,
-    out: SliderOut,
-    mut set: impl FnMut(&mut LightcraftApp, f64) -> Result<Value, String>,
-) {
+pub fn apply_slider_out(app: &mut LightcraftApp, spec: &ControlSpec, out: SliderOut, mut set: impl FnMut(&mut LightcraftApp, f64) -> Option<Value>) {
     if out.drag_started && !out.reset {
         app.act("develop.beginInteraction", json!({"label": spec.label}));
         app.ui.dragging_control = Some(spec.id.to_string());
     }
     if let Some(v) = out.value {
-        let _ = set(app, v);
+        set(app, v);
     }
     if out.drag_stopped || out.reset {
         app.act("develop.endInteraction", json!({}));
@@ -38,7 +33,7 @@ pub(crate) fn control(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSet
     let Some(spec) = controls::find(id) else { return };
     let v = controls::get(d, id).unwrap_or(spec.default);
     let out = slider(ui, spec, v, enabled, None);
-    apply_slider_out(app, spec, out, |app, v| app.run("develop.set", json!({"control": id, "value": v})));
+    apply_slider_out(app, spec, out, |app, v| app.act("develop.set", json!({"control": id, "value": v})));
 }
 
 /// Relative temperature scale for rendered (non-raw) files: −100..100 ↔ Kelvin via mired shift.
@@ -97,8 +92,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 8, bottom: 14 }).show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
-            if text_button(ui, "auto", crate::i18n::tr("Auto"), false).clicked() {
-                app.act("develop.auto", json!({}));
+            if text_button(ui, "auto", crate::i18n::tr("Auto"), false).clicked() && app.act("develop.auto", json!({})).is_some() {
+                // only when it went through: refused (the original is missing…), `act` said why
                 app.toast(ui.ctx(), crate::i18n::tr("Auto settings applied"));
             }
             let bw = crate::is_bw(&d);
@@ -226,9 +221,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             control(app, ui, d, "wb.tint", true);
         } else {
             let out = slider(ui, &REL_TEMP, k_to_rel(d.wb.temp), true, None);
-            apply_slider_out(app, &REL_TEMP, out, |app, v| app.run("develop.set", json!({"control": "wb.temp", "value": rel_to_k(v)})));
+            apply_slider_out(app, &REL_TEMP, out, |app, v| app.act("develop.set", json!({"control": "wb.temp", "value": rel_to_k(v)})));
             let out = slider(ui, &REL_TINT, d.wb.tint.clamp(-100.0, 100.0), true, None);
-            apply_slider_out(app, &REL_TINT, out, |app, v| app.run("develop.set", json!({"control": "wb.tint", "value": v})));
+            apply_slider_out(app, &REL_TINT, out, |app, v| app.act("develop.set", json!({"control": "wb.tint", "value": v})));
         }
         control(app, ui, d, "color.vibrance", true);
         control(app, ui, d, "color.saturation", true);

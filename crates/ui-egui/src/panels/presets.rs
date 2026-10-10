@@ -158,10 +158,13 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                             }
                         }
                         if resp.clicked() {
-                            app.act("preset.apply", json!({"id": pid, "amount": 100}));
-                            ui.data_mut(|d| d.insert_temp(amt_id, (pid.clone(), 100.0)));
+                            let applied = app.act("preset.apply", json!({"id": pid, "amount": 100})).is_some();
                             ui.data_mut(|d| d.remove::<(lightcraft_catalog::PhotoId, Preset, String)>(egui::Id::new("last-preset-hover")));
-                            app.toast(ui.ctx(), crate::i18n::tr_format!("Preset: {name}", name = name));
+                            // only when it went through: refused (nothing selected…), `act` said why
+                            if applied {
+                                ui.data_mut(|d| d.insert_temp(amt_id, (pid.clone(), 100.0)));
+                                app.toast(ui.ctx(), crate::i18n::tr_format!("Preset: {name}", name = name));
+                            }
                         }
                         let (builtin, group) = (pr.builtin, pr.group.clone());
                         resp.context_menu(|ui| {

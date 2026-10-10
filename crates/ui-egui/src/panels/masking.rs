@@ -132,9 +132,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                     match *kind {
                         "colorRange" => {
                             // an empty colour range; clicking the photo samples it
-                            app.act("mask.add", json!({"kind": "colorRange"}));
-                            app.ui.tool = "colorRange".into();
-                            app.toast(ui.ctx(), crate::i18n::tr("Click the photo to pick a colour · ⇧-click adds more"));
+                            // refused, there is no mask to sample into: `act` said why
+                            if app.act("mask.add", json!({"kind": "colorRange"})).is_some() {
+                                app.ui.tool = "colorRange".into();
+                                app.toast(ui.ctx(), crate::i18n::tr("Click the photo to pick a colour · ⇧-click adds more"));
+                            }
                         }
                         "object" => start_object(app, ui.ctx(), "new"),
                         "prompt" => start_describe(app, "new"),
@@ -371,7 +373,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     for s in LOCAL {
         let v = local_get(&m.adjust, s.id);
         let out = slider(ui, s, v, true, None);
-        apply_slider_out(app, s, out, |app, v| app.run("mask.adjust", json!({"values": {s.id: v}})));
+        apply_slider_out(app, s, out, |app, v| app.act("mask.adjust", json!({"values": {s.id: v}})));
     }
     let amt = ControlSpec {
         id: "amount",
@@ -385,7 +387,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         track: Track::Plain,
     };
     let out = slider(ui, &amt, m.adjust.amount, true, None);
-    apply_slider_out(app, &amt, out, |app, v| app.run("mask.adjust", json!({"values": {"amount": v}})));
+    apply_slider_out(app, &amt, out, |app, v| app.act("mask.adjust", json!({"values": {"amount": v}})));
     let refine = ControlSpec {
         id: "refine",
         label: "Refine Edges",
@@ -398,7 +400,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         track: Track::Plain,
     };
     let out = slider(ui, &refine, m.refine, true, None);
-    apply_slider_out(app, &refine, out, |app, v| app.run("mask.refine", json!({"value": v})));
+    apply_slider_out(app, &refine, out, |app, v| app.act("mask.refine", json!({"value": v})));
     ui.add_space(30.0);
     let _ = Stroke::NONE;
 }
@@ -552,7 +554,7 @@ fn range_controls(app: &mut LightcraftApp, ui: &mut egui::Ui, comp: usize, shape
             let out = slider(ui, &smooth, cur, true, None);
             apply_slider_out(app, &smooth, out, |app, v| {
                 let f = v / 100.0 * 0.5;
-                app.run("mask.update", json!({"component": comp, "shape": MaskShape::LuminanceRange { lo, hi, lo_feather: f, hi_feather: f }}))
+                app.act("mask.update", json!({"component": comp, "shape": MaskShape::LuminanceRange { lo, hi, lo_feather: f, hi_feather: f }}))
             });
             let mut map = app.ui.mask_overlay && app.ui.mask_overlay_mode == "colorOnBw";
             let r = ui.checkbox(&mut map, crate::i18n::tr("Show Luminance Map"));
@@ -590,7 +592,7 @@ fn range_controls(app: &mut LightcraftApp, ui: &mut egui::Ui, comp: usize, shape
                 if let MaskShape::Object { edge, .. } | MaskShape::Prompt { edge, .. } = &mut s {
                     *edge = v.clamp(-100.0, 100.0);
                 }
-                app.run("mask.update", json!({"component": comp, "shape": s}))
+                app.act("mask.update", json!({"component": comp, "shape": s}))
             });
             ui.label(egui::RichText::new(crate::i18n::tr("− harder border · + softer border")).color(t.text_dim).size(11.0));
         }
@@ -623,7 +625,7 @@ fn range_controls(app: &mut LightcraftApp, ui: &mut egui::Ui, comp: usize, shape
             let out = slider(ui, &spec, *refine, true, None);
             let samples = samples.clone();
             apply_slider_out(app, &spec, out, |app, v| {
-                app.run("mask.update", json!({"component": comp, "shape": MaskShape::ColorRange { samples: samples.clone(), refine: v }}))
+                app.act("mask.update", json!({"component": comp, "shape": MaskShape::ColorRange { samples: samples.clone(), refine: v }}))
             });
         }
         _ => {}

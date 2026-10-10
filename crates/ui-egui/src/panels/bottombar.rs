@@ -107,8 +107,8 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
     register(ui.ctx(), "button:copySettings", copy_r);
     ui.painter().rect_filled(copy_r, 15.0, if cresp.hovered() { t.hover } else { t.canvas });
     ui.painter().text(copy_r.center(), Align2::CENTER_CENTER, label, t.font(13.0), if active.is_some() { t.text_label } else { t.text_disabled });
-    if cresp.clicked() && active.is_some() {
-        app.act(if has_clip { "develop.paste" } else { "develop.copy" }, json!({}));
+    // the success only when it went through: refused, `act` said why
+    if cresp.clicked() && active.is_some() && app.act(if has_clip { "develop.paste" } else { "develop.copy" }, json!({})).is_some() {
         let msg = if has_clip { "Settings pasted" } else { "Edit settings copied" };
         app.toast(ui.ctx(), crate::i18n::tr(msg));
     }
