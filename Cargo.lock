@@ -3224,6 +3224,7 @@ version = "0.9.1"
 dependencies = [
  "ab_glyph",
  "craft-docpath",
+ "crc32fast",
  "harfrust",
  "jxl-oxide",
  "libc",

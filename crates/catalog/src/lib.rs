@@ -23,6 +23,7 @@ pub mod local;
 pub mod lock;
 pub mod model;
 pub mod query;
+pub mod restore;
 pub mod rules;
 pub mod safe_file;
 pub mod segments;
@@ -1235,6 +1236,8 @@ mod tests_lock;
 mod tests_policy;
 #[cfg(test)]
 mod tests_repair;
+#[cfg(test)]
+mod tests_restore;
 #[cfg(test)]
 mod tests_scale;
 #[cfg(test)]
