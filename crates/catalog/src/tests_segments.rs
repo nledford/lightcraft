@@ -1256,6 +1256,41 @@ fn a_library_in_segments_with_other_defaults_reads_as_it_was_written() {
     }
 }
 
+/// The sizes a library gets unless told otherwise: segments of about 2 MB, and of at most 4096
+/// photos where records are small. (Measured: `docs/catalog-persistence.md`, "Segment size".
+/// Larger ones rewrite more for the same edits; much smaller ones are many files to make
+/// durable when everything changed.)
+#[test]
+fn a_segment_is_about_two_megabytes_and_at_most_4096_photos() {
+    // small records: by count
+    let m = MemStore::new();
+    let (mut j, mut c, _) = Journal::open(Box::new(m.clone())).unwrap();
+    run(&mut j, &mut c, add(1..=10_000));
+    j.snapshot(&c).unwrap();
+    assert_eq!(j.segments().iter().map(|s| s.photos).collect::<Vec<_>>(), [4096, 4096, 1808]);
+    assert!(j.segments().iter().all(|s| s.bytes <= 2 << 20), "{:?}", j.segments().iter().map(|s| s.bytes).collect::<Vec<_>>());
+    assert_same(&reopen(&m), &c);
+
+    // large records: by size, once it is known
+    let m = MemStore::new();
+    let (mut j, mut c, _) = Journal::open(Box::new(m.clone())).unwrap();
+    let heavy: Vec<Op> = (1..=3000u64)
+        .map(|id| {
+            let mut p = photo(id);
+            p.meta.caption = "a caption ".repeat(200);
+            Op::AddPhoto { photo: Box::new(p) }
+        })
+        .collect();
+    run(&mut j, &mut c, heavy);
+    j.snapshot(&c).unwrap();
+    run(&mut j, &mut c, vec![Op::SetRating { id: PhotoId(1), rating: 1 }]);
+    j.snapshot(&c).unwrap();
+    let sizes: Vec<(u64, u64)> = j.segments().iter().map(|s| (s.photos, s.bytes)).collect();
+    assert!(sizes.len() >= 3, "{sizes:?}");
+    assert!(sizes.iter().all(|(photos, bytes)| *photos < 4096 && *bytes <= 5 << 19), "{sizes:?}");
+    assert_same(&reopen(&m), &c);
+}
+
 /// In a library folder the segments are files `segments/<first id>-<seq>.json`: a folder of
 /// their own beside `catalog.snap`, made with the first of them; what is left of one being
 /// written, and files nothing lists, are cleared out of it on request; other files are not.
