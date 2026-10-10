@@ -1026,10 +1026,9 @@ pub fn specs() -> Vec<CommandSpec> {
                     }
                 }
                 let ops = order.into_iter().rev().map(|id| Op::RemoveAlbum { id }).collect();
+                // a deleted album that was being shown gives way to All Photos, as after any
+                // other way it goes (`Session::reconcile_view`)
                 s.commit(if folder { "Delete Folder" } else { "Delete Album" }, Op::Batch { ops })?;
-                if matches!(s.source, LibrarySource::Album(current) if removed.contains(&current)) {
-                    s.source = LibrarySource::All;
-                }
                 ok()
             }
         ),
