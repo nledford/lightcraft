@@ -37,7 +37,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Show Source",
             [],
             None,
-            "{kind: all|recentlyAdded|album|recentlyDeleted|picks|missing|libraryFolder, id?: albumId, path?: a path from library.folders (for libraryFolder)}",
+            "{kind: all|recentlyAdded|album|recentlyDeleted|picks|missing|libraryFolder, id?: albumId (an album, a smart album, or a folder of albums: the photos of every album inside it, each once), path?: a path from library.folders (for libraryFolder)}",
             always,
             |s, p| {
                 let kind = str_param(p, "kind").unwrap_or("all");
@@ -49,7 +49,8 @@ pub fn specs() -> Vec<CommandSpec> {
                     "missing" => LibrarySource::Missing,
                     "album" => {
                         let a = album_param(p, "id", "library.source")?;
-                        if s.catalog.album(a).is_none_or(|a| a.folder) {
+                        // a folder of albums is a source too: what the albums inside it hold
+                        if s.catalog.album(a).is_none() {
                             return Err(bad("library.source", "no such album"));
                         }
                         // one album at a time: `to_filter` makes the album shown replace the filter's, and the
@@ -1229,7 +1230,7 @@ pub fn specs() -> Vec<CommandSpec> {
                     return Err(bad("album.removePhotos", "smart albums update automatically: change their rules"));
                 }
                 if al.folder {
-                    return Err(bad("album.removePhotos", "album folders don't hold photos"));
+                    return Err(bad("album.removePhotos", "a folder shows the photos of the albums in it: remove them from those albums"));
                 }
                 let name = al.name.clone();
                 let targets: std::collections::HashSet<PhotoId> = targets.into_iter().collect();
