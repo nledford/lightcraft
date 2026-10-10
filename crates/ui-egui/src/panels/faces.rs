@@ -731,6 +731,7 @@ fn watch_downloads(app: &mut LightcraftApp, ctx: &egui::Context) {
                 l["models"].as_array().and_then(|a| a.iter().find(|m| m["id"] == id.as_str()).and_then(|m| m["name"].as_str().map(str::to_string)))
             })
             .unwrap_or_else(|| id.clone());
+        // refusal expected: the watcher clearing a finished download's row, nobody's click; a row already gone is as good
         let _ = app.session.execute("faces.models.downloadCancel", &json!({"id": id}));
         app.caches.faces_epoch += 1;
         let detector = app

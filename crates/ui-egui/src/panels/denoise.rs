@@ -118,6 +118,7 @@ fn watch_downloads(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
     app.caches.denoise.dl_watch = keep;
     for id in installed {
+        // refusal expected: the watcher clearing a finished download's row, nobody's click; a row already gone is as good
         let _ = app.session.execute("denoise.models.downloadCancel", &json!({"id": id}));
         app.caches.denoise.epoch += 1;
         let text = tr("The denoise model is installed and in use: the AI Denoise Amount slider under Detail now works");

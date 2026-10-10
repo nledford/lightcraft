@@ -374,6 +374,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 && let Some(i) = vis.iter().position(|x| x.0 == r)
                 && let Some(next) = vis.get(i + 1).or(i.checked_sub(1).and_then(|j| vis.get(j)))
             {
+                // refusal expected: a step of view.reference, already inside `run`, which answers for the whole command
                 let _ = app.session.execute("library.select", &json!({"ids": [next.0]}));
             }
             app.ui.view = ViewMode::Reference;

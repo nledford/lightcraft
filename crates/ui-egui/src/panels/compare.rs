@@ -53,6 +53,7 @@ pub fn enter_compare(app: &mut LightcraftApp) -> Result<Value, String> {
 
 fn select_pair(app: &mut LightcraftApp, a: PhotoId, b: PhotoId, active: PhotoId) {
     app.ui.compare = Some((a.0, b.0));
+    // refusal expected: a step of view.compare and its arrow keys, which answer for themselves; the pair is from the view
     let _ = app.session.execute("library.select", &json!({"ids": [a.0, b.0], "active": active.0}));
 }
 
@@ -113,6 +114,7 @@ pub fn survey_step(app: &mut LightcraftApp, d: isize) -> Result<Value, String> {
 /// After rating/flagging with Auto Advance: next candidate (Compare), next photo in the survey,
 /// else the next photo in the view.
 pub fn advance(app: &mut LightcraftApp) {
+    // refusal expected: moving on by itself after a rating that went through and was said; a step that can't be taken is no news
     let _ = match app.ui.view {
         ViewMode::Compare => compare_step(app, 1),
         ViewMode::Survey => survey_step(app, 1),
