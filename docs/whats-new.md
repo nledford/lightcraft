@@ -13,6 +13,7 @@
   triangles, a highlight under the pointer. A folded section shows how many rows it holds, counts of 0 are fainter,
   and a section with nothing in it says so instead of disappearing.
 - Recently Deleted is listed with All Photos, Recently Added and Picks under My Photos.
+- Keywords has a + in its header, like Albums: Create Keyword Tag without opening the Keyword List.
 - Agents: `view.sidebarSection`, `view.sidebarMoveSection`, `view.sidebarReset`; `ui.set` takes `sidebar`.
 
 ### Activity stack

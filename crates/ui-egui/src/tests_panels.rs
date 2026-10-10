@@ -791,6 +791,43 @@ fn the_next_section_takes_over_the_pinned_header() {
     assert_eq!(seen, ["albums", "keywords"]);
 }
 
+/// Given the Keywords header, when its + is clicked, then Create Keyword Tag opens (for a keyword
+/// at the usual place, whatever is picked in the Keyword List) and the section does not fold;
+/// and the keyword made there is listed in the section.
+#[test]
+fn the_keywords_header_creates_a_keyword() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    // something picked in the Keyword List: not where a keyword made from the sidebar goes
+    h.app.ui.keyword_list_selected = Some("aurora".into());
+    let (button, head) = (widget(&h, "icon:keywordNew"), header(&h, "keywords"));
+    assert!(head.contains_rect(button), "the + is in the header: {button:?} in {head:?}");
+    click(&mut h, "icon:keywordNew");
+    assert!(!h.app.ui.sidebar_section_collapsed("keywords"), "the + does not fold Keywords");
+    let Some(crate::state::Dialog::KeywordTag { editing, name, parent, .. }) = h.app.ui.dialog.as_mut() else { panic!("{:?}", h.app.ui.dialog) };
+    assert_eq!((editing.clone(), parent.clone()), (None, None));
+    *name = "zebra crossing".into();
+    let r = h.request("ui.dialog.confirm", json!({}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    assert!(has(&h, "source:keyword:zebra crossing"), "the new keyword is listed");
+}
+
+/// A section's header button is part of every form of the header: folded (its row count sits to
+/// the left of the button) and pinned.
+#[test]
+fn a_header_button_stays_with_a_folded_header() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    for (section, button) in [("keywords", "icon:keywordNew"), ("albums", "icon:albumNew")] {
+        click(&mut h, &format!("sidebarSection:{section}"));
+        assert!(h.app.ui.sidebar_section_collapsed(section));
+        let (count, plus) = (widget(&h, &format!("sidebarSectionCount:{section}")), widget(&h, button));
+        assert!(count.right() <= plus.left(), "{section}: the count {count:?} is left of the button {plus:?}");
+    }
+    // sections without a button have none, and their count goes to the edge
+    assert!(!h.app.widgets.iter().any(|(w, _)| w == "icon:byDateNew" || w == "icon:foldersNew"));
+}
+
 /// A folded section says how many rows it holds (unless photo counts are off); an open one
 /// doesn't need to.
 #[test]

@@ -396,20 +396,86 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
     let col = if hovered { t.text } else { t.text_dim };
     ui.painter().add(egui::Shape::convex_polygon(triangle_points(c, open), col, egui::Stroke::NONE));
     ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(13.5), t.text_label);
-    let has_actions = section == SidebarSection::Albums;
-    // (an album being dragged puts "Top Level" there)
-    let room = !(has_actions && app.ui.dragging_album.is_some());
+    let button = header_button(section);
+    // (an album being dragged puts "Top Level" in the Albums header)
+    let room = !(section == SidebarSection::Albums && app.ui.dragging_album.is_some());
     if !open && rows > 0 && app.ui.show_counts && room {
-        // folded: how much is in there (left of the header's own buttons)
-        let right = edge - 18.0 - if has_actions { 30.0 } else { 0.0 };
+        // folded: how much is in there (left of the header's own button)
+        let right = edge - 18.0 - if button.is_some() { HEADER_BUTTON + 4.0 } else { 0.0 };
         let count = ui.painter().text(pos2(right, r.center().y), Align2::RIGHT_CENTER, rows.to_string(), t.font(12.5), t.text_dim);
         register(ui.ctx(), format!("{widget}Count:{id}"), count);
     }
-    if has_actions {
+    if section == SidebarSection::Albums {
         top_level_drop_target(app, ui, r);
-        albums_header_actions(app, ui, r);
+    }
+    if let Some(button) = button {
+        show_header_button(app, ui, r, &button);
     }
     HeaderOutcome { open, toggled }
+}
+
+/// Side of a header's button.
+const HEADER_BUTTON: f32 = 26.0;
+
+/// A button at the end of a section's header (see [`header_button`]).
+struct HeaderButton {
+    /// Its widget is `icon:<id>`.
+    id: &'static str,
+    icon: Icon,
+    /// What it does, in English: its tooltip and spoken name.
+    tooltip: &'static str,
+    action: HeaderAction,
+}
+
+/// What a header's button does when clicked.
+enum HeaderAction {
+    /// Does it at once (usually: opens a dialog).
+    Run(fn(&mut LightcraftApp, &egui::Context)),
+    /// Opens a menu with these items.
+    Menu(fn(&mut LightcraftApp, &mut egui::Ui)),
+}
+
+/// The button a section has at the end of its header, if it has one. This is the one place that
+/// says so: the header (its own and the pinned copy) draws the button at the visible edge, keeps
+/// its clicks from folding the section and leaves it room beside a folded section's count.
+fn header_button(section: SidebarSection) -> Option<HeaderButton> {
+    match section {
+        SidebarSection::Albums => {
+            Some(HeaderButton { id: "albumNew", icon: Icon::Plus, tooltip: "Create Album", action: HeaderAction::Menu(new_album_menu) })
+        }
+        SidebarSection::Keywords => {
+            Some(HeaderButton { id: "keywordNew", icon: Icon::Plus, tooltip: "Create Keyword Tag", action: HeaderAction::Run(new_keyword) })
+        }
+        SidebarSection::Local | SidebarSection::ByDate | SidebarSection::Folders => None,
+    }
+}
+
+/// Draw `button` at the end of `header` and act on it.
+fn show_header_button(app: &mut LightcraftApp, ui: &mut egui::Ui, header: Rect, button: &HeaderButton) {
+    // it stays at the visible edge when the sidebar is scrolled sideways
+    let right = visible_right(ui).min(header.right());
+    let mut hdr = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(Rect::from_min_max(pos2(right - 50.0, header.top()), pos2(right, header.bottom())))
+            .layout(egui::Layout::right_to_left(egui::Align::Center)),
+    );
+    let resp = icon_button(&mut hdr, button.id, button.icon, vec2(HEADER_BUTTON, HEADER_BUTTON), false, true, button.tooltip);
+    match button.action {
+        HeaderAction::Run(run) => {
+            if resp.clicked() {
+                run(app, ui.ctx());
+            }
+        }
+        HeaderAction::Menu(items) => {
+            egui::Popup::menu(&resp).show(|ui| items(app, ui));
+        }
+    }
+}
+
+/// Keywords' +: Create Keyword Tag, for a keyword at the usual place for new ones (not inside
+/// whatever is picked in the Keyword List, which may not even be on screen).
+fn new_keyword(app: &mut LightcraftApp, _ctx: &egui::Context) {
+    app.ui.dialog = Some(crate::panels::keyword_list::create_dialog_inside(app, None));
 }
 
 /// The menu of a section's header (`on`) and of the My Photos title (`None`): hide this section,
@@ -453,42 +519,32 @@ fn sections_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, on: Option<SidebarS
     }
 }
 
-/// The + at the end of the Albums header: Create Album, Smart Album, Folder…
-fn albums_header_actions(app: &mut LightcraftApp, ui: &mut egui::Ui, header: Rect) {
-    // the + stays at the visible edge when the sidebar is scrolled sideways
-    let plus_right = visible_right(ui).min(header.right());
-    let mut hdr = ui.new_child(
-        egui::UiBuilder::new()
-            .max_rect(Rect::from_min_max(pos2(plus_right - 50.0, header.top()), pos2(plus_right, header.bottom())))
-            .layout(egui::Layout::right_to_left(egui::Align::Center)),
-    );
-    let plus = icon_button(&mut hdr, "albumNew", Icon::Plus, vec2(26.0, 26.0), false, true, "Create Album");
-    egui::Popup::menu(&plus).show(|ui| {
-        if ui.button(crate::i18n::tr("Create Album…")).clicked() {
-            app.ui.dialog = Some(crate::state::Dialog::NewAlbum { name: String::new(), folder: false, parent: None });
+/// The menu of Albums' +: Create Album, Smart Album, Folder…
+fn new_album_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
+    if ui.button(crate::i18n::tr("Create Album…")).clicked() {
+        app.ui.dialog = Some(crate::state::Dialog::NewAlbum { name: String::new(), folder: false, parent: None });
+    }
+    if ui.button(crate::i18n::tr("Create Smart Album…")).clicked() {
+        app.ui.dialog = Some(crate::state::Dialog::SmartRules {
+            id: None,
+            name: String::new(),
+            rules: lightcraft_catalog::RuleSet { rules: vec![crate::panels::rules_editor::new_rule()], ..Default::default() },
+            parent: None,
+        });
+    }
+    if ui.button(crate::i18n::tr("Create Smart Album from Filter…")).clicked() {
+        app.ui.dialog = Some(crate::state::Dialog::NewSmartAlbum { name: String::new(), parent: None });
+    }
+    if ui.button(crate::i18n::tr("Create Folder…")).clicked() {
+        app.ui.dialog = Some(crate::state::Dialog::NewAlbum { name: String::new(), folder: true, parent: None });
+    }
+    // only once the albums were put in an order by hand
+    if app.session.catalog.album_children_are_ordered(None) {
+        ui.separator();
+        if ui.button(crate::i18n::tr("Sort Albums A–Z")).on_hover_text(crate::i18n::tr("Go back to listing them by name")).clicked() {
+            let _ = app.run("album.sort", json!({}));
         }
-        if ui.button(crate::i18n::tr("Create Smart Album…")).clicked() {
-            app.ui.dialog = Some(crate::state::Dialog::SmartRules {
-                id: None,
-                name: String::new(),
-                rules: lightcraft_catalog::RuleSet { rules: vec![crate::panels::rules_editor::new_rule()], ..Default::default() },
-                parent: None,
-            });
-        }
-        if ui.button(crate::i18n::tr("Create Smart Album from Filter…")).clicked() {
-            app.ui.dialog = Some(crate::state::Dialog::NewSmartAlbum { name: String::new(), parent: None });
-        }
-        if ui.button(crate::i18n::tr("Create Folder…")).clicked() {
-            app.ui.dialog = Some(crate::state::Dialog::NewAlbum { name: String::new(), folder: true, parent: None });
-        }
-        // only once the albums were put in an order by hand
-        if app.session.catalog.album_children_are_ordered(None) {
-            ui.separator();
-            if ui.button(crate::i18n::tr("Sort Albums A–Z")).on_hover_text(crate::i18n::tr("Go back to listing them by name")).clicked() {
-                let _ = app.run("album.sort", json!({}));
-            }
-        }
-    });
+    }
 }
 
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
