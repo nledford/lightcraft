@@ -184,12 +184,19 @@ pub(super) const MARK_W: f32 = 12.0;
 const HOVER_OPEN_SECS: f64 = 0.6;
 
 /// Whether the album `dragged` may be dropped into the folder `target` (`None`: the top level):
-/// a folder other than where it already is, and not itself or something inside it.
+/// a folder other than where it already is, not itself or something inside it, and not one a
+/// smart album that moves with it shows (it would include itself).
 fn can_drop_album(app: &LightcraftApp, dragged: AlbumId, target: Option<AlbumId>) -> bool {
-    let Some(d) = app.session.catalog.album(dragged) else { return false };
+    let cat = &app.session.catalog;
+    let Some(d) = cat.album(dragged) else { return false };
     match target {
         None => d.parent.is_some(),
-        Some(t) => app.session.catalog.album(t).is_some_and(|f| f.folder) && d.parent != Some(t) && !is_within(app, t, dragged),
+        Some(t) => {
+            cat.album(t).is_some_and(|f| f.folder)
+                && d.parent != Some(t)
+                && !is_within(app, t, dragged)
+                && cat.album_move_would_loop(dragged, t).is_none()
+        }
     }
 }
 
