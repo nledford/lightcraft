@@ -220,6 +220,56 @@ fn sidebar_sections_collapse_and_remember_it() {
     assert!(!h.app.ui.sidebar_section_collapsed("albums"), "the plus does not fold Albums");
 }
 
+/// A folder of albums is a source (a collection set in Lightroom Classic): given a folder whose
+/// albums share a photo, when its row is clicked, then the grid shows their photos once each
+/// under the folder's name, and the row stays open; only the triangle folds it. A folder with
+/// nothing in it can be shown too, and shows nothing.
+#[test]
+fn clicking_an_album_folder_shows_the_photos_of_its_albums() {
+    use lightcraft_catalog::AlbumId;
+    use lightcraft_engine::LibrarySource;
+    let mut h = demo([1400.0, 900.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let ids: Vec<u64> = h.app.session.visible_cloned().iter().take(4).map(|p| p.0).collect();
+    let all = h.app.session.visible_cloned().len();
+    let make = |h: &mut Headless, params: serde_json::Value| h.app.session.execute("album.create", &params).unwrap()["id"].as_u64().unwrap();
+    let trips = make(&mut h, json!({"name": "Trips", "folder": true}));
+    let rome = make(&mut h, json!({"name": "Rome", "parent": trips}));
+    let paris = make(&mut h, json!({"name": "Paris", "parent": trips}));
+    let empty = make(&mut h, json!({"name": "Empty", "folder": true}));
+    h.app.session.selection.ids = ids.iter().map(|i| lightcraft_catalog::PhotoId(*i)).collect();
+    h.app.session.execute("album.addPhotos", &json!({"id": rome, "ids": [ids[0], ids[1]]})).unwrap();
+    h.app.session.execute("album.addPhotos", &json!({"id": paris, "ids": [ids[1], ids[2]]})).unwrap();
+    h.step();
+    h.step();
+    assert!(all > 3, "the demo library holds more than the folder will");
+    // the row is the source; what is inside stays listed
+    click(&mut h, &format!("source:folder:{trips}"));
+    assert_eq!(h.app.session.source, LibrarySource::Album(AlbumId(trips)));
+    let mut shown: Vec<u64> = h.app.session.visible_cloned().iter().map(|p| p.0).collect();
+    shown.sort_unstable();
+    let mut want = ids[..3].to_vec();
+    want.sort_unstable();
+    assert_eq!(shown, want, "the shared photo once, the fourth photo not at all");
+    assert_eq!(crate::i18n::source_title(&h.app.session), "Trips");
+    assert!(has(&h, &format!("source:album:{rome}")) && has(&h, &format!("source:album:{paris}")), "a click doesn't fold it");
+    // the triangle folds it and leaves the source alone
+    click(&mut h, &format!("albumToggle:{trips}"));
+    assert!(!has(&h, &format!("source:album:{rome}")), "folded");
+    assert_eq!(h.app.session.source, LibrarySource::Album(AlbumId(trips)));
+    click(&mut h, &format!("albumToggle:{trips}"));
+    // an album inside is still its own source
+    click(&mut h, &format!("source:album:{rome}"));
+    assert_eq!(h.app.session.source, LibrarySource::Album(AlbumId(rome)));
+    assert_eq!(h.app.session.visible_cloned().len(), 2);
+    // a folder with nothing in it: no triangle, and nothing to show
+    click(&mut h, &format!("source:folder:{empty}"));
+    assert_eq!(h.app.session.source, LibrarySource::Album(AlbumId(empty)));
+    assert!(h.app.session.visible_cloned().is_empty());
+    // and back
+    click(&mut h, &format!("source:folder:{trips}"));
+    assert_eq!(h.app.session.visible_cloned().len(), 3);
+}
+
 /// Albums nest in folders like the other sidebar trees: a folder row has a disclosure triangle
 /// (`albumToggle:<id>`), plain albums have none, and folding a folder hides what is inside it.
 #[test]

@@ -703,9 +703,11 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
                 open = true;
                 ui.data_mut(|d| d.insert_temp(open_id, true));
             }
+            // a folder is a source: the photos of the albums inside it, each once (no count: it
+            // would be a pass over the library per folder, for a number the albums already give)
+            let sel = app.session.source == LibrarySource::Album(a.id);
             let resp =
-                row_sensed(app, ui, &format!("folder:{}", a.id.0), Icon::Folder, &a.name, None, None, false, indent, Sense::click_and_drag(), None);
-            // a folder is no source, so its row folds it too; the triangle is the same click, aimed
+                row_sensed(app, ui, &format!("folder:{}", a.id.0), Icon::Folder, &a.name, None, None, sel, indent, Sense::click_and_drag(), None);
             let has_children = all.get(&Some(a.id)).is_some_and(|v| !v.is_empty());
             if resp.drag_started() {
                 app.ui.dragging_album = Some(a.id.0);
@@ -713,15 +715,17 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
             if album_drag_over(app, ui, &resp, a, has_children.then_some(&mut open), indent) {
                 ui.data_mut(|d| d.insert_temp(open_id, true));
             }
-            let mut toggled = resp.clicked();
             if has_children {
                 let tri = disclosure_triangle(ui, &resp, indent, open, egui::Id::new(("album-tri", a.id.0)), format!("albumToggle:{}", a.id.0));
-                toggled |= tri.clicked();
-                // the triangle sits on the row and takes its clicks: the menu opens from it too
+                // only the triangle folds it; it sits on the row and takes its clicks, so the
+                // menu opens from it too
+                if tri.clicked() {
+                    ui.data_mut(|d| d.insert_temp(open_id, !open));
+                }
                 folder_menu(app, &tri, a);
             }
-            if toggled {
-                ui.data_mut(|d| d.insert_temp(open_id, !open));
+            if resp.clicked() {
+                let _ = app.run("library.source", json!({"kind": "album", "id": a.id.0}));
             }
             folder_menu(app, &resp, a);
             if open {
