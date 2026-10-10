@@ -52,8 +52,8 @@ pub(super) fn smart_loop_in(cat: &lightcraft_catalog::Catalog, name: &str, rules
 /// where nothing loops): the first smart album among what moves that would include itself.
 pub(super) fn moved_loop_in(cat: &lightcraft_catalog::Catalog, id: AlbumId, parent: Option<AlbumId>) -> Option<String> {
     let parent = parent?;
-    let moved = cat.album_members(id);
-    moved.iter().filter_map(|m| cat.album(*m)).find_map(|m| smart_loop_in(cat, &m.name, m.smart.as_deref()?, parent))
+    let looping = cat.album(cat.album_move_would_loop(id, parent)?)?;
+    smart_loop_in(cat, &looping.name, looping.smart.as_deref()?, parent)
 }
 
 /// Whether `path` lies above a disk: some of its `ids` photos are on a disk (not the startup
