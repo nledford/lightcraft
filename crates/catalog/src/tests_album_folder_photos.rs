@@ -277,3 +277,20 @@ fn an_album_inside_a_plain_album_is_not_in_the_folder() {
     c.albums.get_mut(&child).unwrap().parent = Some(AlbumId(999));
     assert_eq!(c.album_members(f), [plain]);
 }
+
+/// Folders that contain each other (a damaged library): moving something into the ring is
+/// answered, not looked into for ever.
+#[test]
+fn moving_into_folders_that_contain_each_other_ends() {
+    let mut c = Catalog::new();
+    let x = folder(&mut c, "X", None);
+    let y = folder(&mut c, "Y", Some(x));
+    let loose = album(&mut c, "Loose", None, &[]);
+    c.albums.get_mut(&x).unwrap().parent = Some(y);
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = c.apply(Op::MoveAlbum { id: loose, parent: Some(y) });
+        let _ = tx.send(());
+    });
+    assert!(rx.recv_timeout(std::time::Duration::from_secs(20)).is_ok(), "the move never answered");
+}

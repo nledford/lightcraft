@@ -655,9 +655,10 @@ impl Catalog {
                     if p == id || !self.albums.get(&p).is_some_and(|a| a.folder) {
                         return Err(CatalogError::Invalid("parent must be another folder".into()));
                     }
-                    // no cycles
+                    // no cycles (parents already in a ring, in a damaged library, end the walk)
                     let mut cur = Some(p);
-                    while let Some(c) = cur {
+                    for _ in 0..=self.albums.len() {
+                        let Some(c) = cur else { break };
                         if c == id {
                             return Err(CatalogError::Invalid("cannot move a folder into itself".into()));
                         }
