@@ -1116,7 +1116,10 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
             }
             for (fid, name) in &folders {
                 if ui.add_enabled(a.parent.map(|p| p.0) != Some(*fid), egui::Button::new(name)).clicked() {
-                    let _ = app.run("album.move", json!({"id": a.id.0, "parent": fid}));
+                    // refused for a smart album that would then include itself: say so
+                    if let Err(e) = app.run("album.move", json!({"id": a.id.0, "parent": fid})) {
+                        app.toast(ui.ctx(), e);
+                    }
                 }
             }
         });

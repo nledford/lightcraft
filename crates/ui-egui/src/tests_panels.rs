@@ -242,6 +242,12 @@ fn clicking_an_album_folder_shows_the_photos_of_its_albums() {
     h.step();
     h.step();
     assert!(all > 3, "the demo library holds more than the folder will");
+    // the triangle only folds: the grid still shows All Photos
+    click(&mut h, &format!("albumToggle:{trips}"));
+    assert!(!has(&h, &format!("source:album:{rome}")), "folded");
+    assert_eq!(h.app.session.source, LibrarySource::All);
+    click(&mut h, &format!("albumToggle:{trips}"));
+    assert_eq!(h.app.session.source, LibrarySource::All);
     // the row is the source; what is inside stays listed
     click(&mut h, &format!("source:folder:{trips}"));
     assert_eq!(h.app.session.source, LibrarySource::Album(AlbumId(trips)));
@@ -252,10 +258,11 @@ fn clicking_an_album_folder_shows_the_photos_of_its_albums() {
     assert_eq!(shown, want, "the shared photo once, the fourth photo not at all");
     assert_eq!(crate::i18n::source_title(&h.app.session), "Trips");
     assert!(has(&h, &format!("source:album:{rome}")) && has(&h, &format!("source:album:{paris}")), "a click doesn't fold it");
-    // the triangle folds it and leaves the source alone
+    // folded, it is still what the grid shows
     click(&mut h, &format!("albumToggle:{trips}"));
     assert!(!has(&h, &format!("source:album:{rome}")), "folded");
     assert_eq!(h.app.session.source, LibrarySource::Album(AlbumId(trips)));
+    assert_eq!(h.app.session.visible_cloned().len(), 3);
     click(&mut h, &format!("albumToggle:{trips}"));
     // an album inside is still its own source
     click(&mut h, &format!("source:album:{rome}"));
