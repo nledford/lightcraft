@@ -234,7 +234,7 @@ fn adjust_brush(app: &mut LightcraftApp, k: f32, df: f32) -> Value {
             if df != 0.0 {
                 p["feather"] = json!(app.ui.remove_feather);
             }
-            let _ = app.run("spot.update", p);
+            app.act("spot.update", p);
         }
         json!({"size": app.ui.remove_size, "feather": app.ui.remove_feather})
     } else {
@@ -424,7 +424,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 let first = app.session.visible_cloned().first().copied();
                 match first {
                     Some(f) => {
-                        let _ = app.run("library.select", json!({"ids": [f.0]}));
+                        app.act("library.select", json!({"ids": [f.0]}));
                     }
                     None => return Some(Err("no photos to show".into())),
                 }

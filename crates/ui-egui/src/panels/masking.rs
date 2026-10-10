@@ -132,21 +132,21 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                     match *kind {
                         "colorRange" => {
                             // an empty colour range; clicking the photo samples it
-                            let _ = app.run("mask.add", json!({"kind": "colorRange"}));
+                            app.act("mask.add", json!({"kind": "colorRange"}));
                             app.ui.tool = "colorRange".into();
                             app.toast(ui.ctx(), crate::i18n::tr("Click the photo to pick a colour · ⇧-click adds more"));
                         }
                         "object" => start_object(app, ui.ctx(), "new"),
                         "prompt" => start_describe(app, "new"),
                         "brush" => {
-                            let _ = app.run("tool.brush", json!({"new": true}));
+                            app.act("tool.brush", json!({"new": true}));
                         }
                         "linear" | "radial" => {
                             app.ui.tool = kind.to_string();
-                            let _ = app.run("mask.add", json!({"kind": kind}));
+                            app.act("mask.add", json!({"kind": kind}));
                         }
                         k => {
-                            let _ = app.run("mask.add", json!({"kind": k}));
+                            app.act("mask.add", json!({"kind": k}));
                         }
                     }
                 }
@@ -219,7 +219,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                     let name = name.trim().to_string();
                     app.ui.renaming_mask = None;
                     if !name.is_empty() && name != m.name {
-                        let _ = app.run("mask.rename", json!({"id": rid, "name": name}));
+                        app.act("mask.rename", json!({"id": rid, "name": name}));
                     }
                 }
                 continue;
@@ -260,11 +260,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                     if eye.hovered() { t.text } else { t.text_dim },
                 );
                 if eye.clicked() {
-                    let _ = app.run("mask.visible", json!({"id": m.id}));
+                    app.act("mask.visible", json!({"id": m.id}));
                 }
             }
             if resp.clicked() {
-                let _ = app.run("mask.select", json!({"id": m.id}));
+                app.act("mask.select", json!({"id": m.id}));
             }
             if resp.double_clicked() {
                 app.ui.renaming_mask = Some((m.id, m.name.clone()));
@@ -319,7 +319,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                         let name = name.trim().to_string();
                         app.ui.renaming_component = None;
                         if Some(&name) != c.name.as_ref() {
-                            let _ = app.run("mask.component", json!({"id": m.id, "component": i, "action": "rename", "name": name}));
+                            app.act("mask.component", json!({"id": m.id, "component": i, "action": "rename", "name": name}));
                         }
                     }
                     return;
@@ -356,10 +356,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             let int = text_button(ui, "maskIntComp", crate::i18n::tr("Intersect"), false);
             egui::Popup::menu(&int).show(|ui| component_menu(app, ui, "intersect"));
             if text_button(ui, "maskInvert", crate::i18n::tr("Invert"), m.invert).clicked() {
-                let _ = app.run("mask.invert", json!({}));
+                app.act("mask.invert", json!({}));
             }
             if icon_button(ui, "maskDelete", Icon::Trash, vec2(26.0, 24.0), false, true, "Delete mask").clicked() {
-                let _ = app.run("mask.delete", json!({}));
+                app.act("mask.delete", json!({}));
             }
         });
     });
@@ -407,7 +407,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
 fn mask_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: u32, name: &str, visible: bool, index: usize, count: usize) {
     let mut run = |ui: &mut egui::Ui, label: &str, enabled: bool, cmd: &str, p: serde_json::Value| {
         if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
-            let _ = app.run(cmd, p);
+            app.act(cmd, p);
             ui.close();
         }
     };
@@ -424,7 +424,7 @@ fn mask_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: u32, name: &str, vi
         ui.close();
     }
     if ui.button(crate::i18n::tr("Delete Mask")).clicked() {
-        let _ = app.run("mask.delete", json!({"id": id}));
+        app.act("mask.delete", json!({"id": id}));
         ui.close();
     }
 }
@@ -443,7 +443,7 @@ fn overlay_options(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         egui::Popup::menu(&r).show(|ui| {
             for v in MaskView::ALL {
                 if ui.selectable_label(v == view, v.label()).clicked() {
-                    let _ = app.run("view.maskOverlayMode", json!({"mode": v.name()}));
+                    app.act("view.maskOverlayMode", json!({"mode": v.name()}));
                 }
             }
         });
@@ -459,7 +459,7 @@ fn overlay_options(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     ui.painter().rect_stroke(r, 3.0, Stroke::new(1.5, t.text), egui::StrokeKind::Inside);
                 }
                 if resp.clicked() {
-                    let _ = app.run("view.maskOverlayColor", json!({"color": c}));
+                    app.act("view.maskOverlayColor", json!({"color": c}));
                 }
             }
         });
@@ -481,7 +481,7 @@ fn overlay_options(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     }
     let mut pins = app.ui.mask_pins;
     if ui.checkbox(&mut pins, crate::i18n::tr("Show Pins")).changed() {
-        let _ = app.run("view.maskPins", json!({"show": pins}));
+        app.act("view.maskPins", json!({"show": pins}));
     }
 }
 
@@ -490,7 +490,7 @@ fn overlay_options(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 fn range_controls(app: &mut LightcraftApp, ui: &mut egui::Ui, comp: usize, shape: &MaskShape) {
     let t = Tokens::get(ui.ctx());
     let update = |app: &mut LightcraftApp, shape: MaskShape| {
-        let _ = app.run("mask.update", json!({"component": comp, "shape": shape}));
+        app.act("mask.update", json!({"component": comp, "shape": shape}));
     };
     match shape {
         MaskShape::LuminanceRange { lo, hi, lo_feather, hi_feather } => {
@@ -524,7 +524,7 @@ fn range_controls(app: &mut LightcraftApp, ui: &mut egui::Ui, comp: usize, shape
             }
             // drag the nearer handle; one undo step per drag
             if resp.drag_started() {
-                let _ = app.run("develop.beginInteraction", json!({"label": "Luminance Range"}));
+                app.act("develop.beginInteraction", json!({"label": "Luminance Range"}));
             }
             if (resp.dragged() || resp.clicked())
                 && let Some(pos) = resp.interact_pointer_pos()
@@ -534,7 +534,7 @@ fn range_controls(app: &mut LightcraftApp, ui: &mut egui::Ui, comp: usize, shape
                 update(app, MaskShape::LuminanceRange { lo: nlo, hi: nhi, lo_feather: *lo_feather, hi_feather: *hi_feather });
             }
             if resp.drag_stopped() {
-                let _ = app.run("develop.endInteraction", json!({}));
+                app.act("develop.endInteraction", json!({}));
             }
             // Smoothness: both falloffs at once
             let smooth = ControlSpec {
@@ -637,7 +637,7 @@ fn component_row_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, mask: u32, k: 
             let mut p = p;
             p["id"] = json!(mask);
             p["component"] = json!(k);
-            let _ = app.run("mask.component", p);
+            app.act("mask.component", p);
             ui.close();
         }
     };
@@ -663,7 +663,7 @@ fn component_row_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, mask: u32, k: 
         crate::i18n::tr_format!("Delete \"{label}\"", label = label)
     };
     if ui.button(del).clicked() {
-        let _ = app.run("mask.component", json!({"id": mask, "component": k, "action": "delete"}));
+        app.act("mask.component", json!({"id": mask, "component": k, "action": "delete"}));
         ui.close();
     }
 }
@@ -803,9 +803,9 @@ fn component_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, op: &str) {
         register(ui.ctx(), format!("maskComp:{op}:{kind}"), b.rect);
         if b.clicked() {
             if kind == "brush" {
-                let _ = app.run("tool.brush", json!({"op": op}));
+                app.act("tool.brush", json!({"op": op}));
             } else {
-                let _ = app.run("mask.addComponent", json!({"op": op, "kind": kind}));
+                app.act("mask.addComponent", json!({"op": op, "kind": kind}));
             }
         }
     }

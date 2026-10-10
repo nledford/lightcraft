@@ -99,7 +99,7 @@ pub(crate) fn notice(app: &mut LightcraftApp, ui: &mut egui::Ui, kind: &str) {
     let r = ui.small_button(tr("Cancel pending action"));
     crate::widgets::register(ui.ctx(), "modelSetup:cancel:denoise", r.rect);
     if r.clicked() {
-        let _ = app.run("modelSetup.cancel", json!({"kind": "denoise"}));
+        app.act("modelSetup.cancel", json!({"kind": "denoise"}));
     }
     ui.add_space(6.0);
 }

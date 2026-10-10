@@ -410,7 +410,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             cull(app, "photo.flag", json!({"flag": "pick"}), true);
         } else if f == "view.softProof" && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid) {
             // S in a grid: expand / collapse the stack (Lightroom's Library binding)
-            let _ = app.run("stack.toggle", json!({}));
+            app.act("stack.toggle", json!({}));
         } else if compare::culling(app) && (f == "library.next" || f == "library.previous") {
             let d = if f == "library.next" { 1 } else { -1 };
             let _ = if app.ui.view == crate::state::ViewMode::Compare { compare::compare_step(app, d) } else { compare::survey_step(app, d) };
@@ -424,7 +424,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         } else {
             // in the full-screen preview (no panels) I cycles the info overlay instead
             if f == "panel.info" && app.ui.fullscreen {
-                let _ = app.run("view.infoOverlay", json!({}));
+                app.act("view.infoOverlay", json!({}));
                 continue;
             }
             // Delete acts on what's being edited: the active mask in the Masking panel; never the
@@ -434,13 +434,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                 match app.ui.right {
                     R::Masking => {
                         if app.session.active_mask.is_some() {
-                            let _ = app.run("mask.delete", json!({}));
+                            app.act("mask.delete", json!({}));
                         }
                         continue;
                     }
                     R::Remove => {
                         if app.session.active_spot.is_some() {
-                            let _ = app.run("spot.delete", json!({}));
+                            app.act("spot.delete", json!({}));
                         }
                         continue;
                     }
@@ -470,7 +470,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             }
             // X is both reject (library) and swap crop aspect (crop tool)
             if f == "photo.reject" && app.ui.right == crate::state::RightPanel::Crop {
-                let _ = app.run("crop.rotateAspect", json!({}));
+                app.act("crop.rotateAspect", json!({}));
                 continue;
             }
             if f == "crop.rotateAspect" && app.ui.right != crate::state::RightPanel::Crop {
@@ -478,12 +478,12 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             }
             // / refreshes the selected spot's source in the Remove tool (the filmstrip elsewhere)
             if f == "view.filmstrip" && app.ui.right == crate::state::RightPanel::Remove && app.session.active_spot.is_some() {
-                let _ = app.run("spot.refreshSource", json!({}));
+                app.act("spot.refreshSource", json!({}));
                 continue;
             }
             // Shift+O cycles the mask overlay colour while masking (the crop overlay elsewhere)
             if f == "view.cropOverlay" && app.ui.right == crate::state::RightPanel::Masking {
-                let _ = app.run("view.maskOverlayColor", json!({}));
+                app.act("view.maskOverlayColor", json!({}));
                 continue;
             }
             // while cropping: O cycles the guides, Shift+O their orientation, A locks the aspect
@@ -495,7 +495,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                     _ => None,
                 };
                 if let Some((cmd, p)) = crop_key {
-                    let _ = app.run(cmd, p);
+                    app.act(cmd, p);
                     continue;
                 }
             }
