@@ -232,13 +232,6 @@ pub(crate) fn read_settings<'de, D: Deserializer<'de>>(d: D) -> Result<Arc<Devel
     DevelopSettings::deserialize(v).map(Arc::new).map_err(serde::de::Error::custom)
 }
 
-/// [`read_settings`] for settings that may not be there.
-pub(crate) fn read_optional_settings<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Arc<DevelopSettings>>, D::Error> {
-    #[derive(Deserialize)]
-    struct Read(#[serde(deserialize_with = "read_settings")] Arc<DevelopSettings>);
-    Ok(Option::<Read>::deserialize(d)?.map(|r| r.0))
-}
-
 /// Remove the value at `path`; whether there was one.
 fn remove_at(v: &mut Value, path: &[String]) -> bool {
     let Some((last, parents)) = path.split_last() else { return false };
@@ -291,7 +284,7 @@ fn reads_exactly_as(v: &Value, settings: &DevelopSettings) -> bool {
 }
 
 /// Whether any number in `v` is -0.0.
-fn has_negative_zero<T: Serialize + ?Sized>(v: &T) -> bool {
+pub(crate) fn has_negative_zero<T: Serialize + ?Sized>(v: &T) -> bool {
     let mut scan = NegativeZero(false);
     // (an error only says the walk stopped: when in doubt, it has one)
     v.serialize(&mut scan).is_err() || scan.0
