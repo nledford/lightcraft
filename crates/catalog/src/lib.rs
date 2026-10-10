@@ -353,7 +353,7 @@ impl Catalog {
             // a folder first: one that also has rules (a damaged library) is still a folder.
             // Within a pass over the library its photos were gathered once; for one photo, no
             // list is built
-            Some(a) if a.folder => match gathered(id, || self.folder_photos(id)) {
+            Some(a) if a.folder => match gathered(self, id, || self.folder_photos(id)) {
                 Some(folder) => folder.holds(self, p),
                 None => self.albums.values().any(|m| !m.folder && self.album_is_within(m, id) && self.album_contains(m.id, p)),
             },
@@ -418,6 +418,16 @@ impl Catalog {
         self.album_search(rules.albums_tested(), |a| {
             self.albums.get(&a).is_some_and(|f| f.folder) && (a == parent || self.album_is_within(inside, a))
         })
+    }
+
+    /// The smart album that would include itself if album or folder `id` were moved into folder
+    /// `parent`: `id` itself or, for a folder, one inside it ([`Self::smart_album_would_loop_in`]).
+    /// `None` when the move makes no loop.
+    pub fn album_move_would_loop(&self, id: AlbumId, parent: AlbumId) -> Option<AlbumId> {
+        let moved = self.album_members(id);
+        moved
+            .into_iter()
+            .find(|m| self.albums.get(m).and_then(|a| a.smart.as_deref()).is_some_and(|rules| self.smart_album_would_loop_in(rules, parent)))
     }
 
     /// The albums whose photos decide those of `a`: the albums a smart album tests, or the albums
@@ -916,8 +926,9 @@ impl FolderPhotos {
 }
 
 thread_local! {
-    /// The folders asked about during a pass over the library ([`gathering`]): `None` outside one.
-    static GATHERED: std::cell::RefCell<Option<std::collections::HashMap<AlbumId, std::rc::Rc<FolderPhotos>>>> =
+    /// The folders asked about during a pass over the library ([`gathering`]), by catalog (where
+    /// it is, which holds for the pass: it is borrowed throughout) and id: `None` outside one.
+    static GATHERED: std::cell::RefCell<Option<std::collections::HashMap<(usize, AlbumId), std::rc::Rc<FolderPhotos>>>> =
         const { std::cell::RefCell::new(None) };
 }
 
@@ -938,15 +949,16 @@ pub(crate) fn gathering<T>(pass: impl FnOnce() -> T) -> T {
     pass()
 }
 
-/// Folder `id`'s photos during a pass ([`gathering`]), made by `gather` the first time; `None`
-/// outside one.
-fn gathered(id: AlbumId, gather: impl FnOnce() -> FolderPhotos) -> Option<std::rc::Rc<FolderPhotos>> {
-    if let Some(known) = GATHERED.with_borrow(|g| g.as_ref().map(|folders| folders.get(&id).cloned()))? {
+/// Folder `id` of `cat`'s photos during a pass ([`gathering`]), made by `gather` the first time;
+/// `None` outside one.
+fn gathered(cat: &Catalog, id: AlbumId, gather: impl FnOnce() -> FolderPhotos) -> Option<std::rc::Rc<FolderPhotos>> {
+    let key = (std::ptr::from_ref(cat) as usize, id);
+    if let Some(known) = GATHERED.with_borrow(|g| g.as_ref().map(|folders| folders.get(&key).cloned()))? {
         return Some(known);
     }
     // gathered with nothing borrowed, then kept
     let folder = std::rc::Rc::new(gather());
-    GATHERED.with_borrow_mut(|g| g.as_mut().map(|folders| folders.insert(id, folder.clone())));
+    GATHERED.with_borrow_mut(|g| g.as_mut().map(|folders| folders.insert(key, folder.clone())));
     Some(folder)
 }
 
