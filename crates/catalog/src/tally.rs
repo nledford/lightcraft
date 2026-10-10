@@ -104,7 +104,8 @@ impl Members {
     }
 }
 
-/// [`Catalog::album_count`] of every album, as of one revision of the catalog.
+/// [`Catalog::album_count`] of every album, as of one revision of the catalog. Folders of albums are not counted:
+/// the sidebar shows them no count, and theirs would cost a pass each.
 #[derive(Clone, Debug)]
 pub struct AlbumTally {
     revision: u64,
@@ -152,7 +153,7 @@ impl AlbumTally {
             counts.insert(*id, held.len());
             members.insert(*id, held);
         }
-        for album in cat.albums().filter(|a| !a.is_smart()) {
+        for album in cat.albums().filter(|a| !a.is_smart() && !a.folder) {
             counts.insert(album.id, cat.album_count(album.id));
         }
         AlbumTally { revision: cat.revision, counts, members }
@@ -202,7 +203,7 @@ impl AlbumTally {
             self.counts.insert(*album, held.len());
         }
         if changed.any_of(Aspects::PRESENCE) {
-            for album in cat.albums().filter(|a| !a.is_smart()) {
+            for album in cat.albums().filter(|a| !a.is_smart() && !a.folder) {
                 self.counts.insert(album.id, cat.album_count(album.id));
             }
         }
