@@ -197,8 +197,9 @@ impl Default for SnapshotPolicy {
             snapshot_share: 4,
             log_cap_bytes: 256 << 20,
             close_bytes: 64 << 20,
-            segment_photos: 8192,
-            segment_bytes: 4 << 20,
+            // (measured: docs/catalog-persistence.md, "Segment size")
+            segment_photos: 4096,
+            segment_bytes: 2 << 20,
             scan_share: 16,
         }
     }
