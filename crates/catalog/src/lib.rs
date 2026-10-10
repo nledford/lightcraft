@@ -374,12 +374,16 @@ impl Catalog {
         on_a_loop(self, id, || !rules.albums_tested().is_empty() && self.album_reaches(id, id))
     }
 
+    /// What each album's photos depend on, for questions about many albums at once.
+    fn album_graph(&self) -> AlbumGraph {
+        AlbumGraph::of(self.albums.values())
+    }
+
     /// The smart albums that would include themselves, through the albums they test and the
     /// folders those are in. New edits can't make one ([`Self::apply_new`]); a library from before
     /// that rule, or a damaged one, may hold some, and each holds nothing.
     pub fn albums_on_a_loop(&self) -> std::collections::BTreeSet<AlbumId> {
-        let tests_albums = |a: &&Album| a.smart.as_deref().is_some_and(|rules| !rules.albums_tested().is_empty());
-        self.albums.values().filter(tests_albums).filter(|a| self.album_reaches(a.id, a.id)).map(|a| a.id).collect()
+        self.album_graph().on_a_loop()
     }
 
     /// The albums and smart albums whose photos `id` shows: those inside a folder, at any depth
@@ -479,7 +483,8 @@ impl Catalog {
     /// `RuleSet::upgrade`): typically a rule testing an album that has since been deleted. Empty
     /// for a sound smart album, a plain album or no album.
     pub fn smart_album_problems(&self, id: AlbumId) -> Vec<rules::Problem> {
-        let Some(filter) = self.albums.get(&id).and_then(|a| a.smart.as_deref()) else { return Vec::new() };
+        // a folder that carries rules (a damaged library) is a folder: its rules are never asked
+        let Some(filter) = self.albums.get(&id).filter(|a| !a.folder).and_then(|a| a.smart.as_deref()) else { return Vec::new() };
         let mut out: Vec<rules::Problem> = self.album_filter_problem(filter, Some(id)).into_iter().collect();
         if let Some(mut rules) = filter.rule_set.clone() {
             rules.upgrade();
@@ -581,23 +586,36 @@ impl Catalog {
 
     /// [`Self::apply`] for a new edit (not an undo, a redo or the replay of a saved log, which
     /// bring back what was): refused when it would make a smart album include itself, through the
-    /// albums it tests or the folder it is in ([`Self::albums_on_a_loop`]), and nothing changes.
-    /// THE place that rule is kept, whichever command, importer or task makes the edit. Albums
-    /// already on a loop can still be edited, also in ways that leave them on it.
+    /// albums it tests or the folder it is in ([`Self::albums_on_a_loop`]). THE place that rule is
+    /// kept, whichever command, importer or task makes the edit. Albums already on a loop can
+    /// still be edited, also in ways that leave them on it.
+    ///
+    /// The check is made on what the edit would do to the albums, before it is done: a refused
+    /// edit never touched the library, so there is nothing to take back (or to fail taking back).
     pub fn apply_new(&mut self, op: Op) -> Result<Op> {
-        if !may_make_a_loop(&op) {
-            return self.apply(op);
+        if let Some(looping) = self.would_put_on_a_loop(&op) {
+            return Err(CatalogError::Invalid(format!(
+                "smart album “{looping}” would include itself: its rules lead back to it through the albums they test or the folder it is in"
+            )));
         }
-        let before = self.albums_on_a_loop();
-        let undo = self.apply(op)?;
-        let Some(looping) = self.albums_on_a_loop().into_iter().find(|a| !before.contains(a)) else { return Ok(undo) };
-        // named as it is once the edit is taken back, or as the edit would have made it
-        let made = self.albums.get(&looping).map(|a| a.name.clone()).unwrap_or_default();
-        self.apply(undo)?;
-        let name = self.albums.get(&looping).map_or(made.as_str(), |a| a.name.as_str());
-        Err(CatalogError::Invalid(format!(
-            "smart album “{name}” would include itself: its rules lead back to it through the albums they test or the folder it is in"
-        )))
+        self.apply(op)
+    }
+
+    /// The name of a smart album `op` would newly put on a loop: the album the op is about when
+    /// that is one of them. `None` when it makes none (or changes no album).
+    fn would_put_on_a_loop(&self, op: &Op) -> Option<String> {
+        if !changes_albums(op) {
+            return None;
+        }
+        // the albums as they would be: who is in what, and what tests what; no photo lists
+        let mut after: BTreeMap<AlbumId, Album> = self.albums.values().map(|a| (a.id, a.outline())).collect();
+        let mut edited = Vec::new();
+        foresee(&mut after, op, &mut edited);
+        let now = self.albums_on_a_loop();
+        let then = AlbumGraph::of(after.values()).on_a_loop();
+        let mut new = then.difference(&now);
+        let looping = edited.iter().find(|e| then.contains(e) && !now.contains(e)).or_else(|| new.next())?;
+        Some(after.get(looping).map(|a| a.name.clone()).unwrap_or_default())
     }
 
     fn apply_inner(&mut self, op: Op) -> Result<Op> {
@@ -1027,14 +1045,100 @@ fn on_a_loop(cat: &Catalog, id: AlbumId, search: impl FnOnce() -> bool) -> bool 
     looping
 }
 
-/// Whether `op` can put a smart album on a loop: it adds one, moves an album or folder, or
-/// changes rules (alone or in a batch).
-fn may_make_a_loop(op: &Op) -> bool {
+/// Whether `op` changes which album is in what or what tests what: it adds or removes an album,
+/// moves one, or changes rules (alone or in a batch).
+fn changes_albums(op: &Op) -> bool {
     match op {
-        Op::AddAlbum { album } => album.smart.is_some(),
-        Op::MoveAlbum { .. } | Op::SetAlbumRules { .. } => true,
-        Op::Batch { ops } => ops.iter().any(may_make_a_loop),
+        Op::AddAlbum { .. } | Op::RemoveAlbum { .. } | Op::MoveAlbum { .. } | Op::SetAlbumRules { .. } => true,
+        Op::Batch { ops } => ops.iter().any(changes_albums),
         _ => false,
+    }
+}
+
+/// What `op` would do to `albums`, as far as loops go (who is in what, what tests what), without
+/// the checks `apply` makes: an op it would refuse is refused there. `edited` gets the albums the
+/// op is about.
+fn foresee(albums: &mut BTreeMap<AlbumId, Album>, op: &Op, edited: &mut Vec<AlbumId>) {
+    match op {
+        Op::AddAlbum { album } => {
+            edited.push(album.id);
+            albums.entry(album.id).or_insert_with(|| album.outline());
+        }
+        Op::RemoveAlbum { id } => {
+            albums.remove(id);
+        }
+        Op::MoveAlbum { id, parent } => {
+            edited.push(*id);
+            if let Some(a) = albums.get_mut(id) {
+                a.parent = *parent;
+            }
+        }
+        Op::SetAlbumRules { id, rules } => {
+            edited.push(*id);
+            if let Some(a) = albums.get_mut(id).filter(|a| a.smart.is_some()) {
+                a.smart = Some(rules.clone());
+            }
+        }
+        Op::Batch { ops } => ops.iter().for_each(|op| foresee(albums, op, edited)),
+        _ => {}
+    }
+}
+
+/// What the photos of each album depend on: a folder on the albums inside it at any depth, a
+/// smart album on the albums and folders it tests (as [`Catalog::album_reaches`] follows them one
+/// album at a time). Made in one look at the albums, for questions about all of them.
+struct AlbumGraph {
+    leads_to: std::collections::HashMap<AlbumId, Vec<AlbumId>>,
+    /// The smart albums that test albums: the only ones that can be on a loop.
+    testing: Vec<AlbumId>,
+}
+
+impl AlbumGraph {
+    fn of<'a>(albums: impl Iterator<Item = &'a Album> + Clone) -> AlbumGraph {
+        let by_id: std::collections::HashMap<AlbumId, &Album> = albums.clone().map(|a| (a.id, a)).collect();
+        let mut leads_to: std::collections::HashMap<AlbumId, Vec<AlbumId>> = std::collections::HashMap::new();
+        let mut testing = Vec::new();
+        for a in albums {
+            if a.folder {
+                continue;
+            }
+            // into every folder around it, through folders only (as `album_is_within`); folders
+            // that contain each other (a damaged library) are each gone through once
+            let mut around: Vec<AlbumId> = Vec::new();
+            let mut parent = a.parent;
+            while let Some(folder) = parent.and_then(|p| by_id.get(&p)).filter(|f| f.folder && !around.contains(&f.id)) {
+                around.push(folder.id);
+                leads_to.entry(folder.id).or_default().push(a.id);
+                parent = folder.parent;
+            }
+            let tested = a.smart.as_deref().map(Filter::albums_tested).unwrap_or_default();
+            if !tested.is_empty() {
+                testing.push(a.id);
+                leads_to.insert(a.id, tested);
+            }
+        }
+        AlbumGraph { leads_to, testing }
+    }
+
+    /// The smart albums that lead back to themselves.
+    fn on_a_loop(&self) -> std::collections::BTreeSet<AlbumId> {
+        self.testing.iter().copied().filter(|a| self.reaches(*a, *a)).collect()
+    }
+
+    fn reaches(&self, from: AlbumId, to: AlbumId) -> bool {
+        let none = Vec::new();
+        let leads = |a: AlbumId| self.leads_to.get(&a).unwrap_or(&none);
+        let mut seen: std::collections::HashSet<AlbumId> = std::collections::HashSet::new();
+        let mut next: Vec<AlbumId> = leads(from).clone();
+        while let Some(a) = next.pop() {
+            if a == to {
+                return true;
+            }
+            if seen.insert(a) {
+                next.extend(leads(a));
+            }
+        }
+        false
     }
 }
 

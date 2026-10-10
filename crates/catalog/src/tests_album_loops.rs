@@ -111,74 +111,184 @@ impl Rng {
     }
 }
 
-/// Random libraries of folders, albums and smart albums that test each other at random (many end
-/// up with loops): what each album holds is the same asked forwards, backwards, alone or in a pass.
+/// What a smart album of the random libraries asks: limited to an album (its `album` field), or
+/// Album rules joined by all / any.
+#[derive(Clone)]
+enum Asks {
+    Nothing,
+    Limited(AlbumId),
+    Rules { any: bool, rules: Vec<(bool, AlbumId)> },
+}
+
+impl Asks {
+    fn filter(&self) -> Filter {
+        match self {
+            Asks::Nothing => Filter::default(),
+            Asks::Limited(a) => limited_to(*a),
+            Asks::Rules { any, rules } => {
+                let rules: Vec<serde_json::Value> =
+                    rules.iter().map(|(is, a)| serde_json::json!({"field": "album", "op": if *is { "is" } else { "isNot" }, "value": a.0})).collect();
+                serde_json::from_value(serde_json::json!({"ruleSet": {"match": if *any { "any" } else { "all" }, "rules": rules}})).unwrap()
+            }
+        }
+    }
+    fn tested(&self) -> Vec<AlbumId> {
+        match self {
+            Asks::Nothing => Vec::new(),
+            Asks::Limited(a) => vec![*a],
+            Asks::Rules { rules, .. } => rules.iter().map(|(_, a)| *a).collect(),
+        }
+    }
+}
+
+/// The random library written down a second time, plainly, to answer by the definition: a
+/// folder holds what the albums in it hold; an album holds its list; a smart album that leads
+/// back to itself holds nothing, and any other holds what its rules say.
+struct Plain {
+    parent: std::collections::HashMap<AlbumId, Option<AlbumId>>,
+    folders: std::collections::HashSet<AlbumId>,
+    lists: std::collections::HashMap<AlbumId, Vec<PhotoId>>,
+    asks: std::collections::HashMap<AlbumId, Asks>,
+}
+
+impl Plain {
+    fn inside(&self, folder: AlbumId) -> Vec<AlbumId> {
+        let mut out = Vec::new();
+        for (a, parent) in &self.parent {
+            if *parent == Some(folder) {
+                if self.folders.contains(a) { out.extend(self.inside(*a)) } else { out.push(*a) }
+            }
+        }
+        out
+    }
+    fn leads_to(&self, a: AlbumId) -> Vec<AlbumId> {
+        if self.folders.contains(&a) { self.inside(a) } else { self.asks.get(&a).map(Asks::tested).unwrap_or_default() }
+    }
+    fn on_a_loop(&self, a: AlbumId) -> bool {
+        let (mut seen, mut next) = (std::collections::HashSet::new(), self.leads_to(a));
+        while let Some(x) = next.pop() {
+            if x == a {
+                return true;
+            }
+            if seen.insert(x) {
+                next.extend(self.leads_to(x));
+            }
+        }
+        false
+    }
+    fn holds(&self, a: AlbumId, p: PhotoId) -> bool {
+        if self.folders.contains(&a) {
+            return self.inside(a).into_iter().any(|m| self.holds(m, p));
+        }
+        if let Some(list) = self.lists.get(&a) {
+            return list.contains(&p);
+        }
+        match self.asks.get(&a) {
+            None => false,
+            Some(_) if self.on_a_loop(a) => false,
+            Some(Asks::Nothing) => true,
+            Some(Asks::Limited(x)) => self.holds(*x, p),
+            Some(Asks::Rules { any, rules }) => {
+                let mut answers = rules.iter().map(|(is, x)| self.holds(*x, p) == *is);
+                if *any { answers.any(|yes| yes) } else { answers.all(|yes| yes) }
+            }
+        }
+    }
+}
+
+/// Random libraries of folders, albums and smart albums that test each other at random (most end
+/// up with loops, many through folders): every way of asking what an album holds gives the answer
+/// of the definition ([`Plain`]), whatever was asked before, one photo at a time or in a pass. Before, a
+/// loop was cut wherever the question entered it, so an album seen from inside another's rules
+/// could differ from the same album asked directly.
 #[test]
-fn what_an_album_holds_never_depends_on_who_asks_first() {
+fn what_an_album_holds_is_what_the_definition_says() {
     let mut rng = Rng(7);
-    let mut with_loops = 0;
-    for _ in 0..300 {
+    let (mut with_loops, mut through_folders) = (0, 0);
+    for _ in 0..400 {
         let mut c = Catalog::new();
         let photos: Vec<PhotoId> = (0..4).map(|i| photo(&mut c, &format!("p{i}.jpg"))).collect();
-        let n = 3 + rng.next(8);
+        let mut plain = Plain { parent: Default::default(), folders: Default::default(), lists: Default::default(), asks: Default::default() };
+        let n = 3 + rng.next(10);
         let mut ids: Vec<AlbumId> = Vec::new();
         let mut folders: Vec<AlbumId> = Vec::new();
         for i in 0..n {
-            let parent = (!folders.is_empty() && rng.next(2) == 0).then(|| folders[rng.next(folders.len() as u64) as usize]);
+            let parent = (!folders.is_empty() && rng.next(3) != 0).then(|| folders[rng.next(folders.len() as u64) as usize]);
             let id = match rng.next(4) {
                 0 => {
                     let f = folder(&mut c, &format!("F{i}"), parent);
                     folders.push(f);
+                    plain.folders.insert(f);
                     f
                 }
                 1 => {
                     let held: Vec<PhotoId> = photos.iter().copied().filter(|_| rng.next(2) == 0).collect();
-                    album(&mut c, &format!("A{i}"), parent, &held)
+                    let a = album(&mut c, &format!("A{i}"), parent, &held);
+                    plain.lists.insert(a, held);
+                    a
                 }
                 // rules are set once every album exists, so they can name later ones
-                _ => smart(&mut c, &format!("S{i}"), parent, Filter::default()),
+                _ => {
+                    let s = smart(&mut c, &format!("S{i}"), parent, Filter::default());
+                    plain.asks.insert(s, Asks::Nothing);
+                    s
+                }
             };
+            plain.parent.insert(id, parent);
             ids.push(id);
         }
-        for id in ids.clone() {
-            if c.album(id).is_some_and(|a| a.smart.is_some()) {
-                let pick = |rng: &mut Rng| ids[rng.next(ids.len() as u64) as usize];
-                let rules = match rng.next(3) {
-                    0 => limited_to(pick(&mut rng)),
-                    1 => tests(&[(if rng.next(2) == 0 { "is" } else { "isNot" }, pick(&mut rng))]),
-                    _ => tests(&[("is", pick(&mut rng)), ("isNot", pick(&mut rng))]),
-                };
-                // unchecked, as an old library could hold them (a filter naming a smart album
-                // directly is the one thing `apply` itself refuses)
-                let _ = c.apply(Op::SetAlbumRules { id, rules: Box::new(rules) });
+        let smart_ids: Vec<AlbumId> = plain.asks.keys().copied().collect();
+        for id in smart_ids {
+            let pick = |rng: &mut Rng| ids[rng.next(ids.len() as u64) as usize];
+            let asks = match rng.next(4) {
+                0 => Asks::Limited(pick(&mut rng)),
+                1 => Asks::Rules { any: false, rules: vec![(rng.next(2) == 0, pick(&mut rng))] },
+                2 => Asks::Rules { any: false, rules: vec![(true, pick(&mut rng)), (false, pick(&mut rng))] },
+                _ => Asks::Rules { any: true, rules: vec![(rng.next(2) == 0, pick(&mut rng)), (true, pick(&mut rng))] },
+            };
+            // unchecked, as an old library could hold them (a filter naming a smart album
+            // directly is the one thing `apply` itself refuses: those keep asking nothing)
+            if c.apply(Op::SetAlbumRules { id, rules: Box::new(asks.filter()) }).is_ok() {
+                plain.asks.insert(id, asks);
             }
         }
-        with_loops += usize::from(!c.albums_on_a_loop().is_empty());
-        let table = |order: &[AlbumId]| -> Vec<(AlbumId, PhotoId, bool)> {
-            let mut t: Vec<(AlbumId, PhotoId, bool)> = Vec::new();
-            for a in order {
-                for p in &photos {
-                    t.push((*a, *p, holds(&c, *a, *p)));
+        let looping: std::collections::BTreeSet<AlbumId> = plain.asks.keys().copied().filter(|a| plain.on_a_loop(*a)).collect();
+        assert_eq!(c.albums_on_a_loop(), looping, "{}", c.to_snapshot());
+        with_loops += usize::from(!looping.is_empty());
+        through_folders += usize::from(looping.iter().any(|a| plain.asks[a].tested().iter().any(|t| plain.folders.contains(t))));
+        let mut order = ids.clone();
+        for round in 0..3 {
+            // forwards, backwards, then in a pass
+            if round == 1 {
+                order.reverse();
+            }
+            let ask = || {
+                for a in &order {
+                    for p in &photos {
+                        assert_eq!(holds(&c, *a, *p), plain.holds(*a, *p), "album {a:?}, photo {p:?}, round {round}: {}", c.to_snapshot());
+                    }
                 }
-            }
-            t.sort();
-            t
-        };
-        let forwards = table(&ids);
-        let mut reversed = ids.clone();
-        reversed.reverse();
-        assert_eq!(forwards, table(&reversed), "{}", c.to_snapshot());
-        let in_a_pass = crate::gathering(|| table(&reversed));
-        assert_eq!(forwards, in_a_pass, "{}", c.to_snapshot());
-        for a in &ids {
-            let want: Vec<PhotoId> = forwards.iter().filter(|(x, _, yes)| x == a && *yes).map(|(_, p, _)| *p).collect();
-            assert_eq!(c.album_photos(*a).into_iter().filter(|p| !c.photo(*p).unwrap().deleted).collect::<Vec<_>>(), want, "{}", c.to_snapshot());
+            };
+            if round == 2 { crate::gathering(ask) } else { ask() }
         }
-        for a in c.albums_on_a_loop() {
-            assert!(photos.iter().all(|p| !holds(&c, a, *p)), "on a loop, so empty: {}", c.to_snapshot());
+        for a in &ids {
+            let want: Vec<PhotoId> = photos.iter().copied().filter(|p| plain.holds(*a, *p)).collect();
+            assert_eq!(c.album_photos(*a), want, "{}", c.to_snapshot());
+            assert_eq!(c.album_count(*a), want.len(), "{}", c.to_snapshot());
+            // the ⚠ in the sidebar is on exactly the albums on a loop
+            let marked = c.smart_album_problems(*a).iter().any(|p| p.issue == crate::rules::Issue::AlbumLoop);
+            assert_eq!(marked, looping.contains(a), "album {a:?}: {}", c.to_snapshot());
+        }
+        for p in &photos {
+            let want: Vec<AlbumId> = {
+                let mut v: Vec<AlbumId> = ids.iter().copied().filter(|a| !plain.folders.contains(a) && plain.holds(*a, *p)).collect();
+                v.sort();
+                v
+            };
+            assert_eq!(c.albums_of(*p), want, "{}", c.to_snapshot());
         }
     }
-    assert!(with_loops > 50, "the generator makes loops: {with_loops} of 300");
+    assert!(with_loops > 100 && through_folders > 30, "the generator makes loops: {with_loops} of 400, {through_folders} through folders");
 }
 
 /// `k` smart albums each limited to the folder they are all in, 200 photos: showing the folder
@@ -212,8 +322,9 @@ fn a_folder_of_looping_albums_costs_in_proportion() {
     assert!(t40 < t10 * 20 + std::time::Duration::from_millis(2), "10 albums: {t10:?}; 40 albums: {t40:?}");
 }
 
-fn album_names(c: &Catalog) -> Vec<(AlbumId, Option<AlbumId>, String)> {
-    c.albums().map(|a| (a.id, a.parent, serde_json::to_string(&a.smart).unwrap())).collect()
+/// The whole library as saved (ids still to hand out included).
+fn album_names(c: &Catalog) -> String {
+    c.to_snapshot()
 }
 
 #[test]
@@ -256,8 +367,111 @@ fn a_new_edit_that_would_make_a_loop_is_refused() {
         let undo = c.apply_new(op.clone()).unwrap_or_else(|e| panic!("{op:?}: {e}"));
         assert!(c.albums_on_a_loop().is_empty());
         c.apply(undo).unwrap();
-        assert_eq!(album_names(&c), before);
+        // the albums are as they were (an id that was used is not handed out again)
+        let albums = |snapshot: &str| serde_json::from_str::<serde_json::Value>(snapshot).unwrap()["albums"].clone();
+        assert_eq!(albums(&album_names(&c)), albums(&before));
     }
+}
+
+/// A refused edit names the album the edit was about, when that one is among those it would put
+/// on a loop (two albums testing each other both end up on it).
+#[test]
+fn a_refusal_names_the_album_that_was_edited() {
+    let mut c = Catalog::new();
+    let first = smart(&mut c, "First", None, Filter::default());
+    let second = smart(&mut c, "Second", None, tests(&[("is", first)]));
+    let e = c.apply_new(Op::SetAlbumRules { id: first, rules: Box::new(tests(&[("is", second)])) }).unwrap_err().to_string();
+    assert!(e.contains("First"), "{e}");
+    let third = smart(&mut c, "Third", None, Filter::default());
+    let e = c.apply_new(Op::SetAlbumRules { id: third, rules: Box::new(tests(&[("is", third)])) }).unwrap_err().to_string();
+    assert!(e.contains("Third"), "{e}");
+}
+
+/// The check looks at what the edit would do before doing it, so there is nothing to take back:
+/// an album whose saved rules `apply` itself would no longer take (limited to what has since
+/// become a smart album's id) can't be left half-edited on a loop.
+#[test]
+fn a_refused_edit_never_touched_the_library() {
+    let mut c = Catalog::new();
+    // T is limited to album 2 before there is one; then a smart album takes that id
+    let t = smart(&mut c, "T", None, limited_to(AlbumId(2)));
+    let u = smart(&mut c, "U", None, Filter { rating: 3, ..Default::default() });
+    assert_eq!((t, u), (AlbumId(1), AlbumId(2)));
+    assert!(c.apply(Op::SetAlbumRules { id: t, rules: Box::new(limited_to(u)) }).is_err(), "T's own rules can't be set again");
+    let (before, revision) = (c.to_snapshot(), c.revision);
+    let e = c.apply_new(Op::SetAlbumRules { id: t, rules: Box::new(tests(&[("is", t)])) }).unwrap_err().to_string();
+    assert!(e.contains("include itself") && e.contains("“T”"), "{e}");
+    assert_eq!(c.to_snapshot(), before);
+    assert_eq!(c.revision, revision, "not even looked at as changed");
+    assert!(c.albums_on_a_loop().is_empty());
+    // an album refused with an id of the caller's choosing leaves the ids to hand out alone
+    let chosen =
+        Op::AddAlbum { album: Album { parent: None, smart: Some(Box::new(tests(&[("is", AlbumId(500))]))), ..Album::new(AlbumId(500), "Chosen") } };
+    assert!(c.apply_new(chosen).is_err());
+    assert_eq!(c.to_snapshot(), before);
+    assert_eq!(c.alloc_album_id(), AlbumId(3));
+}
+
+/// A damaged library: a smart album whose folder is gone, limited to that folder's id. A folder
+/// made with that id would take it in and close the loop.
+#[test]
+fn a_folder_that_would_adopt_a_looping_album_is_refused() {
+    let mut c = Catalog::new();
+    let s = smart(&mut c, "Orphan", None, limited_to(AlbumId(2)));
+    c.albums.get_mut(&s).unwrap().parent = Some(AlbumId(2));
+    let e = c.apply_new(Op::AddAlbum { album: Album { folder: true, ..Album::new(AlbumId(2), "Back") } }).unwrap_err().to_string();
+    assert!(e.contains("Orphan"), "{e}");
+    assert!(c.album(AlbumId(2)).is_none());
+}
+
+/// A damaged library: a folder that also carries rules is a folder, so it is on no loop and
+/// carries no ⚠ for one.
+#[test]
+fn a_folder_with_rules_is_marked_as_it_is_treated() {
+    let mut c = Catalog::new();
+    let f = folder(&mut c, "F", None);
+    c.albums.get_mut(&f).unwrap().smart = Some(Box::new(limited_to(f)));
+    assert!(c.albums_on_a_loop().is_empty());
+    assert!(c.smart_album_problems(f).is_empty());
+}
+
+/// 300 folders, the smart album in each limited to the next folder (no loop): every edit of the
+/// albums asks which of them are on a loop, and that looked through every album once per folder
+/// per smart album (over a second). A drag has to stay a drag.
+#[test]
+fn asking_for_loops_in_a_long_chain_is_quick() {
+    let mut c = Catalog::new();
+    let folders: Vec<AlbumId> = (0..300).map(|i| folder(&mut c, &format!("F{i}"), None)).collect();
+    for i in 0..1400 {
+        album(&mut c, &format!("A{i}"), Some(folders[i % 300]), &[]);
+    }
+    let mut smarts = Vec::new();
+    for i in 0..299 {
+        smarts.push(smart(&mut c, &format!("S{i}"), Some(folders[i]), limited_to(folders[i + 1])));
+    }
+    let best = |f: &mut dyn FnMut()| {
+        (0..3)
+            .map(|_| {
+                let start = std::time::Instant::now();
+                f();
+                start.elapsed()
+            })
+            .min()
+            .unwrap()
+    };
+    let asked = best(&mut || assert!(c.albums_on_a_loop().is_empty()));
+    assert!(asked < std::time::Duration::from_millis(250), "albums_on_a_loop took {asked:?}");
+    let loose = album(&mut c, "Loose", None, &[]);
+    let mut c2 = c.clone();
+    let mut to = 0;
+    let moved = best(&mut || {
+        to += 1;
+        c2.apply_new(Op::MoveAlbum { id: loose, parent: Some(folders[to]) }).unwrap();
+    });
+    assert!(moved < std::time::Duration::from_millis(250), "a move took {moved:?}");
+    // closing the chain is still seen
+    let e = c2.apply_new(Op::SetAlbumRules { id: smarts[0], rules: Box::new(limited_to(folders[0])) });
+    assert!(e.is_err());
 }
 
 #[test]
