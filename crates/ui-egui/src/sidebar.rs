@@ -45,6 +45,17 @@ impl SidebarSection {
         }
     }
 
+    /// What the section says while it has nothing to list, in English.
+    pub const fn empty_hint(self) -> &'static str {
+        match self {
+            SidebarSection::Albums => "No albums yet",
+            SidebarSection::Local => "No folders to browse",
+            SidebarSection::ByDate => "No photos yet",
+            SidebarSection::Folders => "No imported folders yet",
+            SidebarSection::Keywords => "No keywords yet",
+        }
+    }
+
     pub fn from_id(id: &str) -> Option<SidebarSection> {
         Self::ALL.into_iter().find(|s| s.id() == id)
     }
@@ -109,6 +120,32 @@ impl From<serde_json::Value> for SidebarLayout {
 }
 
 impl SidebarLayout {
+    /// The arrangement an agent or script asks for (`ui.set` `sidebar`), read strictly, unlike a
+    /// settings file: a list whose entries are a section id or `{id, hidden?, collapsed?}`, each
+    /// section at most once. Sections left out follow in the usual order, shown and open. What is
+    /// wrong is said, so a typo doesn't quietly rearrange the sidebar.
+    pub fn parse(asked: &serde_json::Value) -> Result<Self, String> {
+        let entries = asked.as_array().ok_or_else(|| format!("`sidebar` must be a list of sections ({}), not {asked}", SidebarSection::ids()))?;
+        let mut states: Vec<SectionState> = Vec::new();
+        for entry in entries {
+            let name = entry
+                .as_str()
+                .or_else(|| entry.get("id").and_then(serde_json::Value::as_str))
+                .ok_or_else(|| format!("`sidebar`: {entry} names no section (an id, or {{id, hidden, collapsed}})"))?;
+            let id = SidebarSection::from_id(name).ok_or_else(|| format!("`sidebar`: unknown section `{name}` ({})", SidebarSection::ids()))?;
+            if states.iter().any(|s| s.id == id) {
+                return Err(format!("`sidebar`: `{name}` is listed twice"));
+            }
+            let flag = |key: &str| match entry.get(key) {
+                None | Some(serde_json::Value::Null) => Ok(false),
+                Some(serde_json::Value::Bool(b)) => Ok(*b),
+                Some(other) => Err(format!("`sidebar`: `{key}` of `{name}` must be true or false, not {other}")),
+            };
+            states.push(SectionState { id, hidden: flag("hidden")?, collapsed: flag("collapsed")? });
+        }
+        Ok(Self::from_states(states))
+    }
+
     /// The layout these states describe, made whole (see the type).
     fn from_states(states: impl IntoIterator<Item = SectionState>) -> Self {
         let mut all: Vec<SectionState> = Vec::with_capacity(SidebarSection::ALL.len());
@@ -194,9 +231,11 @@ impl SidebarLayout {
             let Some(above) = at.checked_sub(1).and_then(|i| shown.get(i)) else { return false };
             self.move_before(section, Some(*above))
         } else {
-            let Some(below) = shown.get(at + 1) else { return false };
+            if at + 1 >= shown.len() {
+                return false;
+            }
             // below the next one: above the one after it, or last
-            self.move_before(section, shown.get(at + 2).copied()) || self.move_before(*below, Some(section))
+            self.move_before(section, shown.get(at + 2).copied())
         }
     }
 
@@ -358,6 +397,29 @@ mod tests {
         let mut layout = SidebarLayout::default();
         layout.adopt_collapsed(&["byDate".into(), "nonsense".into(), "keywords".into()]);
         assert!(layout.is_collapsed(ByDate) && layout.is_collapsed(Keywords) && !layout.is_collapsed(Albums));
+    }
+
+    /// Given an arrangement asked for by an agent, when it is right, then it is taken (sections it
+    /// leaves out follow, shown and open); when anything in it is wrong, then it is refused with
+    /// what is wrong, instead of being made whole as a settings file is.
+    #[test]
+    fn an_arrangement_that_is_asked_for_is_read_strictly() {
+        let layout = SidebarLayout::parse(&json!(["keywords", {"id": "albums", "hidden": true, "collapsed": null}])).unwrap();
+        assert_eq!(order(&layout), [Keywords, Albums, Local, ByDate, Folders]);
+        assert!(layout.is_hidden(Albums) && !layout.is_collapsed(Albums));
+        assert!(SidebarLayout::parse(&json!([])).unwrap().is_default());
+        for (asked, says) in [
+            (json!(null), "must be a list"),
+            (json!({"albums": 1}), "must be a list"),
+            (json!([{"id": "keywrods", "hidden": true}]), "unknown section `keywrods`"),
+            (json!([7]), "names no section"),
+            (json!(["albums", {"id": "albums"}]), "`albums` is listed twice"),
+            (json!([{"id": "albums", "hidden": "yes"}]), "`hidden` of `albums` must be true or false"),
+            (json!([{"id": "albums", "collapsed": 1}]), "`collapsed` of `albums` must be true or false"),
+        ] {
+            let e = SidebarLayout::parse(&asked).unwrap_err();
+            assert!(e.contains(says), "{asked}: {e}");
+        }
     }
 
     #[test]

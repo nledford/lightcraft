@@ -188,12 +188,109 @@ const SECTION_HEADER: f32 = 34.0;
 
 /// One sidebar section: the gap above it, its header, and (while it is open) the rows `body`
 /// draws. Every section goes through here, so they all fold, space and announce themselves alike.
-fn section(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSection, body: impl FnOnce(&mut LightcraftApp, &mut egui::Ui)) {
+fn section(
+    app: &mut LightcraftApp,
+    ui: &mut egui::Ui,
+    section: SidebarSection,
+    body: impl FnOnce(&mut LightcraftApp, &mut egui::Ui),
+) -> PlacedSection {
     ui.add_space(SECTION_GAP);
     let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), SECTION_HEADER), Sense::hover());
     if section_header(app, ui, section, header) {
+        let rows_from = ui.cursor().top();
         body(app, ui);
+        if ui.cursor().top() <= rows_from {
+            empty_hint(ui, section);
+        }
     }
+    PlacedSection { section, top: header.top(), bottom: ui.cursor().top() }
+}
+
+/// What an open section with nothing to list says in place of its rows (widget
+/// `sidebarEmpty:<id>`), so the section stays where it is instead of disappearing.
+fn empty_hint(ui: &mut egui::Ui, section: SidebarSection) {
+    let t = Tokens::get(ui.ctx());
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 29.0), Sense::hover());
+    register(ui.ctx(), format!("sidebarEmpty:{}", section.id()), r);
+    let text = crate::i18n::tr(section.empty_hint());
+    let galley = ui.painter().layout_no_wrap(text.to_string(), t.font(12.5), t.text_dim);
+    note_width(ui, 42.0 + galley.size().x + 18.0);
+    ui.painter().galley(pos2(r.left() + 42.0, r.center().y - galley.size().y / 2.0), galley, t.text_dim);
+}
+
+/// Where a section was laid out this frame (screen y): from its header's top to the end of its rows.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PlacedSection {
+    pub section: SidebarSection,
+    pub top: f32,
+    pub bottom: f32,
+}
+
+/// Where a section dragged to `y` would go among the sections drawn: above the first one whose
+/// middle is below `y` (`Some`), or after them all (`None`).
+pub(crate) fn section_drop_before(placed: &[PlacedSection], y: f32) -> Option<SidebarSection> {
+    placed.iter().find(|p| y < (p.top + p.bottom) / 2.0).map(|p| p.section)
+}
+
+/// While a section is dragged by its header: a line shows where it would go, releasing over the
+/// sidebar moves it there (`view.sidebarMoveSection`), releasing elsewhere or Esc leaves it.
+fn section_drag(app: &mut LightcraftApp, ui: &mut egui::Ui, placed: &[PlacedSection]) {
+    let Some(dragged) = app.ui.dragging_section else { return };
+    let (released, pos, esc) = ui.input(|i| (i.pointer.primary_released(), i.pointer.latest_pos(), i.key_pressed(egui::Key::Escape)));
+    if esc {
+        app.ui.dragging_section = None;
+        return;
+    }
+    let view = ui.clip_rect();
+    let Some(pos) = pos.filter(|p| view.contains(*p)) else {
+        if released {
+            app.ui.dragging_section = None;
+        }
+        return;
+    };
+    let before = section_drop_before(placed, pos.y);
+    if released {
+        app.ui.dragging_section = None;
+        let before = before.map_or(serde_json::Value::Null, |b| json!(b.id()));
+        if let Err(e) = app.run("view.sidebarMoveSection", json!({"section": dragged.id(), "before": before})) {
+            app.toast(ui.ctx(), e);
+        }
+        return;
+    }
+    // the line: in the gap above the section it would go before, or below the last one
+    let y = match before {
+        Some(b) => placed.iter().find(|p| p.section == b).map(|p| p.top - SECTION_GAP / 2.0),
+        None => placed.last().map(|p| p.bottom + SECTION_GAP / 2.0),
+    };
+    if let Some(y) = y {
+        let t = Tokens::get(ui.ctx());
+        let visible_right: f32 = ui.data(|d| d.get_temp(egui::Id::new("left-visible-right"))).unwrap_or(view.right());
+        let line = Rect::from_min_max(pos2(view.left() + 8.0, y - 1.0), pos2(visible_right.min(view.right()) - 8.0, y + 1.0));
+        ui.painter().rect_filled(line, 1.0, t.accent);
+        register(ui.ctx(), "sidebarSectionDrop", line);
+    }
+}
+
+/// The dragged section's name follows the pointer; a drag that ended anywhere (also outside the
+/// sidebar, or with the sidebar closed) is over.
+pub fn section_drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
+    let Some(section) = app.ui.dragging_section else { return };
+    let (down, pos) = ctx.input(|i| (i.pointer.primary_down(), i.pointer.latest_pos()));
+    if !down || !app.ui.left_panel {
+        app.ui.dragging_section = None;
+        return;
+    }
+    let Some(pos) = pos else { return };
+    let t = Tokens::get(ctx);
+    ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
+    egui::Area::new(egui::Id::new("drag-section")).order(egui::Order::Tooltip).interactable(false).fixed_pos(pos + vec2(14.0, 10.0)).show(
+        ctx,
+        |ui| {
+            egui::Frame::NONE.fill(t.accent).corner_radius(10.0).inner_margin(egui::Margin::symmetric(9, 3)).show(ui, |ui| {
+                ui.label(egui::RichText::new(crate::i18n::tr(section.title())).color(egui::Color32::WHITE).font(t.semibold(12.0)));
+            });
+        },
+    );
 }
 
 /// A section's header in `r`: the bold title with a disclosure chevron after it; a click folds or
@@ -204,10 +301,14 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
     let t = Tokens::get(ui.ctx());
     let id = section.id();
     let title = crate::i18n::tr(section.title());
-    let resp = ui.interact(r, ui.id().with(("sidebar-section", id)), Sense::click());
+    let resp = ui.interact(r, ui.id().with(("sidebar-section", id)), Sense::click_and_drag());
     register(ui.ctx(), format!("sidebarSection:{id}"), r);
     if resp.clicked() {
         app.ui.sidebar.toggle_collapsed(section);
+    }
+    // dragged by its header, a section moves among the others (see `section_drag`)
+    if resp.drag_started_by(egui::PointerButton::Primary) {
+        app.ui.dragging_section = Some(section);
     }
     resp.context_menu(|ui| sections_menu(app, ui, Some(section)));
     let open = !app.ui.sidebar.is_collapsed(section);
@@ -233,6 +334,13 @@ fn sections_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, on: Option<SidebarS
         register(ui.ctx(), "sidebarMenu:hide", hide.rect);
         if hide.clicked() {
             run = Some(("view.sidebarSection", json!({"section": section.id(), "show": false})));
+        }
+        for (up, label, widget) in [(true, "Move Up", "sidebarMenu:moveUp"), (false, "Move Down", "sidebarMenu:moveDown")] {
+            let item = ui.add_enabled(app.ui.sidebar.can_move(section, up), egui::Button::new(crate::i18n::tr(label)));
+            register(ui.ctx(), widget, item.rect);
+            if item.clicked() {
+                run = Some(("view.sidebarMoveSection", json!({"section": section.id(), "direction": if up { "up" } else { "down" }})));
+            }
         }
         ui.separator();
     }
@@ -337,6 +445,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             {
                 let _ = app.run("library.source", json!({"kind": "missing"}));
             }
+            if row(app, ui, "recentlyDeleted", Icon::Trash, "Recently Deleted", Some(deleted), src == LibrarySource::RecentlyDeleted, 0.0).clicked() {
+                let _ = app.run("library.source", json!({"kind": "recentlyDeleted"}));
+            }
             // the album just made: the folders down to it open, once (also when the section is shut)
             let reveal = app.ui.reveal_album.take();
             if reveal.is_some() {
@@ -346,8 +457,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             // Local keeps track of the folder being browsed whether or not it is drawn
             let local = local_now(app, ui);
             let shown: Vec<SidebarSection> = app.ui.sidebar.shown().collect();
+            let mut placed: Vec<PlacedSection> = Vec::with_capacity(shown.len());
             for s in shown {
-                match s {
+                let at = match s {
                     SidebarSection::Albums => section(app, ui, s, |app, ui| albums_rows(app, ui, reveal)),
                     SidebarSection::Local => {
                         let Some(local) = &local else { continue };
@@ -356,9 +468,6 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     SidebarSection::ByDate => section(app, ui, s, date_rows),
                     SidebarSection::Folders => {
                         let tree = app.caches.folder_tree(&app.session.catalog);
-                        if tree.is_empty() {
-                            continue;
-                        }
                         section(app, ui, s, |app, ui| {
                             reveal_chosen(app, ui, &tree);
                             folder_rows(app, ui, &tree, 0.0);
@@ -366,17 +475,14 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     }
                     SidebarSection::Keywords => {
                         let tree = app.caches.keyword_tree(&app.session.catalog);
-                        if tree.is_empty() {
-                            continue;
-                        }
                         section(app, ui, s, |app, ui| keyword_rows(app, ui, &tree, 0.0))
                     }
-                }
+                };
+                placed.push(at);
             }
-            ui.add_space(SECTION_GAP);
-            if row(app, ui, "recentlyDeleted", Icon::Trash, "Recently Deleted", Some(deleted), src == LibrarySource::RecentlyDeleted, 0.0).clicked() {
-                let _ = app.run("library.source", json!({"kind": "recentlyDeleted"}));
-            }
+            // room below the last section (a section dragged to the end is dropped here)
+            ui.add_space(SECTION_GAP * 2.0);
+            section_drag(app, ui, &placed);
             // what the rows asked for becomes next frame's width
             let next = ui.data(|d| d.get_temp::<f32>(egui::Id::new("left-content-width-next"))).unwrap_or(0.0);
             if (next - content_width(ui.ctx())).abs() > 0.5 {
@@ -832,12 +938,15 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
             }
             // what this frame draws; a click shows from the next one
             let draw_open = open;
+            let mut toggled = false;
             if has_children {
                 let tri = tree_toggle(ui, &resp, indent, open_id, &mut open, format!("albumToggle:{}", a.id.0));
+                toggled = tri.clicked();
                 // the triangle sits on the row and takes its clicks: the menu opens from it too
                 folder_menu(app, &tri, a);
             }
-            if resp.clicked() {
+            // one click, one toggle: the triangle's is not the row's as well
+            if resp.clicked() && !toggled {
                 set_tree_open(ui, open_id, !open);
             }
             folder_menu(app, &resp, a);
@@ -912,7 +1021,7 @@ pub fn auto_scroll_speed(y: f32, top: f32, bottom: f32) -> f32 {
 /// pointer is near its top or bottom edge, so rows beyond the visible part can be reached. Call
 /// inside the scroll area.
 fn drag_auto_scroll(app: &LightcraftApp, ui: &egui::Ui) {
-    if app.ui.dragging_album.is_none() && app.ui.dragging_photos.is_none() {
+    if app.ui.dragging_album.is_none() && app.ui.dragging_photos.is_none() && app.ui.dragging_section.is_none() {
         return;
     }
     let view = ui.clip_rect();
@@ -1266,7 +1375,7 @@ fn is_within(app: &LightcraftApp, id: lightcraft_catalog::AlbumId, ancestor: lig
     false
 }
 
-// "Folders": where on disk the library's photos were imported from, with photo counts (see
+// "Folders" (drawn in `show`): where on disk the library's photos were imported from, with photo counts (see
 // `lightcraft_catalog::folders`). A click makes that folder the source, like an album or a Local
 // folder: its photos and those of the folders inside it fill the grid. The triangle opens a
 // level. Only folders holding imported photos are listed; every folder on disk is under Local.

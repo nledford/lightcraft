@@ -421,6 +421,9 @@ pub struct UiState {
     /// An album or folder row being dragged in the sidebar (dropped on a folder to move it there).
     #[serde(skip)]
     pub dragging_album: Option<u64>,
+    /// A sidebar section being dragged by its header (dropped between sections to move it there).
+    #[serde(skip)]
+    pub dragging_section: Option<crate::sidebar::SidebarSection>,
     /// Selected curve channel in the Curve flyout.
     pub curve_channel: String,
     /// Selected mixer mode: "hue" | "saturation" | "luminance" | "all".
@@ -846,6 +849,7 @@ impl Default for UiState {
             dragging_photos: None,
             reveal_album: None,
             dragging_album: None,
+            dragging_section: None,
             curve_channel: "parametric".into(),
             mixer_mode: "hue".into(),
             grading_mode: "3way".into(),

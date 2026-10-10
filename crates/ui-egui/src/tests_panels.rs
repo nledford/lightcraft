@@ -259,18 +259,21 @@ fn sections_drawn(h: &Headless) -> Vec<String> {
 #[test]
 fn the_sidebar_draws_its_sections_as_arranged() {
     let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
-    // (Local is not on every platform, and the demo library was imported from no folder)
-    let listed = |drawn: &[String]| drawn.iter().filter(|s| !matches!(s.as_str(), "local" | "folders")).cloned().collect::<Vec<_>>();
+    // (Local is not on every platform)
+    let listed = |drawn: &[String]| drawn.iter().filter(|s| s.as_str() != "local").cloned().collect::<Vec<_>>();
     let usual = sections_drawn(&h);
-    assert_eq!(listed(&usual), ["albums", "byDate", "keywords"], "{usual:?}");
+    assert_eq!(listed(&usual), ["albums", "byDate", "folders", "keywords"], "{usual:?}");
+    // the demo library was imported from no folder: Folders says so in place of rows
+    assert!(has(&h, "sidebarEmpty:folders") && !has(&h, "sidebarEmpty:keywords"));
     let r = h.request("ui.set", json!({"sidebar": [{"id": "keywords"}, {"id": "byDate", "hidden": true}, {"id": "albums"}]}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
     let drawn = sections_drawn(&h);
-    assert_eq!(listed(&drawn), ["keywords", "albums"], "{drawn:?}");
+    assert_eq!(listed(&drawn), ["keywords", "albums", "folders"], "{drawn:?}");
     assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("source:date:")), "a hidden section draws no rows");
     // every header sits the same gap below the last row above it
-    let mut rows: Vec<egui::Rect> = h.app.widgets.iter().filter(|(w, _)| w.starts_with("source:")).map(|(_, r)| *r).collect();
+    let mut rows: Vec<egui::Rect> =
+        h.app.widgets.iter().filter(|(w, _)| w.starts_with("source:") || w.starts_with("sidebarEmpty:")).map(|(_, r)| *r).collect();
     rows.sort_by(|a, b| a.top().total_cmp(&b.top()));
     for id in &drawn {
         let header = widget(&h, &format!("sidebarSection:{id}"));
@@ -425,6 +428,242 @@ fn sidebar_commands_refuse_what_they_cannot_read() {
         assert!(r.to_string().contains(says), "{params}: {r}");
     }
     assert!(h.app.ui.sidebar.is_default());
+}
+
+/// Press on `from`, move to `to` over a few frames, and release there (after `before_release`).
+fn drag_between(h: &mut Headless, from: egui::Pos2, to: egui::Pos2, before_release: Vec<egui::Event>) {
+    let m = egui::Modifiers::NONE;
+    h.app.synthetic.push(egui::Event::PointerMoved(from));
+    h.app.synthetic.push(egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed: true, modifiers: m });
+    h.step();
+    for i in 1..=8 {
+        h.app.synthetic.push(egui::Event::PointerMoved(from + (to - from) * (i as f32 / 8.0)));
+        h.step();
+    }
+    h.step();
+    for e in before_release {
+        h.app.synthetic.push(e);
+        h.step();
+    }
+    h.app.synthetic.push(egui::Event::PointerButton { pos: to, button: egui::PointerButton::Primary, pressed: false, modifiers: m });
+    h.step();
+    h.step();
+    h.step();
+}
+
+fn header(h: &Headless, id: &str) -> egui::Rect {
+    widget(h, &format!("sidebarSection:{id}"))
+}
+
+/// Given the sidebar, when a section's header is dragged above another section and released,
+/// then the section is listed there, the others keeping their order; while it is dragged a line
+/// shows where it would go; and the new order is part of the saved UI state.
+#[test]
+fn dragging_a_header_moves_its_section() {
+    // folders too: photos imported from a folder
+    let mut h = folders_app_sized(&["/pics/trip/a.jpg"], [1400.0, 1400.0]);
+    let usual = sections_drawn(&h);
+    let with_local = usual.contains(&"local".to_string());
+    let listed = |ids: &[&str]| ids.iter().filter(|s| with_local || **s != "local").map(|s| s.to_string()).collect::<Vec<_>>();
+    assert_eq!(usual, listed(&["albums", "local", "byDate", "folders", "keywords"]));
+    assert!(has(&h, "sidebarEmpty:keywords"), "no keywords in this library: the section says so and stays");
+    // Folders, dragged to just above Albums
+    let (from, to) = (header(&h, "folders").center(), header(&h, "albums").center() - egui::vec2(0.0, 12.0));
+    h.app.synthetic.push(egui::Event::PointerMoved(from));
+    h.app.synthetic.push(egui::Event::PointerButton {
+        pos: from,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.step();
+    for i in 1..=8 {
+        h.app.synthetic.push(egui::Event::PointerMoved(from + (to - from) * (i as f32 / 8.0)));
+        h.step();
+    }
+    h.step();
+    assert_eq!(h.app.ui.dragging_section, Some(crate::sidebar::SidebarSection::Folders));
+    let line = widget(&h, "sidebarSectionDrop");
+    assert!(
+        line.center().y < header(&h, "albums").top() && line.center().y > header(&h, "albums").top() - 10.0,
+        "the line is in the gap above Albums: {line:?}"
+    );
+    h.app.synthetic.push(egui::Event::PointerButton {
+        pos: to,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.step();
+    h.step();
+    h.step();
+    assert_eq!(h.app.ui.dragging_section, None);
+    assert!(!has(&h, "sidebarSectionDrop"));
+    assert_eq!(sections_drawn(&h), listed(&["folders", "albums", "local", "byDate", "keywords"]));
+    // dragged below everything: last
+    let end = egui::pos2(header(&h, "keywords").center().x, widget(&h, "panel:left_panel").bottom() - 20.0);
+    let from = header(&h, "albums").center();
+    drag_between(&mut h, from, end, Vec::new());
+    assert_eq!(sections_drawn(&h), listed(&["folders", "local", "byDate", "keywords", "albums"]));
+    // kept with the UI state
+    let back = serde_json::from_value::<crate::UiState>(serde_json::to_value(&h.app.ui).unwrap()).unwrap().sanitized();
+    assert_eq!(back.sidebar, h.app.ui.sidebar);
+    // the header still folds its section with a click
+    click(&mut h, "sidebarSection:folders");
+    assert!(h.app.ui.sidebar_section_collapsed("folders"));
+}
+
+/// A drag that ends with Esc, or is released away from the sidebar, moves nothing.
+#[test]
+fn a_section_drag_that_is_given_up_moves_nothing() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let usual = sections_drawn(&h);
+    let (from, to) = (header(&h, "keywords").center(), header(&h, "albums").center() - egui::vec2(0.0, 12.0));
+    let esc = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+    drag_between(&mut h, from, to, vec![esc]);
+    assert_eq!((sections_drawn(&h), h.app.ui.dragging_section), (usual.clone(), None), "Esc");
+    // released over the photos
+    drag_between(&mut h, from, egui::pos2(800.0, to.y), Vec::new());
+    assert_eq!((sections_drawn(&h), h.app.ui.dragging_section), (usual.clone(), None), "released outside");
+    assert!(h.app.ui.sidebar.is_default());
+}
+
+/// An album dragged to the Albums header is not a section drag, and the other way round.
+#[test]
+fn dragging_a_section_is_not_dragging_an_album() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let (from, to) = (header(&h, "albums").center(), header(&h, "keywords").center() + egui::vec2(0.0, 4.0));
+    let before = h.app.session.catalog.revision;
+    h.app.synthetic.push(egui::Event::PointerMoved(from));
+    h.app.synthetic.push(egui::Event::PointerButton {
+        pos: from,
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.step();
+    h.app.synthetic.push(egui::Event::PointerMoved(from + (to - from) * 0.5));
+    h.step();
+    h.step();
+    assert!(h.app.ui.dragging_section.is_some() && h.app.ui.dragging_album.is_none());
+    h.app.synthetic.push(egui::Event::PointerButton {
+        pos: to,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    });
+    h.step();
+    h.step();
+    assert_eq!(h.app.session.catalog.revision, before, "no album moved");
+}
+
+/// Given a section's header menu, Move Up and Move Down move it one shown section at a time
+/// (stepping over hidden ones), and the command says when there is nowhere to go.
+#[test]
+fn a_section_moves_up_and_down_from_its_menu() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    // (Local is not on every platform: taken out, so the same sections are there everywhere)
+    exec(&mut h, "view.sidebarSection", json!({"section": "local", "show": false}));
+    exec(&mut h, "view.sidebarSection", json!({"section": "folders", "show": false}));
+    assert_eq!(sections_drawn(&h), ["albums", "byDate", "keywords"]);
+    right_click(&mut h, "sidebarSection:keywords");
+    click(&mut h, "sidebarMenu:moveUp");
+    assert_eq!(sections_drawn(&h), ["albums", "keywords", "byDate"]);
+    right_click(&mut h, "sidebarSection:albums");
+    click(&mut h, "sidebarMenu:moveDown");
+    assert_eq!(sections_drawn(&h), ["keywords", "albums", "byDate"], "one step, over the hidden sections");
+    // the ends: nowhere to go
+    let r = exec(&mut h, "view.sidebarMoveSection", json!({"section": "keywords", "direction": "up"}));
+    assert_eq!(r["moved"], false, "{r}");
+    let r = exec(&mut h, "view.sidebarMoveSection", json!({"section": "byDate", "direction": "down"}));
+    assert_eq!(r["moved"], false, "{r}");
+    // above a named section, or last
+    let r = exec(&mut h, "view.sidebarMoveSection", json!({"section": "byDate", "before": "keywords"}));
+    assert_eq!(r["moved"], true, "{r}");
+    assert_eq!(sections_drawn(&h), ["byDate", "keywords", "albums"]);
+    exec(&mut h, "view.sidebarMoveSection", json!({"section": "byDate", "before": null}));
+    assert_eq!(sections_drawn(&h), ["keywords", "albums", "byDate"]);
+    assert_eq!(h.app.ui.sidebar.sections().last().map(|s| s.id.id()), Some("byDate"));
+    for (params, says) in [
+        (json!({"section": "albums"}), "give either `direction`"),
+        (json!({"section": "albums", "direction": "up", "before": null}), "give either `direction`"),
+        (json!({"section": "albums", "direction": "left"}), "`direction` must be"),
+        (json!({"section": "albums", "before": "map"}), "`before` must be a section"),
+        (json!({"direction": "up"}), "`section` is needed"),
+    ] {
+        let r = h.request("engine.execute", json!({"command": "view.sidebarMoveSection", "params": params}), T);
+        assert_eq!(r["ok"], false, "{params}: {r}");
+        assert!(r.to_string().contains(says), "{params}: {r}");
+    }
+}
+
+/// Recently Deleted is one of My Photos' rows: right below the others, above every section.
+#[test]
+fn recently_deleted_is_listed_with_my_photos() {
+    let h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let (picks, deleted) = (widget(&h, "source:picks"), widget(&h, "source:recentlyDeleted"));
+    assert_eq!(deleted.top(), picks.bottom(), "no gap: the same group");
+    let first = sections_drawn(&h).remove(0);
+    assert_eq!(header(&h, &first).top() - deleted.bottom(), 10.0, "the sections start below it");
+}
+
+/// An arrangement set through the control channel is checked: a wrong one is refused and leaves
+/// the sidebar as it was; the older `collapsedSidebar` list still folds and unfolds sections.
+#[test]
+fn an_arrangement_set_by_an_agent_is_checked() {
+    let mut h = demo([1400.0, 900.0], json!({"view": "photoGrid", "leftPanel": true}));
+    exec(&mut h, "view.sidebarSection", json!({"section": "keywords", "show": false}));
+    let arranged = h.app.ui.sidebar.clone();
+    for bad in [json!(null), json!({"albums": 1}), json!([{"id": "keywrods", "hidden": true}]), json!(["albums", "albums"])] {
+        let r = h.request("ui.set", json!({"sidebar": bad}), T);
+        assert_eq!(r["ok"], false, "{bad}: {r}");
+        assert_eq!(h.app.ui.sidebar, arranged, "{bad}");
+    }
+    let r = h.request("ui.set", json!({"collapsedSidebar": ["byDate"]}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert!(h.app.ui.sidebar_section_collapsed("byDate") && !h.app.ui.sidebar_section_collapsed("albums"));
+    assert!(h.app.ui.sidebar.is_hidden(crate::sidebar::SidebarSection::Keywords), "the rest of the arrangement stays");
+    let r = h.request("ui.set", json!({"collapsedSidebar": []}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert!(!h.app.ui.sidebar_section_collapsed("byDate"));
+}
+
+/// Where a dragged section goes: above the first section whose middle is below the pointer.
+#[test]
+fn a_dragged_section_goes_above_the_section_it_is_over_the_top_half_of() {
+    use crate::panels::left::{PlacedSection, section_drop_before};
+    use crate::sidebar::SidebarSection::{Albums, ByDate, Keywords};
+    let placed = [
+        PlacedSection { section: Albums, top: 100.0, bottom: 300.0 },
+        PlacedSection { section: ByDate, top: 310.0, bottom: 344.0 },
+        PlacedSection { section: Keywords, top: 354.0, bottom: 500.0 },
+    ];
+    for (y, before) in [
+        (0.0, Some(Albums)),
+        (199.0, Some(Albums)),
+        (201.0, Some(ByDate)),
+        (326.0, Some(ByDate)),
+        (328.0, Some(Keywords)),
+        (430.0, None),
+        (9e9, None),
+    ] {
+        assert_eq!(section_drop_before(&placed, y), before, "{y}");
+    }
+    assert_eq!(section_drop_before(&[], 10.0), None);
+    assert_eq!(section_drop_before(&placed, f32::NAN), None);
+}
+
+/// By Date opens a year into its months with the triangle, and closes it again.
+#[test]
+fn a_year_opens_into_its_months() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let rows = |h: &Headless| h.app.widgets.iter().filter(|(w, _)| w.starts_with("source:date:")).count();
+    let years = rows(&h);
+    let toggle = h.app.widgets.iter().find(|(w, _)| w.starts_with("dateToggle:")).map(|(w, _)| w.clone()).expect("a year has a triangle");
+    click(&mut h, &toggle);
+    assert!(rows(&h) > years, "months are listed");
+    click(&mut h, &toggle);
+    assert_eq!(rows(&h), years, "closed again");
 }
 
 /// Albums nest in folders like the other sidebar trees: a folder row has a disclosure triangle
@@ -1171,7 +1410,8 @@ fn removing_a_disk_from_the_library_asks_first() {
 #[test]
 fn a_deep_chain_keeps_its_nesting_and_the_sidebar_scrolls_sideways() {
     let deep = "/a/b/c/d/e/f/g/h/i/j/k/l/m";
-    let mut h = folders_app(&[&format!("{deep}/x/1.jpg"), &format!("{deep}/y/2.jpg")]);
+    // (tall enough for the whole chain: Recently Deleted is above it now)
+    let mut h = folders_app_sized(&[&format!("{deep}/x/1.jpg"), &format!("{deep}/y/2.jpg")], [1400.0, 1000.0]);
     let mut xs: Vec<f32> = Vec::new();
     let mut path = String::new();
     for name in deep.split('/').filter(|n| !n.is_empty()) {
@@ -1266,7 +1506,8 @@ fn a_long_name_alone_does_not_make_the_sidebar_scroll() {
 #[test]
 fn the_selection_bar_stays_inside_the_panel() {
     let deep = "/a/b/c/d/e/f/g/h/i/j/k/l/m";
-    let mut h = folders_app(&[&format!("{deep}/x/1.jpg"), &format!("{deep}/y/2.jpg")]);
+    // (tall enough for the whole chain: Recently Deleted is above it now)
+    let mut h = folders_app_sized(&[&format!("{deep}/x/1.jpg"), &format!("{deep}/y/2.jpg")], [1400.0, 1000.0]);
     click(&mut h, "source:libfolder:/a/b/c/d/e/f/g/h/i/j/k/l");
     let panel = widget(&h, "panel:left_panel");
     let bar = widget(&h, "highlight:libfolder:/a/b/c/d/e/f/g/h/i/j/k/l");
