@@ -504,6 +504,9 @@
   for 3.5 million photos). Opening reads the segments on several threads: 0.15 s where it was 0.5 s for 300,000 photos,
   1.7 s where it was 6.1 s for 3.5 million. A damaged segment is named when the library is opened, and nothing is
   modified.
+- Less memory: photos whose develop settings are equal (above all, every photo nobody edited) hold them once.
+  A library of unedited photos takes about half the memory it did (1.4 kB per photo where it was 2.9 kB: 4.8 GB where
+  it was 10 GB for 3.5 million photos) and opens faster.
 - Libraries are upgraded when first opened (catalog format 11) and can't be opened by earlier versions afterwards. The
   photos of a library in a folder on disk are split into segments only once the segments written read back the same.
   Copy or back up the whole library folder: `catalog.snap` alone no longer holds the photos. (The browser build keeps
