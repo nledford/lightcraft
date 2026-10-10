@@ -116,10 +116,33 @@ struct Refusal {
 }
 
 impl Refusal {
-    /// An error that is already words for a person (the interface's own commands).
+    /// An error that is already text (the interface's own commands). Mostly words for a person
+    /// as they are; a command that wraps an engine command hands on the engine's error already
+    /// turned into text, and of that only the reason is for the person. `error` stays whole.
     fn plain(error: String) -> Refusal {
-        Refusal { why: error.clone(), error }
+        let why = engine_reason(&error).map(sentence).unwrap_or_else(|| error.clone());
+        Refusal { why, error }
     }
+}
+
+/// A sentence starts with a capital, whatever the command wrote.
+fn sentence(why: &str) -> String {
+    let mut letters = why.chars();
+    letters.next().map(|first| first.to_uppercase().chain(letters).collect()).unwrap_or_default()
+}
+
+/// The reason in an [`EngineError`](lightcraft_engine::EngineError) that is already text: what
+/// follows ``command `id` is not available right now: `` or ``invalid parameters for `id`: ``
+/// (its `Disabled` and `BadParams` formats). `None` for anything else, including text that only
+/// begins like one: the id must be a command's (letters, digits, `.`, `_`, `-`) between the
+/// backticks, so the reason is cut at the first separator and may hold colons and backticks.
+fn engine_reason(error: &str) -> Option<&str> {
+    const SHAPES: [(&str, &str); 2] = [("command `", "` is not available right now: "), ("invalid parameters for `", "`: ")];
+    SHAPES.iter().find_map(|(before, after)| {
+        let (id, reason) = error.strip_prefix(before)?.split_once(after)?;
+        let is_id = !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'));
+        (is_id && !reason.trim().is_empty()).then_some(reason)
+    })
 }
 
 impl From<lightcraft_engine::EngineError> for Refusal {
@@ -130,10 +153,7 @@ impl From<lightcraft_engine::EngineError> for Refusal {
             EngineError::BadParams { msg, .. } => msg.clone(),
             other => other.to_string(),
         };
-        // a sentence starts with a capital, whatever the command wrote
-        let mut letters = why.chars();
-        let why = letters.next().map(|first| first.to_uppercase().chain(letters).collect()).unwrap_or_default();
-        Refusal { error: e.to_string(), why }
+        Refusal { error: e.to_string(), why: sentence(&why) }
     }
 }
 

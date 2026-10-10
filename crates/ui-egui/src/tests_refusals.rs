@@ -100,6 +100,67 @@ fn a_refused_menu_item_says_why() {
     assert_eq!(toast(&app), None);
 }
 
+/// An interface command that wraps an engine command hands on the engine's error as text
+/// ("command `photo.editExternal` is not available right now: no photo selected"): the person
+/// reads the reason only, agents the whole of it as before.
+#[test]
+fn an_interface_command_that_wraps_an_engine_command_says_the_reason_only() {
+    let mut app = app();
+    app.session.selection = Default::default();
+    for id in ["photo.editExternal", "photo.allMetadata"] {
+        app.ui.toast = None;
+        let whole = app.run(id, json!({})).unwrap_err();
+        assert!(whole.contains(&format!("`{id}`")), "agents get the engine's error as it was: {whole}");
+        assert_eq!(toast(&app), None);
+        assert_eq!(app.act(id, json!({})), None);
+        let said = toast(&app).expect("a toast").to_string();
+        assert!(!said.contains(id) && !said.contains("not available right now") && !said.contains("invalid parameters"), "{said}");
+        assert!(whole.to_lowercase().ends_with(&said.to_lowercase()), "the reason, capitalised: {said} / {whole}");
+        assert!(said.chars().next().is_some_and(char::is_uppercase), "{said}");
+        assert_eq!(app.ui.status, whole, "the status keeps the whole error");
+    }
+}
+
+#[test]
+fn the_reason_is_read_out_of_an_engine_error_that_is_already_text() {
+    use crate::{Refusal, engine_reason};
+    assert_eq!(engine_reason("command `photo.editExternal` is not available right now: no photo selected"), Some("no photo selected"));
+    assert_eq!(engine_reason("invalid parameters for `photo.allMetadata`: no photo"), Some("no photo"));
+    // the engine's own formats, so a change there shows up here
+    let disabled = lightcraft_engine::EngineError::Disabled("a.b".into(), "nothing to undo".into()).to_string();
+    assert_eq!(engine_reason(&disabled), Some("nothing to undo"));
+    let bad = lightcraft_engine::EngineError::BadParams { cmd: "a.b-c_d".into(), msg: "`x` must be a number: got `y`".into() }.to_string();
+    assert_eq!(engine_reason(&bad), Some("`x` must be a number: got `y`"), "a reason with colons and backticks is kept whole");
+    assert_eq!(
+        engine_reason("invalid parameters for `album.move`: command `x.y` is not available right now: busy"),
+        Some("command `x.y` is not available right now: busy"),
+        "only the outer wrapping is taken off"
+    );
+    // text that only resembles one
+    for other in [
+        "command line tools are missing",
+        "command `photo.rate` failed: disk full",
+        "command `photo rate` is not available right now: x",
+        "command `` is not available right now: x",
+        "invalid parameters for the export: no folder",
+        "invalid parameters for `x.y`",
+        "invalid parameters for `x.y`: ",
+        "invalid parameters for `a`b`: c",
+        "the command `x.y` is not available right now: busy",
+        "select a photo to use as the reference",
+        "",
+    ] {
+        assert_eq!(engine_reason(other), None, "{other}");
+    }
+    // `plain`: the reason for the person, capitalised as an engine refusal's is; the error whole
+    let whole = "command `photo.editExternal` is not available right now: no photo selected";
+    let r = Refusal::plain(whole.into());
+    assert_eq!((r.why.as_str(), r.error.as_str()), ("No photo selected", whole));
+    // words that are the interface's own stay as written
+    let r = Refusal::plain("select a photo to use as the reference".into());
+    assert_eq!((r.why.as_str(), r.error.as_str()), ("select a photo to use as the reference", "select a photo to use as the reference"));
+}
+
 // ---- real widgets, driven headlessly ----
 
 const T: Duration = Duration::from_secs(20);
