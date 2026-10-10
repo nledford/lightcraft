@@ -209,6 +209,7 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
     if resp.clicked() {
         app.ui.sidebar.toggle_collapsed(section);
     }
+    resp.context_menu(|ui| sections_menu(app, ui, Some(section)));
     let open = !app.ui.sidebar.is_collapsed(section);
     resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::CollapsingHeader, true, open, title));
     let text = ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(13.5), t.text_label);
@@ -220,6 +221,40 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
         albums_header_actions(app, ui, r);
     }
     open
+}
+
+/// The menu of a section's header (`on`) and of the My Photos title (`None`): hide this section,
+/// show or hide any section, and go back to the usual arrangement. Its items are widgets
+/// `sidebarMenu:hide`, `sidebarMenu:section:<id>` and `sidebarMenu:reset`.
+fn sections_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, on: Option<SidebarSection>) {
+    let mut run = None;
+    if let Some(section) = on {
+        let hide = ui.button(crate::i18n::tr("Hide This Section"));
+        register(ui.ctx(), "sidebarMenu:hide", hide.rect);
+        if hide.clicked() {
+            run = Some(("view.sidebarSection", json!({"section": section.id(), "show": false})));
+        }
+        ui.separator();
+    }
+    for s in app.ui.sidebar.sections().iter().filter(|s| s.id.available()) {
+        let shown = ui.selectable_label(!s.hidden, crate::i18n::tr(s.id.title()));
+        register(ui.ctx(), format!("sidebarMenu:section:{}", s.id.id()), shown.rect);
+        if shown.clicked() {
+            run = Some(("view.sidebarSection", json!({"section": s.id.id(), "show": s.hidden})));
+        }
+    }
+    ui.separator();
+    let reset = ui.add_enabled(!app.ui.sidebar.is_default(), egui::Button::new(crate::i18n::tr("Reset Sidebar Sections")));
+    register(ui.ctx(), "sidebarMenu:reset", reset.rect);
+    if reset.clicked() {
+        run = Some(("view.sidebarReset", json!({})));
+    }
+    if let Some((command, params)) = run {
+        if let Err(e) = app.run(command, params) {
+            app.toast(ui.ctx(), e);
+        }
+        ui.close();
+    }
 }
 
 /// The + at the end of the Albums header: Create Album, Smart Album, Folder…
@@ -267,7 +302,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let width = app.ui.left_width;
     let resized = super::resizable_side(ui, true, "left_panel", frame, width, crate::state::LEFT_WIDTH, 0.0, |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
-        let (hr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::hover());
+        // the title offers the sections' menu too: where hidden sections come back from
+        let (hr, title) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::click());
+        register(ui.ctx(), "sidebarTitle", hr);
+        title.context_menu(|ui| sections_menu(app, ui, None));
         ui.painter().text(pos2(hr.left() + 18.0, hr.center().y), Align2::LEFT_CENTER, crate::i18n::tr("My Photos"), t.semibold(15.0), t.text);
         let counts = app.caches.counts(&app.session.catalog);
         let (total, picks, deleted) = (counts.total, counts.picks, counts.deleted);
@@ -301,6 +339,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
             // the album just made: the folders down to it open, once (also when the section is shut)
             let reveal = app.ui.reveal_album.take();
+            if reveal.is_some() {
+                // …and Albums itself is shown and opened, so the new album can be seen
+                app.ui.sidebar.reveal(SidebarSection::Albums);
+            }
             // Local keeps track of the folder being browsed whether or not it is drawn
             let local = local_now(app, ui);
             let shown: Vec<SidebarSection> = app.ui.sidebar.shown().collect();

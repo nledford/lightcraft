@@ -42,15 +42,15 @@ and prints the summary; `cargo xtask parity --write` refreshes the summary table
 | S. Export (EXP) | 15 | 2 | 1 | 0 | 7/7 (100%) | 7/7 (100%) |
 | T. Share (SHARE) | 0 | 0 | 0 | 4 | — | — |
 | U. Map & location (MAP) | 0 | 1 | 1 | 0 | — | 0/1 (0%) |
-| V. Preferences (PREF) | 7 | 1 | 2 | 2 | 1/1 (100%) | 5/5 (100%) |
+| V. Preferences (PREF) | 6 | 2 | 2 | 2 | 1/1 (100%) | 4/5 (80%) |
 | W. Cloud & AI infrastructure (CLOUD / AI) | 1 | 0 | 1 | 2 | — | — |
-| X. Cross-cutting behaviours (BEHAV) | 18 | 6 | 1 | 1 | 8/8 (100%) | 6/9 (67%) |
-| Y. Menus | 82 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
+| X. Cross-cutting behaviours (BEHAV) | 20 | 6 | 1 | 1 | 8/8 (100%) | 6/9 (67%) |
+| Y. Menus | 83 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 75 | 3 | 3 | 1 | 49/52 (94%) | 23/24 (96%) |
-| Lightroom Classic extras | 32 | 11 | 39 | 9 | — | 22/24 (92%) |
-| **Total** | 393 | 39 | 84 | 36 | 192/200 (96%) | 142/152 (93%) |
+| Lightroom Classic extras | 33 | 15 | 35 | 9 | — | 23/25 (92%) |
+| **Total** | 400 | 49 | 73 | 36 | 192/200 (96%) | 143/155 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **79.9%** of 516 in-scope rows — P0 98.0% of 200 · P1 95.7% of 152 · P2 42.9% of 163.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.3%** of 522 in-scope rows — P0 98.0% of 200 · P1 95.2% of 155 · P2 48.2% of 166.
 <!-- /parity:summary -->
 
 ## Top gaps
@@ -527,6 +527,7 @@ under the UI command that wraps it (a no-op error); the UI command now wins.
 | LR-BEHAV-TOAST | Toast notifications | P1 | ✅ | `crates/ui-egui/src/panels/mod.rs` | |
 | LR-BEHAV-SIDEBAR-COLLAPSE | Collapsible left-sidebar sections | P2 | ✅ | `crates/ui-egui/src/panels/left.rs` (`section`, `section_header`), `crates/ui-egui/src/sidebar.rs` (`SidebarLayout`), `crates/ui-egui/src/tests_panels.rs` | click the Albums, Local, By Date, Folders or Keywords header (or drive `ui.clickWidget` `sidebarSection:<albums\|local\|byDate\|folders\|keywords>`) to fold or unfold the section; a chevron after the title shows the state; the choice is kept across restarts (`sidebar` in the UI state; the `collapsedSidebar` list of older settings files is still read). UI-only (no command), like the By Date / Keywords disclosure triangles; photos dropped on a folded Albums section have no target |
 | LR-BEHAV-SIDEBAR-SECTIONS | Left-sidebar sections share one frame and one arrangement | P2 | ✅ | `crates/ui-egui/src/sidebar.rs` (`SidebarSection`, `SidebarLayout`), `crates/ui-egui/src/panels/left.rs` (`section`, `section_header`, `tree_toggle`), `crates/ui-egui/src/tests_panels.rs` | Albums, Local, By Date, Folders and Keywords are drawn by one `section` frame (the same gap above, header, fold and accessibility name) from one arrangement, `sidebar` in the UI state: a list of `{id, hidden, collapsed}` top to bottom, also settable with `ui.set`. Whatever is read, every section is in it exactly once (unknown and repeated entries are dropped, the rest follow in the usual order), so a damaged or newer settings file never loses the other settings. Rows that open (album folders, Local folders, dates, library folders, keywords) share `tree_toggle`: the same triangle, the same remembered open state, announced as Expand / Collapse. My Photos (All Photos, Recently Added, Picks, Missing Photos) is not a section: it stays on top |
+| LR-BEHAV-SIDEBAR-HIDE | Show and hide left-sidebar sections | P2 | ✅ | `cmd:view.sidebarSection`, `cmd:view.sidebarReset`, `crates/ui-egui/src/sidebar.rs`, `crates/ui-egui/src/panels/left.rs` (`sections_menu`), `crates/ui-egui/src/menubar.rs`, `crates/ui-egui/src/tests_panels.rs` | View ▸ Sidebar Sections lists Albums, Local, By Date, Folders and Keywords in the sidebar's order, each checked while shown; unchecking one takes its header and rows off the sidebar, checking it puts it back where and how it was (still folded if it was). The same list opens with a right-click on any section header (with Hide This Section first; widgets `sidebarMenu:hide`, `sidebarMenu:section:<id>`, `sidebarMenu:reset`) and on the My Photos title (`sidebarTitle`), which is always there, so hidden sections can always come back. Reset Sidebar Sections (enabled once something changed) shows and opens every section in the usual order. `view.sidebarSection` `{section, show?, collapsed?}` flips shown / hidden when neither flag is given and refuses an unknown section or a flag that is not true / false. Hiding the section of what the grid shows (an album, a keyword filter) leaves the grid as it is; an album made while Albums is hidden or folded brings Albums back, open. Kept with the UI state (`sidebar`). My Photos itself can't be hidden |
 | LR-BEHAV-PANEL-RESIZE | Resizable side panels | P1 | ✅ | `crates/ui-egui/src/panels/mod.rs` (`resizable_side`), `crates/ui-egui/src/state.rs` (`LEFT_WIDTH`, `RIGHT_WIDTH`), `crates/ui-egui/src/tests_panels.rs` | drag the left sidebar's right edge (200–480 pt) or the right panel's left edge (250–520 pt); the photo area keeps ≥ 360 pt; widths are kept across panels, views and restarts (`leftWidth` / `rightWidth` in the UI state); the Presets column stays fixed |
 | LR-BEHAV-EMPTY-STATES | Empty states | P1 | ✅ | `crates/ui-egui/src/panels/mod.rs` (`empty_message`) | |
 | LR-BEHAV-TOOLTIPS | Tooltips with shortcuts | P0 | ✅ | `crates/ui-egui/src/panels/bottombar.rs` | |
@@ -602,6 +603,7 @@ visible menu bar yet: the menu model is only exposed through the control channel
 | MENU-VIEW-SORT | Sort submenu | P0 | ✅ | `cmd:library.sort`, `cmd:library.shuffle` | Random + Reshuffle; no colour-label key |
 | MENU-VIEW-STACKS | Expand/collapse stacks | P1 | ✅ | `cmd:stack.expandAll`, `cmd:stack.collapseAll` | |
 | MENU-VIEW-PHOTOCOUNT | Show photo counts | P2 | ✅ | `cmd:view.photoCounts` | View ▸ Show Photo Counts toggles the left panel's counts |
+| MENU-VIEW-SIDEBARSECTIONS | Sidebar sections | P2 | ✅ | `cmd:view.sidebarSection`, `cmd:view.sidebarReset` | View ▸ Sidebar Sections ▸ a checkable item per left-sidebar section, then Reset Sidebar Sections (see LR-BEHAV-SIDEBAR-HIDE) |
 | MENU-VIEW-HDR | HDR display options | P2 | ⬜ | | |
 | MENU-PHOTO-ADDTOALBUM | Add to album | P0 | ✅ | `cmd:album.addPhotos` | |
 | MENU-PHOTO-REMOVEFROMALBUM | Remove from album | P0 | ✅ | `cmd:album.removePhotos` | |

@@ -279,6 +279,154 @@ fn the_sidebar_draws_its_sections_as_arranged() {
     }
 }
 
+/// Run a command that must succeed; its result.
+fn exec(h: &mut Headless, command: &str, params: serde_json::Value) -> serde_json::Value {
+    let r = h.request("engine.execute", json!({"command": command, "params": params}), T);
+    assert_eq!(r["ok"], true, "{command}: {r}");
+    h.step();
+    h.step();
+    r["result"].clone()
+}
+
+/// The View ▸ Sidebar Sections items: (section id or command, checked).
+fn sidebar_menu_items(h: &Headless) -> Vec<(String, Option<bool>)> {
+    use crate::menubar::MenuNode;
+    let bar = crate::menubar::menu_bar(&h.app);
+    let view = &bar.iter().find(|(t, _)| t == "View").expect("View menu").1;
+    let children = view
+        .iter()
+        .find_map(|n| match n {
+            MenuNode::Submenu { label, children } if label == "Sidebar Sections" => Some(children.clone()),
+            _ => None,
+        })
+        .expect("View ▸ Sidebar Sections");
+    children
+        .iter()
+        .filter_map(|n| match n {
+            MenuNode::Item { id, params, checked, .. } => Some((params["section"].as_str().unwrap_or(id).to_string(), *checked)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Given the sidebar, when a section is unchecked in View ▸ Sidebar Sections, then it leaves the
+/// sidebar (header and rows) and the menu shows it unchecked; checking it again brings it back
+/// as it was. The choice is part of the saved UI state.
+#[test]
+fn a_section_is_hidden_and_shown_from_the_view_menu() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let checked = |h: &Headless, id: &str| sidebar_menu_items(h).into_iter().find(|(s, _)| s == id).unwrap_or_else(|| panic!("no {id} item")).1;
+    assert_eq!(checked(&h, "byDate"), Some(true));
+    assert!(has(&h, "sidebarSection:byDate"));
+    // folded first: it must come back folded
+    click(&mut h, "sidebarSection:byDate");
+    let r = exec(&mut h, "view.sidebarSection", json!({"section": "byDate"}));
+    assert_eq!(r, json!({"section": "byDate", "show": false, "collapsed": true}));
+    assert!(!has(&h, "sidebarSection:byDate"), "the header is gone");
+    assert_eq!(checked(&h, "byDate"), Some(false));
+    assert_eq!(checked(&h, "albums"), Some(true), "the others stay");
+    // saved and read back
+    let back = serde_json::from_value::<crate::UiState>(serde_json::to_value(&h.app.ui).unwrap()).unwrap().sanitized();
+    assert!(back.sidebar.is_hidden(crate::sidebar::SidebarSection::ByDate));
+    let r = exec(&mut h, "view.sidebarSection", json!({"section": "byDate"}));
+    assert_eq!(r["show"], true);
+    assert!(has(&h, "sidebarSection:byDate") && h.app.ui.sidebar_section_collapsed("byDate"), "back, still folded");
+    // saying what is wanted, instead of flipping it: showing a shown section changes nothing
+    let r = exec(&mut h, "view.sidebarSection", json!({"section": "byDate", "show": true, "collapsed": false}));
+    assert_eq!(r, json!({"section": "byDate", "show": true, "collapsed": false}));
+    assert!(h.app.widgets.iter().any(|(w, _)| w.starts_with("source:date:")), "open again: its rows are drawn");
+}
+
+/// Given sections moved out of sight, when Reset Sidebar Sections is chosen, then every section
+/// is shown and open again; the item is only offered when there is something to reset.
+#[test]
+fn resetting_the_sidebar_brings_every_section_back() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let reset_enabled = |h: &Headless| {
+        let bar = crate::menubar::menu_bar(&h.app);
+        let json = serde_json::to_string(&bar).unwrap();
+        // the item as the menu model describes it
+        let at = json.find("view.sidebarReset").expect("the reset item");
+        json[at..].split("enabled\":").nth(1).is_some_and(|rest| rest.starts_with("true"))
+    };
+    assert!(!reset_enabled(&h), "nothing to reset yet");
+    exec(&mut h, "view.sidebarSection", json!({"section": "albums", "show": false}));
+    exec(&mut h, "view.sidebarSection", json!({"section": "keywords", "collapsed": true}));
+    assert!(reset_enabled(&h));
+    assert!(!has(&h, "sidebarSection:albums"));
+    exec(&mut h, "view.sidebarReset", json!({}));
+    assert!(h.app.ui.sidebar.is_default());
+    assert!(has(&h, "sidebarSection:albums") && !h.app.ui.sidebar_section_collapsed("keywords"));
+}
+
+/// Given a section's header, when it is right-clicked and Hide This Section is chosen, then the
+/// section is hidden; and the menu of the My Photos title, which is always there, shows it again.
+#[test]
+fn a_section_is_hidden_from_its_header_and_brought_back_from_the_title() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    right_click(&mut h, "sidebarSection:keywords");
+    assert!(popup_open(&h), "the header has a menu");
+    click(&mut h, "sidebarMenu:hide");
+    assert!(!has(&h, "sidebarSection:keywords") && !popup_open(&h));
+    assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("source:keyword:")), "its rows went with it");
+    right_click(&mut h, "sidebarTitle");
+    assert!(popup_open(&h), "the title has the menu too");
+    assert!(!has(&h, "sidebarMenu:hide"), "the title is no section: nothing to hide");
+    click(&mut h, "sidebarMenu:section:keywords");
+    assert!(has(&h, "sidebarSection:keywords"));
+    // …and from there every section can go back to the usual arrangement
+    exec(&mut h, "view.sidebarSection", json!({"section": "byDate", "show": false}));
+    right_click(&mut h, "sidebarTitle");
+    click(&mut h, "sidebarMenu:reset");
+    assert!(h.app.ui.sidebar.is_default());
+}
+
+/// Given an album is being shown, when Albums is hidden, then the grid goes on showing the album.
+#[test]
+fn hiding_the_section_of_what_is_shown_keeps_showing_it() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let album = h.app.session.execute("album.create", &json!({"name": "Kept"})).unwrap()["id"].as_u64().unwrap();
+    exec(&mut h, "library.source", json!({"kind": "album", "id": album}));
+    let shown = h.app.session.source;
+    exec(&mut h, "view.sidebarSection", json!({"section": "albums", "show": false}));
+    assert!(!has(&h, &format!("source:album:{album}")));
+    assert_eq!(h.app.session.source, shown);
+}
+
+/// Given Albums is hidden (and folded), when an album is made from the menu, then Albums is back
+/// and open, so the new album can be seen.
+#[test]
+fn a_new_album_brings_a_hidden_albums_section_back() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    exec(&mut h, "view.sidebarSection", json!({"section": "albums", "show": false, "collapsed": true}));
+    exec(&mut h, "dialog.newAlbum", json!({"name": "Fresh"}));
+    let r = h.request("ui.dialog.confirm", json!({}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    let id = h.app.session.catalog.albums().find(|a| a.name == "Fresh").expect("the album was made").id.0;
+    assert!(has(&h, "sidebarSection:albums") && has(&h, &format!("source:album:{id}")));
+}
+
+/// A command that names no section, an unknown one, or a flag that is no true / false is refused
+/// with what it takes, and changes nothing.
+#[test]
+fn sidebar_commands_refuse_what_they_cannot_read() {
+    let mut h = demo([1400.0, 900.0], json!({"view": "photoGrid", "leftPanel": true}));
+    for (params, says) in [
+        (json!({}), "`section` is needed (albums|local|byDate|folders|keywords)"),
+        (json!({"section": 3}), "`section` is needed"),
+        (json!({"section": "map"}), "unknown section `map`"),
+        (json!({"section": "albums", "show": "no"}), "`show` must be true or false"),
+        (json!({"section": "albums", "collapsed": 1}), "`collapsed` must be true or false"),
+    ] {
+        let r = h.request("engine.execute", json!({"command": "view.sidebarSection", "params": params}), T);
+        assert_eq!(r["ok"], false, "{params}: {r}");
+        assert!(r.to_string().contains(says), "{params}: {r}");
+    }
+    assert!(h.app.ui.sidebar.is_default());
+}
+
 /// Albums nest in folders like the other sidebar trees: a folder row has a disclosure triangle
 /// (`albumToggle:<id>`), plain albums have none, and folding a folder hides what is inside it.
 #[test]
