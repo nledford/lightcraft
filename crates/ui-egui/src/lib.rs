@@ -79,6 +79,8 @@ mod tests_preview_limit;
 #[cfg(test)]
 mod tests_quit_unsaved;
 #[cfg(test)]
+mod tests_refusals;
+#[cfg(test)]
 mod tests_scroll;
 #[cfg(test)]
 mod tests_switch_library;
@@ -102,6 +104,38 @@ pub use control::{ControlRequest, ControlResponse};
 pub use state::UiState;
 
 const TOAST_SECONDS: f64 = 1.4;
+/// How long a toast saying why a command was refused stays: a sentence to read, as
+/// [`LightcraftApp::toast_error`]'s.
+const REFUSAL_SECONDS: f64 = 6.0;
+
+/// A command that didn't run: the whole error (for agents, the log and the status) and what it
+/// says to the person who asked (the reason, without the command's id).
+struct Refusal {
+    error: String,
+    why: String,
+}
+
+impl Refusal {
+    /// An error that is already words for a person (the interface's own commands).
+    fn plain(error: String) -> Refusal {
+        Refusal { why: error.clone(), error }
+    }
+}
+
+impl From<lightcraft_engine::EngineError> for Refusal {
+    fn from(e: lightcraft_engine::EngineError) -> Refusal {
+        use lightcraft_engine::EngineError;
+        let why = match &e {
+            EngineError::Disabled(_, why) => why.clone(),
+            EngineError::BadParams { msg, .. } => msg.clone(),
+            other => other.to_string(),
+        };
+        // a sentence starts with a capital, whatever the command wrote
+        let mut letters = why.chars();
+        let why = letters.next().map(|first| first.to_uppercase().chain(letters).collect()).unwrap_or_default();
+        Refusal { error: e.to_string(), why }
+    }
+}
 
 pub type PickFiles = Box<dyn FnMut() -> Vec<String>>;
 /// A save dialog: suggested file name → chosen path (`None` = cancelled).
@@ -409,15 +443,45 @@ impl LightcraftApp {
         self
     }
 
-    /// Run a UI or engine command by id. The single entry point for every frontend path.
+    /// Run a UI or engine command by id. The single entry point for every frontend path: the
+    /// error comes back in full and nothing is shown, for agents (the control channel) and for
+    /// code that deals with the answer itself. A widget acting for the person uses [`Self::act`].
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        self.run_told(id, params).map_err(|refusal| refusal.error)
+    }
+
+    /// Run a command for the person at the interface (a click, a drop, a key): when it is
+    /// refused, a toast says why, so no widget has to pass that on by hand (or forget to).
+    /// `None` when it was refused. `cargo xtask refusals` keeps `app.act(…)` out of the
+    /// interface: a widget says which of the three it means.
+    pub fn act(&mut self, id: &str, params: Value) -> Option<Value> {
+        match self.run_told(id, params) {
+            Ok(v) => Some(v),
+            Err(refusal) => {
+                // Native menu clicks can arrive before logic() updates last_time after an idle gap.
+                let now = self.tasks.repaint.as_ref().map(|ctx| ctx.input(|i| i.time)).unwrap_or(self.last_time);
+                self.ui.toast = Some((refusal.why, now + REFUSAL_SECONDS, None));
+                None
+            }
+        }
+    }
+
+    /// Run a command whose refusal is expected here and means nothing to the person (it is
+    /// tried on the off chance, or again on every frame of a gesture): nothing is shown. Say why
+    /// at the call. `None` when it was refused.
+    pub fn quiet(&mut self, id: &str, params: Value) -> Option<Value> {
+        self.run_told(id, params).ok()
+    }
+
+    /// [`Self::run`], keeping what a refusal says to a person apart from the whole error.
+    fn run_told(&mut self, id: &str, params: Value) -> Result<Value, Refusal> {
         if let Some(result) = model_setup::intercept(self, id, &params) {
-            return result;
+            return result.map_err(Refusal::plain);
         }
         if let Some(r) = menus::run_ui_command(self, id, &params) {
-            return r;
+            return r.map_err(Refusal::plain);
         }
-        let r = self.session.execute(id, &params).map_err(|e| e.to_string());
+        let r = self.session.execute(id, &params).map_err(Refusal::from);
         if r.is_ok() && id == "mask.adjust" {
             // Judge local adjustments on the photo, without the selection overlay obscuring them.
             // Keep it hidden after release; O / the overlay eye can show it again.
@@ -438,7 +502,7 @@ impl LightcraftApp {
             self.ui.toast = Some((text, now + TOAST_SECONDS, label));
         }
         match &r {
-            Err(e) => {
+            Err(Refusal { error: e, .. }) => {
                 log::warn!("{id}: {e}");
                 self.ui.status = e.clone();
                 // no detector yet: offer it (its terms first) instead of only saying so
@@ -470,7 +534,8 @@ impl LightcraftApp {
                 && !vis.is_empty()
             {
                 let i = vis.iter().position(|x| *x == cur).map_or(0, |i| (i + 1) % vis.len());
-                let _ = self.run("library.select", serde_json::json!({"ids": [vis[i].0]}));
+                // the slideshow moving on by itself: nobody asked, so nobody is told
+                self.quiet("library.select", serde_json::json!({"ids": [vis[i].0]}));
             }
             self.ui.slideshow = Some((interval, now + interval, false));
         }
@@ -898,7 +963,7 @@ impl LightcraftApp {
             }
             let (presets, photos): (Vec<String>, Vec<String>) = dropped.into_iter().partition(|p| is_preset_file(p));
             if !presets.is_empty() {
-                let _ = self.run("file.importPresets", serde_json::json!({"paths": presets}));
+                self.act("file.importPresets", serde_json::json!({"paths": presets}));
             }
             // read and added on a worker thread (dropped folders can be large, or on a slow drive)
             if !photos.is_empty() {
