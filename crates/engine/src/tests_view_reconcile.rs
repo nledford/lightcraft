@@ -8,14 +8,22 @@
 //!   creation undone, its deletion redone, the folder around it deleted, or removed by an edit
 //!   that is no command), then the grid shows All Photos, titled so.
 //! - Given an album that went away and came back (its deletion undone), then it is not shown
-//!   again by itself, nor the target or the filter's album again.
+//!   again by itself, nor the filter's album again; it is the target again, as it was (the target
+//!   is looked up where it is used, so nothing had to forget it).
 //! - Given a library closed while showing an album that is gone when it is opened again, then
 //!   it opens on All Photos.
-//! - Given the filter names an album, or an album is the target, when that album goes away, then
-//!   the filter no longer names it and there is no target; a saved filter that names an album
-//!   since deleted applies without it; a filter can't be set to an album that doesn't exist.
-//! - Given photos are selected, when they go away by undo and come back by redo, then they are
-//!   selected as before (the selection is looked up where it is read, not pruned).
+//! - Given the filter names an album, when that album goes away, then the filter no longer names
+//!   it; a saved filter that names an album since deleted applies without it; a filter can't be
+//!   set to an album that doesn't exist, and such a call changes nothing else either.
+//! - Given an album is the target, when it goes away, then photos go to the Quick Collection.
+//! - Given photos are selected, when some go away by undo, then commands act on the ones that
+//!   are left and write the others nowhere; when they come back by redo, they are selected as
+//!   before (the selection is looked up where it is read, not pruned).
+//! - Given another library is opened, then the filter's album and the target, which named albums
+//!   of the library before, name nothing: the same number is another album there.
+//! - Given a smart album saved from the view of an album or folder, when that album is deleted,
+//!   then the smart album says so (it is marked, as for a rule naming a deleted album) instead of
+//!   being quietly empty; and a smart album can't be limited to an album that doesn't exist.
 //! - Given the shown album is only changed (renamed, moved, emptied), then it is still shown.
 
 use lightcraft_catalog::{AlbumId, Op, Photo, PhotoId, Source};
@@ -110,16 +118,15 @@ fn an_album_that_comes_back_is_not_shown_again_by_itself() {
     photos(&mut s, 3);
     let id = run(&mut s, "album.create", json!({"name": "First"}))["id"].as_u64().unwrap();
     show(&mut s, id);
-    run(&mut s, "album.setTarget", json!({"id": id}));
     run(&mut s, "library.filter", json!({"album": id}));
-    // the target and the filter are no undo steps: this undoes the album
+    // the filter is no undo step: this undoes the album
     run(&mut s, "edit.undo", json!({}));
     assert!(s.catalog.album(AlbumId(id)).is_none(), "the album's creation was undone");
-    assert_eq!((s.source, s.target_album, s.filter.album), (LibrarySource::All, None, None));
+    assert_eq!((s.source, s.filter.album), (LibrarySource::All, None));
     run(&mut s, "edit.redo", json!({}));
     assert!(s.catalog.album(AlbumId(id)).is_some(), "and redone");
     shows_all(&mut s, "the album came back");
-    assert_eq!((s.target_album, s.filter.album), (None, None));
+    assert_eq!(s.filter.album, None);
     // nor does the next album made take its place
     run(&mut s, "edit.undo", json!({}));
     let second = run(&mut s, "album.create", json!({"name": "Second"}))["id"].as_u64().unwrap();
@@ -127,21 +134,49 @@ fn an_album_that_comes_back_is_not_shown_again_by_itself() {
     shows_all(&mut s, "another album was made");
 }
 
+/// The target album is looked up where it is used: gone, photos go to the Quick Collection; back
+/// by undo, it is the target again.
 #[test]
-fn a_filter_and_a_target_let_go_of_an_album_that_went_away() {
+fn the_target_album_follows_the_album() {
+    let mut s = Session::new();
+    photos(&mut s, 3);
+    let id = run(&mut s, "album.create", json!({"name": "Target"}))["id"].as_u64().unwrap();
+    run(&mut s, "album.setTarget", json!({"id": id}));
+    run(&mut s, "album.delete", json!({"id": id}));
+    s.selection.ids = vec![PhotoId(1)];
+    let r = run(&mut s, "album.toggleTarget", json!({}));
+    assert_ne!(r["album"].as_u64(), Some(id));
+    assert_eq!(s.catalog.quick_collection().map(|a| a.0), r["album"].as_u64(), "the Quick Collection took it");
+    // undone as far as the deletion: the album is back, and is the target again
+    for _ in 0..5 {
+        if s.catalog.album(AlbumId(id)).is_none() {
+            run(&mut s, "edit.undo", json!({}));
+        }
+    }
+    assert!(s.catalog.album(AlbumId(id)).is_some());
+    s.selection.ids = vec![PhotoId(2)];
+    assert_eq!(run(&mut s, "album.toggleTarget", json!({}))["album"].as_u64(), Some(id));
+}
+
+#[test]
+fn a_filter_lets_go_of_an_album_that_went_away() {
     let mut s = Session::new();
     photos(&mut s, 3);
     let id = run(&mut s, "album.create", json!({"name": "Named"}))["id"].as_u64().unwrap();
     let other = run(&mut s, "album.create", json!({"name": "Other"}))["id"].as_u64().unwrap();
-    run(&mut s, "album.setTarget", json!({"id": id}));
     run(&mut s, "library.filter", json!({"album": id, "rating": 0}));
-    assert_eq!((s.target_album, s.filter.album), (Some(AlbumId(id)), Some(AlbumId(id))));
+    assert_eq!(s.filter.album, Some(AlbumId(id)));
     // another album going away changes nothing
     run(&mut s, "album.delete", json!({"id": other}));
-    assert_eq!((s.target_album, s.filter.album), (Some(AlbumId(id)), Some(AlbumId(id))));
+    assert_eq!(s.filter.album, Some(AlbumId(id)));
     run(&mut s, "album.delete", json!({"id": id}));
-    assert_eq!((s.target_album, s.filter.album), (None, None));
+    assert_eq!(s.filter.album, None);
     assert_eq!(s.visible_cloned().len(), 3, "the filter hides nothing behind an album that is gone");
+    // the step functions themselves check, not only the commands round them
+    s.undo_step().unwrap();
+    run(&mut s, "library.filter", json!({"album": id}));
+    s.redo_step().unwrap();
+    assert_eq!(s.filter.album, None);
 }
 
 /// The view can come to name a missing album with the library unchanged: a saved filter applied
@@ -159,9 +194,9 @@ fn a_filter_naming_a_missing_album_is_not_taken_up() {
     // nothing changes in the library from here on
     let r = run(&mut s, "filter.applyPreset", json!({"name": "In Named"}));
     assert_eq!((s.filter.album, r["photos"].as_u64()), (None, Some(3)), "applied without the album that is gone");
-    let e = s.execute("library.filter", &json!({"album": 77})).unwrap_err().to_string();
+    let e = s.execute("library.filter", &json!({"album": 77, "rating": 4})).unwrap_err().to_string();
     assert!(e.contains("no such album"), "{e}");
-    assert_eq!(s.filter.album, None);
+    assert_eq!((s.filter.album, s.filter.rating), (None, 0), "nothing of the call was taken up");
     assert_eq!(s.source_total(), Some(3));
     // an album that is there can be named, and cleared
     let kept = run(&mut s, "album.create", json!({"name": "Kept"}))["id"].as_u64().unwrap();
@@ -184,8 +219,31 @@ fn the_total_is_of_what_is_there() {
     assert_eq!(s.source, LibrarySource::All);
 }
 
-/// Undo takes a selected photo away and redo brings it back: selected and active as before, and
-/// in between nothing acts on a photo that isn't there.
+/// Undo takes a selected photo away: commands on the selection act on the photos that are left,
+/// and the one that is gone is written nowhere.
+#[test]
+fn a_selected_photo_that_is_gone_is_acted_on_nowhere() {
+    let mut s = Session::new();
+    photos(&mut s, 2);
+    let album = run(&mut s, "album.create", json!({"name": "Kept"}))["id"].as_u64().unwrap();
+    let late = s.catalog.alloc_photo_id();
+    let p = Photo::new(late, Source::Demo { scene: 1 }, "late.jpg", "JPEG", 60, 40, "2026-02-01T10:00:00");
+    s.commit("Add Photo", Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    s.selection.ids = vec![PhotoId(1), late];
+    s.selection.active = Some(late);
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.catalog.photo(late).is_none());
+    assert_eq!(s.active(), None, "no photo to act on alone");
+    assert_eq!(s.targets(&json!({})), [PhotoId(1)], "the selection, as far as it is there");
+    assert_eq!(run(&mut s, "album.addPhotos", json!({"id": album}))["added"], 1);
+    assert_eq!(s.catalog.album(AlbumId(album)).unwrap().photos, [PhotoId(1)]);
+    run(&mut s, "photo.rate", json!({"rating": 3}));
+    assert_eq!(s.catalog.photo(PhotoId(1)).unwrap().rating, 3, "the photo that is left is rated");
+    // ids a call names itself are the caller's to get right
+    assert!(s.execute("photo.rate", &json!({"ids": [late.0], "rating": 1})).is_err());
+}
+
+/// Redo brings a selected photo back selected and active as before.
 #[test]
 fn photos_that_go_and_come_back_are_selected_as_before() {
     let mut s = Session::new();
@@ -194,10 +252,66 @@ fn photos_that_go_and_come_back_are_selected_as_before() {
     s.selection.active = Some(PhotoId(3));
     run(&mut s, "edit.undo", json!({}));
     assert!(s.catalog.photo(PhotoId(3)).is_none());
-    assert_eq!(s.active(), None, "no photo to act on");
-    assert!(s.execute("mask.delete", &json!({})).is_err(), "so nothing does");
     run(&mut s, "edit.redo", json!({}));
     assert_eq!((s.selection.ids.clone(), s.active()), (vec![PhotoId(1), PhotoId(3)], Some(PhotoId(3))));
+}
+
+/// Another library's albums have the same numbers: what named an album here names nothing there.
+#[test]
+fn another_library_starts_without_this_ones_album_filter_and_target() {
+    struct Scratch(std::path::PathBuf);
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let dirs = ["a", "b"].map(|n| Scratch(std::env::temp_dir().join(format!("lc-view-reconcile-switch-{n}-{}", std::process::id()))));
+    for d in &dirs {
+        let _ = std::fs::remove_dir_all(&d.0);
+    }
+    // library B has an album 1 of its own
+    let mut s = Session::new();
+    s.open_library(&dirs[1].0, false).unwrap();
+    photos(&mut s, 3);
+    let theirs = run(&mut s, "album.create", json!({"name": "B's album"}))["id"].as_u64().unwrap();
+    drop(s);
+    let mut s = Session::new();
+    s.open_library(&dirs[0].0, false).unwrap();
+    photos(&mut s, 3);
+    let ours = run(&mut s, "album.create", json!({"name": "A's album"}))["id"].as_u64().unwrap();
+    assert_eq!(ours, theirs, "the same number in both libraries");
+    run(&mut s, "album.setTarget", json!({"id": ours}));
+    run(&mut s, "library.filter", json!({"album": ours, "rating": 0}));
+    s.open_library(&dirs[1].0, false).unwrap();
+    assert_eq!(s.catalog.album(AlbumId(theirs)).unwrap().name, "B's album");
+    assert_eq!((s.target_album, s.filter.album), (None, None));
+    assert_eq!(s.visible_cloned().len(), 3, "no album filter left over");
+}
+
+#[test]
+fn a_smart_album_says_when_the_album_it_shows_is_gone() {
+    let mut s = Session::new();
+    photos(&mut s, 3);
+    let folder = run(&mut s, "album.create", json!({"name": "Trips", "folder": true}))["id"].as_u64().unwrap();
+    let inner = run(&mut s, "album.create", json!({"name": "Rome", "parent": folder}))["id"].as_u64().unwrap();
+    s.selection.ids = vec![PhotoId(1), PhotoId(2)];
+    run(&mut s, "album.addPhotos", json!({"id": inner, "ids": [1, 2]}));
+    show(&mut s, folder);
+    let saved = run(&mut s, "album.createSmart", json!({"name": "Trips view"}));
+    assert_eq!(saved["count"], 2);
+    let saved = AlbumId(saved["id"].as_u64().unwrap());
+    assert!(s.catalog.smart_album_problems(saved).is_empty());
+    run(&mut s, "album.delete", json!({"id": folder}));
+    assert_eq!(s.catalog.album_count(saved), 0);
+    let problems = s.catalog.smart_album_problems(saved);
+    assert!(problems.iter().any(|p| p.issue == lightcraft_catalog::rules::Issue::NoSuchAlbum), "{problems:?}");
+    // back with the folder
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.catalog.smart_album_problems(saved).is_empty());
+    assert_eq!(s.catalog.album_count(saved), 2);
+    // and none is made that way
+    let e = s.execute("album.createSmart", &json!({"name": "Of nothing", "rules": {"album": 999}})).unwrap_err().to_string();
+    assert!(e.contains("999"), "{e}");
 }
 
 #[test]

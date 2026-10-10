@@ -319,6 +319,9 @@ impl Session {
         self.selection = Selection::default();
         self.source = LibrarySource::All;
         self.library_folder = None;
+        // album numbers mean other albums in another library
+        self.filter.album = None;
+        self.target_album = None;
         if report.created && seed_demo {
             crate::demo::load(self);
             journal.snapshot(&self.catalog)?;
