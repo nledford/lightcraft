@@ -133,6 +133,11 @@ fn click(h: &mut Headless, id: &str) {
     h.step();
 }
 
+fn key(h: &mut Headless, key: &str, cmd: bool) {
+    let r = h.request("ui.key", json!({"key": key, "cmd": cmd}), T);
+    assert_eq!(r["ok"], true, "{r}");
+}
+
 /// Edit ▸ Auto on a photo whose original is missing: nothing changed, and the toast used to read
 /// "Auto settings applied" (the success was said whatever the command answered).
 #[test]
@@ -196,6 +201,32 @@ fn a_refused_slider_change_says_why_and_an_ordinary_drag_says_nothing() {
     }
     let said = toast(&h.app).expect("a toast");
     assert!(said.contains("no.suchControl") && !said.contains("develop.set"), "{said}");
+}
+
+/// A key is a click by another name: refused, it says why instead of the success it used to
+/// claim ("Rated ★★★" with nothing selected, "Undo" with nothing to undo).
+#[test]
+fn a_refused_key_says_why_instead_of_claiming_success() {
+    let mut h = headless(missing_originals(), json!({"view": "photoGrid"}));
+    // goes through: its own success toast, as before
+    key(&mut h, "3", false);
+    assert_eq!(h.app.session.catalog.photo(lightcraft_catalog::PhotoId(1)).unwrap().rating, 3);
+    assert_eq!(toast(&h.app), Some("Rated ★★★"));
+    key(&mut h, "Z", true);
+    assert_eq!(h.app.session.catalog.photo(lightcraft_catalog::PhotoId(1)).unwrap().rating, 0);
+    assert_eq!(toast(&h.app), Some("Undo"));
+    // nothing left to undo
+    h.app.ui.toast = None;
+    key(&mut h, "Z", true);
+    let said = toast(&h.app).expect("a toast").to_string();
+    assert!(said != "Undo" && said.to_lowercase().contains("nothing to undo"), "{said}");
+    // nothing selected
+    h.app.ui.toast = None;
+    h.app.session.selection = Default::default();
+    key(&mut h, "3", false);
+    let said = toast(&h.app).expect("a toast").to_string();
+    assert!(!said.contains("Rated") && said.to_lowercase().contains("no photo"), "{said}");
+    assert!(h.app.session.catalog.photos().all(|p| p.rating == 0), "and nothing was rated");
 }
 
 #[test]
