@@ -12,8 +12,11 @@
 //! - When the shown folder is deleted, then the grid goes back to All Photos.
 //! - Given a folder shown, when the view is saved as a smart album, then that album shows the
 //!   same photos and follows the folder.
-//! - A folder still holds no photos of its own: adding to it or removing from it is refused,
-//!   and nothing is recorded to undo.
+//! - A folder still holds no photos of its own: adding to it, removing from it or giving it a
+//!   cover is refused, and nothing is recorded to undo.
+//! - Given a folder shown, when its view is saved as a smart album inside that folder, or a
+//!   smart album limited to the folder is moved into it, then that is refused (it would include
+//!   itself) and says where it can go.
 //! - Agents see the folder's count in `albums.list`.
 //! - The folder is still the source after the library is closed and opened again.
 
@@ -169,12 +172,70 @@ fn a_folder_holds_no_photos_of_its_own() {
     s.selection.ids = vec![PhotoId(1)];
     s.selection.active = Some(PhotoId(1));
     let steps = s.undo.len();
-    for cmd in ["album.addPhotos", "album.removePhotos"] {
+    for cmd in ["album.addPhotos", "album.removePhotos", "album.setCover"] {
         let e = s.execute(cmd, &json!({"id": trips, "ids": [1]})).unwrap_err().to_string();
         assert!(e.contains("folder"), "{cmd}: {e}");
     }
     assert_eq!(s.undo.len(), steps, "nothing to undo");
+    assert!(s.catalog.album(AlbumId(trips)).unwrap().cover.is_none());
     assert_eq!(shown(&mut s), [3, 2, 1]);
+}
+
+#[test]
+fn a_smart_album_limited_to_a_folder_cant_be_made_inside_it() {
+    let mut s = Session::new();
+    let trips = trips(&mut s);
+    let europe = make(&mut s, json!({"name": "Europe", "folder": true, "parent": trips}));
+    show(&mut s, trips);
+    let (albums, steps) = (s.catalog.albums().count(), s.undo.len());
+    // the folder's own menu: New ▸ Create Smart Album from Filter… (the view, into the folder)
+    for params in [
+        json!({"name": "Here", "parent": trips}),
+        json!({"name": "Deeper", "parent": europe}),
+        json!({"name": "By rules", "parent": trips, "rules": {"album": trips}}),
+    ] {
+        let e = s.execute("album.createSmart", &params).unwrap_err().to_string();
+        let (name, folder) = (params["name"].as_str().unwrap(), if params["parent"] == europe { "Europe" } else { "Trips" });
+        assert!(e.contains(name) && e.contains(folder) && e.contains("include itself"), "{params}: {e}");
+    }
+    assert_eq!((s.catalog.albums().count(), s.undo.len()), (albums, steps), "nothing was made");
+    // beside the folder, or limited to something else, it is made
+    let other = make(&mut s, json!({"name": "Other", "folder": true}));
+    s.execute("album.createSmart", &json!({"name": "Beside", "parent": other})).unwrap();
+    s.execute("album.createSmart", &json!({"name": "Rated", "parent": trips, "rules": {"rating": 4}})).unwrap();
+    show(&mut s, europe);
+    s.execute("album.createSmart", &json!({"name": "Of Europe", "parent": trips})).unwrap();
+}
+
+#[test]
+fn a_smart_album_limited_to_a_folder_cant_be_moved_into_it() {
+    let mut s = Session::new();
+    let trips = trips(&mut s);
+    show(&mut s, trips);
+    let saved = s.execute("album.createSmart", &json!({"name": "From Trips"})).unwrap()["id"].as_u64().unwrap();
+    let europe = make(&mut s, json!({"name": "Europe", "folder": true, "parent": trips}));
+    let box_ = make(&mut s, json!({"name": "Box", "folder": true}));
+    let steps = s.undo.len();
+    for parent in [trips, europe] {
+        let e = s.execute("album.move", &json!({"id": saved, "parent": parent})).unwrap_err().to_string();
+        assert!(e.contains("From Trips") && e.contains("include itself"), "{e}");
+    }
+    // nor inside a folder that is moved there
+    s.execute("album.move", &json!({"id": saved, "parent": box_})).unwrap();
+    let e = s.execute("album.move", &json!({"id": box_, "parent": trips})).unwrap_err().to_string();
+    assert!(e.contains("From Trips"), "{e}");
+    let e = s.execute("album.reorder", &json!({"id": saved, "parent": trips})).unwrap_err().to_string();
+    assert!(e.contains("include itself"), "placing it by hand is a move too: {e}");
+    assert_eq!(s.undo.len(), steps + 1, "only the move into Box happened");
+    assert!(s.catalog.smart_album_problems(AlbumId(saved)).is_empty());
+    assert_eq!(s.catalog.album(AlbumId(saved)).unwrap().parent, Some(AlbumId(box_)));
+    // everything else still moves: out again, and plain albums and folders into Trips
+    s.execute("album.move", &json!({"id": saved, "parent": null})).unwrap();
+    s.execute("album.move", &json!({"id": box_, "parent": trips})).unwrap();
+    let plain = album(&mut s, "Plain", None, &[4]);
+    s.execute("album.move", &json!({"id": plain, "parent": trips})).unwrap();
+    show(&mut s, saved);
+    assert_eq!(shown(&mut s), [4, 3, 2, 1], "and it follows the folder");
 }
 
 #[test]
@@ -199,7 +260,15 @@ fn agents_see_a_folders_count() {
 
 #[test]
 fn a_folder_is_still_the_source_after_reopening() {
-    let dir = std::env::temp_dir().join(format!("lc-album-folder-source-{}", std::process::id()));
+    /// Gone with the test, however it ends.
+    struct Scratch(std::path::PathBuf);
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let scratch = Scratch(std::env::temp_dir().join(format!("lc-album-folder-source-{}", std::process::id())));
+    let dir = scratch.0.clone();
     let _ = std::fs::remove_dir_all(&dir);
     let mut s = Session::new();
     s.open_library(&dir, false).unwrap();
@@ -212,6 +281,4 @@ fn a_folder_is_still_the_source_after_reopening() {
     back.open_library(&dir, false).unwrap();
     assert_eq!(back.source, LibrarySource::Album(AlbumId(trips)));
     assert_eq!(shown(&mut back), want);
-    drop(back);
-    let _ = std::fs::remove_dir_all(&dir);
 }
