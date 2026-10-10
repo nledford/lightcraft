@@ -21,8 +21,14 @@
   (it would include itself): that folder is no drop target and isn't offered under Move to, and commands say why.
 - The grid goes back to All Photos whenever the album, smart album or folder it shows goes away, by whatever way:
   deleting it did already; undoing its creation, redoing its deletion or opening a library whose last view was of an
-  album since removed left an empty grid titled "Album". A filter or target album that names it lets go of it, a saved
-  filter naming an album since deleted applies without it, and `library.filter` refuses an album that doesn't exist.
+  album since removed left an empty grid titled "Album". A filter that names such an album lets go of it (and does not
+  take it up again if the album comes back), a saved filter naming an album since deleted applies without it, and
+  `library.filter` refuses an album that doesn't exist. Opening another library no longer carries over the album
+  filter and the target album, which named other albums there.
+- A selected photo that an undo takes away is acted on by nothing until redo brings it back: Add to Album used to
+  write it into the album, and rating the selection failed for all of it.
+- A smart album saved from the view of an album or folder is marked ⚠ when that album is deleted, instead of being
+  quietly empty.
 - Agents show a folder with `library.source {"kind": "album", "id": <folder id>}`; `albums.list` reports a folder's
   `count`.
 
