@@ -1066,7 +1066,9 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
             let _ = app.run("album.addPhotos", json!({"id": a.id.0}));
         }
         if !a.folder && !a.is_smart() {
-            let is_target = app.session.target_album == Some(a.id) || (app.session.target_album.is_none() && a.quick);
+            // looked up, as the row's "+" is: a target that is gone means the Quick Collection
+            let target = app.session.target_album.filter(|t| app.session.catalog.album(*t).is_some());
+            let is_target = target == Some(a.id) || (target.is_none() && a.quick);
             if !is_target && ui.button(crate::i18n::tr("Set as Target Album (B adds to it)")).clicked() {
                 let _ = app.run("album.setTarget", json!({"id": if a.quick { serde_json::Value::Null } else { json!(a.id.0) }}));
             }

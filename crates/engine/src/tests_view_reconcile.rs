@@ -24,6 +24,12 @@
 //! - Given a smart album saved from the view of an album or folder, when that album is deleted,
 //!   then the smart album says so (it is marked, as for a rule naming a deleted album) instead of
 //!   being quietly empty; and a smart album can't be limited to an album that doesn't exist.
+//!   Pressing OK in its rules dialog, or updating its rules from the current view, lets go of the
+//!   album that is gone and the mark with it; a new smart album saved from its view isn't born
+//!   with the mark.
+//! - Given every selected photo is gone, then commands on the selection are not available (and
+//!   so record nothing and leave redo alone); photos named outright that aren't there are not
+//!   written into an album.
 //! - Given the shown album is only changed (renamed, moved, emptied), then it is still shown.
 
 use lightcraft_catalog::{AlbumId, Op, Photo, PhotoId, Source};
@@ -282,10 +288,17 @@ fn another_library_starts_without_this_ones_album_filter_and_target() {
     assert_eq!(ours, theirs, "the same number in both libraries");
     run(&mut s, "album.setTarget", json!({"id": ours}));
     run(&mut s, "library.filter", json!({"album": ours, "rating": 0}));
+    // and what else names this library's albums and photos by number
+    run(&mut s, "library.filter", json!({"ruleSet": {"match": "all", "rules": [{"field": "album", "op": "is", "value": ours}]}}));
+    s.filter.only = vec![PhotoId(2)];
+    s.previous_active = Some(PhotoId(3));
+    s.active_mask = Some(1);
     s.open_library(&dirs[1].0, false).unwrap();
     assert_eq!(s.catalog.album(AlbumId(theirs)).unwrap().name, "B's album");
-    assert_eq!((s.target_album, s.filter.album), (None, None));
-    assert_eq!(s.visible_cloned().len(), 3, "no album filter left over");
+    assert_eq!(s.target_album, None);
+    assert_eq!(s.filter, lightcraft_catalog::Filter::default(), "no filter left over, as after a restart");
+    assert_eq!((s.previous_active, s.active_mask), (None, None));
+    assert_eq!(s.visible_cloned().len(), 3);
 }
 
 #[test]
@@ -312,6 +325,99 @@ fn a_smart_album_says_when_the_album_it_shows_is_gone() {
     // and none is made that way
     let e = s.execute("album.createSmart", &json!({"name": "Of nothing", "rules": {"album": 999}})).unwrap_err().to_string();
     assert!(e.contains("999"), "{e}");
+}
+
+/// The mark can be cleared where it sends the person: the rules dialog's OK (which replaces the
+/// rules and keeps the album a view was saved from) keeps only an album that is still there, and
+/// so does Update Rules from Current Filter. Other settings stay editable without clearing it.
+#[test]
+fn a_smart_album_lets_go_of_a_missing_album_when_its_rules_are_saved() {
+    let saved_view_of_a_deleted_album = |s: &mut Session| -> AlbumId {
+        let rome = run(s, "album.create", json!({"name": "Rome"}))["id"].as_u64().unwrap();
+        show(s, rome);
+        let saved = AlbumId(run(s, "album.createSmart", json!({"name": "Rome view"}))["id"].as_u64().unwrap());
+        run(s, "album.delete", json!({"id": rome}));
+        assert_eq!(s.catalog.smart_album_problems(saved).len(), 1);
+        saved
+    };
+    let limit = |s: &Session, a: AlbumId| s.catalog.album(a).unwrap().smart.as_ref().unwrap().album;
+
+    // the dialog's OK
+    let mut s = Session::new();
+    photos(&mut s, 3);
+    let saved = saved_view_of_a_deleted_album(&mut s);
+    // a patch that sets something else leaves the rest, the mark included
+    run(&mut s, "album.setRules", json!({"id": saved.0, "rules": {"rating": 0}}));
+    assert!(limit(&s, saved).is_some() && !s.catalog.smart_album_problems(saved).is_empty());
+    let r = run(&mut s, "album.setRules", json!({"id": saved.0, "replace": true, "rules": {"ruleSet": {"match": "all", "rules": []}}}));
+    assert_eq!(limit(&s, saved), None);
+    assert!(s.catalog.smart_album_problems(saved).is_empty());
+    assert_eq!(r["count"], 3, "what the dialog showed would match: its rules, without the album that is gone");
+
+    // Update Rules from Current Filter, while it is shown
+    let mut s = Session::new();
+    photos(&mut s, 3);
+    let saved = saved_view_of_a_deleted_album(&mut s);
+    show(&mut s, saved.0);
+    run(&mut s, "album.setRules", json!({"id": saved.0, "fromView": true}));
+    assert!(s.catalog.smart_album_problems(saved).is_empty());
+
+    // a new smart album from its view isn't born with the mark
+    let mut s = Session::new();
+    photos(&mut s, 3);
+    let saved = saved_view_of_a_deleted_album(&mut s);
+    show(&mut s, saved.0);
+    let again = AlbumId(run(&mut s, "album.createSmart", json!({"name": "Again"}))["id"].as_u64().unwrap());
+    assert!(s.catalog.smart_album_problems(again).is_empty());
+
+    // an album that is still there is kept by the dialog's OK, as before
+    let mut s = Session::new();
+    photos(&mut s, 3);
+    let rome = run(&mut s, "album.create", json!({"name": "Rome"}))["id"].as_u64().unwrap();
+    show(&mut s, rome);
+    let kept = AlbumId(run(&mut s, "album.createSmart", json!({"name": "Rome view"}))["id"].as_u64().unwrap());
+    run(&mut s, "album.setRules", json!({"id": kept.0, "replace": true, "rules": {"ruleSet": {"match": "all", "rules": []}}}));
+    assert_eq!(limit(&s, kept), Some(AlbumId(rome)));
+}
+
+/// Undo took away the only selected photo: nothing on the selection is available, so nothing is
+/// recorded and redo still brings the photo back.
+#[test]
+fn a_selection_of_photos_that_are_gone_is_no_selection() {
+    let mut s = Session::new();
+    photos(&mut s, 2);
+    let album = run(&mut s, "album.create", json!({"name": "Kept"}))["id"].as_u64().unwrap();
+    let late = s.catalog.alloc_photo_id();
+    let p = Photo::new(late, Source::Demo { scene: 1 }, "late.jpg", "JPEG", 60, 40, "2026-02-01T10:00:00");
+    s.commit("Add Photo", Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    s.selection.ids = vec![late];
+    s.selection.active = Some(late);
+    run(&mut s, "edit.undo", json!({}));
+    let (steps, redo) = (s.undo.len(), s.redo.len());
+    assert_eq!(redo, 1);
+    for (cmd, params) in [
+        ("album.addPhotos", json!({"id": album})),
+        ("album.removePhotos", json!({"id": album})),
+        ("album.toggleTarget", json!({})),
+        ("photo.rotateRight", json!({})),
+        ("photo.flipHorizontal", json!({})),
+        ("photo.deletePermanently", json!({})),
+        ("photo.setMeta", json!({"title": "x"})),
+        ("photo.rate", json!({"rating": 3})),
+    ] {
+        let e = s.execute(cmd, &params).map(|v| v.to_string()).unwrap_or_else(|e| e.to_string());
+        assert_eq!((s.undo.len(), s.redo.len()), (steps, redo), "{cmd} recorded something: {e}");
+    }
+    assert!(s.catalog.quick_collection().is_none(), "no Quick Collection was made for nothing");
+    run(&mut s, "edit.redo", json!({}));
+    assert!(s.catalog.photo(late).is_some());
+    assert_eq!(s.active(), Some(late));
+    // photos named outright (a drag of the selection onto an album) that aren't there are left out
+    run(&mut s, "edit.undo", json!({}));
+    s.selection.ids = vec![PhotoId(1), late];
+    let r = run(&mut s, "album.addPhotos", json!({"id": album, "ids": [1, late.0]}));
+    assert_eq!(r["added"], 1);
+    assert_eq!(s.catalog.album(AlbumId(album)).unwrap().photos, [PhotoId(1)]);
 }
 
 #[test]

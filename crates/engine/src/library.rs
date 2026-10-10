@@ -319,9 +319,14 @@ impl Session {
         self.selection = Selection::default();
         self.source = LibrarySource::All;
         self.library_folder = None;
-        // album numbers mean other albums in another library
-        self.filter.album = None;
+        // what names albums and photos by number means others in another library: no filter
+        // (as after a restart; the view file keeps none), no target album, no photo come from
+        self.filter = Default::default();
         self.target_album = None;
+        self.previous_active = None;
+        self.active_mask = None;
+        self.active_spot = None;
+        self.before.clear();
         if report.created && seed_demo {
             crate::demo::load(self);
             journal.snapshot(&self.catalog)?;

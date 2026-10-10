@@ -977,9 +977,10 @@ pub fn specs() -> Vec<CommandSpec> {
                         r.library_folder = folder;
                     }
                     // nor one for the album or folder of albums a saved view is limited to
-                    // (`album: null` drops it)
+                    // (`album: null` drops it). One that is gone is let go of: this is where
+                    // the mark on such an album sends the person
                     if replace && p.get("rules").and_then(|r| r.get("album")).is_none() {
-                        r.album = album;
+                        r.album = album.filter(|a| s.catalog.album(*a).is_some());
                     }
                     r
                 };
@@ -1123,7 +1124,10 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         cmd!("album.addPhotos", "Add to Album", ["Photo"], None, "{id: albumId, ids?: [photoIds]} (default: selection)", has_selection, |s, p| {
             let id = album_param(p, "id", "album.addPhotos")?;
-            let targets = ids_param(p).unwrap_or_else(|| s.targets(&Value::Null));
+            // photos that are there: an album doesn't list one that is gone (a selection dragged
+            // here after an undo took one of its photos away)
+            let mut targets = ids_param(p).unwrap_or_else(|| s.targets(&Value::Null));
+            targets.retain(|t| s.catalog.photo(*t).is_some());
             let al = s.catalog.album(id).ok_or_else(|| bad("album.addPhotos", "no such album"))?;
             if al.is_smart() || al.folder {
                 return Err(bad("album.addPhotos", "smart albums and folders can't hold photos"));
@@ -1511,7 +1515,7 @@ fn view_rules(s: &Session) -> lightcraft_catalog::Filter {
         LibrarySource::Album(a) => s.catalog.album(a).and_then(|a| a.smart.as_deref().cloned()),
         _ => None,
     };
-    match smart {
+    let mut rules = match smart {
         Some(base) => {
             // overlay the fields the filter bar changed
             let cur = serde_json::to_value(&s.filter).unwrap_or_default();
@@ -1536,7 +1540,12 @@ fn view_rules(s: &Session) -> lightcraft_catalog::Filter {
             }
             f
         }
+    };
+    // a view of a smart album limited to an album that is gone is saved without that limit
+    if rules.album.is_some_and(|a| s.catalog.album(a).is_none()) {
+        rules.album = None;
     }
+    rules
 }
 
 impl Session {
