@@ -350,10 +350,15 @@ impl Catalog {
     /// no smart album). A folder contains what the albums inside it do ([`Self::album_members`]).
     pub fn album_contains(&self, id: AlbumId, p: &Photo) -> bool {
         match self.albums.get(&id) {
+            // a folder first: one that also has rules (a damaged library) is still a folder.
+            // Within a pass over the library its photos were gathered once; for one photo, no
+            // list is built
+            Some(a) if a.folder => match gathered(id, || self.folder_photos(id)) {
+                Some(folder) => folder.holds(self, p),
+                None => self.albums.values().any(|m| !m.folder && self.album_is_within(m, id) && self.album_contains(m.id, p)),
+            },
             // guarded: a smart album testing smart albums can't loop or recurse without end
             Some(Album { smart: Some(rules), .. }) => !p.deleted && rules::smart_album_holds(id, p.id, || rules.matches(p, self)),
-            // one photo: no list of members is built for it (a whole view asks `folder_photos`)
-            Some(a) if a.folder => self.albums.values().any(|m| !m.folder && self.album_is_within(m, id) && self.album_contains(m.id, p)),
             Some(a) => a.photos.contains(&p.id),
             None => false,
         }
@@ -369,24 +374,26 @@ impl Catalog {
         }
     }
 
-    /// Whether `album` sits inside `folder`, directly or through the folders between them. Parents
-    /// that lead round in a ring (a damaged library) end the search after one pass round it.
+    /// Whether `album` sits inside `folder`, directly or through the folders between them, as the
+    /// sidebar lists it: a parent that is no folder, or is gone, leads nowhere. Parents that lead
+    /// round in a ring (a damaged library) end the search after one pass round it.
     fn album_is_within(&self, album: &Album, folder: AlbumId) -> bool {
         let mut parent = album.parent;
         for _ in 0..=self.albums.len() {
             match parent {
                 Some(p) if p == folder => return true,
-                Some(p) => parent = self.albums.get(&p).and_then(|a| a.parent),
+                Some(p) => match self.albums.get(&p) {
+                    Some(between) if between.folder => parent = between.parent,
+                    _ => return false,
+                },
                 None => return false,
             }
         }
         false
     }
 
-    /// What folder `id` shows, gathered once for a question about many photos; `None` when `id`
-    /// is not a folder.
-    pub(crate) fn folder_photos(&self, id: AlbumId) -> Option<FolderPhotos> {
-        self.albums.get(&id).filter(|a| a.folder)?;
+    /// What folder `id` shows, gathered for a question about many photos.
+    fn folder_photos(&self, id: AlbumId) -> FolderPhotos {
         let mut shown = FolderPhotos::default();
         for member in self.album_members(id).iter().filter_map(|m| self.albums.get(m)) {
             match member.smart {
@@ -394,29 +401,48 @@ impl Catalog {
                 None => shown.listed.extend(member.photos.iter().copied()),
             }
         }
-        Some(shown)
+        shown
     }
 
     /// Whether smart album `from` tests `to`, directly or through the smart albums it tests and the
     /// folders they are in (the rules of `from` would then change when those of `to` do). Loops in
     /// saved rules end the search, they don't repeat it.
     pub fn album_reaches(&self, from: AlbumId, to: AlbumId) -> bool {
+        self.album_search(self.album_leads_to(from), |a| a == to)
+    }
+
+    /// Whether a smart album with `rules` would include itself if it were in folder `parent`: its
+    /// rules lead (as in [`Self::album_reaches`]) to that folder or to one around it.
+    pub fn smart_album_would_loop_in(&self, rules: &Filter, parent: AlbumId) -> bool {
+        let Some(inside) = self.albums.get(&parent) else { return false };
+        self.album_search(rules.albums_tested(), |a| {
+            self.albums.get(&a).is_some_and(|f| f.folder) && (a == parent || self.album_is_within(inside, a))
+        })
+    }
+
+    /// The albums whose photos decide those of `a`: the albums a smart album tests, or the albums
+    /// inside a folder.
+    fn album_leads_to(&self, a: AlbumId) -> Vec<AlbumId> {
+        match self.albums.get(&a) {
+            Some(al) if al.folder => self.album_members(a),
+            Some(al) => al.smart.as_deref().map(Filter::albums_tested).unwrap_or_default(),
+            None => Vec::new(),
+        }
+    }
+
+    /// Whether `found` holds for one of `start` or for an album they lead to
+    /// ([`Self::album_leads_to`]); each album is looked at once.
+    fn album_search(&self, start: Vec<AlbumId>, found: impl Fn(AlbumId) -> bool) -> bool {
         let mut seen: std::collections::HashSet<AlbumId> = std::collections::HashSet::new();
-        let mut next = vec![from];
+        let mut next = start;
         while let Some(a) = next.pop() {
             if !seen.insert(a) {
                 continue;
             }
-            // a folder leads to the albums inside it: testing it tests each of them
-            let tested = match self.albums.get(&a) {
-                Some(al) if al.folder => self.album_members(a),
-                Some(al) => al.smart.as_deref().map(Filter::albums_tested).unwrap_or_default(),
-                None => Vec::new(),
-            };
-            if tested.contains(&to) {
+            if found(a) {
                 return true;
             }
-            next.extend(tested);
+            next.extend(self.album_leads_to(a));
         }
         false
     }
@@ -449,11 +475,9 @@ impl Catalog {
     /// The photos of an album: the stored list, or a smart album's current matches (id order). A
     /// folder's are those of the albums inside it, each once, without the deleted ones (id order).
     pub fn album_photos(&self, id: AlbumId) -> Vec<PhotoId> {
-        if let Some(folder) = self.folder_photos(id) {
-            return self.photos.values().filter(|p| !p.deleted && folder.holds(self, p)).map(|p| p.id).collect();
-        }
         match self.albums.get(&id) {
-            Some(Album { smart: Some(_), .. }) => self.photos.values().filter(|p| self.album_contains(id, p)).map(|p| p.id).collect(),
+            Some(a) if a.folder => gathering(|| self.photos.values().filter(|p| !p.deleted && self.album_contains(id, p)).map(|p| p.id).collect()),
+            Some(Album { smart: Some(_), .. }) => gathering(|| self.photos.values().filter(|p| self.album_contains(id, p)).map(|p| p.id).collect()),
             Some(a) => a.photos.clone(),
             None => Vec::new(),
         }
@@ -461,12 +485,10 @@ impl Catalog {
 
     /// Number of photos shown for an album in the sources list (excludes deleted photos).
     pub fn album_count(&self, id: AlbumId) -> usize {
-        if let Some(folder) = self.folder_photos(id) {
-            return self.photos.values().filter(|p| !p.deleted && folder.holds(self, p)).count();
-        }
         match self.albums.get(&id) {
+            Some(a) if a.folder => gathering(|| self.photos.values().filter(|p| !p.deleted && self.album_contains(id, p)).count()),
             // counted in place: no id list is built just for its length
-            Some(Album { smart: Some(_), .. }) => self.photos.values().filter(|p| self.album_contains(id, p)).count(),
+            Some(Album { smart: Some(_), .. }) => gathering(|| self.photos.values().filter(|p| self.album_contains(id, p)).count()),
             Some(a) => a.photos.iter().filter(|p| self.photos.get(p).is_some_and(|p| !p.deleted)).count(),
             None => 0,
         }
@@ -881,15 +903,50 @@ fn album_order_key(a: &Album) -> (bool, bool, u32, String, AlbumId) {
 /// The photos a folder of albums shows: what the albums inside it list, and the smart albums
 /// inside it, whose rules are asked per photo.
 #[derive(Default)]
-pub(crate) struct FolderPhotos {
+struct FolderPhotos {
     listed: std::collections::HashSet<PhotoId>,
     smart: Vec<AlbumId>,
 }
 
 impl FolderPhotos {
-    pub(crate) fn holds(&self, cat: &Catalog, p: &Photo) -> bool {
+    fn holds(&self, cat: &Catalog, p: &Photo) -> bool {
         self.listed.contains(&p.id) || self.smart.iter().any(|s| cat.album_contains(*s, p))
     }
+}
+
+thread_local! {
+    /// The folders asked about during a pass over the library ([`gathering`]): `None` outside one.
+    static GATHERED: std::cell::RefCell<Option<std::collections::HashMap<AlbumId, std::rc::Rc<FolderPhotos>>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Run `pass`, a question put to many photos of one catalog: each folder of albums it asks about
+/// (the one shown, or one a smart album is limited to) has its photos gathered once, not looked
+/// up album by album for every photo. Forgotten when the outermost pass ends, however it ends.
+pub(crate) fn gathering<T>(pass: impl FnOnce() -> T) -> T {
+    struct Forget(bool);
+    impl Drop for Forget {
+        fn drop(&mut self) {
+            if self.0 {
+                GATHERED.with_borrow_mut(|g| *g = None);
+            }
+        }
+    }
+    let outermost = GATHERED.with_borrow_mut(|g| g.is_none().then(|| *g = Some(Default::default())).is_some());
+    let _forget = Forget(outermost);
+    pass()
+}
+
+/// Folder `id`'s photos during a pass ([`gathering`]), made by `gather` the first time; `None`
+/// outside one.
+fn gathered(id: AlbumId, gather: impl FnOnce() -> FolderPhotos) -> Option<std::rc::Rc<FolderPhotos>> {
+    if let Some(known) = GATHERED.with_borrow(|g| g.as_ref().map(|folders| folders.get(&id).cloned()))? {
+        return Some(known);
+    }
+    // gathered with nothing borrowed, then kept
+    let folder = std::rc::Rc::new(gather());
+    GATHERED.with_borrow_mut(|g| g.as_mut().map(|folders| folders.insert(id, folder.clone())));
+    Some(folder)
 }
 
 #[cfg(test)]

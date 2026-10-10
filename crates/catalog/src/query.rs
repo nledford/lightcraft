@@ -234,12 +234,7 @@ impl Filter {
     }
 
     pub fn matches(&self, p: &Photo, cat: &Catalog) -> bool {
-        self.matches_in(p, cat, &Prepared { root: self.library_root(), folder: None })
-    }
-
-    /// What a pass over the whole catalog works out first ([`Prepared`]).
-    fn prepared(&self, cat: &Catalog) -> Prepared {
-        Prepared { root: self.library_root(), folder: self.album.and_then(|a| cat.folder_photos(a)) }
+        self.matches_in(p, cat, self.library_root().as_deref())
     }
 
     /// [`Filter::library_folder`] as a folder identity ([`folder_key`]); `None` without a choice.
@@ -249,10 +244,9 @@ impl Filter {
         self.library_folder.as_deref().filter(|d| !d.trim().is_empty()).map(folder_key)
     }
 
-    /// [`Filter::matches`] with what a query over a big library does once, not once per photo,
-    /// already done ([`Prepared`]).
-    fn matches_in(&self, p: &Photo, cat: &Catalog, prepared: &Prepared) -> bool {
-        let root = prepared.root.as_deref();
+    /// [`Filter::matches`] with the library folder already turned into its identity, so a query
+    /// over a big library does that once, not once per photo.
+    fn matches_in(&self, p: &Photo, cat: &Catalog, root: Option<&str>) -> bool {
         if p.deleted != self.deleted {
             return false;
         }
@@ -301,10 +295,7 @@ impl Filter {
             }
         }
         if let Some(a) = self.album
-            && !match &prepared.folder {
-                Some(folder) => folder.holds(cat, p),
-                None => cat.album_contains(a, p),
-            }
+            && !cat.album_contains(a, p)
         {
             return false;
         }
@@ -368,19 +359,13 @@ impl Filter {
     }
 }
 
-/// What a filter's question is made of that doesn't change from photo to photo.
-struct Prepared {
-    /// [`Filter::library_folder`] as a folder identity ([`folder_key`]).
-    root: Option<String>,
-    /// The photos of [`Filter::album`] when it is a folder of albums; `None`: ask the album.
-    folder: Option<crate::FolderPhotos>,
-}
-
 impl Catalog {
     /// Photos matching `filter`, in `sort` order (ties broken by id for stability).
     pub fn query(&self, filter: &Filter, sort: &Sort) -> Vec<PhotoId> {
-        let prepared = filter.prepared(self);
-        let mut v: Vec<&Photo> = self.photos().map(|p| p.as_ref()).filter(|p| filter.matches_in(p, self, &prepared)).collect();
+        let root = filter.library_root();
+        // one pass: a folder of albums it asks about is gathered once
+        let mut v: Vec<&Photo> =
+            crate::gathering(|| self.photos().map(|p| p.as_ref()).filter(|p| filter.matches_in(p, self, root.as_deref())).collect());
         v.sort_by(|a, b| {
             let o = match sort.key {
                 SortKey::CaptureDate => a.captured.cmp(&b.captured).then_with(|| a.imported.cmp(&b.imported)),
@@ -447,8 +432,9 @@ impl Catalog {
     pub fn people_in(&self, filter: &Filter) -> Vec<Person> {
         let filter = Filter { person: None, ..filter.clone() };
         let mut m: std::collections::HashMap<String, (Person, f64)> = Default::default();
-        let prepared = filter.prepared(self);
-        for p in self.photos().filter(|p| filter.matches_in(p, self, &prepared)) {
+        let root = filter.library_root();
+        let matching: Vec<_> = crate::gathering(|| self.photos().filter(|p| filter.matches_in(p, self, root.as_deref())).collect());
+        for p in matching {
             let mut seen: Vec<String> = Vec::new();
             for r in p.meta.regions.iter().filter(|r| r.kind == lightcraft_meta::RegionKind::Face) {
                 let Some(name) = r.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) else { continue };
