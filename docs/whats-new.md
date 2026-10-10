@@ -496,7 +496,7 @@
   last rewrite have grown to a quarter of its size, where it used to be rewritten every 2000 changes. Importing 100,000
   photos rewrote it 50 times (9.4 GB written); it is now 15 times (0.25 GB). Quitting no longer rewrites a large
   catalog for a handful of changes.
-- The catalog's photos are saved in segment files (`catalog.seg-…` beside `catalog.snap`), and saving rewrites only the
+- The catalog's photos are saved in segment files (JSON files in `segments/` beside `catalog.snap`), and saving rewrites only the
   segments whose photos changed: after edits in one place, 4 MB where it was the whole catalog (75 ms where it was 2 s,
   for 3.5 million photos). Opening reads the segments on several threads: 0.15 s where it was 0.5 s for 300,000 photos,
   1.7 s where it was 6.1 s for 3.5 million. A damaged segment is named when the library is opened, and nothing is

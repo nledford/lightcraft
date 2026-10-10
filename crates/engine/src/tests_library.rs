@@ -77,10 +77,17 @@ fn threshold_compaction_runs_in_the_background() {
             // the catalog's files as they are at one moment: copied again if the compaction in
             // flight replaced any of them meanwhile (a crash is an instant, a copy is not)
             let catalog_files = || -> Vec<(String, Vec<u8>)> {
-                let mut files: Vec<_> = std::fs::read_dir(&dir)
-                    .unwrap()
-                    .filter_map(|e| e.ok()?.file_name().into_string().ok())
-                    .filter(|n| n.starts_with("catalog.") && !n.ends_with(".tmp") && n != "catalog.lock")
+                let names = |sub: &str| -> Vec<String> {
+                    std::fs::read_dir(dir.join(sub))
+                        .map(|d| d.filter_map(|e| e.ok()?.file_name().into_string().ok()).map(|n| format!("{sub}{n}")).collect())
+                        .unwrap_or_default()
+                };
+                // the snapshot and the log, and the snapshot's segments in their folder
+                let mut files: Vec<_> = names("")
+                    .into_iter()
+                    .filter(|n| n.starts_with("catalog.") && n != "catalog.lock")
+                    .chain(names("segments/"))
+                    .filter(|n| !n.ends_with(".tmp"))
                     .filter_map(|n| std::fs::read(dir.join(&n)).ok().map(|b| (n, b)))
                     .collect();
                 files.sort();
@@ -94,6 +101,7 @@ fn threshold_compaction_runs_in_the_background() {
                 }
                 files = again;
             }
+            std::fs::create_dir_all(copy.join("segments")).unwrap();
             for (name, bytes) in &files {
                 std::fs::write(copy.join(name), bytes).unwrap();
             }

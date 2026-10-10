@@ -649,7 +649,7 @@ fn a_v6_library_loads_and_is_upgraded() {
     assert!(m.get(LOG).unwrap().is_empty());
     // (the snapshot and the segments it lists)
     let new_bytes: usize =
-        m.files.lock().unwrap().iter().filter(|(name, _)| name.starts_with("catalog.s") && !r.kept.contains(name)).map(|(_, b)| b.len()).sum();
+        m.files.lock().unwrap().iter().filter(|(name, _)| *name == SNAPSHOT || name.starts_with(journal::SEGMENT_PREFIX)).map(|(_, b)| b.len()).sum();
     assert!(new_bytes > new.len() && new_bytes * 2 < old.len() + log.len(), "{} + {} -> {new_bytes}", old.len(), log.len());
     let (_, mut again, r) = Journal::open(Box::new(m)).unwrap();
     again.revision = expected.revision;

@@ -5,7 +5,9 @@ The catalog is saved in the library folder by `crates/catalog/src/journal.rs`:
 - `catalog.log`: one JSON line per change. Every change is appended and fsynced before its command returns.
 - `catalog.snap`: the snapshot the log is compacted into now and then. It holds everything but the photos (albums,
   keywords, folders, counters) and lists the segment files.
-- `catalog.seg-<first id>-<seq>`: the **segments**, each a run of photos in id order, as JSON.
+- `segments/<first id>-<seq>.json`: the **segments**, each a run of photos in id order, as JSON. The numbers in a
+  name say which photos it starts at and at which change it was written; what tells LightCraft which photos a segment
+  holds is the list in `catalog.snap`.
 
 This page covers catalog formats 10 (compact records) and 11 (segments): the stored form of records, the segments, the
 rule for when to compact, and the measurements behind them.

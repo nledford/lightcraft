@@ -4,7 +4,7 @@
 //! - `catalog.snap` — `{"format":"lightcraft-catalog","version":V,"seq":N,"defaults":{…},
 //!   "catalog":{…},"segments":[…]}`, the state after op `N` in catalog format `V` ([`VERSION`]); replaced
 //!   atomically (temp + fsync + rename). The catalog's photos are in the segment files it lists
-//!   (`catalog.seg-…`, see [`crate::segments`]), or in `catalog.snap` itself where the store has
+//!   (`segments/….json`, see [`crate::segments`]), or in `catalog.snap` itself where the store has
 //!   no segments;
 //! - `catalog.log` — JSON lines, one per op applied after the snapshot:
 //!   `{"seq":N,"crc":C,"op":{…}}` where `C` is the CRC-32 of the op's JSON text. Appends are
@@ -100,7 +100,7 @@ use crate::{Catalog, CatalogError, Op, PhotoId, Result};
 
 pub const SNAPSHOT: &str = "catalog.snap";
 pub const LOG: &str = "catalog.log";
-pub use crate::segments::SEGMENT_PREFIX;
+pub use crate::segments::{SEGMENT_DIR, SEGMENT_PREFIX, SEGMENT_SUFFIX, segment_file};
 const FORMAT: &str = "lightcraft-catalog";
 /// One catalog format: a number in `catalog.snap` that says how the library beside it is written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -645,7 +645,9 @@ impl Journal {
             && !log_from_the_start(log.as_deref())
             && let n @ 1.. = segments::files(store.as_mut())
         {
-            return Err(CatalogError::Corrupt(format!("{SNAPSHOT} is missing, but {n} segment file(s) of a catalog are here ({SEGMENT_PREFIX}…)")));
+            return Err(CatalogError::Corrupt(format!(
+                "{SNAPSHOT} is missing, but {n} segment file(s) of a catalog are here ({SEGMENT_PREFIX}…{SEGMENT_SUFFIX})"
+            )));
         }
         let head_bytes = snap.as_ref().map_or(0, |b| b.len() as u64);
         let mut listed = Vec::new();

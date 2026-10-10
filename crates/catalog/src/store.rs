@@ -1,4 +1,4 @@
-//! Byte storage for the catalog files (`catalog.snap`, its segments, `catalog.log`).
+//! Byte storage for the catalog files (`catalog.snap`, its segments in `segments/`, `catalog.log`).
 //!
 //! [`FsStore`] is the native implementation (a library directory); [`MemStore`] keeps files in
 //! memory (tests, ephemeral sessions) and lets tests simulate crashes by editing the bytes. A web
@@ -98,12 +98,19 @@ impl FsStore {
     fn path(&self, name: &str) -> PathBuf {
         self.dir.join(name)
     }
-    fn sync_dir(&self) {
+    /// The folder a file is in: the library's, or the one its name states (`segments/…`).
+    fn folder_of(&self, name: &str) -> PathBuf {
+        self.path(name).parent().map_or_else(|| self.dir.clone(), Path::to_path_buf)
+    }
+    fn sync_folder(folder: &Path) {
         // Makes the rename durable on POSIX; opening a directory fails on Windows (where
         // `rename` is already journaled by NTFS), so errors are ignored.
-        if let Ok(d) = std::fs::File::open(&self.dir) {
+        if let Ok(d) = std::fs::File::open(folder) {
             let _ = d.sync_all();
         }
+    }
+    fn sync_dir(&self) {
+        Self::sync_folder(&self.dir);
     }
 }
 
@@ -144,12 +151,15 @@ impl Store for FsStore {
 
     fn write_atomic_with(&mut self, name: &str, fill: &mut dyn FnMut(&mut dyn io::Write) -> io::Result<()>) -> io::Result<u64> {
         let n = self.write_new_with(name, fill)?;
-        self.sync_dir();
+        Self::sync_folder(&self.folder_of(name));
         Ok(n)
     }
 
     fn sync(&mut self) -> io::Result<()> {
-        // (as `sync_dir`: where a folder can't be opened, renames are journaled anyway)
+        // (as `sync_dir`: where a folder can't be opened, renames are journaled anyway). The
+        // files written with `write_new_with` are the segments, in their folder; the library
+        // folder too, for that folder itself when it is new.
+        Self::sync_folder(&self.dir.join(crate::segments::SEGMENT_DIR));
         self.sync_dir();
         Ok(())
     }
@@ -160,6 +170,11 @@ impl Store for FsStore {
             self.appender = None;
         }
         let tmp = self.path(&format!("{name}.tmp"));
+        // (a file in a folder of the library: the folder is made when its first file is)
+        let folder = self.folder_of(name);
+        if folder != self.dir && !folder.is_dir() {
+            std::fs::create_dir_all(&folder)?;
+        }
         let written = (|| {
             let mut w = Counter { inner: io::BufWriter::with_capacity(1 << 20, create_staging(&tmp)?), n: 0 };
             fill(&mut w)?;
@@ -234,6 +249,21 @@ impl Store for FsStore {
             {
                 names.push(name);
             }
+        }
+        // and the segments, by the names the catalog gives them (`segments/…`)
+        match std::fs::read_dir(self.dir.join(crate::segments::SEGMENT_DIR)) {
+            Ok(entries) => {
+                for entry in entries {
+                    let entry = entry?;
+                    if entry.file_type().is_ok_and(|t| t.is_file())
+                        && let Ok(name) = entry.file_name().into_string()
+                    {
+                        names.push(format!("{}{name}", crate::segments::SEGMENT_PREFIX));
+                    }
+                }
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
         }
         Ok(names)
     }
