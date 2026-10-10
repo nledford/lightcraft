@@ -11,6 +11,12 @@
 - Quitting while a task that can be stopped is running asks first ("Quit Anyway" stops it).
 - Agents list and stop tasks with `activity.list` and `activity.cancel`; `ui.inspect` reports them as `activity`.
 
+### Refused commands say why
+- When something you click, drop or choose from a menu can't be done, a message at the bottom of the photo says why
+  ("No photos selected", "Smart album “Trips view” would include itself in folder “Trips”…") and stays long enough to
+  read. Before, most such clicks did nothing and said nothing; only a few places, such as an export that couldn't
+  start, explained themselves.
+
 ### Folders of albums
 - Clicking a folder in the sidebar's Albums section shows the photos of every album and smart album inside it,
   folders inside it included, each photo once, as a collection set does in Lightroom Classic. The grid is titled with
