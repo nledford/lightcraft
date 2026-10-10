@@ -643,7 +643,7 @@ impl Journal {
         if snap.is_none()
             && store.segmented()
             && !log_from_the_start(log.as_deref())
-            && let n @ 1.. = segments::files(store.as_mut())
+            && let n @ 1.. = segments::files(store.as_mut()).map_err(io)?
         {
             return Err(CatalogError::Corrupt(format!(
                 "{SNAPSHOT} is missing, but {n} segment file(s) of a catalog are here ({SEGMENT_PREFIX}…{SEGMENT_SUFFIX})"

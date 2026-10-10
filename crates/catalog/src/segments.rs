@@ -452,9 +452,10 @@ pub(crate) fn discard(store: &mut dyn Store, names: &[String]) {
     }
 }
 
-/// How many segment files the store holds (0 where it can't say).
-pub(crate) fn files(store: &mut dyn Store) -> usize {
-    store.list().map_or(0, |names| names.iter().filter(|n| valid_name(n)).count())
+/// How many segment files the store holds. A store that can't be listed is an error, not "none"
+/// (it may hold a catalog's photos).
+pub(crate) fn files(store: &mut dyn Store) -> std::io::Result<usize> {
+    Ok(store.list()?.iter().filter(|n| valid_name(n)).count())
 }
 
 /// Whether the files `names` are all in the store (true where it can't say: it lists nothing).

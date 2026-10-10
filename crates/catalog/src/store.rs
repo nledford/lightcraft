@@ -112,6 +112,24 @@ impl FsStore {
     fn sync_dir(&self) {
         Self::sync_folder(&self.dir);
     }
+    /// Make sure the folder the file `name` goes into is there (the segments folder is made with
+    /// its first file). It has to be a folder of the library's own: a file of that name, or a
+    /// link to a folder elsewhere, is an error that says so.
+    fn folder_for(&self, name: &str) -> io::Result<PathBuf> {
+        let folder = self.folder_of(name);
+        if folder == self.dir {
+            return Ok(folder);
+        }
+        match std::fs::symlink_metadata(&folder) {
+            Ok(m) if m.is_dir() => Ok(folder),
+            Ok(_) => Err(io::Error::other(format!("{} is not a folder", folder.display()))),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                std::fs::create_dir_all(&folder).map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", folder.display())))?;
+                Ok(folder)
+            }
+            Err(e) => Err(io::Error::new(e.kind(), format!("{}: {e}", folder.display()))),
+        }
+    }
 }
 
 /// A new staging file at `tmp`: whatever is already there (a leftover from a crashed save, or a link) is removed first
@@ -139,13 +157,14 @@ impl Store for FsStore {
             self.appender = None;
         }
         let tmp = self.path(&format!("{name}.tmp"));
+        let folder = self.folder_for(name)?;
         {
             let mut f = create_staging(&tmp)?;
             f.write_all(data)?;
             f.sync_all()?;
         }
         std::fs::rename(&tmp, self.path(name))?;
-        self.sync_dir();
+        Self::sync_folder(&folder);
         Ok(())
     }
 
@@ -171,10 +190,7 @@ impl Store for FsStore {
         }
         let tmp = self.path(&format!("{name}.tmp"));
         // (a file in a folder of the library: the folder is made when its first file is)
-        let folder = self.folder_of(name);
-        if folder != self.dir && !folder.is_dir() {
-            std::fs::create_dir_all(&folder)?;
-        }
+        self.folder_for(name)?;
         let written = (|| {
             let mut w = Counter { inner: io::BufWriter::with_capacity(1 << 20, create_staging(&tmp)?), n: 0 };
             fill(&mut w)?;
@@ -250,8 +266,18 @@ impl Store for FsStore {
                 names.push(name);
             }
         }
-        // and the segments, by the names the catalog gives them (`segments/…`)
-        match std::fs::read_dir(self.dir.join(crate::segments::SEGMENT_DIR)) {
+        // and the segments, by the names the catalog gives them (`segments/…`): in a folder of
+        // the library's own (a file of that name, or a link to a folder elsewhere, is an error:
+        // what is listed here may be removed)
+        let folder = self.dir.join(crate::segments::SEGMENT_DIR);
+        let named = |e: io::Error| io::Error::new(e.kind(), format!("{}: {e}", folder.display()));
+        match std::fs::symlink_metadata(&folder) {
+            Ok(m) if !m.is_dir() => return Err(io::Error::other(format!("{} is not a folder", folder.display()))),
+            Ok(_) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(names),
+            Err(e) => return Err(named(e)),
+        }
+        match std::fs::read_dir(&folder) {
             Ok(entries) => {
                 for entry in entries {
                     let entry = entry?;
@@ -263,7 +289,7 @@ impl Store for FsStore {
                 }
             }
             Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e),
+            Err(e) => return Err(named(e)),
         }
         Ok(names)
     }

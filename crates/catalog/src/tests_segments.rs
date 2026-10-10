@@ -1215,3 +1215,83 @@ fn segments_are_json_files_in_a_folder_of_their_own() {
     drop(j);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The segments folder has to be a folder of the library's own. A file of that name, or a link
+/// to a folder elsewhere, is an error that names it (and nothing in the folder linked to is
+/// listed, read or removed); a folder that can't be read is an error too, never "no segments".
+#[test]
+fn a_segments_folder_that_is_not_one_is_an_error_that_says_so() {
+    let temp = |name: &str| {
+        let dir = std::env::temp_dir().join(format!("lc-segments-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    };
+    // a file named `segments`: the snapshot fails and says why; the changes stay in the log
+    let dir = temp("file");
+    std::fs::write(dir.join("segments"), b"not a folder").unwrap();
+    // (no library is started in a folder like that: it says what is in the way)
+    let e = Journal::open(Box::new(FsStore::open(&dir).unwrap())).map(|_| ()).unwrap_err();
+    assert!(e.to_string().contains("segments") && e.to_string().contains("not a folder"), "{e}");
+    std::fs::remove_file(dir.join("segments")).unwrap();
+    drop(Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap());
+    std::fs::write(dir.join("segments"), b"not a folder").unwrap();
+    let (mut j, mut c, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
+    run(&mut j, &mut c, add(1..=12));
+    let e = j.snapshot(&c).unwrap_err();
+    assert!(e.to_string().contains("segments") && e.to_string().contains("not a folder"), "{e}");
+    drop(j);
+    assert_eq!(std::fs::read(dir.join("segments")).unwrap(), b"not a folder");
+    assert_eq!(Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap().1.len(), 12);
+    let _ = std::fs::remove_dir_all(&dir);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // a link to a folder elsewhere: what is in there is not the library's
+        let (dir, elsewhere) = (temp("link"), temp("elsewhere"));
+        std::fs::write(elsewhere.join("2024-10.json"), b"somebody's").unwrap();
+        drop(Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap());
+        std::os::unix::fs::symlink(&elsewhere, dir.join("segments")).unwrap();
+        let (mut j, mut c, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
+        run(&mut j, &mut c, add(1..=12));
+        assert!(j.snapshot(&c).unwrap_err().to_string().contains("not a folder"));
+        j.remove_unlisted_segments();
+        drop(j);
+        assert_eq!(std::fs::read(elsewhere.join("2024-10.json")).unwrap(), b"somebody's");
+        for d in [dir, elsewhere] {
+            let _ = std::fs::remove_dir_all(d);
+        }
+
+        // segments that can't be listed, and no snapshot: refused, not opened as a new library
+        let dir = temp("unreadable");
+        let (mut j, mut c, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
+        j.policy.segment_photos = 4;
+        run(&mut j, &mut c, add(1..=12));
+        j.snapshot(&c).unwrap();
+        drop(j);
+        std::fs::remove_file(dir.join(SNAPSHOT)).unwrap();
+        std::fs::remove_file(dir.join(LOG)).unwrap();
+        std::fs::set_permissions(dir.join("segments"), std::fs::Permissions::from_mode(0o300)).unwrap();
+        let refused = Journal::open(Box::new(FsStore::open(&dir).unwrap())).map(|_| ());
+        std::fs::set_permissions(dir.join("segments"), std::fs::Permissions::from_mode(0o700)).unwrap();
+        // (a process that may read anything, as root in a container, lists it: then it is refused for the segments it holds)
+        assert!(refused.is_err(), "opened as a new library");
+        assert!(!dir.join(SNAPSHOT).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+/// The plain write of the store (a whole file given at once) puts a segment in its folder too.
+#[test]
+fn every_way_of_writing_a_segment_makes_its_folder() {
+    let dir = std::env::temp_dir().join(format!("lc-segments-plain-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut store = FsStore::open(&dir).unwrap();
+    store.write_atomic(&segment_file("1-1"), b"{}").unwrap();
+    assert_eq!(std::fs::read(dir.join("segments/1-1.json")).unwrap(), b"{}");
+    assert_eq!(store.list().unwrap(), ["segments/1-1.json"]);
+    store.remove(&segment_file("1-1")).unwrap();
+    assert!(store.list().unwrap().is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
