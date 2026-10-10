@@ -102,7 +102,9 @@ fn row_sensed(
     );
     let font = t.font(13.5);
     let color = if selected { t.text } else { t.text_label };
-    let count_galley = count.filter(|_| app.ui.show_counts).map(|n| ui.painter().layout_no_wrap(n.to_string(), t.font(12.5), t.text_dim));
+    // a count of nothing is there, but fainter: the rows that hold photos stand out
+    let count_color = |n: usize| if n == 0 { t.text_dim.gamma_multiply(0.55) } else { t.text_dim };
+    let count_galley = count.filter(|_| app.ui.show_counts).map(|n| ui.painter().layout_no_wrap(n.to_string(), t.font(12.5), count_color(n)));
     let label_left = r.left() + 42.0 + indent;
     let count_left = count_galley.as_ref().map_or(edge - 18.0, |g| edge - 18.0 - g.size().x);
     // a label's dot sits just before the count
@@ -188,22 +190,62 @@ const SECTION_HEADER: f32 = 34.0;
 
 /// One sidebar section: the gap above it, its header, and (while it is open) the rows `body`
 /// draws. Every section goes through here, so they all fold, space and announce themselves alike.
+/// `rows`: how many rows the section lists at its top level (a folded header says so).
 fn section(
     app: &mut LightcraftApp,
     ui: &mut egui::Ui,
     section: SidebarSection,
+    rows: usize,
     body: impl FnOnce(&mut LightcraftApp, &mut egui::Ui),
 ) -> PlacedSection {
     ui.add_space(SECTION_GAP);
     let (header, _) = ui.allocate_exact_size(vec2(ui.available_width(), SECTION_HEADER), Sense::hover());
-    if section_header(app, ui, section, header) {
+    // a hairline in the gap above tells the sections apart
+    let t = Tokens::get(ui.ctx());
+    let edge = visible_right(ui).min(header.right());
+    let y = header.top() - SECTION_GAP / 2.0;
+    ui.painter().hline(header.left() + 18.0..=(edge - 18.0).max(header.left() + 18.0), y, egui::Stroke::new(1.0, t.divider));
+    let show = egui::Id::new("left-show-section");
+    if ui.data(|d| d.get_temp::<SidebarSection>(show)) == Some(section) {
+        ui.data_mut(|d| d.remove::<SidebarSection>(show));
+        ui.scroll_to_rect_animation(header, Some(egui::Align::TOP), egui::style::ScrollAnimation::none());
+    }
+    let open = section_header(app, ui, section, header, rows, false).open;
+    if open {
         let rows_from = ui.cursor().top();
         body(app, ui);
         if ui.cursor().top() <= rows_from {
             empty_hint(ui, section);
         }
     }
-    PlacedSection { section, top: header.top(), bottom: ui.cursor().top() }
+    PlacedSection { section, top: header.top(), bottom: ui.cursor().top(), open, rows }
+}
+
+/// Where what the panel shows of the sidebar's content ends (screen x): the content is wider
+/// than the panel while the sidebar scrolls sideways.
+fn visible_right(ui: &egui::Ui) -> f32 {
+    ui.data(|d| d.get_temp(egui::Id::new("left-visible-right"))).unwrap_or(f32::MAX)
+}
+
+/// The header of the open section whose own header has scrolled out of sight stays at the top of
+/// the sidebar (widget `sidebarSectionPinned:<id>`), so it is always clear which section the rows
+/// belong to, and the section can be folded, moved or hidden from anywhere in a long list. The
+/// next section's header pushes it out as it arrives. `view_top`: where the visible part starts.
+fn pinned_header(app: &mut LightcraftApp, ui: &mut egui::Ui, placed: &[PlacedSection], view_top: f32) {
+    let Some(p) = placed.iter().find(|p| p.open && p.top < view_top && p.bottom > view_top) else { return };
+    let top = view_top.min(p.bottom - SECTION_HEADER);
+    let r = Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=top + SECTION_HEADER);
+    let t = Tokens::get(ui.ctx());
+    let view = ui.clip_rect();
+    // over the rows scrolling beneath it
+    ui.painter().rect_filled(Rect::from_x_y_ranges(view.x_range(), r.y_range()), 0.0, t.chrome);
+    ui.painter().hline(view.x_range(), r.bottom(), egui::Stroke::new(1.0, t.divider));
+    if section_header(app, ui, p.section, r, p.rows, true).toggled {
+        // folded from here: its own header comes into view, not whatever was below the section
+        // (next frame, when the section is laid out folded: see `section`)
+        ui.data_mut(|d| d.insert_temp(egui::Id::new("left-show-section"), p.section));
+        ui.ctx().request_repaint();
+    }
 }
 
 /// What an open section with nothing to list says in place of its rows (widget
@@ -224,6 +266,17 @@ pub(crate) struct PlacedSection {
     pub section: SidebarSection,
     pub top: f32,
     pub bottom: f32,
+    /// Not folded: its rows (or its note that there are none) are drawn.
+    pub open: bool,
+    /// How many rows it lists at its top level.
+    pub rows: usize,
+}
+
+/// What a section's header says happened to it this frame.
+struct HeaderOutcome {
+    open: bool,
+    /// A click folded or unfolded the section.
+    toggled: bool,
 }
 
 /// Where a section dragged to `y` would go among the sections drawn: above the first one whose
@@ -238,6 +291,8 @@ fn section_drag(app: &mut LightcraftApp, ui: &mut egui::Ui, placed: &[PlacedSect
     let Some(dragged) = app.ui.dragging_section else { return };
     let (released, pos, esc) = ui.input(|i| (i.pointer.primary_released(), i.pointer.latest_pos(), i.key_pressed(egui::Key::Escape)));
     if esc {
+        // the drag's Esc, not also a dialog's or a view's
+        crate::widgets::take_escape(ui.ctx());
         app.ui.dragging_section = None;
         return;
     }
@@ -264,8 +319,7 @@ fn section_drag(app: &mut LightcraftApp, ui: &mut egui::Ui, placed: &[PlacedSect
     };
     if let Some(y) = y {
         let t = Tokens::get(ui.ctx());
-        let visible_right: f32 = ui.data(|d| d.get_temp(egui::Id::new("left-visible-right"))).unwrap_or(view.right());
-        let line = Rect::from_min_max(pos2(view.left() + 8.0, y - 1.0), pos2(visible_right.min(view.right()) - 8.0, y + 1.0));
+        let line = Rect::from_min_max(pos2(view.left() + 8.0, y - 1.0), pos2(visible_right(ui).min(view.right()) - 8.0, y + 1.0));
         ui.painter().rect_filled(line, 1.0, t.accent);
         register(ui.ctx(), "sidebarSectionDrop", line);
     }
@@ -293,17 +347,20 @@ pub fn section_drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
     );
 }
 
-/// A section's header in `r`: the bold title with a disclosure chevron after it; a click folds or
-/// unfolds the section (kept in the UI state, so it survives restarts), and what the section adds
-/// to its header (Albums: the + menu) sits at the visible edge. Returns whether the section is
-/// open.
-fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSection, r: Rect) -> bool {
+/// A section's header in `r`: a disclosure chevron in the gutter (where tree rows have their
+/// triangle), then the bold title; a click folds or unfolds the section (kept in the UI state, so
+/// it survives restarts), and what the section adds to its header (Albums: the + menu) sits at
+/// the visible edge. A folded section says how many rows it holds (`rows`, with View ▸ Show Photo
+/// Counts). `pinned`: this is the copy kept at the top of the sidebar (see `pinned_header`).
+fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSection, r: Rect, rows: usize, pinned: bool) -> HeaderOutcome {
     let t = Tokens::get(ui.ctx());
     let id = section.id();
     let title = crate::i18n::tr(section.title());
-    let resp = ui.interact(r, ui.id().with(("sidebar-section", id)), Sense::click_and_drag());
-    register(ui.ctx(), format!("sidebarSection:{id}"), r);
-    if resp.clicked() {
+    let (interact, widget) = if pinned { ("sidebar-section-pinned", "sidebarSectionPinned") } else { ("sidebar-section", "sidebarSection") };
+    let resp = ui.interact(r, ui.id().with((interact, id)), Sense::click_and_drag());
+    register(ui.ctx(), format!("{widget}:{id}"), r);
+    let toggled = resp.clicked();
+    if toggled {
         app.ui.sidebar.toggle_collapsed(section);
     }
     // dragged by its header, a section moves among the others (see `section_drag`)
@@ -313,15 +370,30 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
     resp.context_menu(|ui| sections_menu(app, ui, Some(section)));
     let open = !app.ui.sidebar.is_collapsed(section);
     resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::CollapsingHeader, true, open, title));
-    let text = ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(13.5), t.text_label);
-    let c = pos2(text.right() + 10.0, r.center().y);
-    let col = if resp.hovered() { t.text } else { t.text_dim };
+    // what is visible of the header: its bar and count end at the panel's edge, like a row's
+    let edge = r.right().min(visible_right(ui));
+    let hovered = resp.hovered() && app.ui.dragging_section.is_none();
+    if hovered {
+        let bar = Rect::from_min_max(r.min + vec2(8.0, 2.0), pos2((edge - 8.0).max(r.left() + 8.0), r.bottom() - 2.0));
+        ui.painter().rect_filled(bar, 4.0, t.hover.gamma_multiply(0.6));
+    }
+    let c = pos2(r.left() + 10.0, r.center().y);
+    register(ui.ctx(), format!("{widget}Chevron:{id}"), Rect::from_center_size(c, vec2(14.0, 14.0)));
+    let col = if hovered { t.text } else { t.text_dim };
     ui.painter().add(egui::Shape::convex_polygon(triangle_points(c, open), col, egui::Stroke::NONE));
-    if section == SidebarSection::Albums {
+    ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(13.5), t.text_label);
+    let has_actions = section == SidebarSection::Albums;
+    if !open && rows > 0 && app.ui.show_counts {
+        // folded: how much is in there (left of the header's own buttons)
+        let right = edge - 18.0 - if has_actions { 30.0 } else { 0.0 };
+        let count = ui.painter().text(pos2(right, r.center().y), Align2::RIGHT_CENTER, rows.to_string(), t.font(12.5), t.text_dim);
+        register(ui.ctx(), format!("{widget}Count:{id}"), count);
+    }
+    if has_actions {
         top_level_drop_target(app, ui, r);
         albums_header_actions(app, ui, r);
     }
-    open
+    HeaderOutcome { open, toggled }
 }
 
 /// The menu of a section's header (`on`) and of the My Photos title (`None`): hide this section,
@@ -368,8 +440,7 @@ fn sections_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, on: Option<SidebarS
 /// The + at the end of the Albums header: Create Album, Smart Album, Folder…
 fn albums_header_actions(app: &mut LightcraftApp, ui: &mut egui::Ui, header: Rect) {
     // the + stays at the visible edge when the sidebar is scrolled sideways
-    let visible_right: f32 = ui.data(|d| d.get_temp(egui::Id::new("left-visible-right"))).unwrap_or(f32::MAX);
-    let plus_right = visible_right.min(header.right());
+    let plus_right = visible_right(ui).min(header.right());
     let mut hdr = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(Rect::from_min_max(pos2(plus_right - 50.0, header.top()), pos2(plus_right, header.bottom())))
@@ -419,6 +490,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let (total, picks, deleted) = (counts.total, counts.picks, counts.deleted);
         egui::ScrollArea::both().id_salt("left-scroll").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
             drag_auto_scroll(app, ui);
+            // where the visible part of the content starts (screen y), for the pinned header
+            let view_top = ui.cursor().top() + viewport.min.y;
             // rows are as wide as the widest one needs (last frame), at least the panel
             let wide = viewport.width().max(content_width(ui.ctx()));
             ui.set_min_width(wide);
@@ -460,28 +533,35 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             let mut placed: Vec<PlacedSection> = Vec::with_capacity(shown.len());
             for s in shown {
                 let at = match s {
-                    SidebarSection::Albums => section(app, ui, s, |app, ui| albums_rows(app, ui, reveal)),
+                    SidebarSection::Albums => {
+                        let rows = app.session.catalog.albums().filter(|a| a.parent.is_none()).count();
+                        section(app, ui, s, rows, |app, ui| albums_rows(app, ui, reveal))
+                    }
                     SidebarSection::Local => {
                         let Some(local) = &local else { continue };
-                        section(app, ui, s, |app, ui| local_rows(app, ui, local))
+                        section(app, ui, s, local.places.places.len(), |app, ui| local_rows(app, ui, local))
                     }
-                    SidebarSection::ByDate => section(app, ui, s, date_rows),
+                    SidebarSection::ByDate => {
+                        let rows = app.caches.date_groups(&app.session.catalog).len();
+                        section(app, ui, s, rows, date_rows)
+                    }
                     SidebarSection::Folders => {
                         let tree = app.caches.folder_tree(&app.session.catalog);
-                        section(app, ui, s, |app, ui| {
+                        section(app, ui, s, tree.len(), |app, ui| {
                             reveal_chosen(app, ui, &tree);
                             folder_rows(app, ui, &tree, 0.0);
                         })
                     }
                     SidebarSection::Keywords => {
                         let tree = app.caches.keyword_tree(&app.session.catalog);
-                        section(app, ui, s, |app, ui| keyword_rows(app, ui, &tree, 0.0))
+                        section(app, ui, s, tree.len(), |app, ui| keyword_rows(app, ui, &tree, 0.0))
                     }
                 };
                 placed.push(at);
             }
             // room below the last section (a section dragged to the end is dropped here)
             ui.add_space(SECTION_GAP * 2.0);
+            pinned_header(app, ui, &placed, view_top);
             section_drag(app, ui, &placed);
             // what the rows asked for becomes next frame's width
             let next = ui.data(|d| d.get_temp::<f32>(egui::Id::new("left-content-width-next"))).unwrap_or(0.0);

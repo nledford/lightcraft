@@ -1878,5 +1878,13 @@
   "Downloading model": "モデルをダウンロード中",
   "Finding faces": "顔を検索中",
   "Synchronizing folder": "フォルダを同期中",
-  "Looking for changes": "変更を確認中"
+  "Looking for changes": "変更を確認中",
+  "Sidebar Sections": "サイドバーのセクション",
+  "Reset Sidebar Sections": "サイドバーのセクションをリセット",
+  "Hide This Section": "このセクションを隠す",
+  "No folders to browse": "参照できるフォルダがありません",
+  "No photos yet": "写真はまだありません",
+  "No imported folders yet": "読み込んだフォルダはまだありません",
+  "Show Sidebar Section": "サイドバーのセクションを表示",
+  "Move Sidebar Section": "サイドバーのセクションを移動"
 }

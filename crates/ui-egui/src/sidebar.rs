@@ -207,18 +207,25 @@ impl SidebarLayout {
         self.set_collapsed(section, false);
     }
 
-    /// Put `section` just above `before`, or last when `before` is `None`. Returns whether the
-    /// order changed (moving a section above itself, or to where it already is, changes nothing).
+    /// Put `section` just above `before`, or last when `before` is `None`. Returns whether it
+    /// moved. Moving a section above itself or to where it already is changes nothing, and neither
+    /// does a move of a shown section that would only take it past hidden ones: the sidebar would
+    /// look the same, so the arrangement stays the same too.
     pub fn move_before(&mut self, section: SidebarSection, before: Option<SidebarSection>) -> bool {
         if before == Some(section) {
             return false;
         }
-        let was = self.0.clone();
+        let was = self.clone();
         let moved = self.state(section);
         self.0.retain(|s| s.id != section);
         let at = before.and_then(|b| self.0.iter().position(|s| s.id == b)).unwrap_or(self.0.len());
         self.0.insert(at, moved);
-        self.0 != was
+        let seen = !moved.hidden && section.available();
+        if seen && self.shown().eq(was.shown()) {
+            *self = was;
+            return false;
+        }
+        *self != was
     }
 
     /// Move `section` one place up or down among the sections that are shown (hidden ones are
@@ -362,6 +369,20 @@ mod tests {
         assert!(!layout.move_before(Local, Some(ByDate)));
         assert!(!layout.move_before(Albums, None));
         assert_eq!(order(&layout), [Keywords, Local, ByDate, Folders, Albums]);
+    }
+
+    /// Given a hidden section between two shown ones, when the upper one is dropped right where
+    /// it already appears (above the lower one), then nothing changes: no move that can't be seen.
+    #[test]
+    fn a_move_that_cannot_be_seen_is_no_move() {
+        let mut layout = SidebarLayout::default();
+        layout.set_hidden(Local, true);
+        let was = layout.clone();
+        assert!(!layout.move_before(Albums, Some(ByDate)), "Albums is already right above By Date, as far as anyone can see");
+        assert_eq!(layout, was);
+        // a hidden section can still be put elsewhere (it shows there when it is shown again)
+        assert!(layout.move_before(Local, None));
+        assert_eq!(order(&layout), [Albums, ByDate, Folders, Keywords, Local]);
     }
 
     /// Moving a section keeps whether it is hidden or folded.

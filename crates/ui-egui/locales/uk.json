@@ -2070,5 +2070,13 @@
   "Downloading model": "Завантаження моделі",
   "Finding faces": "Пошук облич",
   "Synchronizing folder": "Синхронізація папки",
-  "Looking for changes": "Пошук змін"
+  "Looking for changes": "Пошук змін",
+  "Sidebar Sections": "Розділи бічної панелі",
+  "Reset Sidebar Sections": "Скинути розділи бічної панелі",
+  "Hide This Section": "Сховати цей розділ",
+  "No folders to browse": "Немає тек для перегляду",
+  "No photos yet": "Фотографій ще немає",
+  "No imported folders yet": "Імпортованих тек ще немає",
+  "Show Sidebar Section": "Показати розділ бічної панелі",
+  "Move Sidebar Section": "Перемістити розділ бічної панелі"
 }

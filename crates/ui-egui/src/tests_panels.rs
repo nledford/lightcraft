@@ -626,6 +626,14 @@ fn an_arrangement_set_by_an_agent_is_checked() {
     let r = h.request("ui.set", json!({"collapsedSidebar": []}), T);
     assert_eq!(r["ok"], true, "{r}");
     assert!(!h.app.ui.sidebar_section_collapsed("byDate"));
+    // a name it doesn't know, or both ways of saying it at once, is refused and changes nothing
+    exec(&mut h, "view.sidebarSection", json!({"section": "albums", "collapsed": true}));
+    let arranged = h.app.ui.sidebar.clone();
+    for bad in [json!({"collapsedSidebar": ["albms"]}), json!({"collapsedSidebar": [], "sidebar": [{"id": "albums", "collapsed": true}]})] {
+        let r = h.request("ui.set", bad.clone(), T);
+        assert_eq!(r["ok"], false, "{bad}: {r}");
+        assert_eq!(h.app.ui.sidebar, arranged, "{bad}");
+    }
 }
 
 /// Where a dragged section goes: above the first section whose middle is below the pointer.
@@ -634,9 +642,9 @@ fn a_dragged_section_goes_above_the_section_it_is_over_the_top_half_of() {
     use crate::panels::left::{PlacedSection, section_drop_before};
     use crate::sidebar::SidebarSection::{Albums, ByDate, Keywords};
     let placed = [
-        PlacedSection { section: Albums, top: 100.0, bottom: 300.0 },
-        PlacedSection { section: ByDate, top: 310.0, bottom: 344.0 },
-        PlacedSection { section: Keywords, top: 354.0, bottom: 500.0 },
+        PlacedSection { section: Albums, top: 100.0, bottom: 300.0, open: true, rows: 1 },
+        PlacedSection { section: ByDate, top: 310.0, bottom: 344.0, open: true, rows: 1 },
+        PlacedSection { section: Keywords, top: 354.0, bottom: 500.0, open: true, rows: 1 },
     ];
     for (y, before) in [
         (0.0, Some(Albums)),
@@ -664,6 +672,80 @@ fn a_year_opens_into_its_months() {
     assert!(rows(&h) > years, "months are listed");
     click(&mut h, &toggle);
     assert_eq!(rows(&h), years, "closed again");
+}
+
+/// Given a section longer than the sidebar, when its header scrolls out of sight, then a copy of
+/// the header stays at the top of the sidebar for as long as the section's rows are there; a
+/// click on it folds the section and brings the section's own header into view.
+#[test]
+fn the_header_of_a_long_section_stays_in_sight() {
+    let mut h = demo([1400.0, 700.0], json!({"view": "photoGrid", "leftPanel": true}));
+    for i in 0..40 {
+        h.app.session.execute("album.create", &json!({"name": format!("Album {i:02}")})).unwrap();
+    }
+    h.step();
+    h.step();
+    assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("sidebarSectionPinned:")), "nothing is pinned while every header is in sight");
+    let own = header(&h, "albums");
+    let c = egui::pos2(own.center().x, 400.0);
+    let scroll = |h: &mut Headless, dy: f32| {
+        // the wheel scrolls what the pointer is over
+        h.request("ui.move", json!({"x": c.x, "y": c.y}), T);
+        let r = h.request("ui.scroll", json!({"dy": dy}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        for _ in 0..60 {
+            h.step();
+        }
+    };
+    scroll(&mut h, -500.0);
+    assert!(header(&h, "albums").top() < own.top() - 300.0, "the sidebar scrolled");
+    let pinned = widget(&h, "sidebarSectionPinned:albums");
+    let first_row = h
+        .app
+        .widgets
+        .iter()
+        .filter(|(w, r)| w.starts_with("source:album:") && r.bottom() > pinned.bottom())
+        .map(|(_, r)| r.top())
+        .fold(f32::MAX, f32::min);
+    assert!(
+        pinned.top() > header(&h, "albums").bottom() && first_row < pinned.bottom() + 29.0,
+        "at the top of the rows in view: {pinned:?} {first_row}"
+    );
+    assert!(has(&h, "icon:albumNew"), "with its buttons");
+    // folded from the pinned header: Albums' own header is what the sidebar shows now
+    click(&mut h, "sidebarSectionPinned:albums");
+    h.settle(SETTLE);
+    assert!(h.app.ui.sidebar_section_collapsed("albums"));
+    assert!(!has(&h, "sidebarSectionPinned:albums"), "a folded section has no rows to pin its header over");
+    let panel = widget(&h, "panel:left_panel");
+    let own = header(&h, "albums");
+    assert!(own.top() >= panel.top() && own.bottom() <= panel.bottom(), "its own header is in view: {own:?}");
+}
+
+/// A folded section says how many rows it holds (unless photo counts are off); an open one
+/// doesn't need to.
+#[test]
+fn a_folded_section_says_how_much_it_holds() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    assert!(!has(&h, "sidebarSectionCount:byDate"));
+    click(&mut h, "sidebarSection:byDate");
+    assert!(has(&h, "sidebarSectionCount:byDate"));
+    exec(&mut h, "view.photoCounts", json!({"show": false}));
+    assert!(!has(&h, "sidebarSectionCount:byDate"));
+    // an empty section has nothing to count
+    exec(&mut h, "view.photoCounts", json!({"show": true}));
+    click(&mut h, "sidebarSection:folders");
+    assert!(h.app.ui.sidebar_section_collapsed("folders") && !has(&h, "sidebarSectionCount:folders"));
+}
+
+/// A section's chevron is in the same column as the triangles of the rows below it.
+#[test]
+fn section_chevrons_line_up_with_row_triangles() {
+    let h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let triangle = h.app.widgets.iter().find(|(w, _)| w.starts_with("dateToggle:")).map(|(_, r)| *r).expect("a year has a triangle");
+    for id in sections_drawn(&h) {
+        assert_eq!(widget(&h, &format!("sidebarSectionChevron:{id}")).center().x, triangle.center().x, "{id}");
+    }
 }
 
 /// Albums nest in folders like the other sidebar trees: a folder row has a disclosure triangle

@@ -330,7 +330,14 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
                     }
                     // `collapsedSidebar`, as scripts from before `sidebar` set it: the folded sections
                     if let Some(ids) = p.get("collapsedSidebar").and_then(Value::as_array) {
-                        for section in crate::sidebar::SidebarSection::ALL {
+                        use crate::sidebar::SidebarSection;
+                        if p.get("sidebar").is_some() {
+                            return err("ui.set: give `sidebar` or the older `collapsedSidebar`, not both".to_string());
+                        }
+                        if let Some(unknown) = ids.iter().find(|id| id.as_str().and_then(SidebarSection::from_id).is_none()) {
+                            return err(format!("ui.set: `collapsedSidebar`: unknown section {unknown} ({})", SidebarSection::ids()));
+                        }
+                        for section in SidebarSection::ALL {
                             u.sidebar.set_collapsed(section, ids.iter().any(|id| id.as_str() == Some(section.id())));
                         }
                     }

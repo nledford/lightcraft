@@ -1876,5 +1876,13 @@
   "Downloading model": "正在下載模型",
   "Finding faces": "正在尋找臉孔",
   "Synchronizing folder": "正在同步資料夾",
-  "Looking for changes": "正在尋找變更"
+  "Looking for changes": "正在尋找變更",
+  "Sidebar Sections": "側邊欄區段",
+  "Reset Sidebar Sections": "重設側邊欄區段",
+  "Hide This Section": "隱藏此區段",
+  "No folders to browse": "沒有可瀏覽的資料夾",
+  "No photos yet": "還沒有照片",
+  "No imported folders yet": "還沒有匯入的資料夾",
+  "Show Sidebar Section": "顯示側邊欄區段",
+  "Move Sidebar Section": "移動側邊欄區段"
 }

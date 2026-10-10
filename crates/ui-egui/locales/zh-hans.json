@@ -1876,5 +1876,13 @@
   "Downloading model": "正在下载模型",
   "Finding faces": "正在查找人脸",
   "Synchronizing folder": "正在同步文件夹",
-  "Looking for changes": "正在查找更改"
+  "Looking for changes": "正在查找更改",
+  "Sidebar Sections": "边栏分区",
+  "Reset Sidebar Sections": "重置边栏分区",
+  "Hide This Section": "隐藏此分区",
+  "No folders to browse": "没有可浏览的文件夹",
+  "No photos yet": "还没有照片",
+  "No imported folders yet": "还没有导入的文件夹",
+  "Show Sidebar Section": "显示边栏分区",
+  "Move Sidebar Section": "移动边栏分区"
 }

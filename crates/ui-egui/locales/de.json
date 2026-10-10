@@ -2031,5 +2031,13 @@
   "Downloading model": "Modell wird heruntergeladen",
   "Finding faces": "Gesichter werden gesucht",
   "Synchronizing folder": "Ordner wird synchronisiert",
-  "Looking for changes": "Änderungen werden gesucht"
+  "Looking for changes": "Änderungen werden gesucht",
+  "Sidebar Sections": "Seitenleistenbereiche",
+  "Reset Sidebar Sections": "Seitenleistenbereiche zurücksetzen",
+  "Hide This Section": "Diesen Bereich ausblenden",
+  "No folders to browse": "Keine Ordner zum Durchsuchen",
+  "No photos yet": "Noch keine Fotos",
+  "No imported folders yet": "Noch keine importierten Ordner",
+  "Show Sidebar Section": "Seitenleistenbereich anzeigen",
+  "Move Sidebar Section": "Seitenleistenbereich verschieben"
 }
