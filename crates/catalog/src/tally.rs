@@ -116,6 +116,11 @@ pub struct AlbumTally {
 impl AlbumTally {
     /// Counted from every photo.
     pub fn of(cat: &Catalog) -> AlbumTally {
+        // one pass: a folder of albums a smart album is limited to is gathered once
+        crate::gathering(|| AlbumTally::counted(cat))
+    }
+
+    fn counted(cat: &Catalog) -> AlbumTally {
         let mut counts = HashMap::new();
         let mut members = HashMap::new();
         for album in cat.albums().filter(|a| !a.folder) {
