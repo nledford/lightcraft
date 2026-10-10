@@ -206,9 +206,17 @@ fn section(
     let y = header.top() - SECTION_GAP / 2.0;
     ui.painter().hline(header.left() + 18.0..=(edge - 18.0).max(header.left() + 18.0), y, egui::Stroke::new(1.0, t.divider));
     let show = egui::Id::new("left-show-section");
-    if ui.data(|d| d.get_temp::<SidebarSection>(show)) == Some(section) {
-        ui.data_mut(|d| d.remove::<SidebarSection>(show));
-        ui.scroll_to_rect_animation(header, Some(egui::Align::TOP), egui::style::ScrollAnimation::none());
+    if let Some((asked, frame)) = ui.data(|d| d.get_temp::<(SidebarSection, u64)>(show))
+        && asked == section
+    {
+        ui.data_mut(|d| d.remove::<(SidebarSection, u64)>(show));
+        // asked for by the frame before (a request the section was not drawn for is forgotten),
+        // and up or down only: the sidebar stays where it was scrolled sideways
+        if ui.ctx().cumulative_frame_nr().saturating_sub(frame) <= 2 {
+            let view_top: f32 = ui.data(|d| d.get_temp(egui::Id::new("left-view-top"))).unwrap_or(header.top());
+            let delta = vec2(0.0, view_top - header.top());
+            ui.scroll_with_delta_animation(delta, egui::style::ScrollAnimation::none());
+        }
     }
     let open = section_header(app, ui, section, header, rows, false).open;
     if open {
@@ -232,9 +240,14 @@ fn visible_right(ui: &egui::Ui) -> f32 {
 /// belong to, and the section can be folded, moved or hidden from anywhere in a long list. The
 /// next section's header pushes it out as it arrives. `view_top`: where the visible part starts.
 fn pinned_header(app: &mut LightcraftApp, ui: &mut egui::Ui, placed: &[PlacedSection], view_top: f32) {
-    let Some(p) = placed.iter().find(|p| p.open && p.top < view_top && p.bottom > view_top) else { return };
-    let top = view_top.min(p.bottom - SECTION_HEADER);
-    let r = Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=top + SECTION_HEADER);
+    let pinned = placed.iter().find(|p| p.open && p.top < view_top && p.bottom > view_top);
+    let rect = pinned.map(|p| {
+        let top = view_top.min(p.bottom - SECTION_HEADER);
+        Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=top + SECTION_HEADER)
+    });
+    // rows ask where it is (next frame: they are laid out before it)
+    ui.data_mut(|d| d.insert_temp(egui::Id::new("left-pinned-rect"), rect));
+    let (Some(p), Some(r)) = (pinned, rect) else { return };
     let t = Tokens::get(ui.ctx());
     let view = ui.clip_rect();
     // over the rows scrolling beneath it
@@ -243,7 +256,8 @@ fn pinned_header(app: &mut LightcraftApp, ui: &mut egui::Ui, placed: &[PlacedSec
     if section_header(app, ui, p.section, r, p.rows, true).toggled {
         // folded from here: its own header comes into view, not whatever was below the section
         // (next frame, when the section is laid out folded: see `section`)
-        ui.data_mut(|d| d.insert_temp(egui::Id::new("left-show-section"), p.section));
+        let frame = ui.ctx().cumulative_frame_nr();
+        ui.data_mut(|d| d.insert_temp(egui::Id::new("left-show-section"), (p.section, frame)));
         ui.ctx().request_repaint();
     }
 }
@@ -383,7 +397,9 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
     ui.painter().add(egui::Shape::convex_polygon(triangle_points(c, open), col, egui::Stroke::NONE));
     ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(13.5), t.text_label);
     let has_actions = section == SidebarSection::Albums;
-    if !open && rows > 0 && app.ui.show_counts {
+    // (an album being dragged puts "Top Level" there)
+    let room = !(has_actions && app.ui.dragging_album.is_some());
+    if !open && rows > 0 && app.ui.show_counts && room {
         // folded: how much is in there (left of the header's own buttons)
         let right = edge - 18.0 - if has_actions { 30.0 } else { 0.0 };
         let count = ui.painter().text(pos2(right, r.center().y), Align2::RIGHT_CENTER, rows.to_string(), t.font(12.5), t.text_dim);
@@ -492,6 +508,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             drag_auto_scroll(app, ui);
             // where the visible part of the content starts (screen y), for the pinned header
             let view_top = ui.cursor().top() + viewport.min.y;
+            ui.data_mut(|d| d.insert_temp(egui::Id::new("left-view-top"), view_top));
             // rows are as wide as the widest one needs (last frame), at least the panel
             let wide = viewport.width().max(content_width(ui.ctx()));
             ui.set_min_width(wide);
@@ -1084,6 +1101,22 @@ fn pointer_over(ui: &egui::Ui, rect: Rect) -> bool {
     ui.input(|i| i.pointer.latest_pos()).is_some_and(|p| rect.contains(p) && ui.clip_rect().contains(p))
 }
 
+/// [`pointer_over`] for a row: a row scrolled beneath the pinned header is covered by it, so the
+/// pointer there is over the header, not over the row.
+fn pointer_over_row(ui: &egui::Ui, rect: Rect) -> bool {
+    pointer_over(ui, rect) && !pointer_on_pinned_header(ui)
+}
+
+/// Where the pinned header was drawn last frame, if one was (rows are laid out before it).
+fn pinned_rect(ui: &egui::Ui) -> Option<Rect> {
+    ui.data(|d| d.get_temp::<Option<Rect>>(egui::Id::new("left-pinned-rect"))).flatten()
+}
+
+fn pointer_on_pinned_header(ui: &egui::Ui) -> bool {
+    let pos = ui.input(|i| i.pointer.latest_pos());
+    pinned_rect(ui).zip(pos).is_some_and(|(r, p)| r.contains(p))
+}
+
 /// How close to the top or bottom edge of the sidebar (points) a dragged album starts scrolling it.
 const SCROLL_EDGE: f32 = 36.0;
 /// The fastest the sidebar scrolls for a drag (points per second).
@@ -1106,6 +1139,11 @@ fn drag_auto_scroll(app: &LightcraftApp, ui: &egui::Ui) {
     }
     let view = ui.clip_rect();
     let Some(p) = ui.input(|i| i.pointer.latest_pos()).filter(|p| p.x >= view.left() && p.x <= view.right()) else { return };
+    // a section picked up by its pinned header starts inside the top edge: it scrolls once it has
+    // left the header (albums and photos scroll there as at any edge, to reach the rows above)
+    if app.ui.dragging_section.is_some() && pointer_on_pinned_header(ui) {
+        return;
+    }
     let speed = auto_scroll_speed(p.y, view.top(), view.bottom());
     if speed != 0.0 {
         // a positive delta moves the content down: the view goes up
@@ -1218,7 +1256,7 @@ fn album_drop_at(app: &LightcraftApp, dragged: AlbumId, target: &Album, frac: f3
 fn album_drag_over(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, row: &Album, open: Option<&mut bool>, indent: f32) -> bool {
     let hover_id = egui::Id::new(("album-hover", row.id.0));
     let Some(dragged) = app.ui.dragging_album.map(AlbumId) else { return false };
-    let pos = ui.input(|i| i.pointer.latest_pos()).filter(|_| pointer_over(ui, resp.rect));
+    let pos = ui.input(|i| i.pointer.latest_pos()).filter(|_| pointer_over_row(ui, resp.rect));
     let Some(pos) = pos else {
         if ui.data(|d| d.get_temp::<f64>(hover_id)).is_some() {
             ui.data_mut(|d| d.remove_temp::<f64>(hover_id));
@@ -1316,8 +1354,8 @@ pub fn album_drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
 /// release there adds them.
 fn drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, a: &Album) {
     let Some(ids) = app.ui.dragging_photos.clone() else { return };
-    let over = ui.input(|i| i.pointer.latest_pos()).is_some_and(|p| resp.rect.contains(p));
-    if !over {
+    // only where the row can be seen: not scrolled out of the sidebar or beneath the pinned header
+    if !pointer_over_row(ui, resp.rect) {
         return;
     }
     let t = Tokens::get(ui.ctx());

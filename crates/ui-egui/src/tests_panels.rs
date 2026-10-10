@@ -711,7 +711,7 @@ fn the_header_of_a_long_section_stays_in_sight() {
         pinned.top() > header(&h, "albums").bottom() && first_row < pinned.bottom() + 29.0,
         "at the top of the rows in view: {pinned:?} {first_row}"
     );
-    assert!(has(&h, "icon:albumNew"), "with its buttons");
+    assert!(h.app.widgets.iter().any(|(w, r)| w == "icon:albumNew" && pinned.contains_rect(*r)), "with its buttons");
     // folded from the pinned header: Albums' own header is what the sidebar shows now
     click(&mut h, "sidebarSectionPinned:albums");
     h.settle(SETTLE);
@@ -720,6 +720,75 @@ fn the_header_of_a_long_section_stays_in_sight() {
     let panel = widget(&h, "panel:left_panel");
     let own = header(&h, "albums");
     assert!(own.top() >= panel.top() && own.bottom() <= panel.bottom(), "its own header is in view: {own:?}");
+}
+
+/// Scroll the sidebar (the pointer over it) by `dy`.
+fn scroll_sidebar(h: &mut Headless, dy: f32) {
+    h.request("ui.move", json!({"x": 120.0, "y": 400.0}), T);
+    let r = h.request("ui.scroll", json!({"dy": dy}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..60 {
+        h.step();
+    }
+}
+
+/// Given a pinned Albums header with album folders scrolled beneath it, when an album is dragged
+/// onto the pinned header and released, then it goes to the top level — what the header shows —
+/// and not into the folder hidden under the header.
+#[test]
+fn a_drop_on_the_pinned_header_is_not_a_drop_on_the_row_beneath_it() {
+    let mut h = demo([1400.0, 700.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let make = |h: &mut Headless, params: serde_json::Value| h.app.session.execute("album.create", &params).unwrap()["id"].as_u64().unwrap();
+    for i in 0..30 {
+        make(&mut h, json!({"name": format!("Folder {i:02}"), "folder": true}));
+    }
+    let last = make(&mut h, json!({"name": "Zz last", "folder": true}));
+    let best = make(&mut h, json!({"name": "Best", "parent": last}));
+    h.step();
+    h.step();
+    let parent = |h: &Headless| h.app.session.catalog.album(lightcraft_catalog::AlbumId(best)).unwrap().parent.map(|p| p.0);
+    let row = |h: &Headless| widget(h, &format!("source:album:{best}"));
+    // far enough that Best is in view and Albums' own header is not
+    for _ in 0..8 {
+        if row(&h).bottom() < 600.0 {
+            break;
+        }
+        scroll_sidebar(&mut h, -200.0);
+    }
+    let pinned = widget(&h, "sidebarSectionPinned:albums");
+    assert!(row(&h).bottom() < 600.0 && row(&h).top() > pinned.bottom(), "Best is in view below the pinned header: {:?}", row(&h));
+    let beneath = h.app.widgets.iter().filter(|(w, r)| w.starts_with("source:folder:") && r.contains(pinned.center())).count();
+    assert_eq!(beneath, 1, "a folder row lies under the middle of the pinned header");
+    let from = row(&h).center();
+    drag_between(&mut h, from, pinned.center(), Vec::new());
+    assert_eq!(parent(&h), None, "to the top level, as the header said");
+}
+
+/// The pinned header belongs to the section whose rows are at the top of the sidebar: scrolling on
+/// into the next section pushes it out and pins that section's header instead.
+#[test]
+fn the_next_section_takes_over_the_pinned_header() {
+    let mut h = demo([1400.0, 500.0], json!({"view": "photoGrid", "leftPanel": true, "sidebar": ["albums", "keywords"]}));
+    exec(&mut h, "view.sidebarSection", json!({"section": "local", "show": false}));
+    exec(&mut h, "view.sidebarSection", json!({"section": "byDate", "show": false}));
+    exec(&mut h, "view.sidebarSection", json!({"section": "folders", "show": false}));
+    for i in 0..12 {
+        h.app.session.execute("album.create", &json!({"name": format!("Album {i:02}")})).unwrap();
+    }
+    h.step();
+    let pinned = |h: &Headless| -> Vec<String> {
+        h.app.widgets.iter().filter_map(|(w, _)| w.strip_prefix("sidebarSectionPinned:").map(str::to_string)).collect()
+    };
+    let mut seen = Vec::new();
+    for _ in 0..30 {
+        scroll_sidebar(&mut h, -60.0);
+        let now = pinned(&h);
+        assert!(now.len() <= 1, "one header at a time: {now:?}");
+        if let Some(id) = now.first().filter(|id| seen.last() != Some(*id)) {
+            seen.push(id.clone());
+        }
+    }
+    assert_eq!(seen, ["albums", "keywords"]);
 }
 
 /// A folded section says how many rows it holds (unless photo counts are off); an open one
