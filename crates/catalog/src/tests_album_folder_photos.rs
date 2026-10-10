@@ -13,8 +13,12 @@
 //! - Given a smart album testing the folder it is in, then that is a loop: it is reported, and
 //!   asking still answers.
 //! - Given a damaged library whose folders contain each other, then asking still answers.
-//! - Given a folder of many big albums, then showing it costs a pass over the photos, not one
-//!   per album.
+//! - Given a folder of many big albums, then showing it, or a smart album limited to it, costs a
+//!   pass over the photos, not one per album.
+//! - Given a smart album about to be put in a folder its rules lead to, then that is known
+//!   before it is made or moved.
+//! - Given a damaged library (a folder that also has rules, an album inside a plain album), then
+//!   every question about the folder gives the same answer, and only what the sidebar lists counts.
 
 use crate::*;
 
@@ -185,20 +189,91 @@ fn folders_containing_each_other_still_answer() {
     assert!(c.album_members(other).is_empty() && shown(&c, other).is_empty());
 }
 
-/// 100 albums of 2,000 photos each in one folder: testing every photo against every album's list
-/// would be a billion comparisons. The folder's photos are gathered once per question.
+/// 200 albums of 2,000 photos each in one folder, and as many photos again in none of them:
+/// asking each photo of each album's list is the slow way (it reads every list to the end for a
+/// photo in none). A pass over the library gathers the folder's photos once; so does a smart
+/// album limited to the folder. Measured against the slow way rather than the clock.
 #[test]
 fn a_folder_of_big_albums_is_shown_in_one_pass() {
     let mut c = Catalog::new();
-    let photos: Vec<PhotoId> = (0..4000).map(|i| photo(&mut c, &format!("p{i}.jpg"))).collect();
+    let photos: Vec<PhotoId> = (0..8000).map(|i| photo(&mut c, &format!("p{i}.jpg"))).collect();
     let big = folder(&mut c, "Big", None);
-    for k in 0..100usize {
-        let list: Vec<PhotoId> = photos.iter().copied().skip(k).step_by(2).collect();
+    for k in 0..200usize {
+        let list: Vec<PhotoId> = photos[..4000].iter().copied().skip(k % 2).step_by(2).collect();
         album(&mut c, &format!("A{k}"), Some(big), &list);
     }
-    let start = std::time::Instant::now();
-    assert_eq!(shown(&c, big).len(), 4000);
-    assert_eq!(c.album_count(big), 4000);
-    assert_eq!(c.album_photos(big).len(), 4000);
-    assert!(start.elapsed() < std::time::Duration::from_secs(2), "took {:?}", start.elapsed());
+    let limited = smart(&mut c, "In Big", None, Filter { album: Some(big), ..Default::default() });
+    let timed = |f: &dyn Fn() -> usize| {
+        let start = std::time::Instant::now();
+        (f(), start.elapsed())
+    };
+    // one photo at a time: nothing is gathered
+    let (n, slow) = timed(&|| c.photos().filter(|p| c.album_contains(big, p)).count());
+    assert_eq!(n, 4000);
+    for (what, f) in [
+        ("query", &(|| shown(&c, big).len()) as &dyn Fn() -> usize),
+        ("count", &|| c.album_count(big)),
+        ("photos", &|| c.album_photos(big).len()),
+        ("smart album's count", &|| c.album_count(limited)),
+        ("smart album's query", &|| shown(&c, limited).len()),
+    ] {
+        let (n, fast) = timed(f);
+        assert_eq!(n, 4000, "{what}");
+        assert!(fast * 10 < slow, "{what} took {fast:?}; one photo at a time took {slow:?}");
+    }
+}
+
+/// A smart album placed in a folder its rules lead to would include itself: asked before it is
+/// made or moved there (`smart_album_would_loop_in`).
+#[test]
+fn rules_that_lead_to_a_folder_cant_go_in_it() {
+    let mut c = Catalog::new();
+    let trips = folder(&mut c, "Trips", None);
+    let europe = folder(&mut c, "Europe", Some(trips));
+    let other = folder(&mut c, "Other", None);
+    let in_trips = Filter { album: Some(trips), ..Default::default() };
+    assert!(c.smart_album_would_loop_in(&in_trips, trips), "in the folder it is limited to");
+    assert!(c.smart_album_would_loop_in(&in_trips, europe), "or in a folder inside it");
+    assert!(!c.smart_album_would_loop_in(&in_trips, other));
+    let in_europe = Filter { album: Some(europe), ..Default::default() };
+    assert!(!c.smart_album_would_loop_in(&in_europe, trips), "limited to an inner folder, beside it: no loop");
+    // through another smart album: Outside is limited to Trips, and these rules test Outside
+    let outside = smart(&mut c, "Outside", None, in_trips);
+    let tests_outside: Filter =
+        serde_json::from_value(serde_json::json!({"ruleSet": {"rules": [{"field": "album", "op": "is", "value": outside.0}]}})).unwrap();
+    assert!(c.smart_album_would_loop_in(&tests_outside, europe));
+    assert!(!c.smart_album_would_loop_in(&tests_outside, other));
+    assert!(!c.smart_album_would_loop_in(&Filter::default(), trips), "rules that test no album");
+}
+
+/// A library file that says a folder also has rules: it is a folder (as the sidebar shows it), to
+/// every question.
+#[test]
+fn a_folder_with_rules_is_still_a_folder() {
+    let mut c = Catalog::new();
+    let [a, b] = ["a.jpg", "b.jpg"].map(|n| photo(&mut c, n));
+    c.apply(Op::SetRating { id: b, rating: 5 }).unwrap();
+    let f = folder(&mut c, "F", None);
+    album(&mut c, "Inside", Some(f), &[a]);
+    c.albums.get_mut(&f).unwrap().smart = Some(Box::new(Filter { rating: 5, ..Default::default() }));
+    let holds = |id: PhotoId| c.album_contains(f, c.photo(id).unwrap());
+    assert!(holds(a) && !holds(b));
+    assert_eq!((shown(&c, f), c.album_photos(f), c.album_count(f)), (vec![a], vec![a], 1));
+}
+
+/// A library file that puts an album inside a plain album: the sidebar lists nothing under an
+/// album, so the folder around them doesn't show that album's photos.
+#[test]
+fn an_album_inside_a_plain_album_is_not_in_the_folder() {
+    let mut c = Catalog::new();
+    let [a, b] = ["a.jpg", "b.jpg"].map(|n| photo(&mut c, n));
+    let f = folder(&mut c, "F", None);
+    let plain = album(&mut c, "Plain", Some(f), &[a]);
+    let child = album(&mut c, "Child", None, &[b]);
+    c.albums.get_mut(&child).unwrap().parent = Some(plain);
+    assert_eq!(c.album_members(f), [plain]);
+    assert_eq!(shown(&c, f), [a]);
+    // nor one whose folder is gone
+    c.albums.get_mut(&child).unwrap().parent = Some(AlbumId(999));
+    assert_eq!(c.album_members(f), [plain]);
 }
