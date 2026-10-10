@@ -205,7 +205,9 @@ pub fn dropped(text: &str) -> Vec<(usize, String)> {
     let mut found = Vec::new();
     let (mut i, mut line) = (0usize, 1usize);
     while let Some(&c) = code.get(i) {
-        if at(&code, i, "#![cfg(test)]") {
+        // a file that is all test code says so at its head, before any item's body; the same
+        // attribute further in (a module's own) is that module's and stops nothing here
+        if at(&code, i, "#![cfg(test)]") && !code.iter().take(i).any(|c| *c == '{') {
             return Vec::new();
         }
         if at(&code, i, TEST_ONLY) {
@@ -308,6 +310,8 @@ mod tests {
         let before = "fn ui() {\n    let _ = app.run(\"x\", p);\n}\n\n#[cfg(test)]\nmod tests {}\n";
         assert_eq!(dropped(before).len(), 1, "code before the test module still counts");
         assert!(dropped(&format!("#![cfg(test)]\n{DROP}")).is_empty(), "a file that is all test code");
+        let inner = format!("{DROP}mod t {{\n    #![cfg(test)]\n}}\n{DROP}");
+        assert_eq!(dropped(&inner).len(), 2, "a module's own #![cfg(test)] does not excuse the file");
     }
 
     const DROP: &str = "fn ui(app: &mut App) {\n    let _ = app.run(\"x\", p);\n}\n";
