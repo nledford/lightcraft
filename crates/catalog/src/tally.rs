@@ -123,6 +123,11 @@ impl AlbumTally {
     /// An album whose rules lead into a loop, or through a chain too deep to be sure of, is counted by its rules
     /// as before: the pass ends before the first of them (they sort last), so nothing they evaluate reads it.
     pub fn of(cat: &Catalog) -> AlbumTally {
+        // one pass: a folder of albums a smart album is limited to is gathered once
+        crate::gathering(|| AlbumTally::counted(cat))
+    }
+
+    fn counted(cat: &Catalog) -> AlbumTally {
         let heights = chain_heights(cat);
         let height_of = |id: AlbumId| heights.get(&id).copied().flatten().filter(|h| *h <= MAX_ALBUM_DEPTH);
         let mut smart: Vec<AlbumId> = cat.albums().filter(|a| a.is_smart()).map(|a| a.id).collect();
