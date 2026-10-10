@@ -16,6 +16,8 @@
   folders inside it included, each photo once, as a collection set does in Lightroom Classic. The grid is titled with
   the folder's name and follows the sort and the filter bar. The triangle beside the folder opens and closes it; a
   click on the row no longer does.
+- A folder's view can be saved as a smart album that follows the folder. It can't be made in, or moved into, the
+  folder it shows (it would include itself): LightCraft says so instead of leaving a ⚠ album.
 - Agents show a folder with `library.source {"kind": "album", "id": <folder id>}`; `albums.list` reports a folder's
   `count`.
 
