@@ -472,8 +472,10 @@ impl LightcraftApp {
 
     /// Run a command for the person at the interface (a click, a drop, a key): when it is
     /// refused, a toast says why, so no widget has to pass that on by hand (or forget to).
-    /// `None` when it was refused. `cargo xtask refusals` keeps `app.act(…)` out of the
-    /// interface: a widget says which of the three it means.
+    /// `None` when it was refused: say a success of your own only on `Some`, or it writes over
+    /// the reason. `cargo xtask refusals` keeps the dropped form, `let _ = app.run(…)` (and
+    /// `let _ = app.session.execute(…)`, which goes round this), out of the interface: a widget
+    /// says which of `act`, [`Self::quiet`] and [`Self::run`] it means.
     pub fn act(&mut self, id: &str, params: Value) -> Option<Value> {
         match self.run_told(id, params) {
             Ok(v) => Some(v),

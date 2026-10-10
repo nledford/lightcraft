@@ -12,10 +12,13 @@
 - Agents list and stop tasks with `activity.list` and `activity.cancel`; `ui.inspect` reports them as `activity`.
 
 ### Refused commands say why
-- When something you click, drop or choose from a menu can't be done, a message at the bottom of the photo says why
-  ("No photos selected", "Smart album “Trips view” would include itself in folder “Trips”…") and stays long enough to
-  read. Before, most such clicks did nothing and said nothing; only a few places, such as an export that couldn't
-  start, explained themselves.
+- When something you click, drop, drag a slider for, choose from a menu or press a key for can't be done, a message
+  at the bottom of the photo says why ("No photos selected", "Smart album “Trips view” would include itself in folder
+  “Trips”…") and stays long enough to read. Before, most such clicks did nothing and said nothing; only a few places,
+  such as an export that couldn't start, explained themselves.
+- Nothing claims a success that didn't happen: pressing 3 with no photo selected no longer says "Rated ★★★", ⌘Z with
+  nothing to undo no longer says "Undo", and Auto, a preset or Paste Settings that couldn't be applied say why
+  instead of "applied".
 
 ### Folders of albums
 - Clicking a folder in the sidebar's Albums section shows the photos of every album and smart album inside it,

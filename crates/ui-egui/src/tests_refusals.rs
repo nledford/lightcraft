@@ -13,9 +13,22 @@
 //! - Given a command that goes through, then nothing is said that the command didn't say itself.
 //! - Given the same refusals through `run` or `quiet`, then nothing is shown; `run` gives the
 //!   error back in full and agents can still read it as the status.
-//! - Given the Albums sidebar, when a smart album is dropped where it can't go by a path the
-//!   interface didn't rule out beforehand, then the person is told (the widget passes nothing on
-//!   by hand).
+//! - Given a menu item that is refused, when it is clicked (`menubar::act_item`), then the toast
+//!   says why; `run_item` stays the raw form.
+//! - Given a command nobody knows, then that is said too.
+//! - Given an interface command that wraps an engine command (Edit In…, All Metadata), when the
+//!   engine refuses, then the toast gives the engine's reason only, and `run` and the status keep
+//!   the whole error.
+//!
+//! Real widgets, driven headlessly:
+//! - Given a photo whose original is missing, when Edit ▸ Auto is clicked, then the toast is the
+//!   reason and not "Auto settings applied"; on a photo that is there, it still says so.
+//! - Given nothing selected, when a preset row is clicked, then the toast is the reason and not
+//!   "Preset: <name>"; with a photo selected, it still says so.
+//! - Given a slider, when it is dragged, then nothing is said; when the change is refused, on
+//!   every frame of the drag, then the toast says why.
+//! - Given nothing selected, when 3 is pressed, or Cmd+Z with nothing to undo, then the toast is
+//!   the reason and not "Rated ★★★" / "Undo"; when they go through, they still say so.
 
 use std::time::Duration;
 
