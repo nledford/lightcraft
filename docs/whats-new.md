@@ -19,6 +19,10 @@
 - A folder's view can be saved as a smart album that follows the folder, also after its rules are edited (editing
   the rules of a saved album view used to drop the album). It can't be made in, or moved into, the folder it shows
   (it would include itself): that folder is no drop target and isn't offered under Move to, and commands say why.
+- The grid goes back to All Photos whenever the album, smart album or folder it shows goes away, by whatever way:
+  deleting it did already; undoing its creation, redoing its deletion or opening a library whose last view was of an
+  album since removed left an empty grid titled "Album" (and could open on the next album made). A filter or target
+  album that names it lets go of it, and photos that are gone are no longer selected.
 - Agents show a folder with `library.source {"kind": "album", "id": <folder id>}`; `albums.list` reports a folder's
   `count`.
 
