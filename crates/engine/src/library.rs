@@ -375,9 +375,10 @@ impl Session {
             }
             self.sort = v.sort;
             self.selection = v.selection;
+            self.selection.ids.retain(|id| self.catalog.photo(*id).is_some());
+            self.selection.active = self.selection.active.filter(|id| self.catalog.photo(*id).is_some());
         }
-        // the saved view may name an album or photos the library no longer has
-        self.view_checked = None;
+        // the saved view may name an album the library no longer has
         self.reconcile_view();
         if self.selection.active.is_none()
             && let Some(first) = self.visible_cloned().first()

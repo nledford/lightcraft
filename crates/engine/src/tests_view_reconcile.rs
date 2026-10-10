@@ -1,20 +1,21 @@
-//! The view never points at something that is gone. What the session shows and acts on (the
-//! source, the album a filter names, the target album, the selection) refers to albums and photos
-//! of the library; after anything changes the library, by whatever way, those references are
-//! checked in one place (`Session::reconcile_view`).
+//! The view never points at an album that is gone. What the session shows and acts on (the
+//! source, the album a filter names, the target album) refers to albums of the library; whenever
+//! the library or the view may have changed, by whatever way, those references are checked in
+//! one place (`Session::reconcile_view`).
 //!
 //! Scenarios:
 //! - Given an album, a smart album or a folder being shown, when it goes away (deleted, its
 //!   creation undone, its deletion redone, the folder around it deleted, or removed by an edit
 //!   that is no command), then the grid shows All Photos, titled so.
-//! - Given the shown album went away by undo, when another album is made (and takes its id),
-//!   then the grid still shows All Photos, not the newcomer.
+//! - Given an album that went away and came back (its deletion undone), then it is not shown
+//!   again by itself, nor the target or the filter's album again.
 //! - Given a library closed while showing an album that is gone when it is opened again, then
 //!   it opens on All Photos.
 //! - Given the filter names an album, or an album is the target, when that album goes away, then
-//!   the filter no longer names it and there is no target.
-//! - Given photos are selected, when they go away (their import undone), then they are no
-//!   longer selected, and the active photo is one that exists.
+//!   the filter no longer names it and there is no target; a saved filter that names an album
+//!   since deleted applies without it; a filter can't be set to an album that doesn't exist.
+//! - Given photos are selected, when they go away by undo and come back by redo, then they are
+//!   selected as before (the selection is looked up where it is read, not pruned).
 //! - Given the shown album is only changed (renamed, moved, emptied), then it is still shown.
 
 use lightcraft_catalog::{AlbumId, Op, Photo, PhotoId, Source};
@@ -104,7 +105,7 @@ fn deleting_the_folder_around_the_shown_album_gives_way_too() {
 }
 
 #[test]
-fn a_new_album_doesnt_take_the_place_of_one_that_went_away() {
+fn an_album_that_comes_back_is_not_shown_again_by_itself() {
     let mut s = Session::new();
     photos(&mut s, 3);
     let id = run(&mut s, "album.create", json!({"name": "First"}))["id"].as_u64().unwrap();
@@ -114,10 +115,16 @@ fn a_new_album_doesnt_take_the_place_of_one_that_went_away() {
     // the target and the filter are no undo steps: this undoes the album
     run(&mut s, "edit.undo", json!({}));
     assert!(s.catalog.album(AlbumId(id)).is_none(), "the album's creation was undone");
+    assert_eq!((s.source, s.target_album, s.filter.album), (LibrarySource::All, None, None));
+    run(&mut s, "edit.redo", json!({}));
+    assert!(s.catalog.album(AlbumId(id)).is_some(), "and redone");
+    shows_all(&mut s, "the album came back");
+    assert_eq!((s.target_album, s.filter.album), (None, None));
+    // nor does the next album made take its place
+    run(&mut s, "edit.undo", json!({}));
     let second = run(&mut s, "album.create", json!({"name": "Second"}))["id"].as_u64().unwrap();
+    assert_ne!(second, id, "ids are not handed out again");
     shows_all(&mut s, "another album was made");
-    assert_eq!(s.target_album, None, "Second (id {second}) is no target because First (id {id}) was");
-    assert_eq!(s.filter.album, None);
 }
 
 #[test]
@@ -137,20 +144,60 @@ fn a_filter_and_a_target_let_go_of_an_album_that_went_away() {
     assert_eq!(s.visible_cloned().len(), 3, "the filter hides nothing behind an album that is gone");
 }
 
+/// The view can come to name a missing album with the library unchanged: a saved filter applied
+/// after its album was deleted. And a filter is not set to an album that isn't there.
 #[test]
-fn photos_that_went_away_are_no_longer_selected() {
+fn a_filter_naming_a_missing_album_is_not_taken_up() {
+    let mut s = Session::new();
+    photos(&mut s, 3);
+    let id = run(&mut s, "album.create", json!({"name": "Named"}))["id"].as_u64().unwrap();
+    s.filter_presets.push(crate::cmd::filters::FilterPreset {
+        name: "In Named".into(),
+        filter: lightcraft_catalog::Filter { album: Some(AlbumId(id)), rating: 0, ..Default::default() },
+    });
+    run(&mut s, "album.delete", json!({"id": id}));
+    // nothing changes in the library from here on
+    let r = run(&mut s, "filter.applyPreset", json!({"name": "In Named"}));
+    assert_eq!((s.filter.album, r["photos"].as_u64()), (None, Some(3)), "applied without the album that is gone");
+    let e = s.execute("library.filter", &json!({"album": 77})).unwrap_err().to_string();
+    assert!(e.contains("no such album"), "{e}");
+    assert_eq!(s.filter.album, None);
+    assert_eq!(s.source_total(), Some(3));
+    // an album that is there can be named, and cleared
+    let kept = run(&mut s, "album.create", json!({"name": "Kept"}))["id"].as_u64().unwrap();
+    run(&mut s, "library.filter", json!({"album": kept}));
+    assert_eq!(s.filter.album, Some(AlbumId(kept)));
+    run(&mut s, "library.filter", json!({"album": null}));
+    assert_eq!(s.filter.album, None);
+}
+
+/// The counted total is a look at the grid too.
+#[test]
+fn the_total_is_of_what_is_there() {
+    let mut s = Session::new();
+    photos(&mut s, 3);
+    let id = run(&mut s, "album.create", json!({"name": "Shown"}))["id"].as_u64().unwrap();
+    show(&mut s, id);
+    assert_eq!(s.source_total(), Some(0));
+    s.commit("Remove", Op::RemoveAlbum { id: AlbumId(id) }).unwrap();
+    assert_eq!(s.source_total(), Some(3));
+    assert_eq!(s.source, LibrarySource::All);
+}
+
+/// Undo takes a selected photo away and redo brings it back: selected and active as before, and
+/// in between nothing acts on a photo that isn't there.
+#[test]
+fn photos_that_go_and_come_back_are_selected_as_before() {
     let mut s = Session::new();
     photos(&mut s, 3);
     s.selection.ids = vec![PhotoId(1), PhotoId(3)];
     s.selection.active = Some(PhotoId(3));
-    // the last photo's import undone
     run(&mut s, "edit.undo", json!({}));
     assert!(s.catalog.photo(PhotoId(3)).is_none());
-    assert_eq!(s.selection.ids, [PhotoId(1)]);
-    assert_eq!(s.selection.active, Some(PhotoId(1)), "the active photo is one that is there");
-    run(&mut s, "edit.undo", json!({}));
-    run(&mut s, "edit.undo", json!({}));
-    assert!(s.selection.ids.is_empty() && s.selection.active.is_none());
+    assert_eq!(s.active(), None, "no photo to act on");
+    assert!(s.execute("mask.delete", &json!({})).is_err(), "so nothing does");
+    run(&mut s, "edit.redo", json!({}));
+    assert_eq!((s.selection.ids.clone(), s.active()), (vec![PhotoId(1), PhotoId(3)], Some(PhotoId(3))));
 }
 
 #[test]

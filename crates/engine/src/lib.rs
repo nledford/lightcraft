@@ -164,8 +164,6 @@ pub struct Session {
     /// Shared, so frontends can hold it across frames without copying ([`Session::visible_shared`]).
     visible: Arc<[PhotoId]>,
     visible_key: Option<(u64, String)>,
-    /// The catalog revision the view was last checked against ([`Session::reconcile_view`]).
-    view_checked: Option<u64>,
     /// Identifies the current `visible` list: a new value (unique in the process) every time it
     /// is recomputed, so frontends can key their per-view caches on it instead of hashing the ids.
     visible_gen: u64,
@@ -302,7 +300,6 @@ impl Session {
             selection: Selection::default(),
             visible: Vec::new().into(),
             visible_key: None,
-            view_checked: None,
             visible_gen: 0,
             total: None,
             undo: Vec::new(),
@@ -735,20 +732,18 @@ impl Session {
 
     // ---------------------------------------------------------------- library view
 
-    /// Makes the view point only at what the library holds: an album that is gone is no longer the
-    /// source (All Photos is), the filter's album or the target album; photos that are gone are
-    /// no longer selected. THE place this is checked: commands, undo and redo, opening a library
-    /// and every look at the grid run it, so whatever removed an album or a photo (a command, an
-    /// undo, a background task) need not know what was showing it. Costs nothing until the
-    /// catalog changes.
+    /// Makes the view point only at albums the library holds: one that is gone is no longer the
+    /// source (All Photos is), the filter's album or the target album. THE place this is checked:
+    /// commands, undo and redo, opening a library and every look at the grid run it, so whatever
+    /// removed an album (a command, an undo, a background task) or named one (a saved filter, a
+    /// saved view) need not know. Three lookups: it runs every time.
     ///
-    /// An album that comes back (its deletion undone) is not shown again by itself: ids are handed
-    /// out again after an undo, so a view kept waiting would open on whichever album came next.
+    /// An album that comes back (its deletion undone) is not shown again by itself, as after
+    /// `album.delete` and undo before: the grid stays where the person was put.
+    ///
+    /// The selection is not this function's: photos that go away by undo come back by redo still
+    /// selected, and what reads the selection (`active`, `targets`) looks each photo up.
     pub fn reconcile_view(&mut self) {
-        if self.view_checked == Some(self.catalog.revision) {
-            return;
-        }
-        self.view_checked = Some(self.catalog.revision);
         let cat = &self.catalog;
         let gone = |a: &lightcraft_catalog::AlbumId| cat.album(*a).is_none();
         if matches!(&self.source, LibrarySource::Album(a) if gone(a)) {
@@ -759,12 +754,6 @@ impl Session {
         }
         if self.target_album.as_ref().is_some_and(gone) {
             self.target_album = None;
-        }
-        let sel = &mut self.selection;
-        if sel.ids.iter().chain(&sel.active).any(|id| cat.photo(*id).is_none()) {
-            sel.ids.retain(|id| cat.photo(*id).is_some());
-            // still a selected photo, when any is left
-            sel.active = sel.active.filter(|id| cat.photo(*id).is_some()).or_else(|| sel.ids.last().copied());
         }
     }
 
