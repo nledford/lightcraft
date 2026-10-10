@@ -125,10 +125,18 @@ impl Refusal {
     }
 }
 
-/// A sentence starts with a capital, whatever the command wrote.
+/// A sentence starts with a capital, whatever the command wrote. Only when it starts with a word:
+/// a file name or a path ("img_0012.jpg is a virtual copy", "photos/a.jpg: …") is someone's
+/// spelling and stays as it is, and so does a letter whose capital is not one letter (ß).
 fn sentence(why: &str) -> String {
+    let first_word = why.split_whitespace().next().unwrap_or_default().trim_end_matches([',', ':', ';']);
     let mut letters = why.chars();
-    letters.next().map(|first| first.to_uppercase().chain(letters).collect()).unwrap_or_default()
+    match letters.next() {
+        Some(first) if first_word.chars().all(char::is_alphabetic) && first.to_uppercase().count() == 1 => {
+            first.to_uppercase().chain(letters).collect()
+        }
+        _ => why.to_string(),
+    }
 }
 
 /// The reason in an [`EngineError`](lightcraft_engine::EngineError) that is already text: what

@@ -17,8 +17,11 @@
 //!   says why; `run_item` stays the raw form.
 //! - Given a command nobody knows, then that is said too.
 //! - Given an interface command that wraps an engine command (Edit In…, All Metadata), when the
-//!   engine refuses, then the toast gives the engine's reason only, and `run` and the status keep
-//!   the whole error.
+//!   engine refuses, then the toast gives the engine's reason only, and `run` keeps the whole
+//!   error.
+//! - Given a reason that starts with a file's name or a path, then its spelling is kept; only a
+//!   reason that starts with a word gets a capital.
+//! - Given a dialog open, when a key behind it is refused, then nothing is said.
 //!
 //! Real widgets, driven headlessly:
 //! - Given a photo whose original is missing, when Edit ▸ Auto is clicked, then the toast is the
@@ -113,25 +116,56 @@ fn a_refused_menu_item_says_why() {
     assert_eq!(toast(&app), None);
 }
 
-/// An interface command that wraps an engine command hands on the engine's error as text
-/// ("command `photo.editExternal` is not available right now: no photo selected"): the person
-/// reads the reason only, agents the whole of it as before.
+/// An interface command that wraps an engine command (Edit In, All Metadata…) hands on the
+/// engine's error as text ("command `photo.editExternal` is not available right now: no photo
+/// selected"): the person reads the reason only, agents the whole of it as before.
 #[test]
 fn an_interface_command_that_wraps_an_engine_command_says_the_reason_only() {
     let mut app = app();
     app.session.selection = Default::default();
-    for id in ["photo.editExternal", "photo.allMetadata"] {
+    for (id, wrapped) in [("photo.editInExternal", "photo.editExternal"), ("dialog.allMetadata", "photo.allMetadata")] {
         app.ui.toast = None;
         let whole = app.run(id, json!({})).unwrap_err();
-        assert!(whole.contains(&format!("`{id}`")), "agents get the engine's error as it was: {whole}");
+        assert!(whole.contains(&format!("`{wrapped}`")), "agents get the engine's error as it was: {whole}");
         assert_eq!(toast(&app), None);
         assert_eq!(app.act(id, json!({})), None);
         let said = toast(&app).expect("a toast").to_string();
-        assert!(!said.contains(id) && !said.contains("not available right now") && !said.contains("invalid parameters"), "{said}");
+        assert!(!said.contains(wrapped) && !said.contains("not available right now") && !said.contains("invalid parameters"), "{said}");
         assert!(whole.to_lowercase().ends_with(&said.to_lowercase()), "the reason, capitalised: {said} / {whole}");
         assert!(said.chars().next().is_some_and(char::is_uppercase), "{said}");
-        assert_eq!(app.ui.status, whole, "the status keeps the whole error");
     }
+}
+
+/// A reason that starts with a file's name or a path keeps its spelling; one that starts with a
+/// word gets its capital.
+#[test]
+fn a_reason_is_capitalised_only_when_it_starts_with_a_word() {
+    use crate::sentence;
+    assert_eq!(sentence("no photos selected"), "No photos selected");
+    assert_eq!(sentence("nothing copied: use Copy Metadata first"), "Nothing copied: use Copy Metadata first");
+    for kept in
+        ["img_0012.jpg is a virtual copy", "photos/a.jpg: No such file", "ßtraße", "`x` must be a number", "“Trips” is a folder", "3 photos", ""]
+    {
+        assert_eq!(sentence(kept), kept);
+    }
+}
+
+/// With a dialog open the keys behind it still run their commands, but nobody asked: a refused
+/// one says nothing there, and says why once the dialog is gone.
+#[test]
+fn a_refused_key_behind_a_dialog_says_nothing() {
+    let mut h = headless(lightcraft_engine::Session::with_demo(), json!({"view": "photoGrid"}));
+    h.app.session.selection = Default::default();
+    h.app.run("dialog.export", json!({})).unwrap();
+    h.step();
+    assert!(h.app.ui.dialog.is_some());
+    h.app.ui.toast = None;
+    key(&mut h, "3", false);
+    assert_eq!(toast(&h.app), None);
+    h.app.ui.dialog = None;
+    h.step();
+    key(&mut h, "3", false);
+    assert!(toast(&h.app).is_some_and(|t| t.to_lowercase().contains("no photo")), "{:?}", toast(&h.app));
 }
 
 #[test]

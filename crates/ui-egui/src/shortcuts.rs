@@ -362,7 +362,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     // this answers true.
     let cull = |app: &mut LightcraftApp, id: &str, mut params: serde_json::Value, advance: bool| -> bool {
         compare::target_active(app, &mut params);
-        let ok = app.act(id, params).is_some();
+        let ok = key_act(app, id, params).is_some();
         if ok && (advance || app.ui.auto_advance) {
             compare::advance(app);
         }
@@ -389,7 +389,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             cull(app, id, params, advance);
         } else {
             // a command that can't run (an export with no folder…) says why instead of doing nothing
-            app.act(id, params);
+            key_act(app, id, params);
         }
     }
     for f in fire {
@@ -412,7 +412,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             cull(app, "photo.flag", json!({"flag": "pick"}), true);
         } else if f == "view.softProof" && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid) {
             // S in a grid: expand / collapse the stack (Lightroom's Library binding)
-            app.act("stack.toggle", json!({}));
+            key_act(app, "stack.toggle", json!({}));
         } else if compare::culling(app) && (f == "library.next" || f == "library.previous") {
             let d = if f == "library.next" { 1 } else { -1 };
             let _ = if app.ui.view == crate::state::ViewMode::Compare { compare::compare_step(app, d) } else { compare::survey_step(app, d) };
@@ -427,7 +427,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         } else {
             // in the full-screen preview (no panels) I cycles the info overlay instead
             if f == "panel.info" && app.ui.fullscreen {
-                app.act("view.infoOverlay", json!({}));
+                key_act(app, "view.infoOverlay", json!({}));
                 continue;
             }
             // Delete acts on what's being edited: the active mask in the Masking panel; never the
@@ -437,13 +437,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                 match app.ui.right {
                     R::Masking => {
                         if app.session.active_mask.is_some() {
-                            app.act("mask.delete", json!({}));
+                            key_act(app, "mask.delete", json!({}));
                         }
                         continue;
                     }
                     R::Remove => {
                         if app.session.active_spot.is_some() {
-                            app.act("spot.delete", json!({}));
+                            key_act(app, "spot.delete", json!({}));
                         }
                         continue;
                     }
@@ -456,7 +456,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             }
             // B: the brush while editing; in the grids, add to the target album (Quick Collection)
             if f == "tool.brush" && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid) {
-                if let Some(r) = app.act("album.toggleTarget", json!({})) {
+                if let Some(r) = key_act(app, "album.toggleTarget", json!({})) {
                     let n = app.session.targets(&json!({})).len();
                     let what = crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n);
                     let name = r["name"].as_str().unwrap_or("Quick Collection").to_string();
@@ -473,7 +473,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             }
             // X is both reject (library) and swap crop aspect (crop tool)
             if f == "photo.reject" && app.ui.right == crate::state::RightPanel::Crop {
-                app.act("crop.rotateAspect", json!({}));
+                key_act(app, "crop.rotateAspect", json!({}));
                 continue;
             }
             if f == "crop.rotateAspect" && app.ui.right != crate::state::RightPanel::Crop {
@@ -481,12 +481,12 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             }
             // / refreshes the selected spot's source in the Remove tool (the filmstrip elsewhere)
             if f == "view.filmstrip" && app.ui.right == crate::state::RightPanel::Remove && app.session.active_spot.is_some() {
-                app.act("spot.refreshSource", json!({}));
+                key_act(app, "spot.refreshSource", json!({}));
                 continue;
             }
             // Shift+O cycles the mask overlay colour while masking (the crop overlay elsewhere)
             if f == "view.cropOverlay" && app.ui.right == crate::state::RightPanel::Masking {
-                app.act("view.maskOverlayColor", json!({}));
+                key_act(app, "view.maskOverlayColor", json!({}));
                 continue;
             }
             // while cropping: O cycles the guides, Shift+O their orientation, A locks the aspect
@@ -498,13 +498,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                     _ => None,
                 };
                 if let Some((cmd, p)) = crop_key {
-                    app.act(cmd, p);
+                    key_act(app, cmd, p);
                     continue;
                 }
             }
             // a command that can't run (an export with no folder, nothing to undo…) says why
             // instead of doing nothing; its success is said only when it went through
-            if app.act(&f, json!({})).is_some() {
+            if key_act(app, &f, json!({})).is_some() {
                 match f.as_str() {
                     "photo.pick" => app.toast(ctx, crate::i18n::tr("Flagged as Pick")),
                     "photo.reject" => app.toast(ctx, crate::i18n::tr("Flagged as Reject")),
@@ -520,6 +520,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
 
 pub(crate) fn library_grid(app: &LightcraftApp) -> bool {
     matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid)
+}
+
+/// Runs a key's command for the person ([`LightcraftApp::act`]: a refusal says why). With a
+/// dialog open the keys still reach here, but the person is typing at the dialog, not asking for
+/// the command behind it: a refusal there says nothing.
+fn key_act(app: &mut LightcraftApp, id: &str, params: serde_json::Value) -> Option<serde_json::Value> {
+    if app.ui.dialog.is_some() { app.quiet(id, params) } else { app.act(id, params) }
 }
 
 #[cfg(test)]

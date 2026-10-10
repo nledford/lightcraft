@@ -68,7 +68,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 let out = slider(ui, &spec, amount, true, None);
                 if let Some(v) = out.value {
                     // re-apply from the pre-preset state: undo last preset step then apply with the new amount
-                    app.act("edit.undo", json!({}));
+                    // (quiet: when that step is no longer there to undo, an undo since, the preset
+                    // is simply applied on top; "Nothing to undo" over a drag that worked is wrong)
+                    app.quiet("edit.undo", json!({}));
                     app.act("preset.apply", json!({"id": pid, "amount": v}));
                     ui.data_mut(|d| d.insert_temp(amt_id, (pid, v)));
                 }
