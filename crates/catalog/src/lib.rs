@@ -24,6 +24,7 @@ pub mod model;
 pub mod query;
 pub mod rules;
 pub mod safe_file;
+pub mod segments;
 pub mod stacks;
 pub mod store;
 mod stored;
@@ -42,6 +43,7 @@ pub use lock::{LibraryLock, LockError, LockOwner};
 pub use model::*;
 pub use query::{DateGroup, Filter, Person, RatingOp, Sort, SortKey, mix64};
 pub use rules::{Match, Rule, RuleSet};
+pub use segments::Segment;
 use serde::{Deserialize, Serialize};
 pub use store::{FsStore, MemStore, Store};
 
@@ -1014,6 +1016,59 @@ impl Catalog {
 
     // ---- persistence
 
+    /// The photos by id (what the journal saves in segments).
+    pub(crate) fn photo_map(&self) -> &BTreeMap<PhotoId, Arc<Photo>> {
+        &self.photos
+    }
+
+    /// Everything but the photos: what `catalog.snap` holds of a catalog whose photos are in
+    /// segments.
+    pub(crate) fn without_photos(&self) -> Catalog {
+        // every field by name: a new one doesn't compile until it is saved here too
+        let Catalog {
+            photos: _,
+            albums,
+            next_photo,
+            next_album,
+            stacks,
+            next_stack,
+            label_names,
+            browsed,
+            keyword_list,
+            folder_records,
+            revision,
+            changes: _,
+            index: _,
+        } = self;
+        Catalog {
+            photos: BTreeMap::new(),
+            albums: albums.clone(),
+            next_photo: *next_photo,
+            next_album: *next_album,
+            stacks: stacks.clone(),
+            next_stack: *next_stack,
+            label_names: label_names.clone(),
+            browsed: browsed.clone(),
+            keyword_list: keyword_list.clone(),
+            folder_records: folder_records.clone(),
+            revision: *revision,
+            // (what the latest ops touched is this session's to remember: not saved)
+            changes: Changes::default(),
+            // (lookups worked out from the rest: not saved)
+            index: index::Indexes::default(),
+        }
+    }
+
+    /// The catalog's photos, for the journal to keep as what is on disk.
+    pub(crate) fn into_photo_map(self) -> BTreeMap<PhotoId, Arc<Photo>> {
+        self.photos
+    }
+
+    /// Give a catalog read without its photos the photos read from its segments.
+    pub(crate) fn set_photos(&mut self, photos: BTreeMap<PhotoId, Arc<Photo>>) {
+        self.photos = photos;
+    }
+
     /// Full snapshot as JSON.
     pub fn to_snapshot(&self) -> String {
         serde_json::to_string(self).unwrap_or_default()
@@ -1173,6 +1228,8 @@ mod tests_policy;
 mod tests_repair;
 #[cfg(test)]
 mod tests_scale;
+#[cfg(test)]
+mod tests_segments;
 #[cfg(test)]
 mod tests_stored;
 #[cfg(test)]

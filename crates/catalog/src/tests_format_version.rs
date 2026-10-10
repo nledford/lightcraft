@@ -238,7 +238,8 @@ fn op_variants_are_versioned() {
             Op::SetHistoryCursor { .. } => 8,
         }
     }
-    // (formats 9 and 10 added no op: 9 added fields, 10 changed how records are stored, `crate::stored`)
+    // (formats 9 to 11 added no op: 9 added fields, 10 changed how records are stored,
+    // `crate::stored`, and 11 where, `crate::segments`)
     let newest = since(&Op::SetHistoryCursor { id: PhotoId(1), cursor: None });
     // the newest format in this build that adds an op is the newest op's, and says so
     let adds_an_op = crate::journal::newest_op_format(FORMATS).expect("a format adds an op");
@@ -282,6 +283,7 @@ fn fixture(version: u32) -> Option<(&'static str, &'static str)> {
         8 => Some((include_str!("fixtures/v8-catalog.snap.json"), include_str!("fixtures/v8-catalog.log.jsonl"))),
         9 => Some((include_str!("fixtures/v9-catalog.snap.json"), include_str!("fixtures/v9-catalog.log.jsonl"))),
         10 => Some((include_str!("fixtures/v10-catalog.snap.json"), include_str!("fixtures/v10-catalog.log.jsonl"))),
+        11 => Some((include_str!("fixtures/v11-catalog.snap.json"), include_str!("fixtures/v11-catalog.log.jsonl"))),
         _ => None,
     }
 }

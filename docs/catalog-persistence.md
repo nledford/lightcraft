@@ -1,9 +1,14 @@
 # Catalog persistence: what is stored and when it is rewritten
 
-The catalog is two files in the library folder (`crates/catalog/src/journal.rs`): `catalog.snap`, a JSON snapshot of
-the whole catalog, and `catalog.log`, one JSON line per change made since. Every change is appended to the log and
-fsynced before its command returns; now and then the log is compacted into a new snapshot. This page covers catalog
-format 10: the stored form of records, the rule for when to compact, and the measurements behind both.
+The catalog is saved in the library folder by `crates/catalog/src/journal.rs`:
+
+- `catalog.log`: one JSON line per change. Every change is appended and fsynced before its command returns.
+- `catalog.snap`: the snapshot the log is compacted into now and then. It holds everything but the photos (albums,
+  keywords, folders, counters) and lists the segment files.
+- `catalog.seg-<first id>-<seq>`: the **segments**, each a run of photos in id order, as JSON.
+
+This page covers catalog formats 10 (compact records) and 11 (segments): the stored form of records, the segments, the
+rule for when to compact, and the measurements behind them.
 
 ## The stored form
 
@@ -14,7 +19,7 @@ A photo's record states only what was set (`crates/catalog/src/stored.rs`):
   difference from the defaults: `{}` for a photo nobody edited.
 
 Reading did not change: a missing field reads as its default, so libraries of formats 1 to 9 load as they are and are
-rewritten in format 10 when first opened. Builds before format 10 refuse a format 10 library.
+rewritten in the current format when first opened. Earlier builds refuse a library in a newer format.
 
 The files an upgrade replaces are kept: see "Going back to an older version" below.
 
@@ -71,21 +76,49 @@ library was, byte for byte, beside it:
 `catalog.snap` and `catalog.log`. The older version opens the library as it was when it was upgraded; changes made
 since, in the newer version, are in the files that were moved away and are not carried back.
 
+## Segments (format 11)
+
+A compaction used to rewrite the whole catalog. Now it writes only the segments whose photos changed
+(`crates/catalog/src/segments.rs`), so its cost follows what changed, and opening a library reads its segments on
+several threads.
+
+- **Which segments changed** is not worked out from the changes logged. The journal keeps the photos as the segments
+  on disk hold them (shared pointers, not copies) and compares: a photo is unchanged while the catalog still points
+  to the same one, and changing a photo copies it. So a segment is rewritten exactly when one of its photos was
+  changed, added or removed, whatever did it.
+- **Size.** A segment holds up to 8192 photos and about 4 MB: where records are large (edited photos with their
+  history), fewer photos, down to 64. One that changes is cut into pieces once it holds more than twice that; one
+  left without photos is dropped. Photos added after a full last segment start new ones, so an import leaves the
+  existing segments alone. A small library is one segment.
+- **Commit.** New segments are written under names no snapshot lists (several at once, each fsynced), then
+  `catalog.snap` is replaced atomically, which is the commit, then the files it no longer lists are removed. A crash
+  at any point leaves a snapshot with all its segments; files nothing lists are removed when the library is next
+  opened by a program that holds its lock.
+- **Checks on open.** Each segment's size, CRC-32, photo count and range of ids, and the total number of photos, must
+  be what `catalog.snap` states. A damaged or missing segment fails the open with an error naming the file, and
+  nothing is modified. Segment files without a `catalog.snap` are refused, not opened as a new library.
+- **Upgrade.** A one-file library (formats up to 8) is split when first opened: the segments are written, read back
+  and compared with the photos that were loaded, and only then does the new `catalog.snap` replace the old one. If
+  they don't read back the same, the one file stays and the library opens from it as before.
+- **Stores without segments.** The browser build keeps the photos in `catalog.snap` itself (its storage holds a fixed
+  set of files). Either layout is read wherever it is found; a desktop library folder is not a browser library.
+
 ## When the log is compacted
 
-A snapshot rewrites the whole catalog, so its cost grows with the library. `SnapshotPolicy`:
+`SnapshotPolicy`, where "what it would rewrite" is `catalog.snap`, the segments holding changed photos, and a sixteenth
+of the catalog for looking through it (all of the catalog where there are no segments):
 
 | When | Rule |
 |---|---|
-| While working | The log is long (2000 records or 16 MB) **and** has grown to a quarter of the snapshot's size; or it has reached 256 MB. |
-| On quit, snapshot up to 64 MB | Whatever log there is. |
-| On quit, larger snapshot | Only when the log is long (2000 records or 16 MB). |
+| While working | The log is long (2000 records or 16 MB) **and** has grown to a quarter of what a compaction would rewrite; or it has reached 256 MB. |
+| On quit, rewriting up to 64 MB | Whatever log there is. |
+| On quit, rewriting more | Only when the log is long (2000 records or 16 MB). |
 
-Before format 10 the log was compacted every 2000 records or 16 MB, and on every quit. For a small library nothing
-changes. For a large one, saving follows what changed and not the library's size, and a log is still never left
-longer than 2000 records from one session to the next, so what a damaged record in it can cost is what it was.
+Changes within a few segments are compacted every 2000 records however large the library; changes spread all over
+it, and bulk imports into a very large one, less often. A log is never left longer than 2000 records from one session
+to the next, so what a damaged record in it can cost is what it always was.
 
-## Measurements
+## Measurements: compact records and compaction by size (format 10)
 
 `cargo run --release -p lightcraft-catalog --example persist_bench -- <scratch dir> <photos…>`, on an Apple M1 Max
 (internal SSD), 2026-10-10; "before" is main at `b70ae174`. Three kinds of library:
@@ -149,7 +182,46 @@ An import at these sizes was not run before the change: at 300,000 photos it alr
 Replaying a log when the library is opened cost 0.3 to 1.1 ms per 1000 records up to 300,000 photos (200,000 rating
 changes: 51 to 217 ms).
 
-**What this does not change.** The whole catalog is still held in memory and still written as one file. The 3.5
-million photo run peaked at 34 GB of memory (the benchmark holds two copies of the catalog while it checks the
-reopened one), and replaying 200,000 changes took 2.8 s there. A library of that size wants the snapshot split into
-segments, so a compaction rewrites only what changed and opening can use every core.
+**What this did not change.** The whole catalog was still written as one file, which format 11 changes.
+
+## Measurements: segments (format 11)
+
+Same benchmark and machine; "before" is format 10 (one file) at `f43b0fdc`. "One place" is 1000 changes to the first
+1000 photos; "all over" is a change to every 50th photo of the library, which touches every segment.
+
+| Library | Photos | Open before | Open after | Compaction, one place before | after | Compaction, all over before | after |
+|---|---|---|---|---|---|---|---|
+| JPEG library | 100,000 | 175 ms | 59 ms | 81 ms (41 MB) | 49 ms (4.1 MB) | 88 ms | 129 ms |
+| JPEG library | 300,000 | 532 ms | 147 ms | 187 ms (124 MB) | 48 ms (4.1 MB) | 191 ms | 283 ms |
+| JPEG library | 1,000,000 | 1,767 ms | 518 ms | 570 ms (414 MB) | 58 ms (4.1 MB) | 577 ms | 886 ms |
+| JPEG library | 3,500,000 | 6,129 ms | 1,714 ms | 2,009 ms (1,455 MB) | 75 ms (4.2 MB) | 2,060 ms | 3,360 ms |
+| Browsed raws | 100,000 | 251 ms | 63 ms | 210 ms (58 MB) | 62 ms (4.7 MB) | 209 ms | 167 ms |
+| Browsed raws | 300,000 | 741 ms | 165 ms | 575 ms (176 MB) | 63 ms (4.7 MB) | 581 ms | 363 ms |
+| Edited raws | 20,000 | 399 ms | 132 ms | 2,742 ms (68 MB) | 326 ms (6.8 MB) | 2,731 ms | 731 ms |
+
+Importing (one change per photo, compacting whenever it is due):
+
+| Library | Photos | Snapshots written before | Time before | Snapshots written after | Time after |
+|---|---|---|---|---|---|
+| JPEG library | 100,000 | 0.25 GB | 1.9 s | 0.10 GB | 3.1 s |
+| JPEG library | 300,000 | 0.72 GB | 5.2 s | 0.25 GB | 7.7 s |
+| JPEG library | 1,000,000 | 2.4 GB | 16.6 s | 0.56 GB | 20.3 s |
+| JPEG library | 3,500,000 | 8.2 GB | 57.5 s | 1.7 GB | 61.0 s |
+| Browsed raws | 300,000 | 1.08 GB | 9.2 s | 0.33 GB | 10.6 s |
+| Edited raws | 20,000 | 0.34 GB | 14.0 s | 0.07 GB | 6.4 s |
+
+Appending one change (4.1 to 5.0 ms) and how long a background compaction blocks the caller (10 to 30 ms; 70 ms at
+3.5 million photos) are as before.
+
+**Where it costs more.**
+
+- **Rewriting every segment at once** is slower than writing one file where records are small (JPEG libraries: 1.5
+  times), because each segment file is made durable on its own. It happens when changes touch every segment, and once
+  when a one-file library is split.
+- **Importing** small records takes up to 1.6 times as long in this benchmark, which measures the catalog alone:
+  compactions are smaller but more frequent, and each looks through the catalog for what changed. A real import also
+  reads every file, which takes far longer than either.
+
+**What this does not change.** The whole catalog is still held in memory: the 3.5 million photo runs peaked at 30 to
+32 GB before and after (the benchmark holds two to three copies of the catalog). Not measured: how long replaying a
+long log takes at that size (the benchmark's figure there is dominated by memory pressure from those copies).

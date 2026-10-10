@@ -1,5 +1,7 @@
 //! When the log is compacted into a snapshot ([`SnapshotPolicy`]): once it has grown to a share
-//! of the snapshot's size, so the cost of saving follows what changed, not the library's size.
+//! of what the snapshot would rewrite, so the cost of saving follows what changed, not the
+//! library's size. These are about a store without segments (the browser's), where a snapshot
+//! rewrites the whole catalog; `tests_segments` has the same rule where it rewrites segments.
 
 use crate::journal::SNAPSHOT;
 use crate::*;
@@ -31,7 +33,7 @@ fn rate(c: &mut Catalog, k: u64) -> Op {
 
 /// A library of `n` photos, saved and compacted.
 fn library(n: u64) -> (MemStore, Journal, Catalog) {
-    let m = MemStore::new();
+    let m = MemStore { single_file: true, ..Default::default() };
     let (mut j, mut c, _) = Journal::open(Box::new(m.clone())).unwrap();
     let ops: Vec<Op> = (0..n).map(|_| add(&mut c)).collect();
     j.append(&ops).unwrap();
@@ -83,7 +85,7 @@ fn the_snapshot_size_is_known_after_reopening() {
     let (j, _, _) = Journal::open(Box::new(m.clone())).unwrap();
     assert_eq!(j.snapshot_bytes(), written);
     // a new library's first snapshot counts too
-    let (j, _, _) = Journal::open(Box::new(MemStore::new())).unwrap();
+    let (j, _, _) = Journal::open(Box::new(MemStore { single_file: true, ..Default::default() })).unwrap();
     assert!(j.snapshot_bytes() > 0);
 }
 
@@ -106,7 +108,7 @@ fn a_log_at_the_cap_is_compacted_whatever_the_snapshot_size() {
 /// snapshots written together are a few times the final one, not one per 2000 photos.
 #[test]
 fn an_import_rewrites_the_snapshot_a_bounded_number_of_times() {
-    let m = MemStore::new();
+    let m = MemStore { single_file: true, ..Default::default() };
     let (mut j, mut c, _) = Journal::open(Box::new(m.clone())).unwrap();
     let (mut compactions, mut written) = (0u64, 0u64);
     for _ in 0..80 {

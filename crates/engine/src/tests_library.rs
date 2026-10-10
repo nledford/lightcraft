@@ -74,10 +74,28 @@ fn threshold_compaction_runs_in_the_background() {
             let expect = s.catalog.to_snapshot();
             let copy = temp_dir("bg-compact-crash");
             std::fs::create_dir_all(&copy).unwrap();
-            for f in ["catalog.snap", "catalog.log"] {
-                if dir.join(f).exists() {
-                    std::fs::copy(dir.join(f), copy.join(f)).unwrap();
+            // the catalog's files as they are at one moment: copied again if the compaction in
+            // flight replaced any of them meanwhile (a crash is an instant, a copy is not)
+            let catalog_files = || -> Vec<(String, Vec<u8>)> {
+                let mut files: Vec<_> = std::fs::read_dir(&dir)
+                    .unwrap()
+                    .filter_map(|e| e.ok()?.file_name().into_string().ok())
+                    .filter(|n| n.starts_with("catalog.") && !n.ends_with(".tmp") && n != "catalog.lock")
+                    .filter_map(|n| std::fs::read(dir.join(&n)).ok().map(|b| (n, b)))
+                    .collect();
+                files.sort();
+                files
+            };
+            let mut files = catalog_files();
+            loop {
+                let again = catalog_files();
+                if again == files {
+                    break;
                 }
+                files = again;
+            }
+            for (name, bytes) in &files {
+                std::fs::write(copy.join(name), bytes).unwrap();
             }
             let s2 = open(&copy, true);
             assert_eq!(s2.catalog.to_snapshot(), expect);

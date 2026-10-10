@@ -602,7 +602,8 @@ fn write_this_formats_fixture() {
     let (snap, log) = (dir.join(format!("v{VERSION}-catalog.snap.json")), dir.join(format!("v{VERSION}-catalog.log.jsonl")));
     let written = |f: &std::path::Path| std::fs::metadata(f).is_ok_and(|m| m.len() > 0);
     assert!(!written(&snap) && !written(&log), "format {VERSION} has its fixture: a fixture is what that build wrote");
-    let m = MemStore::new();
+    // (in one file, as a store without segments keeps it: the fixture is a snapshot and a log)
+    let m = MemStore { single_file: true, ..Default::default() };
     let (mut j, _, _) = Journal::open(Box::new(m.clone())).unwrap();
     // the snapshot first, then the later changes as the log beside it
     let mut library = fixture_snapshot();
@@ -646,7 +647,10 @@ fn a_v6_library_loads_and_is_upgraded() {
     let head: Value = serde_json::from_slice(&new).unwrap();
     assert_eq!(head["version"].as_u64(), Some(u64::from(VERSION)));
     assert!(m.get(LOG).unwrap().is_empty());
-    assert!(new.len() * 2 < old.len() + log.len(), "{} + {} -> {}", old.len(), log.len(), new.len());
+    // (the snapshot and the segments it lists)
+    let new_bytes: usize =
+        m.files.lock().unwrap().iter().filter(|(name, _)| name.starts_with("catalog.s") && !r.kept.contains(name)).map(|(_, b)| b.len()).sum();
+    assert!(new_bytes > new.len() && new_bytes * 2 < old.len() + log.len(), "{} + {} -> {new_bytes}", old.len(), log.len());
     let (_, mut again, r) = Journal::open(Box::new(m)).unwrap();
     again.revision = expected.revision;
     assert_eq!((again, r.upgraded_from), (expected, None));
@@ -732,7 +736,8 @@ fn a_library_states_what_missing_settings_read_as() {
 /// with this build's defaults, stating what the photos now differ in, so it opens the same again.
 #[test]
 fn a_library_written_with_other_defaults_reads_as_it_was_written() {
-    let m = MemStore::new();
+    // (in one file; a library in segments: `tests_segments`)
+    let m = MemStore { single_file: true, ..Default::default() };
     let photos = serde_json::json!({
         "1": stored_record(1, serde_json::json!({})),
         "2": stored_record(2, serde_json::json!({"light": {"exposure": 0.0}})),

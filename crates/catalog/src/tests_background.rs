@@ -72,6 +72,16 @@ impl Store for Gated {
     fn describe(&self) -> String {
         "gated".into()
     }
+    // (a folder's layout: the photos in segments)
+    fn remove(&mut self, name: &str) -> std::io::Result<()> {
+        self.files.remove(name)
+    }
+    fn list(&mut self) -> std::io::Result<Vec<String>> {
+        self.files.list()
+    }
+    fn segmented(&self) -> bool {
+        true
+    }
     fn background_writer(&self) -> Option<Box<dyn Store>> {
         Some(Box::new(self.clone()))
     }
