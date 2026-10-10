@@ -220,6 +220,65 @@ fn sidebar_sections_collapse_and_remember_it() {
     assert!(!h.app.ui.sidebar_section_collapsed("albums"), "the plus does not fold Albums");
 }
 
+/// Given a settings file from before sections could be arranged (it lists the folded ones as
+/// `collapsedSidebar`), when it is loaded, then those sections are still folded, and what is
+/// saved from then on is the arrangement alone.
+#[test]
+fn folded_sections_of_an_older_settings_file_stay_folded() {
+    let old = json!({"leftPanel": true, "collapsedSidebar": ["byDate", "keywords", "no such section"]});
+    let ui = serde_json::from_value::<crate::UiState>(old).unwrap().sanitized();
+    assert!(ui.sidebar_section_collapsed("byDate") && ui.sidebar_section_collapsed("keywords") && !ui.sidebar_section_collapsed("albums"));
+    let saved = serde_json::to_value(&ui).unwrap();
+    assert!(saved.get("collapsedSidebar").is_none(), "{saved}");
+    assert_eq!(saved["sidebar"][2], json!({"id": "byDate", "hidden": false, "collapsed": true}));
+}
+
+/// Given a settings file whose sidebar arrangement is damaged, when it is loaded, then the rest of
+/// the settings load and the sidebar draws every section.
+#[test]
+fn a_damaged_sidebar_arrangement_does_not_lose_the_settings() {
+    for sidebar in [json!("oops"), json!([{"id": "folders"}, {"id": "folders"}, 7, {"id": "ghost"}]), json!({"albums": 1})] {
+        let saved = json!({"leftPanel": true, "leftWidth": 300.0, "sidebar": sidebar});
+        let ui = serde_json::from_value::<crate::UiState>(saved.clone()).unwrap().sanitized();
+        assert_eq!(ui.left_width, 300.0, "{saved}");
+        assert_eq!(ui.sidebar.sections().len(), crate::sidebar::SidebarSection::ALL.len(), "{saved}");
+    }
+}
+
+/// The sections drawn in the sidebar, top to bottom.
+fn sections_drawn(h: &Headless) -> Vec<String> {
+    let mut drawn: Vec<(f32, String)> =
+        h.app.widgets.iter().filter_map(|(w, r)| w.strip_prefix("sidebarSection:").map(|id| (r.top(), id.to_string()))).collect();
+    drawn.sort_by(|a, b| a.0.total_cmp(&b.0));
+    drawn.into_iter().map(|(_, id)| id).collect()
+}
+
+/// Given an arrangement of the sidebar (an order, a hidden section), when the sidebar is drawn,
+/// then its sections are in that order, the hidden one is not there, and every header is the same
+/// distance below what is above it.
+#[test]
+fn the_sidebar_draws_its_sections_as_arranged() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    // (Local is not on every platform, and the demo library was imported from no folder)
+    let listed = |drawn: &[String]| drawn.iter().filter(|s| !matches!(s.as_str(), "local" | "folders")).cloned().collect::<Vec<_>>();
+    let usual = sections_drawn(&h);
+    assert_eq!(listed(&usual), ["albums", "byDate", "keywords"], "{usual:?}");
+    let r = h.request("ui.set", json!({"sidebar": [{"id": "keywords"}, {"id": "byDate", "hidden": true}, {"id": "albums"}]}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    let drawn = sections_drawn(&h);
+    assert_eq!(listed(&drawn), ["keywords", "albums"], "{drawn:?}");
+    assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("source:date:")), "a hidden section draws no rows");
+    // every header sits the same gap below the last row above it
+    let mut rows: Vec<egui::Rect> = h.app.widgets.iter().filter(|(w, _)| w.starts_with("source:")).map(|(_, r)| *r).collect();
+    rows.sort_by(|a, b| a.top().total_cmp(&b.top()));
+    for id in &drawn {
+        let header = widget(&h, &format!("sidebarSection:{id}"));
+        let above = rows.iter().rev().find(|r| r.top() < header.top()).map(|r| r.bottom()).unwrap();
+        assert_eq!(header.top() - above, 10.0, "{id}");
+    }
+}
+
 /// Albums nest in folders like the other sidebar trees: a folder row has a disclosure triangle
 /// (`albumToggle:<id>`), plain albums have none, and folding a folder hides what is inside it.
 #[test]

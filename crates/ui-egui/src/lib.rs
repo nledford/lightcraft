@@ -27,6 +27,7 @@ pub mod pick;
 pub mod region;
 pub mod render;
 pub mod shortcuts;
+pub mod sidebar;
 pub mod softpaint;
 pub mod state;
 pub mod sync;

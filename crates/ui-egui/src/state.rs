@@ -344,8 +344,11 @@ pub struct UiState {
     pub show_counts: bool,
     /// Face / pet boxes (read from XMP) over the photo in the loupe.
     pub face_boxes: bool,
-    /// Left-sidebar sections folded shut by their header (`albums`, `local`, `byDate`,
-    /// `keywords`); the rest are open.
+    /// The left sidebar's sections: their order, which are hidden and which are folded shut.
+    pub sidebar: crate::sidebar::SidebarLayout,
+    /// What settings files said before [`UiState::sidebar`]: the ids of the folded sections. Read
+    /// so they stay folded ([`UiState::sanitized`] moves them over), never written.
+    #[serde(skip_serializing)]
     pub collapsed_sidebar: Vec<String>,
     /// A face's name being typed in the loupe.
     #[serde(skip)]
@@ -816,6 +819,7 @@ impl Default for UiState {
             grid_info: "filename".into(),
             show_counts: true,
             face_boxes: true,
+            sidebar: Default::default(),
             collapsed_sidebar: Vec::new(),
             name_edit: None,
             person_page: None,
@@ -901,15 +905,9 @@ impl UiState {
             self.open_sections.push(id.to_string());
         }
     }
+    /// Whether the sidebar section with this id is folded shut (an unknown id: no).
     pub fn sidebar_section_collapsed(&self, id: &str) -> bool {
-        self.collapsed_sidebar.iter().any(|s| s == id)
-    }
-    pub fn toggle_sidebar_section(&mut self, id: &str) {
-        if self.sidebar_section_collapsed(id) {
-            self.collapsed_sidebar.retain(|s| s != id);
-        } else {
-            self.collapsed_sidebar.push(id.to_string());
-        }
+        crate::sidebar::SidebarSection::from_id(id).is_some_and(|s| self.sidebar.is_collapsed(s))
     }
     pub fn flyout_open(&self, id: &str) -> bool {
         self.open_flyouts.iter().any(|s| s == id)
@@ -927,6 +925,7 @@ impl UiState {
         self.left_width = LEFT_WIDTH.clamp(self.left_width);
         self.right_width = RIGHT_WIDTH.clamp(self.right_width);
         self.brush_size = self.brush_size.clamp(0.002, 0.5);
+        self.sidebar.adopt_collapsed(&std::mem::take(&mut self.collapsed_sidebar));
         self.dialog = None;
         self.fullscreen = false;
         if !crate::state::PREVIEW_LIMITS.contains(&self.settings.preview_limit) {
