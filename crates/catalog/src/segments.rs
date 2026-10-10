@@ -1,7 +1,8 @@
 //! The snapshot's photos in segment files (catalog format 11).
 //!
 //! `catalog.snap` holds everything about the catalog but its photos, and lists the **segments**
-//! that hold those: files `catalog.seg-<first id>-<seq>`, each a run of photos in id order,
+//! that hold those: files `segments/<first id>-<seq>.json` in the library folder, each a run of
+//! photos in id order,
 //!
 //! ```text
 //! {"format":"lightcraft-catalog-segment","version":11,"photos":{"<id>":{…},…}}
@@ -44,8 +45,18 @@ use serde::{Deserialize, Serialize};
 use crate::store::Store;
 use crate::{Photo, PhotoId};
 
-/// Segment files are named `catalog.seg-<first id>-<seq>`.
-pub const SEGMENT_PREFIX: &str = "catalog.seg-";
+/// The folder in the library that holds the segment files.
+pub const SEGMENT_DIR: &str = "segments";
+/// Segment files are named `segments/<first id>-<seq>.json`: every one starts with this, and
+/// ends with [`SEGMENT_SUFFIX`].
+pub const SEGMENT_PREFIX: &str = "segments/";
+/// Segments are JSON, and say so.
+pub const SEGMENT_SUFFIX: &str = ".json";
+
+/// The name of the segment file `<stem>.json` in the segments folder (`stem`: `<first id>-<seq>`).
+pub fn segment_file(stem: &str) -> String {
+    format!("{SEGMENT_PREFIX}{stem}{SEGMENT_SUFFIX}")
+}
 const SEGMENT_FORMAT: &str = "lightcraft-catalog-segment";
 /// Segments read at once when a library is opened.
 const LOAD_THREADS: usize = 8;
@@ -208,10 +219,10 @@ impl<W: std::io::Write> std::io::Write for Summed<W> {
 
 /// A name for a new segment that no file in `taken` has.
 fn fresh_name(first: PhotoId, seq: u64, taken: &std::collections::BTreeSet<String>) -> String {
-    let mut name = format!("{SEGMENT_PREFIX}{}-{seq}", first.0);
+    let mut name = segment_file(&format!("{}-{seq}", first.0));
     let mut n = 1u32;
     while taken.contains(&name) {
-        name = format!("{SEGMENT_PREFIX}{}-{seq}-{n}", first.0);
+        name = segment_file(&format!("{}-{seq}-{n}", first.0));
         n = n.saturating_add(1);
     }
     name
@@ -220,7 +231,8 @@ fn fresh_name(first: PhotoId, seq: u64, taken: &std::collections::BTreeSet<Strin
 /// Only names this module gives: nothing outside the library folder, no other file of it.
 fn valid_name(name: &str) -> bool {
     name.strip_prefix(SEGMENT_PREFIX)
-        .is_some_and(|rest| !rest.is_empty() && rest.len() <= 64 && rest.bytes().all(|b| b.is_ascii_digit() || b == b'-'))
+        .and_then(|rest| rest.strip_suffix(SEGMENT_SUFFIX))
+        .is_some_and(|stem| !stem.is_empty() && stem.len() <= 64 && stem.bytes().all(|b| b.is_ascii_digit() || b == b'-'))
 }
 
 /// The photos with ids from `lo` to `hi` (none when the bounds are the wrong way round, which

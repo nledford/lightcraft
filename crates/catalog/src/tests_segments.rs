@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 
-use crate::journal::{LOG, SEGMENT_PREFIX, SNAPSHOT, VERSION};
+use crate::journal::{LOG, SEGMENT_PREFIX, SNAPSHOT, VERSION, segment_file};
 use crate::*;
 
 fn photo(id: u64) -> Photo {
@@ -46,7 +46,8 @@ fn library(n: u64, per: usize) -> (MemStore, Journal, Catalog) {
 }
 
 fn segment_files(m: &MemStore) -> BTreeSet<String> {
-    m.files.lock().unwrap().keys().filter(|k| k.starts_with(SEGMENT_PREFIX)).cloned().collect()
+    // (also what is left of one being written: `<name>.tmp`)
+    m.files.lock().unwrap().keys().filter(|k| k.starts_with(SEGMENT_PREFIX) && (k.ends_with(".json") || k.ends_with(".json.tmp"))).cloned().collect()
 }
 
 fn manifest(m: &MemStore) -> Value {
@@ -409,17 +410,17 @@ fn a_snapshot_with_a_bad_segment_list_is_refused() {
 fn unlisted_segment_files_are_removed_on_request_only() {
     let (m, j, c) = library(8, 4);
     drop(j);
-    m.set(&format!("{SEGMENT_PREFIX}99-99"), b"left by a crash".to_vec());
-    m.set(&format!("{SEGMENT_PREFIX}99-100.tmp"), b"half written".to_vec());
+    m.set(&segment_file("99-99"), b"left by a crash".to_vec());
+    m.set(&format!("{}.tmp", segment_file("99-100")), b"half written".to_vec());
     m.set("presets.json", b"[]".to_vec());
-    m.set("catalog.segments-note.txt", b"mine".to_vec());
+    m.set("segments/notes.txt", b"mine".to_vec());
     let (mut j, back, _) = Journal::open(Box::new(m.clone())).unwrap();
     assert_same(&back, &c);
     assert_eq!(segment_files(&m).len(), listed(&m).len() + 2, "opening removed files");
     j.remove_unlisted_segments();
     assert_eq!(segment_files(&m), listed(&m));
     assert_eq!(m.get("presets.json").as_deref(), Some(&b"[]"[..]));
-    assert_eq!(m.get("catalog.segments-note.txt").as_deref(), Some(&b"mine"[..]));
+    assert_eq!(m.get("segments/notes.txt").as_deref(), Some(&b"mine"[..]));
 }
 
 /// Given segment files without the snapshot that lists them (a folder copied or synced in part,
@@ -471,10 +472,10 @@ fn a_log_only_library_survives_a_first_snapshot_that_did_not_finish() {
     // the program stopped between the segments and `catalog.snap`: the log and a segment file
     let m = MemStore::new();
     m.set(LOG, log.into_bytes());
-    m.set(&format!("{SEGMENT_PREFIX}1-5"), b"written, never listed".to_vec());
+    m.set(&segment_file("1-5"), b"written, never listed".to_vec());
     let (_, c, r) = Journal::open(Box::new(m.clone())).unwrap();
     assert_eq!((c.to_snapshot(), r.upgraded_from), (expected.to_snapshot(), Some(0)));
-    assert!(!listed(&m).contains(&format!("{SEGMENT_PREFIX}1-5")), "written over a file that was there");
+    assert!(!listed(&m).contains(&segment_file("1-5")), "written over a file that was there");
     assert_same(&reopen(&m), &expected);
 
     // a log that doesn't start at the first change is no such library: refused
@@ -776,14 +777,17 @@ fn segments_are_written_on_several_threads_or_not_at_all() {
 #[test]
 fn only_segment_files_are_ever_read_or_removed() {
     for name in [
-        "../catalog.seg-1-1",
-        "catalog.seg-../../x",
-        "catalog.seg-1-1/../../x",
+        "../segments/1-1.json",
+        "segments/../../x.json",
+        "segments/1-1.json/../../x",
+        "segments/sub/1-1.json",
         "prefs.json",
         "catalog.log",
-        "catalog.seg-",
-        "catalog.seg-1-1.tmp",
-        "catalog.seg-١-1",
+        "segments/.json",
+        "segments/1-1",
+        "segments/1-1.json.tmp",
+        "segments/١-1.json",
+        "catalog.seg-1-1",
     ] {
         let store = Watched::default();
         let (mut j, mut c, _) = Journal::open(Box::new(store.clone())).unwrap();
@@ -1172,4 +1176,42 @@ fn a_library_in_segments_with_other_defaults_reads_as_it_was_written() {
         assert!(!r.other_defaults);
         assert_same(&again, &c);
     }
+}
+
+/// In a library folder the segments are files `segments/<first id>-<seq>.json`: a folder of
+/// their own beside `catalog.snap`, made with the first of them; what is left of one being
+/// written, and files nothing lists, are cleared out of it on request; other files are not.
+#[test]
+fn segments_are_json_files_in_a_folder_of_their_own() {
+    let dir = std::env::temp_dir().join(format!("lc-segments-folder-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let names = |d: &std::path::Path| {
+        let mut v: Vec<String> = std::fs::read_dir(d).map(|r| r.map(|e| e.unwrap().file_name().into_string().unwrap()).collect()).unwrap_or_default();
+        v.sort();
+        v
+    };
+    let (mut j, mut c, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
+    assert!(!dir.join("segments").exists(), "an empty library has none");
+    j.policy.segment_photos = 4;
+    run(&mut j, &mut c, add(1..=12));
+    j.snapshot(&c).unwrap();
+    assert_eq!(names(&dir), ["catalog.log", "catalog.snap", "segments"]);
+    assert_eq!(names(&dir.join("segments")), ["1-12.json", "5-12.json", "9-12.json"]);
+    assert_eq!(j.segments().iter().map(|s| s.name.as_str()).collect::<Vec<_>>(), ["segments/1-12.json", "segments/5-12.json", "segments/9-12.json"]);
+    let text = std::fs::read_to_string(dir.join("segments/5-12.json")).unwrap();
+    assert!(serde_json::from_str::<Value>(&text).unwrap()["photos"]["6"]["file_name"].is_string());
+    run(&mut j, &mut c, vec![Op::SetRating { id: PhotoId(6), rating: 5 }]);
+    j.snapshot(&c).unwrap();
+    assert_eq!(names(&dir.join("segments")), ["1-12.json", "5-13.json", "9-12.json"]);
+    drop(j);
+    // left by a crash, and a file that is somebody else's
+    for (name, bytes) in [("77-1.json", "x"), ("77-2.json.tmp", "x"), ("notes.txt", "mine")] {
+        std::fs::write(dir.join("segments").join(name), bytes).unwrap();
+    }
+    let (mut j, back, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
+    assert_same(&back, &c);
+    j.remove_unlisted_segments();
+    assert_eq!(names(&dir.join("segments")), ["1-12.json", "5-13.json", "9-12.json", "notes.txt"]);
+    drop(j);
+    let _ = std::fs::remove_dir_all(&dir);
 }
