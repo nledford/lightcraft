@@ -175,13 +175,13 @@ fn folders_containing_each_other_still_answer() {
     let x = folder(&mut c, "X", None);
     let y = folder(&mut c, "Y", Some(x));
     let inside = album(&mut c, "Inside", Some(y), &[a]);
-    c.albums.get_mut(&x).unwrap().parent = Some(y);
+    c.damage(x, |a| a.parent = Some(y));
     assert_eq!(c.album_members(x), [inside]);
     assert_eq!(c.album_members(y), [inside]);
     assert_eq!(shown(&c, x), [a]);
     assert_eq!(c.album_count(y), 1);
     // a folder that is its own parent
-    c.albums.get_mut(&x).unwrap().parent = Some(x);
+    c.damage(x, |a| a.parent = Some(x));
     assert_eq!(c.album_members(x), [inside]);
     assert_eq!(shown(&c, y), [a]);
     // and a ring the album asked about is not in
@@ -294,7 +294,7 @@ fn a_folder_with_rules_is_still_a_folder() {
     c.apply(Op::SetRating { id: b, rating: 5 }).unwrap();
     let f = folder(&mut c, "F", None);
     album(&mut c, "Inside", Some(f), &[a]);
-    c.albums.get_mut(&f).unwrap().smart = Some(Box::new(Filter { rating: 5, ..Default::default() }));
+    c.damage(f, |a| a.smart = Some(Box::new(Filter { rating: 5, ..Default::default() })));
     let holds = |id: PhotoId| c.album_contains(f, c.photo(id).unwrap());
     assert!(holds(a) && !holds(b));
     assert_eq!((shown(&c, f), c.album_photos(f), c.album_count(f)), (vec![a], vec![a], 1));
@@ -309,11 +309,11 @@ fn an_album_inside_a_plain_album_is_not_in_the_folder() {
     let f = folder(&mut c, "F", None);
     let plain = album(&mut c, "Plain", Some(f), &[a]);
     let child = album(&mut c, "Child", None, &[b]);
-    c.albums.get_mut(&child).unwrap().parent = Some(plain);
+    c.damage(child, |a| a.parent = Some(plain));
     assert_eq!(c.album_members(f), [plain]);
     assert_eq!(shown(&c, f), [a]);
     // nor one whose folder is gone
-    c.albums.get_mut(&child).unwrap().parent = Some(AlbumId(999));
+    c.damage(child, |a| a.parent = Some(AlbumId(999)));
     assert_eq!(c.album_members(f), [plain]);
 }
 
@@ -325,7 +325,7 @@ fn moving_into_folders_that_contain_each_other_ends() {
     let x = folder(&mut c, "X", None);
     let y = folder(&mut c, "Y", Some(x));
     let loose = album(&mut c, "Loose", None, &[]);
-    c.albums.get_mut(&x).unwrap().parent = Some(y);
+    c.damage(x, |a| a.parent = Some(y));
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _ = c.apply(Op::MoveAlbum { id: loose, parent: Some(y) });
