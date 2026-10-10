@@ -2347,4 +2347,9 @@
   "Dimensions": "Dimensioni",
   "Camera & Lens": "Fotocamera e obiettivo",
   "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2."
+  "Back Up Library": "Esegui backup della libreria",
+  "Backing up the library": "Backup della libreria in corso",
+  "Backup Status": "Stato del backup",
+  "Check Backup": "Verifica backup",
+  "Backup Preferences": "Preferenze di backup"
 }
