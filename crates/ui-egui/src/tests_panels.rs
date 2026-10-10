@@ -499,6 +499,28 @@ impl AlbumTree {
     }
 }
 
+/// Given a smart album that shows a folder (its view, saved), when it is dragged onto that folder
+/// or one inside it, then nothing happens (it would include itself, so the folder is no place to
+/// drop it: no outline, no refusal to read); another folder takes it.
+#[test]
+fn a_smart_album_cant_be_dropped_on_the_folder_it_shows() {
+    let mut t = album_tree();
+    t.h.app.session.execute("library.source", &json!({"kind": "album", "id": t.trips})).unwrap();
+    let view = t.h.app.session.execute("album.createSmart", &json!({"name": "Trips view"})).unwrap()["id"].as_u64().unwrap();
+    t.h.step();
+    t.h.step();
+    let steps = t.h.app.session.undo.len();
+    for folder in [t.trips, t.sub] {
+        t.drag_row(view, folder);
+        assert_eq!(t.parent(view), None);
+        assert!(t.h.app.ui.toast.is_none(), "not a drop at all: {:?}", t.h.app.ui.toast);
+        assert!(t.h.app.ui.dragging_album.is_none(), "the drag ended");
+    }
+    assert_eq!(t.h.app.session.undo.len(), steps);
+    t.drag_row(view, t.archive);
+    assert_eq!(t.parent(view), Some(t.archive));
+}
+
 /// Given albums and folders in the sidebar, when an album or folder is dragged onto a folder,
 /// then it moves into it (as Move to does); onto a plain album, itself or something inside it, it
 /// stays where it was.
