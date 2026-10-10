@@ -23,12 +23,14 @@
   deleting it did already; undoing its creation, redoing its deletion or opening a library whose last view was of an
   album since removed left an empty grid titled "Album". A filter that names such an album lets go of it (and does not
   take it up again if the album comes back), a saved filter naming an album since deleted applies without it, and
-  `library.filter` refuses an album that doesn't exist. Opening another library no longer carries over the album
-  filter and the target album, which named other albums there.
-- A selected photo that an undo takes away is acted on by nothing until redo brings it back: Add to Album used to
-  write it into the album, and rating the selection failed for all of it.
+  `library.filter` refuses an album that doesn't exist. Opening another library starts with no filter, no target
+  album and no "previous photo", as after a restart: they named albums and photos of the library before.
+- When an undo takes selected photos away, commands on the selection act on the photos that are left; when none is
+  left they are not available, so nothing is recorded and redo still brings the photos back. Add to Album used to
+  write a missing photo into the album, and rating the selection failed for all of it.
 - A smart album saved from the view of an album or folder is marked ⚠ when that album is deleted, instead of being
-  quietly empty.
+  quietly empty. OK in Edit Smart Album, or Update Rules from Current Filter, saves its rules without the album that
+  is gone and clears the mark.
 - Agents show a folder with `library.source {"kind": "album", "id": <folder id>}`; `albums.list` reports a folder's
   `count`.
 
