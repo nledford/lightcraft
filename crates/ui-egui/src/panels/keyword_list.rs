@@ -384,6 +384,7 @@ pub(crate) fn create_dialog_inside(app: &LightcraftApp, parent: Option<String>) 
         export_synonyms: d.export_synonyms,
         person: d.person,
         add_to_selected: false,
+        reveal: false,
     }
 }
 
@@ -402,6 +403,7 @@ pub(crate) fn edit_dialog(app: &LightcraftApp, path: &str) -> Dialog {
         export_synonyms: info.export_synonyms,
         person: info.person,
         add_to_selected: false,
+        reveal: false,
     }
 }
 

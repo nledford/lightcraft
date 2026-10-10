@@ -555,6 +555,13 @@ fn dragging_a_section_is_not_dragging_an_album() {
     h.step();
     h.step();
     assert_eq!(h.app.session.catalog.revision, before, "no album moved");
+    assert!(!h.app.ui.sidebar.is_default(), "the section did");
+    // …and an album dragged onto another section's header moves no section
+    let album = h.app.session.catalog.albums().find(|a| !a.folder).expect("the demo library has albums").id.0;
+    let arranged = h.app.ui.sidebar.clone();
+    let (from, to) = (widget(&h, &format!("source:album:{album}")).center(), header(&h, "keywords").center());
+    drag_between(&mut h, from, to, Vec::new());
+    assert_eq!((h.app.ui.sidebar.clone(), h.app.ui.dragging_section), (arranged, None));
 }
 
 /// Given a section's header menu, Move Up and Move Down move it one shown section at a time
@@ -717,9 +724,8 @@ fn the_header_of_a_long_section_stays_in_sight() {
     h.settle(SETTLE);
     assert!(h.app.ui.sidebar_section_collapsed("albums"));
     assert!(!has(&h, "sidebarSectionPinned:albums"), "a folded section has no rows to pin its header over");
-    let panel = widget(&h, "panel:left_panel");
     let own = header(&h, "albums");
-    assert!(own.top() >= panel.top() && own.bottom() <= panel.bottom(), "its own header is in view: {own:?}");
+    assert!((own.top() - pinned.top()).abs() < 1.0, "its own header is where the pinned one was, at the top of the list: {own:?} {pinned:?}");
 }
 
 /// Scroll the sidebar (the pointer over it) by `dy`.
@@ -762,6 +768,78 @@ fn a_drop_on_the_pinned_header_is_not_a_drop_on_the_row_beneath_it() {
     let from = row(&h).center();
     drag_between(&mut h, from, pinned.center(), Vec::new());
     assert_eq!(parent(&h), None, "to the top level, as the header said");
+}
+
+/// Given a long section scrolled so that its header is pinned, when another section is dragged up
+/// to the top edge, then the sidebar scrolls up to reach the sections above, although the pointer
+/// is over the pinned header there. A section picked up by the pinned header itself does not
+/// start scrolling until the pointer has left it.
+#[test]
+fn a_section_dragged_to_the_top_edge_scrolls_past_the_pinned_header() {
+    let mut h = demo([1400.0, 700.0], json!({"view": "photoGrid", "leftPanel": true}));
+    for i in 0..40 {
+        h.app.session.execute("album.create", &json!({"name": format!("Album {i:02}")})).unwrap();
+    }
+    h.step();
+    let press = |h: &mut Headless, at: egui::Pos2| {
+        h.app.synthetic.push(egui::Event::PointerMoved(at));
+        h.app.synthetic.push(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.step();
+    };
+    let hold = |h: &mut Headless, at: egui::Pos2, frames: usize| {
+        for _ in 0..frames {
+            h.app.synthetic.push(egui::Event::PointerMoved(at));
+            h.step();
+        }
+    };
+    let give_up = |h: &mut Headless| {
+        h.app.synthetic.push(egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.step();
+        h.app.synthetic.push(egui::Event::PointerButton {
+            pos: egui::pos2(800.0, 400.0),
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.step();
+        h.step();
+    };
+    // Local's header is in view below the albums, Albums' is pinned
+    for _ in 0..12 {
+        if has(&h, "sidebarSectionPinned:albums") && header(&h, "byDate").top() < 600.0 {
+            break;
+        }
+        scroll_sidebar(&mut h, -200.0);
+    }
+    let pinned = widget(&h, "sidebarSectionPinned:albums");
+    let own = |h: &Headless| header(h, "albums").top();
+    // picked up by the pinned header: held inside it, nothing scrolls
+    let start = own(&h);
+    press(&mut h, pinned.center());
+    hold(&mut h, pinned.center() + egui::vec2(12.0, 3.0), 12);
+    assert_eq!(h.app.ui.dragging_section, Some(crate::sidebar::SidebarSection::Albums));
+    assert_eq!(own(&h), start, "still on the header it was picked up by");
+    give_up(&mut h);
+    // By Date, picked up by its own header and taken to the top edge: the sidebar scrolls up
+    let start = own(&h);
+    let from = header(&h, "byDate").center();
+    press(&mut h, from);
+    hold(&mut h, from - egui::vec2(0.0, 60.0), 3);
+    hold(&mut h, pinned.center(), 30);
+    assert!(own(&h) > start + 20.0, "scrolled towards the sections above: {start} -> {}", own(&h));
+    give_up(&mut h);
+    assert!(h.app.ui.sidebar.is_default());
 }
 
 /// The pinned header belongs to the section whose rows are at the top of the sidebar: scrolling on
@@ -813,8 +891,8 @@ fn the_keywords_header_creates_a_keyword() {
     assert!(has(&h, "source:keyword:zebra crossing"), "the new keyword is listed");
 }
 
-/// A section's header button is part of every form of the header: folded (its row count sits to
-/// the left of the button) and pinned.
+/// A folded section's row count sits to the left of its header button; a section without a button
+/// has its count at the edge.
 #[test]
 fn a_header_button_stays_with_a_folded_header() {
     let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
@@ -824,8 +902,71 @@ fn a_header_button_stays_with_a_folded_header() {
         let (count, plus) = (widget(&h, &format!("sidebarSectionCount:{section}")), widget(&h, button));
         assert!(count.right() <= plus.left(), "{section}: the count {count:?} is left of the button {plus:?}");
     }
-    // sections without a button have none, and their count goes to the edge
-    assert!(!h.app.widgets.iter().any(|(w, _)| w == "icon:byDateNew" || w == "icon:foldersNew"));
+    // By Date has no button: its count goes where the others have theirs
+    click(&mut h, "sidebarSection:byDate");
+    let (plain, beside_button) = (widget(&h, "sidebarSectionCount:byDate"), widget(&h, "sidebarSectionCount:keywords"));
+    assert!(plain.right() >= widget(&h, "icon:keywordNew").left() && plain.right() > beside_button.right() + 20.0, "{plain:?} {beside_button:?}");
+}
+
+/// Given Keywords is folded and new keywords go inside a parent, when a keyword is made with the
+/// header's +, then Keywords opens, and so does the parent, so the new keyword is there to see.
+/// A keyword made elsewhere (the Keyword List) leaves the sidebar as it is.
+#[test]
+fn a_keyword_made_from_the_header_is_shown() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    exec(&mut h, "keyword.create", json!({"name": "places", "parent": null}));
+    exec(&mut h, "keyword.setDefaultParent", json!({"keyword": "places"}));
+    click(&mut h, "sidebarSection:keywords");
+    assert!(h.app.ui.sidebar_section_collapsed("keywords"));
+    let confirm = |h: &mut Headless, name: &str| {
+        let Some(crate::state::Dialog::KeywordTag { name: n, .. }) = h.app.ui.dialog.as_mut() else { panic!("{:?}", h.app.ui.dialog) };
+        *n = name.into();
+        let r = h.request("ui.dialog.confirm", json!({}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        h.step();
+        h.step();
+    };
+    // from the Keyword List: nothing is revealed
+    h.app.ui.dialog = Some(crate::panels::keyword_list::create_dialog(&h.app));
+    confirm(&mut h, "harbour");
+    assert!(h.app.ui.sidebar_section_collapsed("keywords") && !has(&h, "source:keyword:places|harbour"));
+    // from the header's +
+    click(&mut h, "icon:keywordNew");
+    confirm(&mut h, "lighthouse");
+    assert!(!h.app.ui.sidebar_section_collapsed("keywords"), "Keywords opened");
+    assert!(has(&h, "source:keyword:places|lighthouse"), "and its parent, down to the new keyword");
+}
+
+/// A press on a header's button that turns into a drag is not a drag of the section.
+#[test]
+fn dragging_from_a_header_button_does_not_drag_the_section() {
+    let mut h = demo([1400.0, 1400.0], json!({"view": "photoGrid", "leftPanel": true}));
+    for button in ["icon:keywordNew", "icon:albumNew"] {
+        let from = widget(&h, button).center();
+        h.app.synthetic.push(egui::Event::PointerMoved(from));
+        h.app.synthetic.push(egui::Event::PointerButton {
+            pos: from,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.step();
+        for i in 1..=6 {
+            h.app.synthetic.push(egui::Event::PointerMoved(from - egui::vec2(8.0 * i as f32, 30.0 * i as f32)));
+            h.step();
+            assert_eq!(h.app.ui.dragging_section, None, "{button}");
+        }
+        let to = from - egui::vec2(48.0, 180.0);
+        h.app.synthetic.push(egui::Event::PointerButton {
+            pos: to,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.step();
+        h.step();
+    }
+    assert!(h.app.ui.sidebar.is_default());
 }
 
 /// A folded section says how many rows it holds (unless photo counts are off); an open one

@@ -418,6 +418,9 @@ pub struct UiState {
     /// An album just made: the Albums tree opens the folders down to it, once.
     #[serde(skip)]
     pub reveal_album: Option<u64>,
+    /// A keyword just made from the sidebar: Keywords opens down to it, once.
+    #[serde(skip)]
+    pub reveal_keyword: Option<String>,
     /// An album or folder row being dragged in the sidebar (dropped on a folder to move it there).
     #[serde(skip)]
     pub dragging_album: Option<u64>,
@@ -610,6 +613,9 @@ pub enum Dialog {
         person: bool,
         /// A new keyword is given to the selected photos.
         add_to_selected: bool,
+        /// Opened from the sidebar's Keywords header: the new keyword is shown there once made.
+        #[serde(default)]
+        reveal: bool,
     },
     /// Edit Keyword Set: a set's name and its nine slots (an empty one is an empty slot). `replaces`:
     /// the set being edited (renamed when the name changes); `None` saves a new set (from Recent
@@ -848,6 +854,7 @@ impl Default for UiState {
             quit: false,
             dragging_photos: None,
             reveal_album: None,
+            reveal_keyword: None,
             dragging_album: None,
             dragging_section: None,
             curve_channel: "parametric".into(),

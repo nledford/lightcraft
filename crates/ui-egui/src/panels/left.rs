@@ -363,7 +363,7 @@ pub fn section_drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
 
 /// A section's header in `r`: a disclosure chevron in the gutter (where tree rows have their
 /// triangle), then the bold title; a click folds or unfolds the section (kept in the UI state, so
-/// it survives restarts), and what the section adds to its header (Albums: the + menu) sits at
+/// it survives restarts), and what the section adds to its header (its button, see `header_button`) sits at
 /// the visible edge. A folded section says how many rows it holds (`rows`, with View ▸ Show Photo
 /// Counts). `pinned`: this is the copy kept at the top of the sidebar (see `pinned_header`).
 fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSection, r: Rect, rows: usize, pinned: bool) -> HeaderOutcome {
@@ -377,8 +377,12 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
     if toggled {
         app.ui.sidebar.toggle_collapsed(section);
     }
-    // dragged by its header, a section moves among the others (see `section_drag`)
-    if resp.drag_started_by(egui::PointerButton::Primary) {
+    // dragged by its header, a section moves among the others (see `section_drag`); a press on
+    // the header's button is the button's, also when it turns into a drag
+    let on_button = header_button(section).is_some() && ui.input(|i| i.pointer.press_origin()).is_some_and(|p| header_button_rect(ui, r).contains(p));
+    if resp.drag_started_by(egui::PointerButton::Primary) && !on_button {
+        // picked up by the pinned header, the drag starts inside the top edge (see `drag_auto_scroll`)
+        ui.data_mut(|d| d.insert_temp(egui::Id::new("left-section-drag-from-pinned"), pinned));
         app.ui.dragging_section = Some(section);
     }
     resp.context_menu(|ui| sections_menu(app, ui, Some(section)));
@@ -450,15 +454,17 @@ fn header_button(section: SidebarSection) -> Option<HeaderButton> {
     }
 }
 
+/// The end of `header` kept for its button: at the visible edge, also when the sidebar is
+/// scrolled sideways.
+fn header_button_rect(ui: &egui::Ui, header: Rect) -> Rect {
+    let right = visible_right(ui).min(header.right());
+    Rect::from_min_max(pos2(right - 50.0, header.top()), pos2(right, header.bottom()))
+}
+
 /// Draw `button` at the end of `header` and act on it.
 fn show_header_button(app: &mut LightcraftApp, ui: &mut egui::Ui, header: Rect, button: &HeaderButton) {
-    // it stays at the visible edge when the sidebar is scrolled sideways
-    let right = visible_right(ui).min(header.right());
-    let mut hdr = ui.new_child(
-        egui::UiBuilder::new()
-            .max_rect(Rect::from_min_max(pos2(right - 50.0, header.top()), pos2(right, header.bottom())))
-            .layout(egui::Layout::right_to_left(egui::Align::Center)),
-    );
+    let mut hdr =
+        ui.new_child(egui::UiBuilder::new().max_rect(header_button_rect(ui, header)).layout(egui::Layout::right_to_left(egui::Align::Center)));
     let resp = icon_button(&mut hdr, button.id, button.icon, vec2(HEADER_BUTTON, HEADER_BUTTON), false, true, button.tooltip);
     match button.action {
         HeaderAction::Run(run) => {
@@ -474,8 +480,13 @@ fn show_header_button(app: &mut LightcraftApp, ui: &mut egui::Ui, header: Rect, 
 
 /// Keywords' +: Create Keyword Tag, for a keyword at the usual place for new ones (not inside
 /// whatever is picked in the Keyword List, which may not even be on screen).
+/// Made from here, the keyword is shown here: Keywords opens down to it (`reveal_keyword`).
 fn new_keyword(app: &mut LightcraftApp, _ctx: &egui::Context) {
-    app.ui.dialog = Some(crate::panels::keyword_list::create_dialog_inside(app, None));
+    let mut dialog = crate::panels::keyword_list::create_dialog_inside(app, None);
+    if let crate::state::Dialog::KeywordTag { reveal, .. } = &mut dialog {
+        *reveal = true;
+    }
+    app.ui.dialog = Some(dialog);
 }
 
 /// The menu of a section's header (`on`) and of the My Photos title (`None`): hide this section,
@@ -599,6 +610,19 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             if reveal.is_some() {
                 // …and Albums itself is shown and opened, so the new album can be seen
                 app.ui.sidebar.reveal(SidebarSection::Albums);
+            }
+            // the keyword just made from Keywords' header: the section and the keywords above it open
+            if let Some(path) = app.ui.reveal_keyword.take() {
+                app.ui.sidebar.reveal(SidebarSection::Keywords);
+                let mut above = String::new();
+                let mut names = path.split('|').peekable();
+                while let Some(name) = names.next().filter(|_| names.peek().is_some()) {
+                    if !above.is_empty() {
+                        above.push('|');
+                    }
+                    above.push_str(name);
+                    set_tree_open(ui, egui::Id::new(("kw-open", above.to_lowercase())), true);
+                }
             }
             // Local keeps track of the folder being browsed whether or not it is drawn
             let local = local_now(app, ui);
@@ -1196,9 +1220,13 @@ fn drag_auto_scroll(app: &LightcraftApp, ui: &egui::Ui) {
     let view = ui.clip_rect();
     let Some(p) = ui.input(|i| i.pointer.latest_pos()).filter(|p| p.x >= view.left() && p.x <= view.right()) else { return };
     // a section picked up by its pinned header starts inside the top edge: it scrolls once it has
-    // left the header (albums and photos scroll there as at any edge, to reach the rows above)
-    if app.ui.dragging_section.is_some() && pointer_on_pinned_header(ui) {
-        return;
+    // left the header. Any other drag scrolls there as at any edge, to reach what is above
+    let from_pinned = egui::Id::new("left-section-drag-from-pinned");
+    if app.ui.dragging_section.is_some() && ui.data(|d| d.get_temp::<bool>(from_pinned)) == Some(true) {
+        if pointer_on_pinned_header(ui) {
+            return;
+        }
+        ui.data_mut(|d| d.insert_temp(from_pinned, false));
     }
     let speed = auto_scroll_speed(p.y, view.top(), view.bottom());
     if speed != 0.0 {
