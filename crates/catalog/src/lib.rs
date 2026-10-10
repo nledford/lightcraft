@@ -596,7 +596,9 @@ impl Catalog {
         self.albums.get_mut(&id).ok_or(CatalogError::NoAlbum(id))
     }
 
-    /// Apply an op; returns its inverse. On error nothing changes.
+    /// Apply an op; returns its inverse. On error nothing changes (but see `Batch`: in a damaged
+    /// library, what a failed batch already did may not all go back, where putting it back runs
+    /// into a check other than the one on rules).
     pub fn apply(&mut self, op: Op) -> Result<Op> {
         if changes_albums(&op) {
             // also when the op fails: forgetting is always safe
@@ -1021,8 +1023,16 @@ struct Pass {
 
 /// [`Catalog::albums_on_a_loop`] as last worked out. No part of what a catalog is: two catalogs
 /// are equal whatever each has worked out, and a copy starts with what its original knew.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 struct LoopsMemo(std::sync::OnceLock<std::collections::BTreeSet<AlbumId>>);
+
+/// Printed the same whether or not anything was worked out: a catalog's `Debug` is of what it
+/// holds.
+impl std::fmt::Debug for LoopsMemo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("LoopsMemo")
+    }
+}
 
 impl PartialEq for LoopsMemo {
     fn eq(&self, _: &LoopsMemo) -> bool {
@@ -1145,25 +1155,70 @@ impl AlbumGraph {
         AlbumGraph { leads_to, testing }
     }
 
-    /// The smart albums that lead back to themselves.
+    /// The smart albums that lead back to themselves: those in a ring of albums leading to one
+    /// another (a strongly connected part of more than one album), or leading straight to
+    /// themselves. One walk over the albums (Tarjan's, with its own stack rather than recursion:
+    /// a chain of thousands of folders must not overflow), where a search from each smart album
+    /// grew with the square of a chain's length.
     fn on_a_loop(&self) -> std::collections::BTreeSet<AlbumId> {
-        self.testing.iter().copied().filter(|a| self.reaches(*a, *a)).collect()
-    }
-
-    fn reaches(&self, from: AlbumId, to: AlbumId) -> bool {
-        let none = Vec::new();
-        let leads = |a: AlbumId| self.leads_to.get(&a).unwrap_or(&none);
-        let mut seen: std::collections::HashSet<AlbumId> = std::collections::HashSet::new();
-        let mut next: Vec<AlbumId> = leads(from).clone();
-        while let Some(a) = next.pop() {
-            if a == to {
-                return true;
+        // only what leads somewhere can be on a ring: number those albums
+        let ids: Vec<AlbumId> = self.leads_to.keys().copied().collect();
+        let number: std::collections::HashMap<AlbumId, usize> = ids.iter().enumerate().map(|(i, a)| (*a, i)).collect();
+        let leads: Vec<Vec<usize>> =
+            ids.iter().map(|a| self.leads_to.get(a).into_iter().flatten().filter_map(|to| number.get(to).copied()).collect()).collect();
+        const UNSEEN: usize = usize::MAX;
+        let n = ids.len();
+        // when each was first reached, the earliest still-open album it leads back to, the open
+        // ones in the order reached, and whether each ended up on a ring
+        let (mut reached, mut back) = (vec![UNSEEN; n], vec![0usize; n]);
+        let (mut open, mut is_open, mut ringed) = (Vec::new(), vec![false; n], vec![false; n]);
+        let mut clock = 0usize;
+        for root in 0..n {
+            if reached[root] != UNSEEN {
+                continue;
             }
-            if seen.insert(a) {
-                next.extend(leads(a));
+            // (album, how many of its leads were followed)
+            let mut walk: Vec<(usize, usize)> = vec![(root, 0)];
+            while let Some(&(v, followed)) = walk.last() {
+                if followed == 0 && reached[v] == UNSEEN {
+                    reached[v] = clock;
+                    back[v] = clock;
+                    clock += 1;
+                    open.push(v);
+                    is_open[v] = true;
+                }
+                if let Some(&w) = leads[v].get(followed) {
+                    if let Some(top) = walk.last_mut() {
+                        top.1 += 1;
+                    }
+                    if reached[w] == UNSEEN {
+                        walk.push((w, 0));
+                    } else if is_open[w] {
+                        back[v] = back[v].min(reached[w]);
+                    }
+                    continue;
+                }
+                // every lead of `v` followed: it closes, and with it the ring it is the first of
+                walk.pop();
+                if let Some(&(parent, _)) = walk.last() {
+                    back[parent] = back[parent].min(back[v]);
+                }
+                if back[v] == reached[v] {
+                    let mut ring = Vec::new();
+                    while let Some(w) = open.pop() {
+                        is_open[w] = false;
+                        ring.push(w);
+                        if w == v {
+                            break;
+                        }
+                    }
+                    if ring.len() > 1 || leads[v].contains(&v) {
+                        ring.into_iter().for_each(|w| ringed[w] = true);
+                    }
+                }
             }
         }
-        false
+        self.testing.iter().copied().filter(|a| number.get(a).is_some_and(|i| ringed[*i])).collect()
     }
 }
 
