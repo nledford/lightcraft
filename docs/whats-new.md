@@ -11,6 +11,14 @@
 - Quitting while a task that can be stopped is running asks first ("Quit Anyway" stops it).
 - Agents list and stop tasks with `activity.list` and `activity.cancel`; `ui.inspect` reports them as `activity`.
 
+### Folders of albums
+- Clicking a folder in the sidebar's Albums section shows the photos of every album and smart album inside it,
+  folders inside it included, each photo once, as a collection set does in Lightroom Classic. The grid is titled with
+  the folder's name and follows the sort and the filter bar. The triangle beside the folder opens and closes it; a
+  click on the row no longer does.
+- Agents show a folder with `library.source {"kind": "album", "id": <folder id>}`; `albums.list` reports a folder's
+  `count`.
+
 ### Smart album rules
 - The rule editor's field menu is grouped: Rating, Pick Flag, Color Label and Any Searchable Text at the top, then
   submenus for Source, File, Date, Keywords & People, Description, Camera Info, Location, Size, Develop and Assisted
