@@ -1,9 +1,11 @@
 //! Crash-safe catalog persistence: an append-only op log plus periodic snapshots.
 //!
 //! Files (in a [`Store`]):
-//! - `catalog.snap` — `{"format":"lightcraft-catalog","version":V,"seq":N,"defaults":{…},"catalog":{…}}`, the
-//!   state after op `N` in catalog format `V` ([`VERSION`]); replaced atomically (temp + fsync +
-//!   rename).
+//! - `catalog.snap` — `{"format":"lightcraft-catalog","version":V,"seq":N,"defaults":{…},
+//!   "catalog":{…},"segments":[…]}`, the state after op `N` in catalog format `V` ([`VERSION`]); replaced
+//!   atomically (temp + fsync + rename). The catalog's photos are in the segment files it lists
+//!   (`catalog.seg-…`, see [`crate::segments`]), or in `catalog.snap` itself where the store has
+//!   no segments;
 //! - `catalog.log` — JSON lines, one per op applied after the snapshot:
 //!   `{"seq":N,"crc":C,"op":{…}}` where `C` is the CRC-32 of the op's JSON text. Appends are
 //!   fsynced before [`Journal::append`] returns.
@@ -32,14 +34,15 @@
 //!   `<= N` are skipped as stale;
 //! - after the log rewrite: the new snapshot + exactly the records `> N`.
 //!
-//! **When to compact** ([`SnapshotPolicy`]): a snapshot rewrites the whole catalog, so it is due
-//! when the log has grown to a share of the snapshot's size, not after a fixed number of changes.
-//! Writing then stays proportional to what changed: an import of any size rewrites a few times
-//! the final snapshot in all, where compacting every 2000 records rewrote it once per 2000 photos.
+//! **When to compact** ([`SnapshotPolicy`]): a snapshot rewrites the segments whose photos
+//! changed (the whole catalog where there are no segments), so it is due when the log is long and
+//! has grown to a share of what the snapshot would rewrite, not after a fixed number of changes.
+//! Writing then stays proportional to what changed: changes within a few segments are compacted
+//! every 2000 records however large the library, changes all over it less often.
 //!
-//! Closing a library compacts its log too, unless the snapshot is large and the log still short
-//! ([`Journal::wants_snapshot_on_close`]): quitting after a few changes doesn't rewrite a large
-//! catalog, and a log is never left long from one session to the next.
+//! Closing a library compacts its log too, unless that would rewrite a lot and the log is still
+//! short ([`Journal::wants_snapshot_on_close`]): a log is never left long from one session to the
+//! next.
 //!
 //! At most one snapshot is in flight; a synchronous [`Journal::snapshot`] and dropping the journal
 //! first wait for it, so an older snapshot can never replace a newer one.
@@ -91,11 +94,13 @@
 //!   is never mistaken for a torn tail or damage. (Builds up to v0.2.0 refuse a v2 snapshot with
 //!   "unsupported format".)
 
+use crate::segments::{self, Photos, Segment};
 use crate::store::Store;
-use crate::{Catalog, CatalogError, Op, Result};
+use crate::{Catalog, CatalogError, Op, PhotoId, Result};
 
 pub const SNAPSHOT: &str = "catalog.snap";
 pub const LOG: &str = "catalog.log";
+pub use crate::segments::SEGMENT_PREFIX;
 const FORMAT: &str = "lightcraft-catalog";
 /// One catalog format: a number in `catalog.snap` that says how the library beside it is written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -139,6 +144,7 @@ pub const FORMATS: &[Format] = &[
     format(8, "the History cursor", NEW_OP, "`Op::SetHistoryCursor`, `Photo.history_cursor`"),
     format(9, "preview-only recheck (#974)", FIELDS, "`Photo.preview_checked`, `Op::SetContent`'s `preview_checked`"),
     format(10, "compact records", FIELDS, "the stored form (`crate::stored`): unset fields and default develop settings are left out"),
+    format(11, "the snapshot in segments", FIELDS, "`catalog.snap` lists segment files that hold the photos (`crate::segments`)"),
 ];
 
 /// The catalog format this build writes (and the newest it reads): the newest of [`FORMATS`].
@@ -154,41 +160,60 @@ const fn newest(formats: &[Format]) -> u32 {
 /// When [`Journal::wants_snapshot`] says it's time to compact the log.
 ///
 /// The log is worth compacting once it is long (`max_records` or `max_bytes`) **and** has grown
-/// to `1 / snapshot_share` of the snapshot it would replace; or, whatever the snapshot's size,
-/// once it reaches `log_cap_bytes` (what opening the library has to replay stays bounded).
+/// to `1 / snapshot_share` of what the snapshot would rewrite (the segments whose photos changed
+/// and `catalog.snap`; the whole catalog where there are no segments); or, whatever that is, once
+/// it reaches `log_cap_bytes` (what opening the library has to replay stays bounded).
 #[derive(Clone, Copy, Debug)]
 pub struct SnapshotPolicy {
     pub max_records: u64,
     pub max_bytes: u64,
-    /// The log must also have reached this share of the snapshot's size: 4 = a quarter of it.
-    /// 0: no such condition (a long log is compacted whatever the snapshot's size).
+    /// The log must also have reached this share of what the snapshot would rewrite: 4 = a
+    /// quarter of it. 0: no such condition (a long log is compacted whatever that costs).
     pub snapshot_share: u64,
     /// A log this large is compacted in any case.
     pub log_cap_bytes: u64,
-    /// Closing the library compacts whatever log there is while the snapshot is at most this
-    /// large (rewriting it is quick, and the next open has nothing to replay). A larger snapshot
-    /// is rewritten on close only once the log is long (`max_records` or `max_bytes`): a log
-    /// never grows past that from one session to the next, so what a damaged record in it can
-    /// cost stays what it was.
+    /// Closing the library compacts whatever log there is while that rewrites at most this much
+    /// (it is quick, and the next open has nothing to replay). More is rewritten on close only
+    /// once the log is long (`max_records` or `max_bytes`): a log never grows past that from one
+    /// session to the next, so what a damaged record in it can cost stays what it was.
     pub close_bytes: u64,
+    /// Photos per segment (see [`crate::segments`]): a segment that changed is written in pieces
+    /// of this many once it holds more than twice as many.
+    pub segment_photos: usize,
+    /// And about this many bytes: where records are large (edited photos with their history), a
+    /// segment holds fewer photos, down to 64. 0: any size.
+    pub segment_bytes: u64,
+    /// What a snapshot costs besides what it writes: it looks through every photo for the ones
+    /// that changed, which counts as rewriting `1 / scan_share` of the catalog (16: a library of
+    /// millions of photos is not compacted every 2000 changes of an import). 0: nothing.
+    pub scan_share: u64,
 }
 
 impl Default for SnapshotPolicy {
     fn default() -> Self {
-        SnapshotPolicy { max_records: 2000, max_bytes: 16 << 20, snapshot_share: 4, log_cap_bytes: 256 << 20, close_bytes: 64 << 20 }
+        SnapshotPolicy {
+            max_records: 2000,
+            max_bytes: 16 << 20,
+            snapshot_share: 4,
+            log_cap_bytes: 256 << 20,
+            close_bytes: 64 << 20,
+            segment_photos: 8192,
+            segment_bytes: 4 << 20,
+            scan_share: 16,
+        }
     }
 }
 
 impl SnapshotPolicy {
     /// Whether a log of `records` records and `bytes` bytes is due for compaction into a snapshot
-    /// that is now `snapshot_bytes` long.
-    pub fn due(&self, records: u64, bytes: u64, snapshot_bytes: u64) -> bool {
+    /// that would rewrite `rewrite_bytes`.
+    pub fn due(&self, records: u64, bytes: u64, rewrite_bytes: u64) -> bool {
         if bytes >= self.log_cap_bytes {
             return true;
         }
         let share = match self.snapshot_share {
             0 => true,
-            n => bytes >= snapshot_bytes / n,
+            n => bytes >= rewrite_bytes / n,
         };
         self.long(records, bytes) && share
     }
@@ -269,15 +294,20 @@ pub struct PersistStats {
     pub snapshot_running: bool,
     /// Background snapshots that failed (the log was kept whole; retried later).
     pub failed_snapshots: u64,
+    /// Segment files the snapshot lists, and the size of the snapshot with them.
+    pub segments: u64,
+    pub snapshot_bytes: u64,
 }
 
 /// One snapshot (compaction), by stage.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotTiming {
-    /// Serialising the catalog to JSON, streamed into the temp file (buffered writes included).
+    /// Writing the segments that changed (serialised, fsynced and, when a one-file library is
+    /// split, read back).
     pub serialize_ms: f64,
-    /// Flushing, `sync_all` and the atomic rename of `catalog.snap`.
+    /// Writing `catalog.snap` (serialised, `sync_all`, the atomic rename) and removing the
+    /// segment files it no longer lists.
     pub write_sync_ms: f64,
     /// Resetting `catalog.log` (an atomic rewrite to empty, or to the records appended while a
     /// background snapshot ran; fsynced).
@@ -288,8 +318,10 @@ pub struct SnapshotTiming {
     pub blocking_ms: f64,
     /// Written by a worker thread.
     pub background: bool,
-    /// Size of `catalog.snap`.
+    /// Bytes written: `catalog.snap` and the segments that changed.
     pub bytes: u64,
+    /// Segments written.
+    pub segments: u64,
     /// Log records the snapshot compacted.
     pub records: u64,
 }
@@ -309,8 +341,22 @@ pub struct Journal {
     /// `seq` of the last durable op.
     seq: u64,
     snapshot_seq: u64,
-    /// Size of `catalog.snap` (0: none yet).
+    /// Size of `catalog.snap` and its segments together (0: none yet), and of `catalog.snap`.
     snapshot_bytes: u64,
+    head_bytes: u64,
+    /// The segments `catalog.snap` lists, and the photos they hold (see [`crate::segments`]).
+    segments: Vec<Segment>,
+    baseline: Photos,
+    /// `catalog.snap` itself holds photos: a one-file library (formats up to 10, or written
+    /// where there are no segments).
+    inline_photos: bool,
+    /// The snapshot read when the library was opened listed segments (see
+    /// [`Journal::remove_unlisted_segments`]).
+    opened_with_segments: bool,
+    /// The segments (by index) that hold photos changed since the snapshot, and their bytes: an
+    /// estimate, for when to compact. What a snapshot rewrites is decided from the photos.
+    touched: std::collections::BTreeSet<usize>,
+    touched_bytes: u64,
     log_records: u64,
     log_bytes: u64,
     pub policy: SnapshotPolicy,
@@ -336,7 +382,11 @@ struct Pending {
     started: web_time::Instant,
     /// Time the caller spent starting it.
     start_ms: f64,
-    worker: std::thread::JoinHandle<std::io::Result<SnapshotTiming>>,
+    /// Photos changed by the ops appended since it started.
+    touched: Vec<PhotoId>,
+    /// Returns how it went, with the photos on disk then: the ones it wrote, or after a failure
+    /// the ones that were there before.
+    worker: std::thread::JoinHandle<(std::io::Result<Saved>, Photos)>,
 }
 
 fn io(e: std::io::Error) -> CatalogError {
@@ -404,27 +454,115 @@ fn resync(line: &[u8], last: u64) -> Option<(usize, (u64, Op))> {
     })
 }
 
-/// Write `catalog.snap` for the state after op `seq`, streaming the JSON into the store (no
-/// whole-file string). The bytes are exactly
-/// `{"format":"lightcraft-catalog","version":1,"seq":N,"catalog":<serde_json of the catalog>}\n`,
-/// as before streaming. Fills in the serialise / write+sync times and the size.
-fn write_snapshot(store: &mut dyn Store, seq: u64, catalog: &Catalog) -> std::io::Result<SnapshotTiming> {
+/// What a snapshot is written of, and against.
+struct Job<'a> {
+    /// The snapshot is of the state after this op.
+    seq: u64,
+    catalog: &'a Catalog,
+    /// The segments on disk and the photos they hold.
+    segments: &'a [Segment],
+    baseline: &'a Photos,
+    /// How large segments are to be.
+    size: segments::Size,
+    /// The library is in one file: read the segments it is split into back before committing.
+    verify: bool,
+}
+
+/// A snapshot that was written.
+struct Saved {
+    timing: SnapshotTiming,
+    /// The segments it lists.
+    segments: Vec<Segment>,
+    /// Size of `catalog.snap`.
+    head_bytes: u64,
+    /// `catalog.snap` holds the photos itself (the store has no segments).
+    inline_photos: bool,
+    /// The stretches of ids whose photos it wrote (see [`segments::refresh`]).
+    changed: Vec<(std::ops::Bound<PhotoId>, std::ops::Bound<PhotoId>)>,
+}
+
+/// The ops' photos whose records change (not the ones an album or stack merely names).
+fn changed_photos(op: &Op, out: &mut impl FnMut(PhotoId)) {
+    match op {
+        Op::Batch { ops } => ops.iter().for_each(|o| changed_photos(o, out)),
+        Op::AddAlbum { .. } | Op::SetAlbumPhotos { .. } | Op::SetAlbumCover { .. } | Op::AddStack { .. } | Op::SetStack { .. } => {}
+        other => other.photo_ids(out),
+    }
+}
+
+/// Write the snapshot of `job`: the segments whose photos changed, then `catalog.snap`, which
+/// lists the segments and is the commit (replaced atomically); then the segment files it no
+/// longer lists are removed. Where the store has no segments, `catalog.snap` holds the photos
+/// itself. An error leaves the snapshot before this one as it was.
+fn write_snapshot(store: &mut dyn Store, job: &Job<'_>) -> std::io::Result<Saved> {
     let t0 = web_time::Instant::now();
-    let mut serialize_ms = 0.0;
-    let bytes = store.write_atomic_with(SNAPSHOT, &mut |w| {
+    let segmented = store.segmented();
+    let written = if segmented {
+        let on_disk =
+            segments::OnDisk { version: VERSION, seq: job.seq, segments: job.segments, baseline: job.baseline, size: job.size, verify: job.verify };
+        Some(segments::write(store, job.catalog.photo_map(), &on_disk)?)
+    } else {
+        None
+    };
+    // Every segment written is still there: a program that opened the library without its lock
+    // doesn't know them, and committing a snapshot that lists a file that is gone would leave a
+    // library that doesn't open.
+    if let Some(w) = &written
+        && !segments::present(store, &w.new)
+    {
+        segments::discard(store, &w.new);
+        return Err(std::io::Error::other("a segment was removed while the snapshot was being written (is the library open in another program?)"));
+    }
+    let serialize_ms = ms_since(t0);
+    let head;
+    let (body, listed): (&Catalog, &[Segment]) = match &written {
+        Some(w) => {
+            head = job.catalog.without_photos();
+            (&head, &w.segments)
+        }
+        None => (job.catalog, &[]),
+    };
+    let seq = job.seq;
+    let head_bytes = store.write_atomic_with(SNAPSHOT, &mut |w| {
         use std::io::Write;
-        let t = web_time::Instant::now();
         // serde_json emits many tiny writes: buffer them in a concrete writer (inlined), so only
         // 1 MiB chunks go through the store's `dyn Write`
         let mut b = std::io::BufWriter::with_capacity(1 << 20, w);
         write!(b, "{}", snapshot_head(seq))?;
-        serde_json::to_writer(&mut b, catalog).map_err(std::io::Error::other)?;
-        b.write_all(b"}\n")?;
-        b.flush()?;
-        serialize_ms = ms_since(t);
-        Ok(())
-    })?;
-    Ok(SnapshotTiming { serialize_ms, write_sync_ms: (ms_since(t0) - serialize_ms).max(0.0), bytes, ..Default::default() })
+        serde_json::to_writer(&mut b, body).map_err(std::io::Error::other)?;
+        b.write_all(b",\"segments\":")?;
+        serde_json::to_writer(&mut b, listed).map_err(std::io::Error::other)?;
+        writeln!(b, ",\"photos\":{}}}", job.catalog.len())?;
+        b.flush()
+    });
+    let head_bytes = match head_bytes {
+        Ok(n) => n,
+        Err(e) => {
+            // Not committed: the segments written for it are no snapshot's. (Unless the
+            // `catalog.snap` in the store lists them after all, or can't be read to say: a
+            // replace that failed after it took effect. Then they stay.)
+            if let Some(w) = &written
+                && !may_list(store, &w.new)
+            {
+                segments::discard(store, &w.new);
+            }
+            return Err(e);
+        }
+    };
+    // committed: what the snapshot before listed and this one doesn't is no longer needed
+    match &written {
+        Some(w) => segments::discard(store, &w.obsolete),
+        None => segments::discard(store, &job.segments.iter().map(|s| s.name.clone()).collect::<Vec<_>>()),
+    }
+    let (segments, count, bytes, changed) = written.map_or((Vec::new(), 0, 0, Vec::new()), |w| (w.segments, w.written, w.bytes, w.changed));
+    let timing = SnapshotTiming {
+        serialize_ms,
+        write_sync_ms: (ms_since(t0) - serialize_ms).max(0.0),
+        bytes: head_bytes + bytes,
+        segments: count,
+        ..Default::default()
+    };
+    Ok(Saved { timing, segments, head_bytes, inline_photos: !segmented && !job.catalog.is_empty(), changed })
 }
 
 /// The highest `seq` a snapshot may hold; beyond it the counter is treated as corrupt, far from overflow.
@@ -451,6 +589,41 @@ struct SnapHeader {
 struct SnapFile {
     seq: u64,
     catalog: Catalog,
+    /// The segments that hold the catalog's photos (none: `catalog` holds them itself).
+    #[serde(default)]
+    segments: Vec<Segment>,
+    /// How many photos the catalog has (format 11 on): a list of segments that doesn't add up to
+    /// this is not the one that was written.
+    #[serde(default)]
+    photos: Option<u64>,
+}
+
+/// Just the segments `catalog.snap` lists.
+#[derive(serde::Deserialize)]
+struct SnapSegments {
+    #[serde(default)]
+    segments: Vec<Segment>,
+}
+
+/// The segments the `catalog.snap` in the store lists (none when there is no such file); `None`
+/// when it can't be read to say.
+fn listed_on_disk(store: &mut dyn Store) -> Option<Vec<Segment>> {
+    match store.read(SNAPSHOT) {
+        Ok(Some(bytes)) => serde_json::from_slice::<SnapSegments>(&bytes).ok().map(|snap| snap.segments),
+        Ok(None) => Some(Vec::new()),
+        Err(_) => None,
+    }
+}
+
+/// Whether the `catalog.snap` in the store lists any of `names`, or can't be read to say.
+fn may_list(store: &mut dyn Store, names: &[String]) -> bool {
+    listed_on_disk(store).is_none_or(|listed| listed.iter().any(|s| names.contains(&s.name)))
+}
+
+/// Whether `log` starts with the catalog's first change: then it holds the whole catalog.
+fn log_from_the_start(log: Option<&[u8]>) -> bool {
+    let first = log.unwrap_or_default().split(|b| *b == b'\n').find(|l| !l.iter().all(u8::is_ascii_whitespace));
+    first.and_then(|l| std::str::from_utf8(l).ok()).and_then(|l| decode_record(l.trim_end_matches('\r'))).is_some_and(|(seq, _)| seq == 1)
 }
 
 impl Journal {
@@ -463,9 +636,22 @@ impl Journal {
         let snap = store.read(SNAPSHOT).map_err(io)?;
         let log = store.read(LOG).map_err(io)?;
         report.created = snap.is_none() && log.is_none();
-        let snapshot_bytes = snap.as_ref().map_or(0, |b| b.len() as u64);
-        // (dropped once the snapshot and the log are read: their records are read over the
-        // library's own defaults where those are not this build's)
+        // Segment files without the snapshot that lists them (a folder copied or synced in part,
+        // a `catalog.snap` that was removed): they hold the photos, and opening this as a new
+        // library would abandon them. Not so when the log holds every change from the first: a
+        // library that never had a snapshot, whose first one got as far as writing segments.
+        if snap.is_none()
+            && store.segmented()
+            && !log_from_the_start(log.as_deref())
+            && let n @ 1.. = segments::files(store.as_mut())
+        {
+            return Err(CatalogError::Corrupt(format!("{SNAPSHOT} is missing, but {n} segment file(s) of a catalog are here ({SEGMENT_PREFIX}…)")));
+        }
+        let head_bytes = snap.as_ref().map_or(0, |b| b.len() as u64);
+        let mut listed = Vec::new();
+        let mut stated = None;
+        // (dropped once the snapshot, its segments and the log are read: their records are read
+        // over the library's own defaults where those are not this build's)
         let mut reading = None;
         // (the snapshot says what its records' missing develop settings read as: from format 10)
         let mut states_defaults = false;
@@ -490,21 +676,59 @@ impl Journal {
                 if s.seq > MAX_SEQ {
                     return Err(CatalogError::Corrupt(format!("{SNAPSHOT}: seq {} is out of range", s.seq)));
                 }
-                let mut catalog = s.catalog;
-                report.repaired = catalog.repair();
-                for r in &report.repaired {
-                    log::warn!("{SNAPSHOT}: {r}");
-                }
-                (catalog, s.seq, Some(h.version))
+                listed = s.segments;
+                stated = s.photos;
+                (s.catalog, s.seq, Some(h.version))
             }
             None => (Catalog::new(), 0, None),
         };
         report.snapshot_seq = snapshot_seq;
+        // the photos: in `catalog.snap` itself (a one-file library), or in the segments it lists
+        let inline_photos = !catalog.is_empty();
+        let mut baseline = Photos::new();
+        if !listed.is_empty() {
+            if inline_photos {
+                return Err(CatalogError::Corrupt(format!("{SNAPSHOT}: holds photos and lists segments")));
+            }
+            let readers = segments::readers(store.as_ref(), listed.len());
+            let photos = segments::load(store.as_mut(), readers, &listed).map_err(|e| match e.kind() {
+                std::io::ErrorKind::InvalidData => CatalogError::Corrupt(e.to_string()),
+                _ => io(e),
+            })?;
+            if store.segmented() && !report.other_defaults {
+                // (shared with the catalog: pointers, not copies. Not where the segments were
+                // written with other defaults: none of them is what this build would write, so
+                // none is what the next snapshot may keep.)
+                baseline = photos.clone();
+            }
+            catalog.set_photos(photos);
+        }
+        if stated.is_some_and(|n| n != catalog.len() as u64) {
+            return Err(CatalogError::Corrupt(format!(
+                "{SNAPSHOT}: its segments hold {} photos where it states {}",
+                catalog.len(),
+                stated.unwrap_or(0)
+            )));
+        }
+        // (once the photos are in: on a library in segments `catalog.snap` holds none, and its
+        // stacks would read as stacks of missing photos)
+        report.repaired = catalog.repair();
+        for r in &report.repaired {
+            log::warn!("{SNAPSHOT}: {r}");
+        }
+        let snapshot_bytes = head_bytes + listed.iter().map(|s| s.bytes).sum::<u64>();
         let mut j = Journal {
             store,
             seq: snapshot_seq,
             snapshot_seq,
             snapshot_bytes,
+            head_bytes,
+            opened_with_segments: !listed.is_empty(),
+            segments: listed,
+            baseline,
+            inline_photos,
+            touched: std::collections::BTreeSet::new(),
+            touched_bytes: 0,
             log_records: 0,
             log_bytes: 0,
             policy: SnapshotPolicy::default(),
@@ -553,6 +777,7 @@ impl Journal {
                     report.stale += 1;
                 }
                 Some((seq, op)) if j.seq.checked_add(1) == Some(seq) => {
+                    j.touch(std::slice::from_ref(&op));
                     if catalog.apply(op).is_err() {
                         report.failed += 1;
                     } else {
@@ -625,7 +850,8 @@ impl Journal {
             j.store
                 .write_atomic(SNAPSHOT, empty.as_bytes())
                 .map_err(|e| CatalogError::Io(format!("can't write the new library's {SNAPSHOT}: {e}")))?;
-            j.snapshot_bytes = empty.len() as u64;
+            j.head_bytes = empty.len() as u64;
+            j.snapshot_bytes = j.head_bytes;
         } else if let (Some(from), false) = (older, rewritten) {
             // A library that states its defaults and has this build's may go on as it is when it
             // can't be upgraded now (the next open tries again): what is appended to it reads the
@@ -710,7 +936,9 @@ impl Journal {
     /// Returns the names (none where the store keeps none). All or nothing: on an error, what was
     /// written is removed again.
     fn keep_replaced(&mut self, from: u32, snap: Option<&[u8]>, log: &[u8]) -> std::io::Result<Vec<String>> {
-        if !self.store.keeps_replaced_formats() {
+        // (A library in one file: what it was is its snapshot and its log. One in segments would
+        // need its segments kept as well; no format before this build's has any.)
+        if !self.store.keeps_replaced_formats() || self.opened_with_segments {
             return Ok(Vec::new());
         }
         let seq = self.seq;
@@ -767,7 +995,9 @@ impl Journal {
         if let Some(p) = self.pending.as_mut() {
             p.tail.extend_from_slice(buf.as_bytes());
             p.tail_records += ops.len() as u64;
+            ops.iter().for_each(|op| changed_photos(op, &mut |id| p.touched.push(id)));
         }
+        self.touch(ops);
         self.seq = seq;
         self.log_records += ops.len() as u64;
         self.log_bytes += buf.len() as u64;
@@ -798,19 +1028,29 @@ impl Journal {
         }
         let t0 = web_time::Instant::now();
         let seq = self.seq.checked_add(unlogged).ok_or_else(|| CatalogError::Corrupt(format!("{SNAPSHOT}: op counter overflow")))?;
-        let mut timing = match write_snapshot(self.store.as_mut(), seq, catalog) {
-            Ok(t) => t,
+        let job =
+            Job { seq, catalog, segments: &self.segments, baseline: &self.baseline, size: self.segment_size(catalog), verify: self.inline_photos };
+        let saved = match write_snapshot(self.store.as_mut(), &job) {
+            Ok(saved) => saved,
             Err(e) => {
                 // nothing lost (the log is whole); don't retry on every append
                 self.stats.failed_snapshots += 1;
-                self.retry_at_records = self.log_records + self.policy.max_records;
+                self.retry_at_records = self.log_records.saturating_add(self.policy.max_records);
                 return Err(io(e));
             }
         };
         // the snapshot is durable: it holds every op up to `seq`
+        let mut timing = saved.timing;
+        // what is on disk now: as before, but for the stretches this snapshot wrote
+        let mut on_disk = std::mem::take(&mut self.baseline);
+        if self.store.segmented() {
+            segments::refresh(&mut on_disk, catalog.photo_map(), &saved.changed);
+        } else {
+            on_disk.clear();
+        }
+        self.adopt(saved, on_disk);
         self.seq = seq;
         self.snapshot_seq = seq;
-        self.snapshot_bytes = timing.bytes;
         let t2 = web_time::Instant::now();
         // A crash here leaves old records in the log; they are skipped by seq on load.
         self.store.write_atomic(LOG, b"").map_err(io)?;
@@ -838,16 +1078,40 @@ impl Journal {
         let Some(mut writer) = self.store.background_writer() else { return self.snapshot(catalog) };
         let copy = catalog.clone();
         let seq = self.seq;
-        let spawned = std::thread::Builder::new().name("catalog-snapshot".into()).spawn(move || write_snapshot(writer.as_mut(), seq, &copy));
+        // The worker takes what is on disk with it (the segment list and the photos they hold)
+        // and gives back what is on disk when it is done. Nothing else writes snapshots meanwhile.
+        let listed = self.segments.clone();
+        let baseline = std::mem::take(&mut self.baseline);
+        let (size, verify) = (self.segment_size(catalog), self.inline_photos);
+        let spawned = std::thread::Builder::new().name("catalog-snapshot".into()).spawn(move || {
+            let job = Job { seq, catalog: &copy, segments: &listed, baseline: &baseline, size, verify };
+            match write_snapshot(writer.as_mut(), &job) {
+                Ok(saved) => {
+                    let on_disk = if writer.segmented() { copy.into_photo_map() } else { Photos::new() };
+                    (Ok(saved), on_disk)
+                }
+                Err(e) => (Err(e), baseline),
+            }
+        });
         let worker = match spawned {
             Ok(w) => w,
             Err(e) => {
+                // (what is on disk went with the thread that didn't start: the snapshot written
+                // now takes nothing on disk for granted and writes every segment)
                 log::warn!("catalog: can't start a snapshot thread ({e}); writing it now");
                 return self.snapshot(catalog);
             }
         };
-        self.pending =
-            Some(Pending { seq, tail: Vec::new(), tail_records: 0, records: self.log_records, started: t0, start_ms: ms_since(t0), worker });
+        self.pending = Some(Pending {
+            seq,
+            tail: Vec::new(),
+            tail_records: 0,
+            records: self.log_records,
+            started: t0,
+            start_ms: ms_since(t0),
+            touched: Vec::new(),
+            worker,
+        });
         Ok(())
     }
 
@@ -883,13 +1147,16 @@ impl Journal {
     fn finish(&mut self) -> Result<()> {
         let Some(p) = self.pending.take() else { return Ok(()) };
         let t0 = web_time::Instant::now();
-        let written = p.worker.join().unwrap_or_else(|_| Err(std::io::Error::other("snapshot thread panicked")));
-        let mut timing = match written {
-            Ok(t) => t,
+        // (a worker that panicked took what is on disk with it: the next snapshot takes nothing
+        // on disk for granted and writes every segment)
+        let (written, on_disk) = p.worker.join().unwrap_or_else(|_| (Err(std::io::Error::other("snapshot thread panicked")), Photos::new()));
+        let saved = match written {
+            Ok(saved) => saved,
             Err(e) => {
                 // the log still holds every record: nothing lost, retry later
+                self.baseline = on_disk;
                 self.stats.failed_snapshots += 1;
-                self.retry_at_records = self.log_records + self.policy.max_records;
+                self.retry_at_records = self.log_records.saturating_add(self.policy.max_records);
                 log::error!("catalog: background snapshot failed: {e}");
                 return Err(io(e));
             }
@@ -897,11 +1164,13 @@ impl Journal {
         // `catalog.snap` (op `p.seq`) is durable; the log's records `<= p.seq` are now stale.
         // Keep exactly the ones appended since (a crash before this rewrite skips the stale ones).
         let t1 = web_time::Instant::now();
+        let mut timing = saved.timing;
+        self.adopt(saved, on_disk);
         self.snapshot_seq = p.seq;
-        self.snapshot_bytes = timing.bytes;
+        p.touched.iter().for_each(|id| self.touch_photo(*id));
         if let Err(e) = self.store.write_atomic(LOG, &p.tail) {
             // the log stays whole (stale records are skipped on load); compact again later
-            self.retry_at_records = self.log_records + self.policy.max_records;
+            self.retry_at_records = self.log_records.saturating_add(self.policy.max_records);
             log::error!("catalog: can't trim the log after a snapshot: {e}");
             return Err(io(e));
         }
@@ -918,17 +1187,67 @@ impl Journal {
         Ok(())
     }
 
+    /// How large the segments of a snapshot of `catalog` are to be.
+    fn segment_size(&self, catalog: &Catalog) -> segments::Size {
+        // (for photos in no segment yet: what a record takes on average in the snapshot there is)
+        let photos = self.snapshot_bytes.saturating_sub(if self.inline_photos { 0 } else { self.head_bytes });
+        let record_bytes = photos.checked_div(catalog.len() as u64).unwrap_or(0);
+        segments::Size { per: self.policy.segment_photos, bytes: self.policy.segment_bytes, record_bytes }
+    }
+
+    /// A snapshot was committed: what is on disk now.
+    fn adopt(&mut self, saved: Saved, on_disk: Photos) {
+        self.head_bytes = saved.head_bytes;
+        self.snapshot_bytes = saved.head_bytes + saved.segments.iter().map(|s| s.bytes).sum::<u64>();
+        self.segments = saved.segments;
+        self.baseline = on_disk;
+        self.inline_photos = saved.inline_photos;
+        self.touched.clear();
+        self.touched_bytes = 0;
+    }
+
+    /// Note the segments of the photos `ops` change (for [`Journal::wants_snapshot`]).
+    fn touch(&mut self, ops: &[Op]) {
+        if self.segments.is_empty() {
+            return;
+        }
+        let mut ids = Vec::new();
+        ops.iter().for_each(|op| changed_photos(op, &mut |id| ids.push(id)));
+        ids.into_iter().for_each(|id| self.touch_photo(id));
+    }
+
+    fn touch_photo(&mut self, id: PhotoId) {
+        if let Some(k) = segments::segment_of(&self.segments, id)
+            && self.touched.insert(k)
+        {
+            self.touched_bytes += self.segments.get(k).map_or(0, |s| s.bytes);
+        }
+    }
+
+    /// What a snapshot would rewrite now, in bytes: `catalog.snap` and the segments that hold
+    /// changed photos; all of it where there are no segments (yet).
+    fn rewrite_bytes(&self) -> u64 {
+        if self.inline_photos || !self.store.segmented() {
+            return self.snapshot_bytes;
+        }
+        let scan = match self.policy.scan_share {
+            0 => 0,
+            n => self.snapshot_bytes / n,
+        };
+        self.head_bytes + self.touched_bytes + scan
+    }
+
     fn record_snapshot(&mut self, t: SnapshotTiming) {
-        self.snapshot_bytes = t.bytes;
         self.stats.snapshots += 1;
         self.stats.last_snapshot = t;
         self.stats.max_snapshot_ms = self.stats.max_snapshot_ms.max(t.total_ms);
         self.stats.max_blocking_ms = self.stats.max_blocking_ms.max(t.blocking_ms);
         if profiling() {
             eprintln!(
-                "catalog: {}snapshot of {} records, {} B: serialize {:.1} ms, write+sync {:.1} ms, log reset {:.1} ms, total {:.1} ms, blocking {:.1} ms",
+                "catalog: {}snapshot of {} records, {} segment(s), {} B written: segments {:.1} ms, catalog.snap {:.1} ms, log reset {:.1} ms, total {:.1} ms, blocking {:.1} ms",
                 if t.background { "background " } else { "" },
                 t.records,
+                t.segments,
                 t.bytes,
                 t.serialize_ms,
                 t.write_sync_ms,
@@ -941,26 +1260,58 @@ impl Journal {
 
     /// Where persistence time went so far.
     pub fn stats(&self) -> PersistStats {
-        PersistStats { snapshot_running: self.pending.is_some(), ..self.stats }
+        PersistStats {
+            snapshot_running: self.pending.is_some(),
+            segments: self.segments.len() as u64,
+            snapshot_bytes: self.snapshot_bytes,
+            ..self.stats
+        }
     }
 
     /// The log is long enough to be worth compacting.
     pub fn wants_snapshot(&self) -> bool {
-        self.pending.is_none() && self.log_records >= self.retry_at_records && self.policy.due(self.log_records, self.log_bytes, self.snapshot_bytes)
+        self.pending.is_none() && self.log_records >= self.retry_at_records && self.policy.due(self.log_records, self.log_bytes, self.rewrite_bytes())
     }
 
-    /// Whether closing the library should compact the log: there is one, and the snapshot is
-    /// small enough to rewrite in passing ([`SnapshotPolicy::close_bytes`]) or the log is long
-    /// ([`SnapshotPolicy::long`]; during a session it may grow further, to its share of the
-    /// snapshot, but it isn't left that long between sessions). Nothing is lost either way: what
-    /// isn't compacted stays in the log and is replayed on open.
+    /// Whether closing the library should compact the log: there is one, and compacting it
+    /// rewrites little enough to do in passing ([`SnapshotPolicy::close_bytes`]) or the log is
+    /// long ([`SnapshotPolicy::long`]; during a session it may grow further, to its share of what
+    /// would be rewritten, but it isn't left that long between sessions). Nothing is lost either
+    /// way: what isn't compacted stays in the log and is replayed on open.
     pub fn wants_snapshot_on_close(&self) -> bool {
-        self.log_records > 0 && (self.snapshot_bytes <= self.policy.close_bytes || self.policy.long(self.log_records, self.log_bytes))
+        self.log_records > 0 && (self.rewrite_bytes() <= self.policy.close_bytes || self.policy.long(self.log_records, self.log_bytes))
     }
 
-    /// Size of `catalog.snap` as last written or loaded (0: none yet).
+    /// Size of the snapshot as last written or loaded: `catalog.snap` and its segments (0: none
+    /// yet).
     pub fn snapshot_bytes(&self) -> u64 {
         self.snapshot_bytes
+    }
+
+    /// The segments `catalog.snap` lists.
+    pub fn segments(&self) -> &[Segment] {
+        &self.segments
+    }
+
+    /// Remove the segment files the snapshot doesn't list: what a crash left between writing
+    /// segments and committing the snapshot, or between the commit and removing the old ones.
+    ///
+    /// Only for a caller that has the library to itself (it holds the library's lock): to anyone
+    /// else, the segments another program is writing for its next snapshot look the same. And
+    /// only when the library was opened from a snapshot that lists segments: files beside a
+    /// one-file `catalog.snap` (an older one put back over a newer folder) may be all there is of
+    /// the newer catalog, and are left alone for as long as this journal is open.
+    ///
+    /// What "the snapshot lists" is read from `catalog.snap` as it is on disk, together with what
+    /// this journal takes it to list (the two differ after a snapshot whose outcome it never
+    /// learned); if the file can't be read, nothing is removed.
+    pub fn remove_unlisted_segments(&mut self) {
+        if self.pending.is_some() || !self.store.segmented() || !self.opened_with_segments || self.segments.is_empty() {
+            return;
+        }
+        let Some(mut listed) = listed_on_disk(self.store.as_mut()) else { return };
+        listed.extend(self.segments.iter().cloned());
+        segments::discard_unlisted(self.store.as_mut(), &listed);
     }
 
     pub fn seq(&self) -> u64 {
@@ -986,7 +1337,7 @@ impl Drop for Journal {
     /// records in it are skipped as stale on the next load.
     fn drop(&mut self) {
         if let Some(p) = self.pending.take()
-            && let Ok(Err(e)) = p.worker.join()
+            && let Ok((Err(e), _)) = p.worker.join()
         {
             log::error!("catalog: background snapshot failed: {e}");
         }

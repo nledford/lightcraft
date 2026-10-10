@@ -204,6 +204,12 @@ pub(crate) fn reading_over(defaults: Option<Arc<Value>>) -> ReadingOver {
     ReadingOver(READING_OVER.try_with(|over| over.replace(defaults)).unwrap_or(None))
 }
 
+/// The defaults settings are being read over on this thread ([`reading_over`]), to read the
+/// same library on other threads as well.
+pub(crate) fn reading_now() -> Option<Arc<Value>> {
+    READING_OVER.try_with(|over| over.borrow().clone()).unwrap_or(None)
+}
+
 /// Give `v` every value of `defaults` it leaves out, object by object: the reverse of [`strip`].
 fn fill(v: &mut Value, defaults: &Value) {
     let (Value::Object(m), Value::Object(d)) = (v, defaults) else { return };
@@ -220,8 +226,7 @@ fn fill(v: &mut Value, defaults: &Value) {
 /// `deserialize_with` for settings in a saved record: over the defaults of the library being
 /// read, where those are not this build's ([`reading_over`]).
 pub(crate) fn read_settings<'de, D: Deserializer<'de>>(d: D) -> Result<Arc<DevelopSettings>, D::Error> {
-    let over = READING_OVER.try_with(|over| over.borrow().clone()).unwrap_or(None);
-    let Some(defaults) = over else { return Arc::<DevelopSettings>::deserialize(d) };
+    let Some(defaults) = reading_now() else { return Arc::<DevelopSettings>::deserialize(d) };
     let mut v = Value::deserialize(d)?;
     fill(&mut v, &defaults);
     DevelopSettings::deserialize(v).map(Arc::new).map_err(serde::de::Error::custom)
@@ -1035,4 +1040,17 @@ pub(crate) fn photos<S: Serializer>(v: &BTreeMap<PhotoId, Arc<Photo>>, s: S) -> 
         map.serialize_entry(id, &StoredPhoto(p))?;
     }
     map.end()
+}
+
+/// A run of the catalog's photos in their stored form (a segment's).
+pub(crate) struct PhotoRange<'a>(pub std::collections::btree_map::Range<'a, PhotoId, Arc<Photo>>);
+
+impl Serialize for PhotoRange<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(None)?;
+        for (id, p) in self.0.clone() {
+            map.serialize_entry(id, &StoredPhoto(p))?;
+        }
+        map.end()
+    }
 }

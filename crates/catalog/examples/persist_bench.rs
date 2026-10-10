@@ -160,17 +160,18 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             written += j.stats().last_snapshot.bytes;
         }
         let import_ms = ms(t);
-        let first = j.stats().last_snapshot;
+        written += j.stats().last_snapshot.bytes;
+        let size = j.snapshot_bytes();
         println!(
             "== {n} photos ({} local): snapshot {:.1} MB ({:.0} B per photo)",
             cat.photos().filter(|p| p.local).count(),
-            first.bytes as f64 / 1e6,
-            first.bytes as f64 / n.max(1) as f64
+            size as f64 / 1e6,
+            size as f64 / n.max(1) as f64
         );
         println!(
-            "  import: {compactions} compactions wrote {:.1} MB of snapshots ({:.1}x the final one) + {:.1} MB of log in {:.1} s; {:.1} MB of log left at the end",
+            "  import: {compactions} compactions (and a last one) wrote {:.1} MB of snapshots ({:.1}x the final one) + {:.1} MB of log in {:.1} s; {:.1} MB of log left for the last",
             written as f64 / 1e6,
-            written as f64 / first.bytes.max(1) as f64,
+            written as f64 / size.max(1) as f64,
             log_written as f64 / 1e6,
             import_ms / 1e3,
             log_left as f64 / 1e6
@@ -244,6 +245,26 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
         println!("  background compaction blocking: {}", stats(blocking));
 
+        // changes all over the library (a rating on every 50th photo), then one compaction
+        let spread: Vec<PhotoId> = cat.photos().map(|p| p.id).step_by(50).collect();
+        let ops: Vec<Op> = spread.iter().map(|id| Op::SetRating { id: *id, rating: 3 }).collect();
+        for op in &ops {
+            cat.apply(op.clone())?;
+        }
+        j.append(&ops)?;
+        j.snapshot(&cat)?;
+        let s = j.stats().last_snapshot;
+        println!("  compaction after {} changes all over the library: wrote {:.1} MB in {:.1} ms", ops.len(), s.bytes as f64 / 1e6, s.total_ms);
+        // and after changes in one place (the first 1000 photos)
+        let ops: Vec<Op> = ids.iter().map(|id| Op::SetRating { id: *id, rating: 4 }).collect();
+        for op in &ops {
+            cat.apply(op.clone())?;
+        }
+        j.append(&ops)?;
+        j.snapshot(&cat)?;
+        let s = j.stats().last_snapshot;
+        println!("  compaction after {} changes in one place: wrote {:.1} MB in {:.1} ms", ops.len(), s.bytes as f64 / 1e6, s.total_ms);
+
         // forget the untouched Local records (folders last browsed long ago; every 7th folder
         // recently; every 50th Local record rated), then compact
         let folders: std::collections::BTreeSet<String> = cat.photos().filter(|p| p.local).filter_map(|p| folder_of(p)).collect();
@@ -261,7 +282,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
         j.append(&ops)?;
         j.snapshot(&cat)?;
-        let before = j.stats().last_snapshot.bytes;
+        let before = j.snapshot_bytes();
         let t = Instant::now();
         let plan = cat.forget_local_plan("2026-10-05T00:00:00", DEFAULT_FORGET_DAYS, &|_| false);
         let plan_ms = ms(t);
@@ -273,7 +294,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         j.append(&ops)?;
         let apply_ms = ms(t);
         j.snapshot(&cat)?;
-        let after = j.stats().last_snapshot.bytes;
+        let after = j.snapshot_bytes();
         println!(
             "  forget Local: {} of {} local records forgotten (kept: {} recent, {} touched, {} in use); plan {plan_ms:.1} ms, apply+append {apply_ms:.1} ms; snapshot {:.1} MB -> {:.1} MB",
             plan.evict.len(),

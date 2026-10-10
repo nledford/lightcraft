@@ -1,4 +1,4 @@
-//! Byte storage for the catalog files (`catalog.snap`, `catalog.log`).
+//! Byte storage for the catalog files (`catalog.snap`, its segments, `catalog.log`).
 //!
 //! [`FsStore`] is the native implementation (a library directory); [`MemStore`] keeps files in
 //! memory (tests, ephemeral sessions) and lets tests simulate crashes by editing the bytes. A web
@@ -28,6 +28,17 @@ pub trait Store: Send {
         self.write_atomic(name, &buf)?;
         Ok(buf.len() as u64)
     }
+    /// Write a file that doesn't exist yet, streamed like [`Store::write_atomic_with`]: its
+    /// content is durable when this returns, but its place in the folder need not be before
+    /// [`Store::sync`]. For writing several new files that only count once something else names
+    /// them (a snapshot's segments): one sync of the folder for all of them.
+    fn write_new_with(&mut self, name: &str, fill: &mut dyn FnMut(&mut dyn io::Write) -> io::Result<()>) -> io::Result<u64> {
+        self.write_atomic_with(name, fill)
+    }
+    /// Make the files written with [`Store::write_new_with`] durable in the folder.
+    fn sync(&mut self) -> io::Result<()> {
+        Ok(())
+    }
     /// Append and make durable (fsync) before returning. On an error, part of `data` may have
     /// been written (a full disk, a dropped network share): the journal cuts the file back to its
     /// previous length with [`Store::truncate`] before appending again.
@@ -47,6 +58,16 @@ pub trait Store: Send {
     /// newest one) and room is short.
     fn keeps_replaced_formats(&self) -> bool {
         true
+    }
+    /// The names of the files it holds. The default knows none.
+    fn list(&mut self) -> io::Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+    /// Whether the catalog's photos can be kept in segment files of their own (see
+    /// [`crate::segments`]): the store can hold any number of files, list them and remove them.
+    /// The default can't, and its catalog stays in one file.
+    fn segmented(&self) -> bool {
+        false
     }
     /// Human-readable location (diagnostics).
     fn describe(&self) -> String;
@@ -122,6 +143,18 @@ impl Store for FsStore {
     }
 
     fn write_atomic_with(&mut self, name: &str, fill: &mut dyn FnMut(&mut dyn io::Write) -> io::Result<()>) -> io::Result<u64> {
+        let n = self.write_new_with(name, fill)?;
+        self.sync_dir();
+        Ok(n)
+    }
+
+    fn sync(&mut self) -> io::Result<()> {
+        // (as `sync_dir`: where a folder can't be opened, renames are journaled anyway)
+        self.sync_dir();
+        Ok(())
+    }
+
+    fn write_new_with(&mut self, name: &str, fill: &mut dyn FnMut(&mut dyn io::Write) -> io::Result<()>) -> io::Result<u64> {
         use std::io::Write;
         if self.appender.as_ref().is_some_and(|(n, _)| n == name) {
             self.appender = None;
@@ -143,7 +176,6 @@ impl Store for FsStore {
             }
         };
         std::fs::rename(&tmp, self.path(name))?;
-        self.sync_dir();
         Ok(n)
     }
 
@@ -193,6 +225,23 @@ impl Store for FsStore {
         }
     }
 
+    fn list(&mut self) -> io::Result<Vec<String>> {
+        let mut names = Vec::new();
+        for entry in std::fs::read_dir(&self.dir)? {
+            let entry = entry?;
+            if entry.file_type().is_ok_and(|t| t.is_file())
+                && let Ok(name) = entry.file_name().into_string()
+            {
+                names.push(name);
+            }
+        }
+        Ok(names)
+    }
+
+    fn segmented(&self) -> bool {
+        true
+    }
+
     fn describe(&self) -> String {
         self.dir.display().to_string()
     }
@@ -226,6 +275,9 @@ pub struct MemStore {
     pub files: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
     /// Offer a [`Store::background_writer`] (off by default: snapshots stay synchronous).
     pub background: bool,
+    /// Keep the catalog in one file, like a store that can't hold segments (see
+    /// [`Store::segmented`]; off by default).
+    pub single_file: bool,
 }
 
 impl MemStore {
@@ -261,6 +313,12 @@ impl Store for MemStore {
     fn remove(&mut self, name: &str) -> io::Result<()> {
         self.files.lock().unwrap_or_else(|e| e.into_inner()).remove(name);
         Ok(())
+    }
+    fn list(&mut self) -> io::Result<Vec<String>> {
+        Ok(self.files.lock().unwrap_or_else(|e| e.into_inner()).keys().cloned().collect())
+    }
+    fn segmented(&self) -> bool {
+        !self.single_file
     }
     fn describe(&self) -> String {
         "memory".into()
