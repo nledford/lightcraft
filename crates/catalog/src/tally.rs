@@ -103,7 +103,8 @@ impl Members {
     }
 }
 
-/// [`Catalog::album_count`] of every album, as of one revision of the catalog.
+/// [`Catalog::album_count`] of every album, as of one revision of the catalog. Folders of albums are not counted:
+/// the sidebar shows them no count, and theirs would cost a pass each.
 #[derive(Clone, Debug)]
 pub struct AlbumTally {
     revision: u64,
@@ -117,7 +118,7 @@ impl AlbumTally {
     pub fn of(cat: &Catalog) -> AlbumTally {
         let mut counts = HashMap::new();
         let mut members = HashMap::new();
-        for album in cat.albums() {
+        for album in cat.albums().filter(|a| !a.folder) {
             if album.is_smart() {
                 let mut held = Members::none();
                 for p in cat.photos().filter(|p| cat.album_contains(album.id, p)) {
@@ -176,7 +177,7 @@ impl AlbumTally {
             self.counts.insert(*album, held.len());
         }
         if changed.any_of(Aspects::PRESENCE) {
-            for album in cat.albums().filter(|a| !a.is_smart()) {
+            for album in cat.albums().filter(|a| !a.is_smart() && !a.folder) {
                 self.counts.insert(album.id, cat.album_count(album.id));
             }
         }
