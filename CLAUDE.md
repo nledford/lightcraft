@@ -55,12 +55,16 @@ of it. Full standard: `../craftrules/standards/never-crash.md`
 - **Pure Rust** in the product. No C/C++ dependencies.
 - **Layering** (`plan/architecture.md` §3, enforced by `cargo xtask layers`): nothing below L5 depends on egui/eframe/winit/rfd.
 - **Everything is a command** (`crates/engine`): id, label, menu path, shortcut, params, enabled(), run(). UI, CLI, control channel and MCP all dispatch by id. Every slider is a `develop` control spec.
+- **A refused command says why.** In the interface, run a command for the person with `app.act(id, params)`: a refusal
+  shows its reason in a toast. `app.quiet(…)` is for the few calls where a refusal is expected (say why at the call);
+  `app.run(…)` hands the `Result` back for code that deals with it (and for agents). Never `let _ = app.run(…)`:
+  `cargo xtask refusals` (in `ci`) fails on it. Better still, don't offer what would be refused.
 - **Long-running work shows in the activity stack** ([`docs/background-tasks.md`](docs/background-tasks.md)): anything
   that runs off the UI thread and can take more than a moment holds a `TaskGuard` from `session.activity.start(kind,
   label, cancel)` for its whole run. It adopts the cancel flag the job already checks (`Cancel::Flag`), or uses
   `Cancel::No` when the job can't stop. No progress window, panel or progress toast of its own; its tests assert the row.
 - **Resolution independence:** settings use normalized image coordinates and relative radii; previews and exports must match.
-- **Quality gates** before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, layers, assets, wasm).
+- **Quality gates** before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, layers, refusals, assets, wasm).
 - **Commits:** one task id per commit (`M2.3: local Laplacian highlights/shadows`). Only green states. End messages with the attribution line required by the environment.
 
 ## Assets: icons, images, fonts (ABSOLUTE RULE — never violate)
