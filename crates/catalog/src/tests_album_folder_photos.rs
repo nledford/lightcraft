@@ -156,7 +156,7 @@ fn a_smart_album_testing_its_own_folder_is_a_loop_that_ends() {
     // both answer; the one outside shows the folder's photos
     assert_eq!(shown(&c, outside), [a]);
     assert_eq!(shown(&c, trips), [a]);
-    assert_eq!(shown(&c, by_filter), [a], "what the folder holds without it");
+    assert!(shown(&c, by_filter).is_empty(), "on a loop: it holds nothing");
     // the same through an Album rule
     let rule: Filter = serde_json::from_value(serde_json::json!({"ruleSet": {"rules": [{"field": "album", "op": "is", "value": trips.0}]}})).unwrap();
     let by_rule = smart(&mut c, "Rule", Some(trips), rule.clone());

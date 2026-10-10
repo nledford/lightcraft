@@ -343,7 +343,8 @@ impl Catalog {
     /// Albums (regular and smart) that contain the photo; not the folders those albums are in.
     pub fn albums_of(&self, id: PhotoId) -> Vec<AlbumId> {
         let Some(p) = self.photos.get(&id) else { return Vec::new() };
-        self.albums.values().filter(|a| !a.folder && self.album_contains(a.id, p)).map(|a| a.id).collect()
+        // a pass over the albums: what they lead to is worked out once
+        gathering(|| self.albums.values().filter(|a| !a.folder && self.album_contains(a.id, p)).map(|a| a.id).collect())
     }
 
     /// Whether album `id` contains `p` (a smart album evaluates its rules; deleted photos are in
@@ -357,11 +358,28 @@ impl Catalog {
                 Some(folder) => folder.holds(self, p),
                 None => self.albums.values().any(|m| !m.folder && self.album_is_within(m, id) && self.album_contains(m.id, p)),
             },
-            // guarded: a smart album testing smart albums can't loop or recurse without end
-            Some(Album { smart: Some(rules), .. }) => !p.deleted && rules::smart_album_holds(id, p.id, || rules.matches(p, self)),
+            // one on a loop (it would include itself) holds nothing, whoever asks; the others
+            // are guarded all the same, against chains too deep to follow
+            Some(Album { smart: Some(rules), .. }) => {
+                !p.deleted && !self.album_is_on_a_loop(id, rules) && rules::smart_album_holds(id, p.id, || rules.matches(p, self))
+            }
             Some(a) => a.photos.contains(&p.id),
             None => false,
         }
+    }
+
+    /// Whether smart album `id` (with `rules`) would include itself: its rules lead back to it
+    /// ([`Self::album_reaches`]). Worked out once per album in a pass over the library.
+    fn album_is_on_a_loop(&self, id: AlbumId, rules: &Filter) -> bool {
+        on_a_loop(self, id, || !rules.albums_tested().is_empty() && self.album_reaches(id, id))
+    }
+
+    /// The smart albums that would include themselves, through the albums they test and the
+    /// folders those are in. New edits can't make one ([`Self::apply_new`]); a library from before
+    /// that rule, or a damaged one, may hold some, and each holds nothing.
+    pub fn albums_on_a_loop(&self) -> std::collections::BTreeSet<AlbumId> {
+        let tests_albums = |a: &&Album| a.smart.as_deref().is_some_and(|rules| !rules.albums_tested().is_empty());
+        self.albums.values().filter(tests_albums).filter(|a| self.album_reaches(a.id, a.id)).map(|a| a.id).collect()
     }
 
     /// The albums and smart albums whose photos `id` shows: those inside a folder, at any depth
@@ -559,6 +577,27 @@ impl Catalog {
         let inv = self.apply_inner(op)?;
         self.revision += 1;
         Ok(inv)
+    }
+
+    /// [`Self::apply`] for a new edit (not an undo, a redo or the replay of a saved log, which
+    /// bring back what was): refused when it would make a smart album include itself, through the
+    /// albums it tests or the folder it is in ([`Self::albums_on_a_loop`]), and nothing changes.
+    /// THE place that rule is kept, whichever command, importer or task makes the edit. Albums
+    /// already on a loop can still be edited, also in ways that leave them on it.
+    pub fn apply_new(&mut self, op: Op) -> Result<Op> {
+        if !may_make_a_loop(&op) {
+            return self.apply(op);
+        }
+        let before = self.albums_on_a_loop();
+        let undo = self.apply(op)?;
+        let Some(looping) = self.albums_on_a_loop().into_iter().find(|a| !before.contains(a)) else { return Ok(undo) };
+        // named as it is once the edit is taken back, or as the edit would have made it
+        let made = self.albums.get(&looping).map(|a| a.name.clone()).unwrap_or_default();
+        self.apply(undo)?;
+        let name = self.albums.get(&looping).map_or(made.as_str(), |a| a.name.as_str());
+        Err(CatalogError::Invalid(format!(
+            "smart album “{name}” would include itself: its rules lead back to it through the albums they test or the folder it is in"
+        )))
     }
 
     fn apply_inner(&mut self, op: Op) -> Result<Op> {
@@ -925,47 +964,86 @@ impl FolderPhotos {
     }
 }
 
-thread_local! {
-    /// The folders asked about during a pass over the library ([`gathering`]), by catalog (where
-    /// it is, which holds for the pass: it is borrowed throughout) and id: `None` outside one.
-    static GATHERED: std::cell::RefCell<Option<std::collections::HashMap<(usize, AlbumId), std::rc::Rc<FolderPhotos>>>> =
-        const { std::cell::RefCell::new(None) };
+/// What a pass over the library ([`gathering`]) works out once: by catalog (where it is, which
+/// holds for the pass: it is borrowed throughout) and album.
+#[derive(Default)]
+struct Pass {
+    /// The photos of the folders asked about.
+    folders: std::collections::HashMap<(usize, AlbumId), std::rc::Rc<FolderPhotos>>,
+    /// Whether each smart album asked about is on a loop ([`Catalog::albums_on_a_loop`]).
+    loops: std::collections::HashMap<(usize, AlbumId), bool>,
 }
 
-/// Run `pass`, a question put to many photos of one catalog: each folder of albums it asks about
-/// (the one shown, or one a smart album is limited to) has its photos gathered once, not looked
-/// up album by album for every photo. Forgotten when the outermost pass ends, however it ends.
+thread_local! {
+    /// The pass over the library under way on this thread: `None` outside one.
+    static PASS: std::cell::RefCell<Option<Pass>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Run `pass`, a question put to many photos (or many albums) of one catalog: each folder of
+/// albums it asks about (the one shown, or one a smart album is limited to) has its photos
+/// gathered once, not looked up album by album for every photo, and each smart album is checked
+/// for a loop once. Forgotten when the outermost pass ends, however it ends.
 pub(crate) fn gathering<T>(pass: impl FnOnce() -> T) -> T {
     struct Forget(bool);
     impl Drop for Forget {
         fn drop(&mut self) {
             if self.0 {
-                GATHERED.with_borrow_mut(|g| *g = None);
+                PASS.with_borrow_mut(|p| *p = None);
             }
         }
     }
-    let outermost = GATHERED.with_borrow_mut(|g| g.is_none().then(|| *g = Some(Default::default())).is_some());
+    let outermost = PASS.with_borrow_mut(|p| p.is_none().then(|| *p = Some(Pass::default())).is_some());
     let _forget = Forget(outermost);
     pass()
+}
+
+fn pass_key(cat: &Catalog, id: AlbumId) -> (usize, AlbumId) {
+    (std::ptr::from_ref(cat) as usize, id)
 }
 
 /// Folder `id` of `cat`'s photos during a pass ([`gathering`]), made by `gather` the first time;
 /// `None` outside one.
 fn gathered(cat: &Catalog, id: AlbumId, gather: impl FnOnce() -> FolderPhotos) -> Option<std::rc::Rc<FolderPhotos>> {
-    let key = (std::ptr::from_ref(cat) as usize, id);
-    if let Some(known) = GATHERED.with_borrow(|g| g.as_ref().map(|folders| folders.get(&key).cloned()))? {
+    let key = pass_key(cat, id);
+    if let Some(known) = PASS.with_borrow(|p| p.as_ref().map(|pass| pass.folders.get(&key).cloned()))? {
         return Some(known);
     }
     // gathered with nothing borrowed, then kept
     let folder = std::rc::Rc::new(gather());
-    GATHERED.with_borrow_mut(|g| g.as_mut().map(|folders| folders.insert(key, folder.clone())));
+    PASS.with_borrow_mut(|p| p.as_mut().map(|pass| pass.folders.insert(key, folder.clone())));
     Some(folder)
+}
+
+/// Whether smart album `id` of `cat` is on a loop, by `search`: asked once per pass
+/// ([`gathering`]), and every time outside one.
+fn on_a_loop(cat: &Catalog, id: AlbumId, search: impl FnOnce() -> bool) -> bool {
+    let key = pass_key(cat, id);
+    if let Some(known) = PASS.with_borrow(|p| p.as_ref().and_then(|pass| pass.loops.get(&key).copied())) {
+        return known;
+    }
+    // searched with nothing borrowed, then kept
+    let looping = search();
+    PASS.with_borrow_mut(|p| p.as_mut().map(|pass| pass.loops.insert(key, looping)));
+    looping
+}
+
+/// Whether `op` can put a smart album on a loop: it adds one, moves an album or folder, or
+/// changes rules (alone or in a batch).
+fn may_make_a_loop(op: &Op) -> bool {
+    match op {
+        Op::AddAlbum { album } => album.smart.is_some(),
+        Op::MoveAlbum { .. } | Op::SetAlbumRules { .. } => true,
+        Op::Batch { ops } => ops.iter().any(may_make_a_loop),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod tests_album_folder_photos;
+#[cfg(test)]
+mod tests_album_loops;
 #[cfg(test)]
 mod tests_album_order;
 #[cfg(test)]
