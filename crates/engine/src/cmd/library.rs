@@ -963,13 +963,18 @@ pub fn specs() -> Vec<CommandSpec> {
                     view
                 } else {
                     let replace = bool_or(p, "replace", false);
-                    let folder = cur.library_folder.clone();
+                    let (folder, album) = (cur.library_folder.clone(), cur.album);
                     let base = if replace { Default::default() } else { cur };
                     let mut r = merge_rules(&base, p.get("rules").unwrap_or(&Value::Null), "album.setRules", &s.catalog, Some(id))?;
                     // the rules dialog has no folder field: replacing its rules keeps the folder
                     // unless the call says (`libraryFolder: null`) to drop it
                     if replace && p.get("rules").and_then(|r| r.get("libraryFolder")).is_none() {
                         r.library_folder = folder;
+                    }
+                    // nor one for the album or folder of albums a saved view is limited to
+                    // (`album: null` drops it)
+                    if replace && p.get("rules").and_then(|r| r.get("album")).is_none() {
+                        r.album = album;
                     }
                     r
                 };
@@ -1480,8 +1485,8 @@ fn smart_loop_in(cat: &lightcraft_catalog::Catalog, name: &str, rules: &lightcra
 /// where nothing loops): the first smart album among what moves that would include itself.
 fn moved_loop_in(cat: &lightcraft_catalog::Catalog, id: AlbumId, parent: Option<AlbumId>) -> Option<String> {
     let parent = parent?;
-    let moved = cat.album_members(id);
-    moved.iter().filter_map(|m| cat.album(*m)).find_map(|m| smart_loop_in(cat, &m.name, m.smart.as_deref()?, parent))
+    let looping = cat.album(cat.album_move_would_loop(id, parent)?)?;
+    smart_loop_in(cat, &looping.name, looping.smart.as_deref()?, parent)
 }
 
 /// Whether `path` lies above a disk: some of its `ids` photos are on a disk (not the startup

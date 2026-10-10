@@ -12,6 +12,9 @@
 //! - When the shown folder is deleted, then the grid goes back to All Photos.
 //! - Given a folder shown, when the view is saved as a smart album, then that album shows the
 //!   same photos and follows the folder.
+//! - Given a folder's view saved as a smart album, when its rules are edited in the rules
+//!   dialog (which replaces them), then it is still limited to the folder; clearing the limit
+//!   takes saying so.
 //! - A folder still holds no photos of its own: adding to it, removing from it or giving it a
 //!   cover is refused, and nothing is recorded to undo.
 //! - Given a folder shown, when its view is saved as a smart album inside that folder, or a
@@ -162,6 +165,27 @@ fn a_folder_view_saves_as_a_smart_album() {
     // it follows the folder
     album(&mut s, "Oslo", Some(trips), &[5]);
     assert_eq!(shown(&mut s), [5, 3, 2, 1]);
+}
+
+#[test]
+fn editing_a_saved_folder_view_keeps_the_folder() {
+    let mut s = Session::new();
+    let trips = trips(&mut s);
+    rate(&mut s, &[2, 4], 5);
+    show(&mut s, trips);
+    let saved = s.execute("album.createSmart", &json!({"name": "From Trips"})).unwrap()["id"].as_u64().unwrap();
+    let album_of = |s: &Session| s.catalog.album(AlbumId(saved)).unwrap().smart.as_ref().unwrap().album;
+    // what the rules dialog sends on OK: the rule set, replacing the rest
+    let rated = json!({"match": "all", "rules": [{"field": "rating", "op": "gte", "value": 5}]});
+    let r = s.execute("album.setRules", &json!({"id": saved, "replace": true, "rules": {"ruleSet": rated}})).unwrap();
+    assert_eq!(album_of(&s), Some(AlbumId(trips)), "still limited to the folder");
+    assert_eq!(r["count"], 1, "photo 2: rated 5 and in the folder; 4 is rated but outside it");
+    // also with no rules left
+    let r = s.execute("album.setRules", &json!({"id": saved, "replace": true, "rules": {"ruleSet": {"match": "all", "rules": []}}})).unwrap();
+    assert_eq!((album_of(&s), r["count"].as_u64()), (Some(AlbumId(trips)), Some(3)));
+    // the limit goes when the call says so, or names another album
+    s.execute("album.setRules", &json!({"id": saved, "replace": true, "rules": {"album": null}})).unwrap();
+    assert_eq!(album_of(&s), None);
 }
 
 #[test]
