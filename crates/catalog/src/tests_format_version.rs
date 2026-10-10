@@ -238,8 +238,9 @@ fn op_variants_are_versioned() {
             Op::SetHistoryCursor { .. } => 8,
         }
     }
-    /// v9: `Photo.preview_checked` and `Op::SetContent.preview_checked`.
-    const NEWEST_FIELDS: u32 = 9;
-    let newest = since(&Op::SetHistoryCursor { id: PhotoId(1), cursor: None });
-    assert_eq!(newest.max(NEWEST_FIELDS), VERSION, "the newest op's or fields' version must be the current format version");
+    // format 9 added fields (`Photo.preview_checked`, `Op::SetContent.preview_checked`) and
+    // format 10 no op either: it changed how records are stored (`crate::stored`)
+    const STORED_FORM: u32 = 10;
+    let newest = since(&Op::SetHistoryCursor { id: PhotoId(1), cursor: None }).max(STORED_FORM);
+    assert_eq!(newest, VERSION, "the newest op's version must be the current format version");
 }
