@@ -2084,6 +2084,7 @@
   "Choose a backup first": "Escolha um backup primeiro",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "A biblioteca volta a ser como era quando o backup foi feito. O que ela contém agora fica guardado em Replaced, na pasta da biblioteca.",
   "What restores replaced (Replaced in the library folder) goes by the same rule.": "O que as restaurações substituíram (Replaced, na pasta da biblioteca) segue a mesma regra.",
+  "Choose a Folder": "Escolher uma pasta",
   "Lightroom Catalog Import": "Importação de catálogo do Lightroom",
   "These photos are only in memory. Open a library on disk and import the catalog again to save them.": "Estas fotos estão apenas na memória. Abra uma biblioteca no disco e importe o catálogo novamente para salvá-las.",
   "Show in Library": "Mostrar na biblioteca",

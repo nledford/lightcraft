@@ -2083,6 +2083,7 @@
   "Choose a backup first": "请先选择一个备份",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "图库将恢复为创建备份时的状态。当前内容会保留在图库文件夹的 Replaced 中。",
   "What restores replaced (Replaced in the library folder) goes by the same rule.": "恢复时被替换的内容（图库文件夹中的 Replaced）适用同样的规则。",
+  "Choose a Folder": "选择文件夹",
   "Lightroom Catalog Import": "Lightroom 目录导入",
   "These photos are only in memory. Open a library on disk and import the catalog again to save them.": "这些照片仅保存在内存中。请打开磁盘上的图库并再次导入目录以保存照片。",
   "Show in Library": "在图库中显示",

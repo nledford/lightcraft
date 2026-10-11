@@ -2032,5 +2032,6 @@
   "another library": "un'altra libreria",
   "Choose a backup first": "Scegli prima un backup",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "La libreria torna com'era quando è stato fatto il backup. Ciò che contiene ora viene conservato in Replaced, nella cartella della libreria.",
-  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Ciò che i ripristini hanno sostituito (Replaced, nella cartella della libreria) segue la stessa regola."
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Ciò che i ripristini hanno sostituito (Replaced, nella cartella della libreria) segue la stessa regola.",
+  "Choose a Folder": "Scegli una cartella"
 }
