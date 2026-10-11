@@ -249,6 +249,8 @@ pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String>
     }
     let total = queue.len();
     app.import = Some(ImportTask::new(queue, params, undo0, false));
+    // the Read row opens next time as it was used now
+    remember_read(app, lightcraft_engine::import::ReadDialog::Import, d.read);
     app.renderer.forget_imports();
     Ok(json!({"importing": total}))
 }

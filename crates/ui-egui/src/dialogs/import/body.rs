@@ -391,6 +391,20 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
     });
 }
 
+/// Remember how a dialog's Read row was used, with the library (`library.preferences` →
+/// `import.readLast`): the dialog opens that way next time. Ticks that are the library's own
+/// choice are not kept, so a dialog nobody changed goes on following Settings ▸ Import.
+pub(crate) fn remember_read(app: &mut LightcraftApp, dialog: lightcraft_engine::import::ReadDialog, read: lightcraft_engine::import::ReadFromPhotos) {
+    if app.session.import_defaults.read_in(dialog) == read {
+        return;
+    }
+    // (not the person's action, and nothing of theirs is lost when it can't be saved: the
+    // dialog opens as the library has it)
+    if let Err(e) = app.session.execute("library.preferences", &json!({"import": {"readLast": {dialog.name(): read}}})) {
+        log::warn!("the Read choice of {} was not remembered: {e}", dialog.name());
+    }
+}
+
 /// What "Read" is about, in the import review and in Settings ▸ Import.
 pub(crate) const READ_HINT: &str = "What imports take from the photos themselves and the sidecars beside them. What is not read stays in the files, and LightCraft does not write it back into their sidecars either.";
 

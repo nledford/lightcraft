@@ -31,7 +31,7 @@ pub(crate) use body::grid_height;
 #[cfg(test)]
 use body::{DEFAULT_BELOW_GRID, badge_rect, dup_counts};
 pub use body::{DEFAULT_FOLDER_TEMPLATE, body, example_destination, source_summary};
-pub(crate) use body::{DIALOG_SIZE, READ_HINT, note_dialog_bottom, read_choices};
+pub(crate) use body::{DIALOG_SIZE, READ_HINT, note_dialog_bottom, read_choices, remember_read};
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use scan::cards_seen;
 pub use scan::{ScanTask, browse, open, poll_scan, running};

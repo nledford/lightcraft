@@ -448,3 +448,118 @@ fn a_sidecar_that_cannot_be_copied_fails_the_file_and_leaves_no_copy() {
     let _ = std::fs::remove_dir_all(src);
     let _ = std::fs::remove_dir_all(dest);
 }
+
+// ---- each dialog remembers how its Read row was last used ----
+
+fn prefs(s: &mut Session, p: Value) -> Value {
+    s.execute("library.preferences", &p).unwrap()["import"].clone()
+}
+
+/// Given a library that reads everything, when the Synchronize Folder dialog was last used with
+/// Keywords unticked, then that is remembered with the library for that dialog alone: the
+/// Import review and the library's own choice are as they were, and so are imports that have no
+/// dialog.
+#[test]
+fn a_dialog_remembers_how_its_read_row_was_last_used() {
+    use crate::import::{ReadDialog, ReadFromPhotos};
+    let (lib, dir) = (temp_dir("last-lib"), temp_dir("last"));
+    a_photo_with_metadata(&dir, "one", 1);
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    assert!(prefs(&mut s, json!({})).get("readLast").is_none(), "nothing is remembered at first");
+
+    let r = prefs(&mut s, json!({"import": {"readLast": {"synchronize": {"keywords": false}}}}));
+    assert_eq!(r["readLast"], json!({"synchronize": {"keywords": false, "ratings": true, "descriptions": true, "location": true, "develop": true}}));
+    assert_eq!(r["read"]["keywords"], json!(true), "the library's choice is its own");
+    assert!(!s.import_defaults.read_in(ReadDialog::Synchronize).keywords);
+    assert_eq!(s.import_defaults.read_in(ReadDialog::Import), ReadFromPhotos::ALL, "the other dialog is as it was");
+
+    s.close_library().unwrap();
+    drop(s);
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    assert!(!s.import_defaults.read_in(ReadDialog::Synchronize).keywords, "kept between sessions");
+    // an import that has no dialog (dropped files, Auto Import, an agent's) goes by the library
+    import(&mut s, &dir, None);
+    assert_eq!(seen(&s)["keywords"], json!(["fjord"]));
+    drop(s);
+    for d in [lib, dir] {
+        let _ = std::fs::remove_dir_all(d);
+    }
+}
+
+/// A dialog used as the library has it follows the library; so do all once the library's
+/// choice changes; and `null` forgets.
+#[test]
+fn what_is_remembered_is_only_a_departure_from_the_librarys_choice() {
+    use crate::import::ReadDialog;
+    let mut s = Session::new().with_fs();
+    // back to what the library reads: nothing to remember
+    prefs(&mut s, json!({"import": {"readLast": {"import": {"ratings": false}}}}));
+    let r = prefs(&mut s, json!({"import": {"readLast": {"import": {"ratings": true}}}}));
+    assert!(r.get("readLast").is_none(), "{r}");
+
+    // one part named: the others as the dialog would open
+    prefs(&mut s, json!({"import": {"readLast": {"import": {"ratings": false}, "synchronize": {"location": false}}}}));
+    let r = prefs(&mut s, json!({"import": {"readLast": {"import": {"develop": false}}}}));
+    assert_eq!(r["readLast"]["import"], json!({"keywords": true, "ratings": false, "descriptions": true, "location": true, "develop": false}));
+    assert_eq!(r["readLast"]["synchronize"]["location"], json!(false), "the other dialog's is untouched");
+
+    let r = prefs(&mut s, json!({"import": {"readLast": {"synchronize": null}}}));
+    assert!(r["readLast"].get("synchronize").is_none() && r["readLast"].get("import").is_some(), "{r}");
+
+    // saying the library's choice again changes nothing
+    let r = prefs(&mut s, json!({"import": {"read": {"keywords": true}}}));
+    assert!(r["readLast"].get("import").is_some(), "{r}");
+    // a new choice for the library: the dialogs follow it again
+    let r = prefs(&mut s, json!({"import": {"read": {"keywords": false}}}));
+    assert!(r.get("readLast").is_none(), "{r}");
+    assert!(!s.import_defaults.read_in(ReadDialog::Import).keywords && s.import_defaults.read_in(ReadDialog::Import).ratings);
+}
+
+#[test]
+fn what_is_not_a_dialog_or_a_choice_is_refused() {
+    let mut s = Session::new().with_fs();
+    for (p, why) in [
+        (json!({"import": {"readLast": 5}}), "readLast"),
+        (json!({"import": {"readLast": {"export": {"keywords": false}}}}), "import and synchronize"),
+        (json!({"import": {"readLast": {"import": {"keyword": false}}}}), "keywords"),
+        (json!({"import": {"readLast": {"import": {"keywords": "no"}}}}), "true or false"),
+        (json!({"import": {"readLast": {"synchronize": []}}}), "read"),
+    ] {
+        let e = s.execute("library.preferences", &p).unwrap_err().to_string();
+        assert!(e.contains(why), "{p}: {e}");
+        assert!(s.import_defaults.read_last.is_empty(), "{p}: nothing was remembered");
+    }
+}
+
+/// Given a folder of the library that got a new photo, when it is synchronized with keywords
+/// and ratings not read, then the new photo comes in without them and they stay in its files;
+/// synchronized without saying, it is read as the library says.
+#[test]
+fn synchronizing_reads_the_new_photos_as_chosen_for_it() {
+    for (read, keywords, rating) in [(Some(json!({"keywords": false, "ratings": false})), json!([]), 0), (None, json!(["fjord"]), 4)] {
+        let dir = temp_dir("sync-read");
+        a_photo_with_metadata(&dir, "one", 1);
+        let mut s = Session::new().with_fs();
+        import(&mut s, &dir, None);
+        a_photo_with_metadata(&dir, "two", 2);
+        let mut p = json!({"path": dir.to_string_lossy()});
+        if let Some(read) = &read {
+            p["read"] = read.clone();
+        }
+        let r = s.execute("folder.synchronize", &p).unwrap();
+        assert_eq!(r["imported"], json!(1), "{r}");
+        let two = s.catalog.photos().find(|p| p.file_name == "two.png").expect("the new photo");
+        assert_eq!((json!(two.meta.keywords), two.rating), (keywords, rating), "{read:?}");
+        assert_eq!(two.meta.title, "In the sidecar", "what was not unticked is read");
+        assert_eq!((two.left_in_file.keywords, two.left_in_file.ratings), (read.is_some(), read.is_some()), "and the photo remembers what was left");
+        let one = s.catalog.photos().find(|p| p.file_name == "one.png").expect("the photo that was there");
+        assert_eq!(one.rating, 4, "photos already in the library are as they were");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    // a choice that is none is refused
+    let mut s = Session::new().with_fs();
+    let e = s.execute("folder.synchronize", &json!({"path": "/nowhere", "read": {"stars": false}})).unwrap_err().to_string();
+    assert!(e.contains("keywords"), "{e}");
+}

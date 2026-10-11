@@ -872,6 +872,11 @@
   sidecar are each read or not. Choose it for the library in Settings ▸ Import ▸ **Read from photos**, or for one
   import in the Import Photos review (**Read**), which opens with the library's choice. Everything is read until
   you choose otherwise. Agents: `read` in `library.import`, `import.read` in `library.preferences`.
+- **Synchronize Folder** has the same **Read** row under Import new photos, for the new photos it brings in (`read`
+  in `folder.synchronize`).
+- Both dialogs open with their Read row as you last used it, kept with the library between sessions. A dialog you
+  never changed follows Settings ▸ Import, and changing the choice there makes both follow it again. Only the
+  dialogs remember: dropped files, Auto Import and Local go by the library's choice as before.
 - What was not read stays in the file and its sidecar, and stays the file's: when LightCraft writes that photo's
   sidecar later (automatically, or with Save Metadata to File), it writes nothing of those kinds and takes nothing
   of them out, whatever you gave the photo here since. A rating, a title or keywords given here to such a photo

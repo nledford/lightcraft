@@ -45,6 +45,78 @@ pub struct ImportDefaults {
     /// until chosen): also photos that are dropped in, found by Auto Import or Synchronize
     /// Folder, or browsed in place.
     pub read: ReadFromPhotos,
+    /// What was last ticked under Read in the dialogs that offer it, where that is not `read`:
+    /// each opens as it was last used. Nothing else goes by it.
+    #[serde(skip_serializing_if = "ReadLast::is_empty")]
+    pub read_last: ReadLast,
+}
+
+/// A dialog with a Read row of its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadDialog {
+    /// The Import Photos review.
+    Import,
+    /// Synchronize Folder.
+    Synchronize,
+}
+
+impl ReadDialog {
+    pub const ALL: [ReadDialog; 2] = [ReadDialog::Import, ReadDialog::Synchronize];
+
+    /// The name commands know it under.
+    pub fn name(self) -> &'static str {
+        match self {
+            ReadDialog::Import => "import",
+            ReadDialog::Synchronize => "synchronize",
+        }
+    }
+}
+
+/// What was last ticked under Read in each dialog ([`ImportDefaults::read_last`]): `None` for a
+/// dialog that was last used as the library has it, which then goes on following the library.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ReadLast {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import: Option<ReadFromPhotos>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub synchronize: Option<ReadFromPhotos>,
+}
+
+impl ReadLast {
+    pub fn is_empty(&self) -> bool {
+        *self == ReadLast::default()
+    }
+
+    fn of(&mut self, dialog: ReadDialog) -> &mut Option<ReadFromPhotos> {
+        match dialog {
+            ReadDialog::Import => &mut self.import,
+            ReadDialog::Synchronize => &mut self.synchronize,
+        }
+    }
+}
+
+impl ImportDefaults {
+    /// What a dialog's Read row opens with: as it was last used, else as the library has it.
+    pub fn read_in(&self, dialog: ReadDialog) -> ReadFromPhotos {
+        let mut last = self.read_last;
+        last.of(dialog).unwrap_or(self.read)
+    }
+
+    /// Remember how a dialog's Read row was used (`None`: forget it). Ticks that are the
+    /// library's own choice are not kept: the dialog goes on following the library.
+    pub fn remember_read(&mut self, dialog: ReadDialog, read: Option<ReadFromPhotos>) {
+        *self.read_last.of(dialog) = read.filter(|r| *r != self.read);
+    }
+
+    /// Choose what the library reads. The dialogs follow it again: what was ticked in them was
+    /// a departure from a choice that is no longer.
+    pub fn set_read(&mut self, read: ReadFromPhotos) {
+        if read != self.read {
+            self.read = read;
+            self.read_last = ReadLast::default();
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

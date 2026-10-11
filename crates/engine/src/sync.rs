@@ -150,13 +150,16 @@ pub struct SyncChoice {
     pub relink_moved: bool,
     pub remove_missing: bool,
     pub read_metadata: bool,
+    /// What is read from the new photos themselves as they are imported; a part that is `None`
+    /// goes by the library's choice (as for any import, see [`crate::import::ReadChoice`]).
+    pub read: crate::import::ReadChoice,
 }
 
 impl Default for SyncChoice {
     /// Lightroom Classic's defaults: import the new files, leave the rest to be looked at; and
     /// photos whose file moved follow it (nothing is lost, and undo puts them back).
     fn default() -> Self {
-        SyncChoice { import_new: true, relink_moved: true, remove_missing: false, read_metadata: false }
+        SyncChoice { import_new: true, relink_moved: true, remove_missing: false, read_metadata: false, read: Default::default() }
     }
 }
 
@@ -693,7 +696,7 @@ impl SyncJob {
             return Err(not_there(&changes.path));
         }
         let FolderChanges { new, missing, metadata, moved, probes, .. } = changes;
-        let opts = ImportOptions { mode: ImportMode::Add, ..Default::default() };
+        let opts = ImportOptions { mode: ImportMode::Add, read: choice.read, ..Default::default() };
         let import = if choice.import_new && !new.is_empty() {
             s.import_probes = probes;
             let job = crate::import::ImportJob::new(s, opts.clone())?;
