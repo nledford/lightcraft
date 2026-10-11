@@ -20,17 +20,26 @@
 //! at all. And each difference is read back and compared before it is written; settings that
 //! would not survive are stored in full.
 //!
-//! **Libraries depend on the defaults.** A value equal to the default is not in the file, so a
-//! default that changed would change every photo relying on it. What a missing value reads as is
-//! pinned by a test (`develop_defaults.json`): changing it means a new catalog format
-//! ([`crate::journal::VERSION`]) whose loader gives the photos of older libraries the old value.
+//! **A library says what its missing values read as.** A value equal to the default is not in
+//! the file, so a default that changed in the code would change every photo relying on it. So
+//! `catalog.snap` states them itself (`"defaults"`: [`base`], the settings a record with nothing
+//! stated reads as in the build that wrote it), and they cover the log beside it. A build whose
+//! own differ ([`reads_the_same`]) reads the library's settings over the library's defaults, not
+//! over its own ([`reading_over`]), and then rewrites the library with its own. A build that only
+//! has more settings than the library states reads it as it is: a setting the library never
+//! heard of takes this build's default.
+//!
+//! That works where a setting is a value in a struct, which every setting is (a test reads every
+//! one both ways). What a missing value reads as in this build is pinned by a test as well
+//! (`develop_defaults.json`), so a changed default is seen when it is made; a setting that is
+//! removed or renamed needs a loader of its own.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 
 use lightcraft_develop::DevelopSettings;
 use serde::ser::{SerializeMap, SerializeSeq};
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 use crate::{ColorLabel, CopyrightStatus, Flag, HistoryStep, MediaKind, Meta, Photo, PhotoId, Source, Version};
@@ -107,6 +116,85 @@ fn defaults() -> &'static Defaults {
         }
         d
     })
+}
+
+// ---- what a library's missing values read as
+
+/// The settings a record with nothing stated (`{}`) reads as in this build, as `catalog.snap`
+/// states them (`"defaults"`): the JSON text, and its value.
+pub(crate) fn base() -> &'static (String, Value) {
+    static BASE: OnceLock<(String, Value)> = OnceLock::new();
+    BASE.get_or_init(|| {
+        let settings = serde_json::from_str::<DevelopSettings>("{}").unwrap_or_default();
+        (serde_json::to_string(&settings).unwrap_or_else(|_| "{}".into()), serde_json::to_value(&settings).unwrap_or(Value::Null))
+    })
+}
+
+/// Whether a library that states `theirs` as its defaults reads the same over this build's:
+/// every value it states is this build's too. (This build may have more: settings newer than
+/// the library.)
+pub(crate) fn reads_the_same(theirs: &Value) -> bool {
+    fn within(theirs: &Value, ours: &Value) -> bool {
+        match (theirs, ours) {
+            (Value::Object(t), Value::Object(o)) => t.iter().all(|(k, x)| o.get(k).is_some_and(|y| within(x, y))),
+            _ => same(theirs, ours),
+        }
+    }
+    within(theirs, &base().1)
+}
+
+thread_local! {
+    /// The defaults of the library being read on this thread, where they are not this build's.
+    static READING_OVER: std::cell::RefCell<Option<Arc<Value>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// While it lives, settings read on this thread are read over these defaults (see
+/// [`reading_over`]).
+pub(crate) struct ReadingOver(Option<Arc<Value>>);
+
+impl Drop for ReadingOver {
+    fn drop(&mut self) {
+        let before = self.0.take();
+        // (a thread shutting down has nothing left to read)
+        let _ = READING_OVER.try_with(|over| *over.borrow_mut() = before);
+    }
+}
+
+/// Read the settings of a library that states `defaults` as its own: until the returned guard
+/// is dropped, a value a record leaves out on this thread reads as the library's, not as this
+/// build's. `None`: as this build's (the usual case, and what reading costs nothing for).
+pub(crate) fn reading_over(defaults: Option<Arc<Value>>) -> ReadingOver {
+    ReadingOver(READING_OVER.try_with(|over| over.replace(defaults)).unwrap_or(None))
+}
+
+/// Give `v` every value of `defaults` it leaves out, object by object: the reverse of [`strip`].
+fn fill(v: &mut Value, defaults: &Value) {
+    let (Value::Object(m), Value::Object(d)) = (v, defaults) else { return };
+    for (k, x) in d {
+        match m.get_mut(k) {
+            Some(mine) => fill(mine, x),
+            None => {
+                m.insert(k.clone(), x.clone());
+            }
+        }
+    }
+}
+
+/// `deserialize_with` for settings in a saved record: over the defaults of the library being
+/// read, where those are not this build's ([`reading_over`]).
+pub(crate) fn read_settings<'de, D: Deserializer<'de>>(d: D) -> Result<Arc<DevelopSettings>, D::Error> {
+    let over = READING_OVER.try_with(|over| over.borrow().clone()).unwrap_or(None);
+    let Some(defaults) = over else { return Arc::<DevelopSettings>::deserialize(d) };
+    let mut v = Value::deserialize(d)?;
+    fill(&mut v, &defaults);
+    DevelopSettings::deserialize(v).map(Arc::new).map_err(serde::de::Error::custom)
+}
+
+/// [`read_settings`] for settings that may not be there.
+pub(crate) fn read_optional_settings<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Arc<DevelopSettings>>, D::Error> {
+    #[derive(Deserialize)]
+    struct Read(#[serde(deserialize_with = "read_settings")] Arc<DevelopSettings>);
+    Ok(Option::<Read>::deserialize(d)?.map(|r| r.0))
 }
 
 /// Remove the value at `path`; whether there was one.

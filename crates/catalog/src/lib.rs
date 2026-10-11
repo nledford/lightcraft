@@ -98,7 +98,7 @@ pub enum Op {
     },
     SetDevelop {
         id: PhotoId,
-        #[serde(serialize_with = "stored::settings")]
+        #[serde(serialize_with = "stored::settings", deserialize_with = "stored::read_settings")]
         settings: Arc<DevelopSettings>,
         label: String,
         edited: Option<String>,

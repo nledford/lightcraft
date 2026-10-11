@@ -222,6 +222,14 @@ fn record(c: &Catalog) -> Value {
 fn reopened(c: &Catalog) -> Catalog {
     let mut r = Catalog::from_snapshot(&c.to_snapshot()).unwrap();
     r.revision = c.revision;
+    // and it reads the same over the defaults a library states (the path a library written with
+    // other defaults takes) as it does plainly: every setting is a value in a struct
+    {
+        let _over = stored::reading_over(Some(Arc::new(stored::base().1.clone())));
+        let mut filled = Catalog::from_snapshot(&c.to_snapshot()).unwrap();
+        filled.revision = c.revision;
+        assert_eq!(filled, r, "read over the library's defaults");
+    }
     for (a, b) in c.photos().zip(r.photos()) {
         assert_eq!(serde_json::to_string(a.as_ref()).unwrap(), serde_json::to_string(b.as_ref()).unwrap());
         assert_eq!((a.fingerprint(), a.develop.hash64()), (b.fingerprint(), b.develop.hash64()));
@@ -648,11 +656,12 @@ fn a_v6_library_loads_and_is_upgraded() {
 /// `develop_defaults.json` is what settings with nothing stated (`{}`) read as.
 ///
 /// If this fails because a setting was **added**, add it to the file (the test prints what it
-/// reads now). If what a missing value reads as **changed**, or a setting was removed or renamed:
-/// that is a new catalog format ([`journal::VERSION`]) whose loader gives the photos of older
-/// libraries the old value; change the file with it. (A new default rendering process changes
-/// nothing here: settings without a process stay on the first one, and photos on the default
-/// one state it.)
+/// reads now): libraries that never heard of it take its default. If what a missing value reads
+/// as **changed**: saved libraries keep the old value, because each states its own defaults and
+/// is read over those (`a_library_written_with_other_defaults_reads_as_it_was_written`); change
+/// the file with it. A setting that was removed or renamed needs a loader of its own. (A new
+/// default rendering process changes nothing here: settings without a process stay on the first
+/// one, and photos on the default one state it.)
 #[test]
 fn what_missing_develop_settings_read_as_is_unchanged() {
     let pinned: Value = serde_json::from_str(include_str!("develop_defaults.json")).unwrap();
@@ -665,4 +674,148 @@ fn what_missing_develop_settings_read_as_is_unchanged() {
         "what missing develop settings read as changed; see this test's comment. They read as:\n{}",
         serde_json::to_string_pretty(&now).unwrap()
     );
+}
+
+// ---- a library says what its missing values read as
+
+/// `catalog.snap` as a build with these defaults would have written it: `photos` are stored
+/// records by id.
+fn snapshot_stating(defaults: &Value, photos: Value) -> Vec<u8> {
+    let mut catalog: Value = serde_json::from_str(&Catalog::new().to_snapshot()).unwrap();
+    catalog["photos"] = photos;
+    catalog["next_photo"] = 100.into();
+    format!("{{\"format\":\"lightcraft-catalog\",\"version\":{VERSION},\"seq\":2,\"defaults\":{defaults},\"catalog\":{catalog}}}\n").into_bytes()
+}
+
+fn stated_defaults(m: &MemStore) -> Value {
+    let head: Value = serde_json::from_slice(&m.get(SNAPSHOT).unwrap()).unwrap();
+    head["defaults"].clone()
+}
+
+/// This build's defaults with an Exposure of +1 and a red hue of 5: what a build with other
+/// defaults states.
+fn other_defaults() -> Value {
+    let mut d = serde_json::to_value(base()).unwrap();
+    d["light"]["exposure"] = 1.0.into();
+    d["mixer"]["red"]["hue"] = 5.0.into();
+    d
+}
+
+/// The stored record of an untouched photo, with these develop settings.
+fn stored_record(id: u64, develop: Value) -> Value {
+    let mut r = record(&catalog_of([plain(id)]));
+    r["id"] = id.into();
+    r["develop"] = develop;
+    r
+}
+
+/// Given a saved library, then its snapshot states what a record's missing develop settings read
+/// as: the settings of a record with nothing stated.
+#[test]
+fn a_library_states_what_missing_settings_read_as() {
+    let m = MemStore::new();
+    let (mut j, _, _) = Journal::open(Box::new(m.clone())).unwrap();
+    assert_eq!(stated_defaults(&m), serde_json::to_value(base()).unwrap(), "a new library");
+    j.snapshot(&catalog_of([plain(1)])).unwrap();
+    assert_eq!(stated_defaults(&m), serde_json::to_value(base()).unwrap(), "a saved one");
+    assert_eq!(serde_json::to_string(&base()).unwrap(), include_str!("develop_defaults.json").split_whitespace().collect::<String>());
+}
+
+/// Given a library written by a build whose defaults were an Exposure of +1 and a red hue of 5,
+/// when this build opens it, then its photos are as that build left them: a photo that states
+/// nothing has that Exposure and hue (not this build's 0), in its settings and in the history
+/// step its log added; a photo that states an Exposure of 0 has 0. And the library is rewritten
+/// with this build's defaults, stating what the photos now differ in, so it opens the same again.
+#[test]
+fn a_library_written_with_other_defaults_reads_as_it_was_written() {
+    let m = MemStore::new();
+    let photos = serde_json::json!({
+        "1": stored_record(1, serde_json::json!({})),
+        "2": stored_record(2, serde_json::json!({"light": {"exposure": 0.0}})),
+    });
+    m.set(SNAPSHOT, snapshot_stating(&other_defaults(), photos));
+    let body = r#"{"op":"pushHistory","id":1,"step":{"label":"Import","settings":{}}}"#;
+    m.set(LOG, format!("{{\"seq\":3,\"crc\":{},\"op\":{body}}}\n", crc32fast::hash(body.as_bytes())).into_bytes());
+
+    let (_, c, r) = Journal::open(Box::new(m.clone())).unwrap();
+    assert!(r.other_defaults && r.upgraded_from.is_none() && r.kept.is_empty(), "{r:?}");
+    assert_eq!((r.replayed, r.failed), (1, 0));
+    let (one, two) = (c.photo(PhotoId(1)).unwrap(), c.photo(PhotoId(2)).unwrap());
+    assert_eq!((one.develop.light.exposure, one.develop.mixer.red.hue), (1.0, 5.0));
+    assert_eq!((one.history[0].settings.light.exposure, one.history[0].settings.mixer.red.hue), (1.0, 5.0));
+    assert_eq!((two.develop.light.exposure, two.develop.mixer.red.hue), (0.0, 5.0));
+    // everything else is what both builds have
+    let mut expected = base();
+    expected.light.exposure = 1.0;
+    expected.mixer.red.hue = 5.0;
+    assert_eq!(*one.develop, expected);
+
+    // rewritten: this build's defaults, the photos' differences from them stated, no log
+    assert_eq!(stated_defaults(&m), serde_json::to_value(base()).unwrap());
+    assert!(m.get(LOG).unwrap().is_empty());
+    let saved: Value = serde_json::from_slice(&m.get(SNAPSHOT).unwrap()).unwrap();
+    assert_eq!(saved["catalog"]["photos"]["1"]["develop"].to_string(), r#"{"light":{"exposure":1.0},"mixer":{"red":{"hue":5.0}}}"#);
+    assert_eq!(saved["catalog"]["photos"]["2"]["develop"].to_string(), r#"{"mixer":{"red":{"hue":5.0}}}"#);
+    let (_, mut again, r) = Journal::open(Box::new(m)).unwrap();
+    again.revision = c.revision;
+    assert!(!r.other_defaults);
+    assert_eq!(again, c);
+}
+
+/// Given a library written before a setting existed (its defaults don't state it), when this
+/// build opens it, then it is read as it is, the setting taking this build's default, and it is
+/// not rewritten for that.
+#[test]
+fn a_library_that_only_lacks_newer_settings_is_read_as_it_is() {
+    let mut older = serde_json::to_value(base()).unwrap();
+    older.as_object_mut().unwrap().remove("lens_blur").unwrap();
+    older["light"].as_object_mut().unwrap().remove("blacks").unwrap();
+    let m = MemStore::new();
+    let snap = snapshot_stating(&older, serde_json::json!({"1": stored_record(1, serde_json::json!({}))}));
+    m.set(SNAPSHOT, snap.clone());
+    let (_, c, r) = Journal::open(Box::new(m.clone())).unwrap();
+    assert!(!r.other_defaults, "{r:?}");
+    assert_eq!(*c.photo(PhotoId(1)).unwrap().develop, base());
+    assert_eq!(m.get(SNAPSHOT), Some(snap), "not rewritten");
+}
+
+/// Given a library written with other defaults that can't be rewritten (the disk is full), when
+/// it is opened, then it is refused and left as it is: appending to it would leave out values
+/// that mean something else in the file.
+#[test]
+fn a_library_with_other_defaults_that_cannot_be_rewritten_is_refused() {
+    struct ReadOnly(MemStore);
+    impl Store for ReadOnly {
+        fn read(&mut self, name: &str) -> std::io::Result<Option<Vec<u8>>> {
+            self.0.read(name)
+        }
+        fn write_atomic(&mut self, _: &str, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::other("disk full"))
+        }
+        fn append(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+            self.0.append(name, data)
+        }
+        fn truncate(&mut self, name: &str, len: u64) -> std::io::Result<()> {
+            self.0.truncate(name, len)
+        }
+        fn describe(&self) -> String {
+            "read-only".into()
+        }
+    }
+    let m = MemStore::new();
+    let snap = snapshot_stating(&other_defaults(), serde_json::json!({"1": stored_record(1, serde_json::json!({}))}));
+    m.set(SNAPSHOT, snap.clone());
+    let e = Journal::open(Box::new(ReadOnly(m.clone()))).err().expect("refused");
+    assert!(matches!(e, CatalogError::Io(_)), "{e:?}");
+    assert_eq!(m.files.lock().unwrap().clone(), [(SNAPSHOT.to_string(), snap)].into_iter().collect());
+}
+
+/// A reader of one library's defaults leaves the next library read on the thread alone.
+#[test]
+fn reading_over_a_librarys_defaults_ends_with_that_library() {
+    let m = MemStore::new();
+    m.set(SNAPSHOT, snapshot_stating(&other_defaults(), serde_json::json!({"1": stored_record(1, serde_json::json!({}))})));
+    Journal::open(Box::new(m)).unwrap();
+    let plainly: DevelopSettings = serde_json::from_str::<Photo>(&record(&catalog_of([plain(1)])).to_string()).map(|p| (*p.develop).clone()).unwrap();
+    assert_eq!(plainly, base());
 }
