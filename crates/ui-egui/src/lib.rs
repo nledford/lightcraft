@@ -58,6 +58,8 @@ mod tests_appearance;
 #[cfg(test)]
 mod tests_backup_folder;
 #[cfg(test)]
+mod tests_backup_schedule;
+#[cfg(test)]
 mod tests_before_after;
 #[cfg(test)]
 mod tests_browse_active;
@@ -327,13 +329,31 @@ pub enum QuitPrompt {
     Unsaved(String),
     /// Tasks that quitting would cut short are running: an import, an export… (issue #345).
     Tasks(String),
+    /// The library asks for a backup when LightCraft quits (`library.backupPreferences`,
+    /// `onClose: ask`): back it up first, skip it, or don't quit.
+    BackUp(String),
+    /// The library is being backed up before LightCraft quits, which it does when the backup is
+    /// made.
+    BackingUp(String),
+}
+
+/// The backup a library has when LightCraft quits, in the quit that is under way.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum QuitBackup {
+    /// Not decided yet (or the quit was called off: the next one starts here again).
+    #[default]
+    Undecided,
+    /// It is being made; LightCraft quits when it is.
+    Running,
+    /// Made, or skipped: nothing more is asked about it in this quit.
+    Settled,
 }
 
 impl QuitPrompt {
     /// The prompt's message.
     pub fn text(&self) -> &str {
         match self {
-            QuitPrompt::Unsaved(text) | QuitPrompt::Tasks(text) => text,
+            QuitPrompt::Unsaved(text) | QuitPrompt::Tasks(text) | QuitPrompt::BackUp(text) | QuitPrompt::BackingUp(text) => text,
         }
     }
 }
@@ -369,6 +389,9 @@ pub struct LightcraftApp {
     pub quit_prompt: Option<QuitPrompt>,
     /// Quit Anyway was chosen: the window may close with unsaved changes.
     pub quit_confirmed: bool,
+    /// How far the backup the library has when LightCraft quits has got in this quit (see
+    /// `panels::notices`).
+    pub quit_backup: QuitBackup,
     control_rx: Option<Receiver<ControlRequest>>,
     pending_screenshots: Vec<PendingShot>,
     screenshot_token: u64,
@@ -502,6 +525,7 @@ impl LightcraftApp {
             notices: vec![],
             quit_prompt: None,
             quit_confirmed: false,
+            quit_backup: QuitBackup::default(),
             control_rx: None,
             pending_screenshots: vec![],
             screenshot_token: 0,
@@ -735,6 +759,26 @@ impl LightcraftApp {
     /// Advance a running slideshow.
     fn slideshow_tick(&mut self, ctx: &egui::Context) {
         panels::slideshow::tick(self, ctx);
+    }
+
+    /// Back the library up by itself when its schedule says a backup is due
+    /// (`library.backupPreferences`, `every`). Looked at every few seconds, not every frame; the
+    /// backup has its row in the activity stack, and [`Self::backup_status`] says how it ended.
+    fn backup_schedule(&mut self, ctx: &egui::Context) {
+        use lightcraft_engine::backup_schedule::BackupEvery;
+        if self.session.backup_schedule.every == BackupEvery::Never {
+            return;
+        }
+        const LOOK_EVERY: f64 = 5.0;
+        let id = egui::Id::new("backup-schedule-looked");
+        let now = ctx.input(|i| i.time);
+        let looked: Option<f64> = ctx.data(|d| d.get_temp(id));
+        if looked.is_none_or(|at| now - at >= LOOK_EVERY || now < at) {
+            ctx.data_mut(|d| d.insert_temp(id, now));
+            lightcraft_engine::cmd::backup::back_up_if_due(&mut self.session);
+        }
+        // (an idle window still looks: a library left open for days is backed up)
+        ctx.request_repaint_after(std::time::Duration::from_secs(60));
     }
 
     /// Announce the end of a library backup: where it went, or why there is none.
@@ -1175,7 +1219,9 @@ impl LightcraftApp {
         recheck::tick(self);
         tasks::poll(self, ctx);
         self.preview_build_status(ctx);
+        self.backup_schedule(ctx);
         self.backup_status(ctx);
+        panels::notices::quit_after_backup(self);
         self.save_status(ctx);
         self.slideshow_tick(ctx);
         panels::faces::pump(self, ctx);
