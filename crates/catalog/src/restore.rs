@@ -652,6 +652,80 @@ pub fn restore(backup: &Path, library: &Path, options: &RestoreOptions<'_>, watc
     stage(backup, library, options, watch)?.replace()
 }
 
+/// The files of a library folder, read as they are; what opening them writes (an upgrade to this
+/// build's format, a repaired log) is held in memory and never reaches the folder.
+struct Trial {
+    disk: crate::FsStore,
+    written: std::collections::BTreeMap<String, Option<Vec<u8>>>,
+}
+
+impl Trial {
+    fn now(&mut self, name: &str) -> std::io::Result<Option<Vec<u8>>> {
+        use crate::Store;
+        match self.written.get(name) {
+            Some(held) => Ok(held.clone()),
+            None => self.disk.read(name),
+        }
+    }
+}
+
+impl crate::Store for Trial {
+    fn read(&mut self, name: &str) -> std::io::Result<Option<Vec<u8>>> {
+        self.now(name)
+    }
+    fn write_atomic(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+        self.written.insert(name.to_string(), Some(data.to_vec()));
+        Ok(())
+    }
+    fn append(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+        let mut all = self.now(name)?.unwrap_or_default();
+        all.extend_from_slice(data);
+        self.written.insert(name.to_string(), Some(all));
+        Ok(())
+    }
+    fn truncate(&mut self, name: &str, len: u64) -> std::io::Result<()> {
+        if let Some(mut all) = self.now(name)? {
+            all.truncate(usize::try_from(len).unwrap_or(usize::MAX));
+            self.written.insert(name.to_string(), Some(all));
+        }
+        Ok(())
+    }
+    fn remove(&mut self, name: &str) -> std::io::Result<()> {
+        self.written.insert(name.to_string(), None);
+        Ok(())
+    }
+    fn keeps_replaced_formats(&self) -> bool {
+        false
+    }
+    fn list(&mut self) -> std::io::Result<Vec<String>> {
+        let mut names = crate::Store::list(&mut self.disk)?;
+        names.retain(|n| !self.written.contains_key(n));
+        names.extend(self.written.iter().filter(|(_, held)| held.is_some()).map(|(n, _)| n.clone()));
+        names.sort();
+        Ok(names)
+    }
+    fn segmented(&self) -> bool {
+        crate::Store::segmented(&self.disk)
+    }
+    fn describe(&self) -> String {
+        crate::Store::describe(&self.disk)
+    }
+}
+
+/// Whether the library in `library` opens as a catalog in this build, without changing a file
+/// of it: what a restore into a folder nothing opens is checked with, so that a backup whose
+/// files are all as its marker lists them, and are still no catalog, is not left there as a
+/// library. The error says why it does not open.
+pub fn opens(library: &Path) -> Result<(), String> {
+    // (a folder that isn't there, or holds no catalog, is not made or taken for a new library)
+    // (the folder may be reached through a link: it is read, not rearranged)
+    if !library.is_dir() || !(there(&library.join(SNAPSHOT)) || there(&library.join(LOG))) {
+        return Err(format!("there is no catalog in {}", library.display()));
+    }
+    let disk = crate::FsStore::open(library).map_err(|e| e.to_string())?;
+    crate::Journal::open(Box::new(Trial { disk, written: Default::default() })).map(|_| ()).map_err(|e| e.to_string())
+}
+
 /// What a restore replaced, as it is in `Replaced` now.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Replaced {

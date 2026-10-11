@@ -229,6 +229,11 @@ pub(crate) fn folder_for(path: &Path) -> Result<(), BackupError> {
     }
 }
 
+/// Whether `name` is a plain file name of a library or backup folder: one name, no path in it.
+pub fn is_plain_name(name: &str) -> bool {
+    valid_name(name)
+}
+
 pub(crate) fn valid_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 200
