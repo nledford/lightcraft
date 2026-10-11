@@ -276,6 +276,7 @@
   "The library was not restored: {}": "La bibliothèque n’a pas été restaurée : {}",
   "Folders of what restores replaced, removed: {}": "Dossiers supprimés de ce que les restaurations ont remplacé : {}",
   "Folders of what restores replaced that could not be removed: {}": "Dossiers de ce que les restaurations ont remplacé qui n’ont pas pu être supprimés : {}",
+  "Not available right now: {}": "Indisponible pour le moment : {}",
   "{count} more warnings.": "{count} avertissements supplémentaires.",
   "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "{skipped} images du catalogue n’ont pas été importées, car leurs entrées dans le catalogue sont incomplètes.",
   "{photos} catalog records processed; {collections} collections.": "{photos} entrées du catalogue traitées ; {collections} collections.",

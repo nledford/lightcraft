@@ -276,6 +276,7 @@
   "The library was not restored: {}": "Библиотека не восстановлена: {}",
   "Folders of what restores replaced, removed: {}": "Удалено папок с тем, что было заменено при восстановлениях: {}",
   "Folders of what restores replaced that could not be removed: {}": "Не удалось удалить папок с тем, что было заменено при восстановлениях: {}",
+  "Not available right now: {}": "Сейчас недоступно: {}",
   "{count} more warnings.": "Других предупреждений: {count}.",
   "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "Не импортированы изображения каталога: {skipped}. Их записи в каталоге неполные.",
   "{photos} catalog records processed; {collections} collections.": "Обработано записей каталога: {photos}; коллекций: {collections}.",

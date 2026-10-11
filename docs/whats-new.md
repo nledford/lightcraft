@@ -30,6 +30,8 @@
   `library.backup` (`dir`; returns when the backup is made, or at once with `background`), `library.backupStatus`,
   `library.backupPreferences` (the folder a library's backups go to), `library.checkBackup` (reads a backup against
   the list of files it was made with, and names one that was edited or damaged since).
+- Why a backup or a restore can't be made right now, or was not made (one is running already, the library is being
+  restored, it was stopped or given up), is said in your language. Errors that name a folder or a file are still in English.
 - A backup restored into another folder (`library.restore` with `to`) is now checked to open as a library there;
   one that doesn't is taken back, as a restore of the open library already was.
 - What restores replaced (the Replaced folder in the library) no longer piles up for a library that keeps its
