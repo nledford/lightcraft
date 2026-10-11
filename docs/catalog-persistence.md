@@ -16,6 +16,8 @@ A photo's record states only what was set (`crates/catalog/src/stored.rs`):
 Reading did not change: a missing field reads as its default, so libraries of formats 1 to 9 load as they are and are
 rewritten in format 10 when first opened. Builds before format 10 refuse a format 10 library.
 
+The files an upgrade replaces are kept: see "Going back to an older version" below.
+
 `catalog.query` and the other commands still return every field. That public form of a photo is also what a Local
 record's fingerprint and the preview-cache key are made from, so neither changed.
 
@@ -28,6 +30,24 @@ Three rules keep what is left out safe:
   full, as before.
 - **What a missing value reads as is pinned** by a test (`crates/catalog/src/develop_defaults.json`). Changing a
   default is a new catalog format whose loader gives the photos of older libraries the old value.
+
+## Going back to an older version
+
+Opening a library with a newer LightCraft rewrites it in that version's format, and older versions then refuse it
+(safely: they say so and change nothing). So that this is not a one-way step, the upgrade first keeps the files the
+library was, byte for byte, beside it:
+
+- `catalog.snap.v<format>-<seq>` and `catalog.log.v<format>-<seq>`, where `<format>` is the format they are in and
+  `<seq>` the number of the last change they hold (a library that had no log, or only a log, has only the one file).
+  `Journal::open` reports their names (`LoadReport::kept`) and logs them.
+- A library whose files can't be kept (a full disk) is not upgraded: it opens as it is, and the next open tries
+  again. An upgrade that fails leaves no copy behind.
+- Nothing removes the kept files. They are as large as the library was; delete them once the older version is no
+  longer wanted. The browser build keeps none (it always runs the newest version).
+
+**To go back**, with LightCraft closed: move `catalog.snap` and `catalog.log` away, then rename the kept pair to
+`catalog.snap` and `catalog.log`. The older version opens the library as it was when it was upgraded; changes made
+since, in the newer version, are in the files that were moved away and are not carried back.
 
 ## When the log is compacted
 
