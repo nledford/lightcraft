@@ -183,15 +183,14 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     );
 }
 
-/// The file Edit In hands an editor: format, colour space and bit depth (`button:{id}Format-…`).
 /// Where the library's backups go (`library.backupPreferences`): shown, chosen with a folder
 /// dialog, and put back to Backups in the library folder. Only for a library that is a folder on
 /// disk: nothing else is backed up to a folder.
 fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     const ID: &str = "library.backupPreferences";
-    let Ok(now) = app.session.execute(ID, &json!({})) else { return };
-    let Some(folder) = now["folder"].as_str().map(str::to_string) else { return };
-    let chosen = !now["dir"].is_null();
+    // (read, not asked with the command: this is every frame, and a command is journaled)
+    let Some((folder, chosen)) = lightcraft_engine::cmd::backup::backup_folder(&app.session) else { return };
+    let folder = folder.display().to_string();
     heading(ui, t, crate::i18n::tr("Backups"));
     row(ui, t, crate::i18n::tr("Folder"), |ui| {
         ui.add(egui::Label::new(RichText::new(folder.clone()).color(t.text)).truncate()).on_hover_text(folder.clone());
@@ -227,6 +226,7 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     );
 }
 
+/// The file Edit In hands an editor: format, colour space and bit depth (`button:{id}Format-…`).
 fn edit_file_rows(ui: &mut egui::Ui, t: &Tokens, id: &str, file: &mut crate::state::EditFile) {
     use crate::state::{EditFormat, EditSpace};
     row(ui, t, "", |ui| {
