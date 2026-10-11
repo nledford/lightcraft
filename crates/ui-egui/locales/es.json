@@ -2246,6 +2246,7 @@
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Las copias de seguridad más antiguas de esta biblioteca se eliminan después de hacer una nueva. Las tres más recientes siempre se conservan.",
   "Removing old backups": "Eliminando copias de seguridad antiguas",
   "What restores replaced (Replaced in the library folder) goes by the same rule.": "Lo que las restauraciones reemplazaron (Replaced, en la carpeta de la biblioteca) sigue la misma regla.",
+  "Choose a Folder": "Elegir una carpeta",
   "Lightroom Catalog Import": "Importación de catálogo de Lightroom",
   "These photos are only in memory. Open a library on disk and import the catalog again to save them.": "Estas fotos solo están en memoria. Abre una biblioteca en disco e importa el catálogo de nuevo para guardarlas.",
   "Show in Library": "Mostrar en la biblioteca",
