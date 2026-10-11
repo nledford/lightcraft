@@ -311,8 +311,10 @@ the library was not restored. While it waits its row reads "copied", and can sti
   library is next opened.
 - `Replaced/<the time>` is named for when the restore was asked for, not for when the files were moved.
 - `background` is for a session that goes on (the app, MCP, the control channel). Without it the command does all of
-  it before it returns, which is what a script or a one-shot `lightcraft-cli run` needs: that program ends when the
-  command returns, and a restore in the background ends with it, having changed nothing.
+  it before it returns, which is what a script needs: a program that ends when the command returns takes a restore
+  in the background with it, having changed nothing. A headless `lightcraft-cli run` does not: it waits for a
+  restore or a backup that one of its commands started in the background, and prints how it ended as one more line
+  (`library.restoreStatus` / `library.backupStatus`); one that failed makes the call fail.
   `library.restoreStatus` reports a restore in the background and, asked until `running` is false, sees it through
   where no frame loop does.
 
