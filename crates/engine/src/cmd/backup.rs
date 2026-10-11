@@ -814,8 +814,19 @@ pub struct RestoreJob {
 }
 
 /// Why a restore that was stopped, or given up, made no change.
-const STOPPED: &str = "the restore was stopped; the library is as it was";
-const GIVEN_UP: &str = "the library was closed or opened again before the backup was moved into place; it is as it was";
+pub const STOPPED: &str = "the restore was stopped; the library is as it was";
+pub const GIVEN_UP: &str = "the library was closed or opened again before the backup was moved into place; it is as it was";
+
+/// Why a backup or a restore can't be made now, or was not made: the sentences that are the
+/// same whatever library they are about, so that an app can say them in its person's language
+/// ([`REFUSALS`]). The others name a folder or a file, and are said as they are.
+pub const RESTORE_UNDER_WAY: &str = "a restore of this library is under way";
+pub const BACKUP_RUNNING: &str = "a backup of this library is running";
+pub const RESTORE_STUCK: &str = "a restore of this library stopped part-way; open the library again";
+pub const NOT_ON_DISK: &str = "the library is not a folder on disk";
+/// (as `lightcraft_catalog::backup::BackupError::Cancelled` reads)
+pub const CANCELLED: &str = "the backup was cancelled";
+pub const REFUSALS: &[&str] = &[RESTORE_UNDER_WAY, BACKUP_RUNNING, RESTORE_STUCK, NOT_ON_DISK, GIVEN_UP, CANCELLED, STOPPED];
 
 /// Reports the copy to the restore's row, and stops it when the row's ✕ was pressed, when the
 /// restore was given up, or when nobody holds the job any more (the session is gone).
@@ -985,16 +996,16 @@ pub(crate) fn restoring(s: &Session, dir: &Path) -> bool {
 /// has left it half moved.
 fn can_restore(s: &Session) -> std::result::Result<(), String> {
     if restore_status(s).is_some_and(|r| r.running()) {
-        return Err("a restore of this library is under way".into());
+        return Err(RESTORE_UNDER_WAY.into());
     }
     if s.library.as_ref().is_some_and(|l| copying(s, &l.dir)) {
         return Err("a restore of this library is still being stopped".into());
     }
     if status(s).is_some_and(|b| !b.finished.load(Ordering::Relaxed)) {
-        return Err("a backup of this library is running".into());
+        return Err(BACKUP_RUNNING.into());
     }
     match s.library.as_ref().and_then(|l| l.stuck.as_ref()) {
-        Some(_) => Err("a restore of this library stopped part-way; open the library again".into()),
+        Some(_) => Err(RESTORE_STUCK.into()),
         None => Ok(()),
     }
 }
@@ -1253,7 +1264,7 @@ fn preferences(s: &mut Session, p: &Value) -> Result<Value> {
 }
 
 fn on_disk(s: &Session) -> std::result::Result<(), String> {
-    if s.library.as_ref().is_some_and(|l| l.on_disk) { Ok(()) } else { Err("the library is not a folder on disk".into()) }
+    if s.library.as_ref().is_some_and(|l| l.on_disk) { Ok(()) } else { Err(NOT_ON_DISK.into()) }
 }
 
 /// [`on_disk`], and no backup or restore of the library under way (a restore reads a backup,
@@ -1261,12 +1272,12 @@ fn on_disk(s: &Session) -> std::result::Result<(), String> {
 fn can_back_up(s: &Session) -> std::result::Result<(), String> {
     on_disk(s)?;
     if restore_status(s).is_some_and(|r| r.running()) {
-        return Err("a restore of this library is under way".into());
+        return Err(RESTORE_UNDER_WAY.into());
     }
     if s.library.as_ref().is_some_and(|l| l.stuck.is_some()) {
-        return Err("a restore of this library stopped part-way; open the library again".into());
+        return Err(RESTORE_STUCK.into());
     }
-    if status(s).is_some_and(|b| !b.finished.load(Ordering::Relaxed)) { Err("a backup of this library is running".into()) } else { Ok(()) }
+    if status(s).is_some_and(|b| !b.finished.load(Ordering::Relaxed)) { Err(BACKUP_RUNNING.into()) } else { Ok(()) }
 }
 
 pub fn specs() -> Vec<CommandSpec> {
