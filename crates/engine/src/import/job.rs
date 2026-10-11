@@ -158,7 +158,10 @@ fn normalize_import_path(path: &str) -> String {
 impl ImportJob {
     /// Snapshot what an import with `opts` needs from the session (no file-system calls). Takes
     /// the probes a preceding scan left ([`Session::import_probes`]).
-    pub fn new(s: &mut Session, opts: ImportOptions) -> crate::Result<Self> {
+    pub fn new(s: &mut Session, mut opts: ImportOptions) -> crate::Result<Self> {
+        // what is read from the photos is settled once, for all of the import: this import's
+        // choice, else the library's as it is now
+        opts.read = ReadChoice::of(opts.read.over(s.import_defaults.read));
         let mode = opts.mode;
         // Only a library on disk has an `Originals/` folder. The browser build keeps the bytes of
         // every added file in its own storage already, so "copy" there means "add".
@@ -360,6 +363,8 @@ impl ImportJob {
                     let mut q = Photo::new(PhotoId(0), Source::File { path: path.clone() }, &own, &info.format, 0, 0, &self.now);
                     q.captured = info.captured.clone();
                     q.meta = info.meta.clone();
+                    // (what is not read names no file or folder either)
+                    opts.read.over(ReadFromPhotos::ALL).of_the_file(&mut q.meta);
                     let name = opts.rename.as_deref().filter(|t| !t.trim().is_empty()).map(|t| {
                         let n = crate::rename::expand(t, &q, self.seq);
                         self.seq += 1;

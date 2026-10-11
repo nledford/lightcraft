@@ -31,7 +31,7 @@ pub(crate) use body::grid_height;
 #[cfg(test)]
 use body::{DEFAULT_BELOW_GRID, badge_rect, dup_counts};
 pub use body::{DEFAULT_FOLDER_TEMPLATE, body, example_destination, source_summary};
-pub(crate) use body::{DIALOG_SIZE, note_dialog_bottom};
+pub(crate) use body::{DIALOG_SIZE, READ_HINT, note_dialog_bottom, read_choices};
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use scan::cards_seen;
 pub use scan::{ScanTask, browse, open, poll_scan, running};
@@ -77,6 +77,10 @@ pub struct ImportDialog {
     /// What to do with those: `restore` (the default: the photo comes back with its edits), `fresh`
     /// (imported as a new photo, the old record deleted) or "" (leave them) — the `onDeleted` param.
     pub on_deleted: String,
+    /// What is read from the photos themselves (keywords, ratings and labels, titles and
+    /// captions, location, develop settings): the library's choice when the review opens.
+    #[serde(default)]
+    pub read: lightcraft_engine::import::ReadFromPhotos,
     /// The candidate clicked last: where a Shift-click range starts ([`ImportDialog::click`]).
     #[serde(skip)]
     pub last_clicked: Option<usize>,
