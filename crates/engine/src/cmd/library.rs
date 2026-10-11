@@ -352,6 +352,64 @@ fn next_seed(prev: u64, now: &str) -> u64 {
     (lightcraft_catalog::mix64(prev.wrapping_add(1)) ^ t) & (MAX_SEED - 1)
 }
 
+/// How many albums or folders one `library.source` call may name: far more than a person
+/// chooses in a sidebar, and a bound on what a caller can make each refresh test.
+pub(crate) const MAX_SOURCES: usize = 1000;
+
+/// `library.source`'s `ids`: album ids, each once (named twice, the last naming counts).
+fn source_album_ids(v: &Value) -> Result<Vec<AlbumId>> {
+    const C: &str = "library.source";
+    let list = v.as_array().ok_or_else(|| bad(C, "`ids` must be a list of album ids"))?;
+    if list.len() > MAX_SOURCES {
+        return Err(bad(C, format!("`ids` names more than {MAX_SOURCES} albums")));
+    }
+    let mut out: Vec<AlbumId> = Vec::new();
+    for x in list {
+        let id = AlbumId(x.as_u64().ok_or_else(|| bad(C, format!("`ids` must be a list of album ids, not {x}")))?);
+        out.retain(|o| *o != id);
+        out.push(id);
+    }
+    Ok(out)
+}
+
+/// `library.source`'s `paths`: folder paths, each folder once (named twice, the last counts).
+fn source_folder_paths(v: &Value) -> Result<Vec<String>> {
+    const C: &str = "library.source";
+    let list = v.as_array().ok_or_else(|| bad(C, "`paths` must be a list of folder paths"))?;
+    if list.len() > MAX_SOURCES {
+        return Err(bad(C, format!("`paths` names more than {MAX_SOURCES} folders")));
+    }
+    let mut out: Vec<String> = Vec::new();
+    for x in list {
+        let path = x.as_str().ok_or_else(|| bad(C, format!("`paths` must be a list of folder paths, not {x}")))?;
+        let key = lightcraft_catalog::query::folder_key(path);
+        out.retain(|o| lightcraft_catalog::query::folder_key(o) != key);
+        out.push(path.to_string());
+    }
+    Ok(out)
+}
+
+/// Whether `path` can be shown as a `libraryFolder` source: a folder (not the whole startup
+/// disk, nor a way to several disks) the library holds photos of.
+fn source_folder_check(s: &Session, path: &str) -> Result<()> {
+    const C: &str = "library.source";
+    if path.trim().is_empty() || lightcraft_catalog::query::folder_key(path).is_empty() {
+        return Err(bad(C, "libraryFolder needs the `path` of a folder from library.folders"));
+    }
+    if lightcraft_catalog::folders::is_startup_disk(path) {
+        return Err(bad(C, "the startup disk's path covers every disk: choose a folder in it"));
+    }
+    let f = Filter { library_folder: Some(path.to_string()), ..Default::default() };
+    let ids = s.catalog.query(&f, &Sort::default());
+    if ids.is_empty() {
+        return Err(bad(C, format!("{path}: no photo in the library was imported from it")));
+    }
+    if covers_other_disks(s, path, &ids) {
+        return Err(bad(C, format!("{path} holds other disks as well: choose a disk or a folder on one")));
+    }
+    Ok(())
+}
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         // ---- view source / filter / sort
@@ -360,44 +418,50 @@ pub fn specs() -> Vec<CommandSpec> {
             "Show Source",
             [],
             None,
-            "{kind: all|recentlyAdded|album|recentlyDeleted|picks|missing|libraryFolder, id?: albumId, path?: a path from library.folders (for libraryFolder)}",
+            "{kind: all|recentlyAdded|album|recentlyDeleted|picks|missing|libraryFolder, id?: albumId, path?: a path from library.folders (for libraryFolder), ids?: [albumId] or paths?: [path] to show several albums or several folders at once (the photos of any of them, each once; the last one named is the one single-album and single-folder actions take)}",
             always,
             |s, p| {
+                const C: &str = "library.source";
                 let kind = str_param(p, "kind").unwrap_or("all");
-                s.source = match kind {
-                    "all" => LibrarySource::All,
-                    "recentlyAdded" => LibrarySource::RecentlyAdded,
-                    "recentlyDeleted" => LibrarySource::RecentlyDeleted,
-                    "picks" => LibrarySource::Picks,
-                    "missing" => LibrarySource::Missing,
+                // everything is checked before anything changes: a refused call leaves the view
+                let (source, albums, folders) = match kind {
+                    "all" => (LibrarySource::All, Vec::new(), Vec::new()),
+                    "recentlyAdded" => (LibrarySource::RecentlyAdded, Vec::new(), Vec::new()),
+                    "recentlyDeleted" => (LibrarySource::RecentlyDeleted, Vec::new(), Vec::new()),
+                    "picks" => (LibrarySource::Picks, Vec::new(), Vec::new()),
+                    "missing" => (LibrarySource::Missing, Vec::new(), Vec::new()),
                     "album" => {
-                        let a = album_param(p, "id", "library.source")?;
-                        if s.catalog.album(a).is_none_or(|a| a.folder) {
-                            return Err(bad("library.source", "no such album"));
+                        let mut albums = match p.get("ids") {
+                            None | Some(Value::Null) => vec![album_param(p, "id", C)?],
+                            Some(v) => source_album_ids(v)?,
+                        };
+                        if let Some(gone) = albums.iter().find(|a| s.catalog.album(**a).is_none_or(|a| a.folder)) {
+                            return Err(bad(C, if p.get("ids").is_some() { format!("no such album {}", gone.0) } else { "no such album".into() }));
                         }
-                        LibrarySource::Album(a)
+                        // the last one named is the one a single-album action takes
+                        let Some(own) = albums.pop() else { return Err(bad(C, "`ids` names no album")) };
+                        (LibrarySource::Album(own), albums, Vec::new())
                     }
                     "libraryFolder" => {
-                        let path = str_param(p, "path").filter(|d| !d.trim().is_empty() && !lightcraft_catalog::query::folder_key(d).is_empty());
-                        let path = path.ok_or_else(|| bad("library.source", "libraryFolder needs the `path` of a folder from library.folders"))?;
-                        if lightcraft_catalog::folders::is_startup_disk(path) {
-                            return Err(bad("library.source", "the startup disk's path covers every disk: choose a folder in it"));
+                        let mut folders = match p.get("paths") {
+                            None | Some(Value::Null) => vec![str_param(p, "path").unwrap_or_default().to_string()],
+                            Some(v) => source_folder_paths(v)?,
+                        };
+                        for path in &folders {
+                            source_folder_check(s, path)?;
                         }
-                        let f = Filter { library_folder: Some(path.to_string()), ..Default::default() };
-                        let ids = s.catalog.query(&f, &Sort::default());
-                        if ids.is_empty() {
-                            return Err(bad("library.source", format!("{path}: no photo in the library was imported from it")));
-                        }
-                        if covers_other_disks(s, path, &ids) {
-                            return Err(bad("library.source", format!("{path} holds other disks as well: choose a disk or a folder on one")));
-                        }
-                        s.library_folder = Some(path.to_string());
-                        // one folder at a time: a folder filter left over would be ignored
+                        let Some(own) = folders.pop() else { return Err(bad(C, "`paths` names no folder")) };
+                        s.library_folder = Some(own);
+                        // the folders of the source: a folder filter left over would be ignored
                         s.filter.library_folder = None;
-                        LibrarySource::LibraryFolder
+                        s.filter.library_folders.clear();
+                        (LibrarySource::LibraryFolder, Vec::new(), folders)
                     }
-                    other => return Err(bad("library.source", format!("unknown source `{other}`"))),
+                    other => return Err(bad(C, format!("unknown source `{other}`"))),
                 };
+                s.source = source;
+                s.also_albums = albums;
+                s.also_library_folders = folders;
                 s.keep_active_in_view();
                 Ok(json!({"count": s.visible().len()}))
             }
@@ -407,7 +471,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Filter",
             [],
             None,
-            "partial Filter: {text?, rating?, ratingOp?: atLeast|exactly|atMost, flag?: pick|reject|none|null, label?, kind?, merged?: hdr|panorama|hdrPanorama|any, edited?, date?, libraryFolder?: a path from library.folders, keyword?, person?, camera?}",
+            "partial Filter: {text?, rating?, ratingOp?: atLeast|exactly|atMost, flag?: pick|reject|none|null, label?, kind?, merged?: hdr|panorama|hdrPanorama|any, edited?, date?, libraryFolder?: a path from library.folders, keyword?, person?, camera?, keywords?: [keyword] / dates?: [date] / libraryFolders?: [path] / albums?: [albumId] (more of each beside the single one: a photo matching any of them is shown; [] clears)}",
             always,
             |s, p| {
                 let mut v = serde_json::to_value(&s.filter).unwrap_or_default();
@@ -416,7 +480,16 @@ pub fn specs() -> Vec<CommandSpec> {
                 let mut f = f;
                 // a blank folder is no folder: no hidden "filters active" state
                 f.library_folder = f.library_folder.filter(|d| !d.trim().is_empty());
-                if f.library_folder.is_some() && s.source == LibrarySource::LibraryFolder {
+                f.library_folders.retain(|d| !d.trim().is_empty());
+                f.keywords.retain(|k| !k.trim().is_empty());
+                f.dates.retain(|d| !d.trim().is_empty());
+                if let Some(n) = [f.albums.len(), f.library_folders.len(), f.keywords.len(), f.dates.len()].into_iter().find(|n| *n > MAX_SOURCES) {
+                    return Err(bad(
+                        "library.filter",
+                        format!("{n} albums, folders, keywords or dates in one filter: at most {MAX_SOURCES} of each"),
+                    ));
+                }
+                if (f.library_folder.is_some() || !f.library_folders.is_empty()) && s.source == LibrarySource::LibraryFolder {
                     return Err(bad("library.filter", "a folder is already shown (library.source): show another source first"));
                 }
                 // checked like a smart album's rules when this call sets them: an unknown field or a value
@@ -473,10 +546,13 @@ pub fn specs() -> Vec<CommandSpec> {
                 if s.filter.library_folder.as_deref().is_some_and(|c| lightcraft_catalog::query::folder_within(c, path)) {
                     s.filter.library_folder = None;
                 }
+                s.filter.library_folders.retain(|c| !lightcraft_catalog::query::folder_within(c, path));
+                // of several folders shown, the others stay
+                s.also_library_folders.retain(|c| !lightcraft_catalog::query::folder_within(c, path));
                 // the folder being shown is gone: back to everything, as for a deleted album
                 if s.library_folder.as_deref().is_some_and(|c| lightcraft_catalog::query::folder_within(c, path)) {
-                    s.library_folder = None;
-                    if s.source == LibrarySource::LibraryFolder {
+                    s.library_folder = s.also_library_folders.pop();
+                    if s.source == LibrarySource::LibraryFolder && s.library_folder.is_none() {
                         s.source = LibrarySource::All;
                     }
                 }
@@ -1172,8 +1248,10 @@ pub fn specs() -> Vec<CommandSpec> {
                 }
                 let ops = order.into_iter().rev().map(|id| Op::RemoveAlbum { id }).collect();
                 s.commit(if folder { "Delete Folder" } else { "Delete Album" }, Op::Batch { ops })?;
+                // of several albums shown, the others stay
+                s.also_albums.retain(|a| !removed.contains(a));
                 if matches!(s.source, LibrarySource::Album(current) if removed.contains(&current)) {
-                    s.source = LibrarySource::All;
+                    s.source = s.also_albums.pop().map_or(LibrarySource::All, LibrarySource::Album);
                 }
                 ok()
             }
@@ -1687,8 +1765,14 @@ fn view_rules(s: &Session) -> lightcraft_catalog::Filter {
         None => {
             let mut f = s.source.to_filter(&s.filter, &s.catalog);
             f.deleted = false;
-            if s.source == LibrarySource::LibraryFolder {
-                f.library_folder = s.library_folder.clone();
+            match s.source {
+                LibrarySource::LibraryFolder => {
+                    f.library_folder = s.library_folder.clone();
+                    f.library_folders = s.also_library_folders.clone();
+                }
+                // every album shown, not the filter's own
+                LibrarySource::Album(_) => f.albums = s.also_albums.clone(),
+                _ => {}
             }
             f
         }
