@@ -617,7 +617,8 @@ pub fn poll_scan(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
     app.renderer.forget_imports();
     let mut d = ImportDialog::new(out.candidates);
-    d.read = app.session.import_defaults.read;
+    // as the review was last used, else as the library has it
+    d.read = app.session.import_defaults.read_in(lightcraft_engine::import::ReadDialog::Import);
     let trashed = d
         .candidates
         .iter()
@@ -689,6 +690,8 @@ pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String>
     }
     let total = queue.len();
     app.import = Some(ImportTask::new(queue, params, undo0, false));
+    // the Read row opens next time as it was used now
+    remember_read(app, lightcraft_engine::import::ReadDialog::Import, d.read);
     app.renderer.forget_imports();
     Ok(json!({"importing": total}))
 }
@@ -1339,6 +1342,20 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             }
         });
     });
+}
+
+/// Remember how a dialog's Read row was used, with the library (`library.preferences` →
+/// `import.readLast`): the dialog opens that way next time. Ticks that are the library's own
+/// choice are not kept, so a dialog nobody changed goes on following Settings ▸ Import.
+pub(crate) fn remember_read(app: &mut LightcraftApp, dialog: lightcraft_engine::import::ReadDialog, read: lightcraft_engine::import::ReadFromPhotos) {
+    if app.session.import_defaults.read_in(dialog) == read {
+        return;
+    }
+    // (not the person's action, and nothing of theirs is lost when it can't be saved: the
+    // dialog opens as the library has it)
+    if let Err(e) = app.session.execute("library.preferences", &json!({"import": {"readLast": {dialog.name(): read}}})) {
+        log::warn!("the Read choice of {} was not remembered: {e}", dialog.name());
+    }
 }
 
 /// What "Read" is about, in the import review and in Settings ▸ Import.

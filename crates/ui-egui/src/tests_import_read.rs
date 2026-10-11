@@ -125,3 +125,156 @@ fn the_import_review_opens_with_the_librarys_choice_and_can_differ_for_once() {
         let _ = std::fs::remove_dir_all(d);
     }
 }
+
+// ---- the dialogs remember their Read row; Synchronize Folder has one too ----
+
+/// Given a library that reads everything, when one import is reviewed with Ratings and labels
+/// unticked, then the next review opens with it unticked, while the library's choice (and so a
+/// dropped file) is as it was. When the library's choice is changed in Settings, the review
+/// follows the library again.
+#[test]
+fn the_import_review_opens_as_it_was_last_used() {
+    let (first, second, third) = (temp("last-first"), temp("last-second"), temp("last-third"));
+    a_rated_photo_with_a_keyword(&first, "one", 1);
+    a_rated_photo_with_a_keyword(&second, "two", 2);
+    a_rated_photo_with_a_keyword(&third, "three", 3);
+    let mut h = app();
+
+    review(&mut h, &first);
+    click(&mut h, "check:importRead.ratings");
+    import_what_is_reviewed(&mut h, 1);
+    assert_eq!(imported(&h, "one"), (0, vec!["fjord".to_string()]));
+
+    review(&mut h, &second);
+    let Some(Dialog::Import { opts }) = &h.app.ui.dialog else { panic!("the review") };
+    assert!(!opts.read.ratings && opts.read.keywords, "as it was last used: {:?}", opts.read);
+    assert_eq!(read(&mut h)["ratings"], json!(true), "the library's choice is its own");
+    h.app.ui.dialog = None;
+    // a file that is dropped in has no review: it is read as the library says
+    crate::import::start_paths(&mut h.app, vec![second.to_string_lossy().to_string()]).unwrap();
+    assert!(h.step_until(T, |h| h.app.session.catalog.len() == 2 && h.app.import.is_none()));
+    assert_eq!(imported(&h, "two"), (4, vec!["fjord".to_string()]));
+
+    // Settings ▸ Import ▸ Read from photos changes: the review follows it again
+    h.app.run("library.preferences", json!({"import": {"read": {"keywords": false}}})).unwrap();
+    review(&mut h, &third);
+    let Some(Dialog::Import { opts }) = &h.app.ui.dialog else { panic!("the review") };
+    assert!(opts.read.ratings && !opts.read.keywords, "as the library has it now: {:?}", opts.read);
+    for d in [first, second, third] {
+        let _ = std::fs::remove_dir_all(d);
+    }
+}
+
+/// Synchronize Folder on `dir`, scanned.
+fn synchronize_dialog(h: &mut Headless, dir: &Path) {
+    crate::sync::open(&mut h.app, &dir.to_string_lossy(), "folder", false).unwrap();
+    assert!(h.step_until(T, |h| matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { counts: Some(_), .. }))), "the scan finished");
+    h.step();
+}
+
+/// Given a folder of the library that got a new photo, then Synchronize Folder has the Read row
+/// of the import review, opening as the library has it. When Keywords is unticked and the
+/// folder synchronized, the new photo comes in rated and without its keywords; the dialog opens
+/// that way the next time, and the import review is as it was.
+#[test]
+fn synchronize_folder_has_a_read_row_that_it_remembers() {
+    let (dir, other) = (temp("sync-row"), temp("sync-row-other"));
+    a_rated_photo_with_a_keyword(&dir, "one", 1);
+    a_rated_photo_with_a_keyword(&other, "three", 3);
+    let mut h = app();
+    h.app.session.execute("library.import", &json!({"paths": [dir.to_string_lossy()]})).unwrap();
+    a_rated_photo_with_a_keyword(&dir, "two", 2);
+
+    synchronize_dialog(&mut h, &dir);
+    let r = h.request("ui.widgets", json!({"filter": "check:syncRead."}), T);
+    assert_eq!(r["result"].as_array().map(Vec::len), Some(5), "one for each kind: {r}");
+    assert!(matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { read, .. }) if read.is_all()), "as the library has it");
+    click(&mut h, "check:syncRead.keywords");
+    assert!(matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { read, .. }) if !read.keywords && read.ratings), "{:?}", h.app.ui.dialog);
+    let dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_ok());
+    assert!(h.step_until(T, |h| h.app.sync_run.is_none() && h.app.session.catalog.len() == 2), "the new photo comes in");
+    assert_eq!(imported(&h, "two"), (4, Vec::new()), "rated, its keywords left in the file");
+    assert_eq!(imported(&h, "one"), (4, vec!["fjord".to_string()]), "the photo that was there is as it was");
+
+    // the next time: as it was last used
+    a_rated_photo_with_a_keyword(&dir, "four", 4);
+    synchronize_dialog(&mut h, &dir);
+    assert!(matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { read, .. }) if !read.keywords && read.ratings), "{:?}", h.app.ui.dialog);
+    h.app.ui.dialog = None;
+    h.step();
+    // the other dialog and the library's choice are their own
+    assert_eq!(read(&mut h)["keywords"], json!(true));
+    review(&mut h, &other);
+    let Some(Dialog::Import { opts }) = &h.app.ui.dialog else { panic!("the review") };
+    assert!(opts.read.is_all(), "{:?}", opts.read);
+    for d in [dir, other] {
+        let _ = std::fs::remove_dir_all(d);
+    }
+}
+
+/// A folder with nothing new has nothing to read: no Read row.
+#[test]
+fn a_folder_with_no_new_photos_shows_no_read_row() {
+    let dir = temp("sync-norow");
+    a_rated_photo_with_a_keyword(&dir, "one", 1);
+    let mut h = app();
+    h.app.session.execute("library.import", &json!({"paths": [dir.to_string_lossy()]})).unwrap();
+    synchronize_dialog(&mut h, &dir);
+    let r = h.request("ui.widgets", json!({"filter": "check:syncRead."}), T);
+    assert_eq!(r["result"].as_array().map(Vec::len), Some(0), "{r}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Given a Synchronize Folder dialog with Keywords unticked whose scan went stale, when it is
+/// confirmed, then it is refused and scanned again with the tick as it was, and nothing is
+/// remembered for a synchronize that did not happen. When it is then synchronized, the choice
+/// is remembered; ticking Keywords again the next time forgets it, and the dialog follows the
+/// library once more.
+#[test]
+fn only_a_synchronize_that_was_taken_is_remembered_and_ticking_back_forgets() {
+    let dir = temp("sync-stale");
+    a_rated_photo_with_a_keyword(&dir, "one", 1);
+    let mut h = app();
+    h.app.session.execute("library.import", &json!({"paths": [dir.to_string_lossy()]})).unwrap();
+    a_rated_photo_with_a_keyword(&dir, "two", 2);
+    let unticked = |h: &Headless| matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { read, counts: Some(_), .. }) if !read.keywords);
+
+    synchronize_dialog(&mut h, &dir);
+    click(&mut h, "check:syncRead.keywords");
+    // the folder's photo changed since the scan
+    let id = h.app.session.catalog.photos().next().map(|p| p.id.0).unwrap();
+    h.app.session.execute("photo.rate", &json!({"ids": [id], "rating": 2})).unwrap();
+    let dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_err(), "what was shown is no longer so");
+    assert!(h.app.session.import_defaults.read_last.is_empty(), "nothing was synchronized: nothing is remembered");
+    assert!(h.step_until(T, unticked), "scanned again, the tick as it was: {:?}", h.app.ui.dialog);
+
+    let dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_ok());
+    assert!(h.step_until(T, |h| h.app.sync_run.is_none() && h.app.session.catalog.len() == 2));
+    assert!(h.app.session.import_defaults.read_last.synchronize.is_some_and(|r| !r.keywords), "now it is");
+
+    // the next time, Keywords is ticked again: as the library has it, so nothing to remember
+    a_rated_photo_with_a_keyword(&dir, "three", 3);
+    synchronize_dialog(&mut h, &dir);
+    assert!(unticked(&h));
+    click(&mut h, "check:syncRead.keywords");
+    let dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_ok());
+    assert!(h.step_until(T, |h| h.app.sync_run.is_none() && h.app.session.catalog.len() == 3));
+    assert!(h.app.session.import_defaults.read_last.is_empty(), "the dialog follows the library again");
+    assert_eq!(imported(&h, "three"), (4, vec!["fjord".to_string()]));
+
+    // with Import new photos unticked the row was not used: not remembered either
+    a_rated_photo_with_a_keyword(&dir, "four", 4);
+    synchronize_dialog(&mut h, &dir);
+    let mut dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    if let Dialog::SynchronizeFolder { import_new, read, .. } = &mut dlg {
+        (*import_new, read.ratings) = (false, false);
+    }
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_ok());
+    assert!(h.step_until(T, |h| h.app.sync_run.is_none()));
+    assert!(h.app.session.import_defaults.read_last.is_empty());
+    let _ = std::fs::remove_dir_all(dir);
+}
