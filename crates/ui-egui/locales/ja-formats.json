@@ -277,6 +277,7 @@
   "Older backups that could not be removed: {}": "削除できなかった古いバックアップ: {}",
   "Restored the library. What it held before is in {}": "ライブラリを復元しました。以前の内容は {} にあります",
   "The library was not restored: {}": "ライブラリを復元できませんでした: {}",
+  "Backups in {}": "{} 内のバックアップ",
   "{count} more warnings.": "ほかに{count}件の警告があります。",
   "{photos} catalog records processed; {collections} collections.": "カタログの{photos}件のレコードを処理しました。コレクションは{collections}件です。",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing}件のオリジナルが見つかりません。カタログのレコードは利用できます。「見つからない写真を検索」で再リンクしてください。",

@@ -273,6 +273,7 @@
   "Older backups that could not be removed: {}": "Не вдалося видалити старих резервних копій: {}",
   "Restored the library. What it held before is in {}": "Бібліотеку відновлено. Попередній вміст міститься в {}",
   "The library was not restored: {}": "Бібліотеку не відновлено: {}",
+  "Backups in {}": "Резервні копії в {}",
   "{count} more warnings.": "Інших попереджень: {count}.",
   "{photos} catalog records processed; {collections} collections.": "Оброблено записів каталогу: {photos}; колекцій: {collections}.",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "Не знайдено оригінали: {missing}. Їхні записи каталогу доступні; скористайтеся пошуком відсутніх фотографій, щоб відновити посилання.",

@@ -257,6 +257,7 @@
   "Older backups that could not be removed: {}": "Backup meno recenti che non è stato possibile rimuovere: {}",
   "Restored the library. What it held before is in {}": "Libreria ripristinata. Ciò che conteneva prima è in {}",
   "The library was not restored: {}": "La libreria non è stata ripristinata: {}",
+  "Backups in {}": "Backup in {}",
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})",
   "{n} preset{}": "{n} preset{}",
   " — kept but not applied: {}": " — kept but not applied: {}",

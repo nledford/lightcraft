@@ -277,6 +277,7 @@
   "Older backups that could not be removed: {}": "Backups antigos que não puderam ser removidos: {}",
   "Restored the library. What it held before is in {}": "Biblioteca restaurada. O conteúdo anterior está em {}",
   "The library was not restored: {}": "A biblioteca não foi restaurada: {}",
+  "Backups in {}": "Backups em {}",
   "{count} more warnings.": "Mais {count} avisos.",
   "{photos} catalog records processed; {collections} collections.": "{photos} registros do catálogo processados; {collections} coleções.",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing} originais estão ausentes. Seus registros no catálogo estão disponíveis; use Encontrar fotos ausentes para vinculá-los novamente.",
