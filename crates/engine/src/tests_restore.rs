@@ -362,11 +362,62 @@ fn a_restored_library_that_does_not_open_is_taken_back() {
     marker["contents"]["catalog.snap"] = json!({"bytes": snap.len(), "crc": crc32fast::hash(&snap)});
     std::fs::write(made.join("backup.json"), marker.to_string()).unwrap();
     assert_eq!(s.execute("library.checkBackup", &json!({"dir": made.to_string_lossy()})).unwrap()["ok"], json!(true));
-    // (restored into a folder of its own, it is a library that doesn't open)
+    // restored into a folder of its own, that is found out too: the folder is not left as a
+    // library that doesn't open
     let probe = temp_dir("taken-back-probe");
-    s.execute("library.restore", &json!({"dir": made.to_string_lossy(), "to": probe.to_string_lossy()})).unwrap();
-    assert!(Session::new().open_library(&probe, false).is_err());
+    let e = s.execute("library.restore", &json!({"dir": made.to_string_lossy(), "to": probe.to_string_lossy()})).unwrap_err().to_string();
+    assert!(e.contains("can't be opened") && e.contains("nothing of it is left"), "{e}");
+    assert!(!probe.exists(), "the folder the restore made is gone again");
+    // into a folder that was there and empty: it is empty again, and can be restored into
+    std::fs::create_dir_all(&probe).unwrap();
+    let e = s.execute("library.restore", &json!({"dir": made.to_string_lossy(), "to": probe.to_string_lossy()})).unwrap_err().to_string();
+    assert!(e.contains("nothing of it is left"), "{e}");
+    assert_eq!(names(&probe), Vec::<String>::new(), "empty as it was, and still there");
+    // a folder named with `..` in it is not judged by what its path means before part of it is
+    // made: it is refused, and what it would have come to mean is untouched
+    let kept = temp_dir("taken-back-kept");
+    std::fs::create_dir_all(&kept).unwrap();
+    std::fs::write(kept.join("photo.txt"), b"mine").unwrap();
+    let through = probe.join("not there").join("..").join("..").join(kept.file_name().unwrap());
+    let e = s.execute("library.restore", &json!({"dir": made.to_string_lossy(), "to": through.to_string_lossy()})).unwrap_err().to_string();
+    assert!(e.contains("`..`"), "{e}");
+    assert!(kept.join("photo.txt").is_file() && !probe.join("not there").exists());
+    let _ = std::fs::remove_dir_all(&kept);
     let _ = std::fs::remove_dir_all(&probe);
+    // and into a library nothing has open: it is as it was, and opens
+    let other = temp_dir("taken-back-other");
+    let mut there = open(&other);
+    there.execute("photo.rate", &json!({"rating": 3})).unwrap();
+    let was = there.catalog.to_snapshot();
+    there.close_library().unwrap();
+    drop(there);
+    let e = s.execute("library.restore", &json!({"dir": made.to_string_lossy(), "to": other.to_string_lossy()})).unwrap_err().to_string();
+    assert!(e.contains("can't be opened") && e.contains("as it was"), "{e}");
+    assert!(other.join("Replaced").join("2026-09-30 12.00.00 UTC (not opened)").join("catalog.snap").is_file());
+    assert!(!other.join("restore.json").exists() && !other.join("catalog.lock.owner").exists());
+    assert_eq!(open(&other).catalog.to_snapshot(), was);
+    // again in the same second: taken back again, under a name of its own
+    let e = s.execute("library.restore", &json!({"dir": made.to_string_lossy(), "to": other.to_string_lossy()})).unwrap_err().to_string();
+    assert!(e.contains("as it was"), "{e}");
+    assert!(
+        other.join("Replaced").join("2026-09-30 12.00.00 UTC (2) (not opened)").join("catalog.snap").is_file(),
+        "{:?}",
+        names(&other.join("Replaced"))
+    );
+    assert_eq!(open(&other).catalog.to_snapshot(), was);
+    // and a library reached through a link is restored into like any other
+    #[cfg(unix)]
+    {
+        let (real, link) = (temp_dir("taken-back-real"), temp_dir("taken-back-link"));
+        let good = back_up(&mut s);
+        std::fs::create_dir_all(&real).unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        s.execute("library.restore", &json!({"dir": good.to_string_lossy(), "to": link.to_string_lossy()})).unwrap();
+        assert!(real.join("catalog.snap").is_file());
+        let _ = std::fs::remove_file(&link);
+        let _ = std::fs::remove_dir_all(&real);
+    }
+    let _ = std::fs::remove_dir_all(&other);
     // what of the session is the library's: its presets, where its smart previews go
     s.execute("preset.create", &json!({"name": "Mine"})).unwrap();
     let presets: Vec<String> = s.presets.iter().map(|p| p.id.clone()).collect();
