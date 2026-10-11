@@ -49,25 +49,21 @@
 //! The snapshot's `version` is the catalog format, and it covers the log beside it: the log has
 //! no header of its own, and is only ever appended to under a snapshot of this build's format.
 //!
-//! | Version | Written by | Adds |
-//! |---|---|---|
-//! | (none) | early builds: a log without a snapshot | |
-//! | 1 | up to v0.2.0 | |
-//! | 2 | after v0.2.0 | `Op::SetBrowsed`, `Catalog.browsed`, `Photo.local_baseline` |
-//! | 3 | albums by hand | `Op::SetAlbumOrder`, `Album.order` |
-//! | 4 | Reload reads lens data | `Op::SetEmbeddedLens` |
-//! | 5 | the keyword list | `Op::SetKeyword`, `Catalog.keyword_list` |
-//! | 6 | folder labels | `Op::SetFolderRecord`, `Catalog.folder_records` |
-//! | 7 | Kelvin white balance for raws whose camera has matrices (#730) | `Op::SetAsShotWb`, `WhiteBalance.scale` |
-//! | 8 | History cursor: Go to History Step adds no step | `Op::SetHistoryCursor`, `Photo.history_cursor` |
-//! | 9 | preview-only recheck | `Photo.preview_checked`, `Op::SetContent.preview_checked` |
-//! | 10 | compact records | the stored form ([`crate::stored`]): unset fields and default develop settings are left out |
+//! Every format, what it adds and which build wrote it first is one row of [`FORMATS`]: the
+//! newest row is [`VERSION`], what this build writes.
 //!
 //! Rules:
-//! - **Bump [`VERSION`]** (and add a row above) in the change that adds an [`Op`] variant or a
-//!   serialized field to the catalog, a photo, an album, a stack or develop settings that an older
-//!   build would misread or silently drop. New fields must deserialize from older data
-//!   (`#[serde(default)]`), so newer builds keep reading every older format.
+//! - **Add a row to [`FORMATS`]** in the change that adds an [`Op`] variant or a serialized field
+//!   to the catalog, a photo, an album, a stack or develop settings that an older build would
+//!   misread or silently drop. New fields must deserialize from older data (`#[serde(default)]`),
+//!   so newer builds keep reading every older format.
+//! - **A number means one format, and is final only on `main`.** Two changes written at the same
+//!   time both take the next number; the one that lands second takes the number after it (and
+//!   renames its fixture). A number that is spoken for but not in this build yet can have its
+//!   row all the same ([`Format::here`] set to `false`), so nothing else takes it.
+//! - **Every format from 6 on has a fixture**: a small library written by the build of that
+//!   format (`fixtures/v<N>-catalog.*`; `tests_stored::write_this_formats_fixture` writes this
+//!   build's), which every later build must open as it was (`tests_format_version`).
 //! - **Opening an older format upgrades it**: right after loading, [`Journal::open`] writes a
 //!   snapshot in this build's format (also for a new library), before anything is appended — so a
 //!   library is never a mix, and older builds refuse it from then on instead of reading part of it.
@@ -84,9 +80,46 @@ use crate::{Catalog, CatalogError, Op, Result};
 pub const SNAPSHOT: &str = "catalog.snap";
 pub const LOG: &str = "catalog.log";
 const FORMAT: &str = "lightcraft-catalog";
-/// The catalog format this build writes (and the newest it reads). See the module docs →
-/// *Format versions*; bump it whenever an [`Op`] variant or a serialized field is added.
-pub const VERSION: u32 = 10;
+/// One catalog format: a number in `catalog.snap` that says how the library beside it is written.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Format {
+    pub version: u32,
+    /// What it came with.
+    pub written_by: &'static str,
+    /// What it adds to the format before it.
+    pub adds: &'static str,
+    /// This build reads and writes what the format adds. `false`: the number is spoken for by a
+    /// change that is not in this build yet (see the module docs → *Format versions*).
+    pub here: bool,
+}
+
+const fn format(version: u32, written_by: &'static str, adds: &'static str) -> Format {
+    Format { version, written_by, adds, here: true }
+}
+
+/// Every catalog format, oldest first. (Before them: early builds wrote a log without a snapshot.)
+pub const FORMATS: &[Format] = &[
+    format(1, "up to v0.2.0", ""),
+    format(2, "after v0.2.0", "`Op::SetBrowsed`, `Catalog.browsed`, `Photo.local_baseline`"),
+    format(3, "albums by hand", "`Op::SetAlbumOrder`, `Album.order`"),
+    format(4, "Reload reads lens data", "`Op::SetEmbeddedLens`"),
+    format(5, "the keyword list", "`Op::SetKeyword`, `Catalog.keyword_list`"),
+    format(6, "folder labels", "`Op::SetFolderRecord`, `Catalog.folder_records`"),
+    format(7, "Kelvin white balance (#730)", "`Op::SetAsShotWb`, `WhiteBalance.scale`"),
+    format(8, "the History cursor", "`Op::SetHistoryCursor`, `Photo.history_cursor`"),
+    format(9, "preview-only recheck (#974)", "`Photo.preview_checked`, `Op::SetContent`'s `preview_checked`"),
+    format(10, "compact records", "the stored form (`crate::stored`): unset fields and default develop settings are left out"),
+];
+
+/// The catalog format this build writes (and the newest it reads): the newest of [`FORMATS`].
+pub const VERSION: u32 = newest(FORMATS);
+
+const fn newest(formats: &[Format]) -> u32 {
+    match formats.last() {
+        Some(f) => f.version,
+        None => 0,
+    }
+}
 
 /// When [`Journal::wants_snapshot`] says it's time to compact the log.
 ///

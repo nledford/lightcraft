@@ -177,6 +177,29 @@ fn later_ops() -> Vec<Op> {
     ]
 }
 
+/// What a fixture of format 7 on holds besides: a camera's as-shot white balance read later, and
+/// settings on the Kelvin scale (the format's `Op::SetAsShotWb` and `WhiteBalance.scale`).
+fn kelvin_ops() -> Vec<Op> {
+    let kelvin = edited(|s| {
+        s.wb.scale = lightcraft_develop::WbScale::Kelvin;
+        s.wb.temp = 5200.0;
+        s.wb.tint = 8.0;
+    });
+    vec![
+        Op::SetAsShotWb { id: PhotoId(8), wb: Some((5200.0, 8.0)) },
+        Op::SetDevelop { id: PhotoId(8), settings: kelvin, label: "White Balance".into(), edited: Some("2026-10-11T09:00:00".into()) },
+    ]
+}
+
+/// The changes a fixture's log holds: [`later_ops`], and from format 7 on [`kelvin_ops`].
+fn fixture_ops(version: u32) -> Vec<Op> {
+    let mut ops = later_ops();
+    if version >= 7 {
+        ops.extend(kelvin_ops());
+    }
+    ops
+}
+
 // ---- end of fixtures
 
 fn catalog_of(photos: impl IntoIterator<Item = Photo>) -> Catalog {
@@ -538,6 +561,54 @@ fn local_fingerprints_are_unchanged() {
 }
 const FINGERPRINT_OF_PLAIN_LOCAL_1: u64 = 18_354_247_549_712_272_181;
 
+/// The library the fixture of format `version` holds (`fixtures/v<N>-catalog.*`): three photos
+/// in the snapshot, with a log of later changes.
+pub(crate) fn fixture_library(version: u32) -> Catalog {
+    let mut library = fixture_snapshot();
+    for op in fixture_ops(version) {
+        library.apply(op).unwrap();
+    }
+    library
+}
+
+/// What the fixtures' snapshot holds: a photo with every field set, an untouched one, and a
+/// Local record with rich develop settings.
+fn fixture_snapshot() -> Catalog {
+    let mut rich_photo = plain(9);
+    rich_photo.develop = Arc::new(rich());
+    rich_photo.local = true;
+    rich_photo.set_local_baseline();
+    catalog_of([full(), plain(8), rich_photo])
+}
+
+/// Writes this build's fixture, `fixtures/v<VERSION>-catalog.*`: the fixture library as this
+/// build saves it, snapshot and log. Run it once, when a format is new: put two empty files there
+/// (the tests include them), then
+/// `cargo test -p lightcraft-catalog write_this_formats_fixture -- --ignored`. The files are then
+/// what that build wrote, and are never written again.
+#[test]
+#[ignore = "writes fixtures/v<VERSION>-catalog.*"]
+fn write_this_formats_fixture() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fixtures");
+    let (snap, log) = (dir.join(format!("v{VERSION}-catalog.snap.json")), dir.join(format!("v{VERSION}-catalog.log.jsonl")));
+    let written = |f: &std::path::Path| std::fs::metadata(f).is_ok_and(|m| m.len() > 0);
+    assert!(!written(&snap) && !written(&log), "format {VERSION} has its fixture: a fixture is what that build wrote");
+    let m = MemStore::new();
+    let (mut j, _, _) = Journal::open(Box::new(m.clone())).unwrap();
+    // the snapshot first, then the later changes as the log beside it
+    let mut library = fixture_snapshot();
+    let photos: Vec<Op> = library.photos().map(|p| Op::AddPhoto { photo: Box::new((**p).clone()) }).collect();
+    j.append(&photos).unwrap();
+    j.snapshot(&library).unwrap();
+    for op in fixture_ops(VERSION) {
+        library.apply(op.clone()).unwrap();
+        j.append(&[op]).unwrap();
+    }
+    drop(j);
+    std::fs::write(snap, m.get(SNAPSHOT).unwrap()).unwrap();
+    std::fs::write(log, m.get(LOG).unwrap()).unwrap();
+}
+
 /// Given a library saved by the format 6 build (every field of every record written out; the
 /// files in `fixtures/` were written by that build from the fixtures above, with a log of later
 /// changes), when it is opened, then it reads as it was and is rewritten in the compact form.
@@ -546,14 +617,7 @@ fn a_v6_library_loads_and_is_upgraded() {
     let old = include_str!("fixtures/v6-catalog.snap.json");
     let log = include_str!("fixtures/v6-catalog.log.jsonl");
     assert!(old.starts_with(r#"{"format":"lightcraft-catalog","version":6,"#) && log.lines().count() == later_ops().len());
-    let mut rich_photo = plain(9);
-    rich_photo.develop = Arc::new(rich());
-    rich_photo.local = true;
-    rich_photo.set_local_baseline();
-    let mut expected = catalog_of([full(), plain(8), rich_photo]);
-    for op in later_ops() {
-        expected.apply(op).unwrap();
-    }
+    let expected = fixture_library(6);
 
     let m = MemStore::new();
     m.set(SNAPSHOT, old.as_bytes().to_vec());
