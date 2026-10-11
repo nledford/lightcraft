@@ -124,6 +124,11 @@ caches (`crates/catalog/src/backup.rs`). It goes to `Backups` in the library fol
 toast where it went or why there is none; the command itself returns when the backup is made (`background: true` for
 the other).
 
+- **A backup takes every file the library has.** The library's own files beside the catalog are one list
+  (`SettingsFile` in `crates/engine/src/library.rs`), which is what a backup takes along and what the browser build
+  reads at start-up. The library's file store refuses to write a file that is not on it, so a new one can't be added
+  without being backed up. Not in a backup: the files an upgrade kept (`catalog.snap.v…`), a damaged log set aside,
+  previews and caches.
 - **A backup is a library.** Opening its folder shows the catalog as it was. To go back to it, copy the folder and
   open the copy, or copy its files over the library's. Opening the backup itself turns it into a library in use: it is
   changed from then on, no longer passes `library.checkBackup`, and (it holds the library's preferences) sends its own
