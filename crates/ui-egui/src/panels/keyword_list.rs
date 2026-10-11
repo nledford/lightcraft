@@ -218,6 +218,7 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, r: &Row, selection: &[PhotoId
     if picked {
         ui.painter().rect_filled(inner, 4.0, t.canvas);
         register(ui.ctx(), format!("keywordPicked:{}", r.path), inner);
+        super::side_select::outline(app, ui, super::side_select::SideList::KeywordList, true, rect, 16.0);
     } else if resp.hovered() {
         ui.painter().rect_filled(inner, 4.0, t.hover.gamma_multiply(0.6));
     }

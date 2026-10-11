@@ -19,9 +19,22 @@ use crate::multi_select::{Click, ListRows, targets};
 use crate::state::Dialog;
 use crate::widgets::register;
 
+/// A sidebar list in which several rows can be chosen and then deleted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SideList {
+    Albums,
+    Folders,
+    Keywords,
+    KeywordList,
+}
+
 /// What the sidebars keep for choosing several rows.
 #[derive(Clone, Debug, Default)]
 pub struct SideState {
+    /// The list the Delete key acts on: the one in which several rows were just chosen with
+    /// Cmd/Ctrl or Shift, until the next click anywhere. A plain click never sets it, so after
+    /// choosing an album the usual way the keys stay with the photos.
+    pub keys: Option<SideList>,
     pub albums: ListRows<u64>,
     pub folders: ListRows<String>,
     pub keywords: ListRows<String>,
@@ -64,6 +77,72 @@ fn how(ui: &egui::Ui) -> Click {
     Click::of(ui.input(|i| i.modifiers))
 }
 
+/// After a click in `list` that left `chosen` rows chosen: it takes the Delete key when several
+/// were chosen with Cmd/Ctrl or Shift.
+fn take_keys(app: &mut LightcraftApp, list: SideList, how: Click, chosen: usize) {
+    app.ui.side.keys = (how != Click::Plain && chosen > 1).then_some(list);
+}
+
+/// Each frame, before the panels and the shortcuts: a press anywhere gives the keys back to the
+/// photos (a Cmd/Shift+click in a list takes them again when it is released).
+pub(crate) fn keys_frame(app: &mut LightcraftApp, ctx: &egui::Context) {
+    if app.ui.side.keys.is_some() && ctx.input(|i| i.pointer.any_pressed()) {
+        app.ui.side.keys = None;
+    }
+}
+
+/// The Delete key, when a sidebar list has it ([`SideState::keys`]): asks before deleting (or
+/// removing from the library) the rows chosen there. Returns whether the key was taken.
+pub(crate) fn delete_key(app: &mut LightcraftApp, ctx: &egui::Context) -> bool {
+    let Some(list) = app.ui.side.keys else { return false };
+    let pressed = ctx.input_mut(|i| {
+        let back = i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace);
+        i.consume_key(egui::Modifiers::NONE, egui::Key::Delete) || back
+    });
+    if !pressed {
+        return false;
+    }
+    let dialog = match list {
+        SideList::Albums => Some(albums_shown(app)).filter(|ids| ids.len() > 1).map(|ids| delete_albums_dialog(&ids)),
+        SideList::Keywords => Some(app.session.filter.keywords_wanted()).filter(|k| k.len() > 1).map(|k| delete_keywords_dialog(app, &k)),
+        SideList::KeywordList => Some(list_picked(app)).filter(|k| k.len() > 1).map(|k| delete_keywords_dialog(app, &k)),
+        SideList::Folders => {
+            let paths = app.session.source_library_folders();
+            if paths.len() > 1 && paths.iter().any(|p| lightcraft_catalog::folders::is_disk_root(p)) {
+                app.toast(ctx, crate::i18n::tr("One of them is a whole disk: remove a disk by itself").to_string());
+                return true;
+            }
+            Some(paths).filter(|p| p.len() > 1).map(|p| remove_folders_dialog(app, &p))
+        }
+    };
+    match dialog {
+        Some(d) => app.ui.dialog = Some(d),
+        // what was chosen is not there any more: the key is the photos' again
+        None => app.ui.side.keys = None,
+    }
+    true
+}
+
+/// Whether the rows chosen in `list` are what the Delete key acts on now (they are outlined).
+pub(crate) fn has_keys(app: &LightcraftApp, list: SideList) -> bool {
+    app.ui.side.keys == Some(list)
+}
+
+/// Outline a chosen row of the list that has the Delete key.
+pub(crate) fn outline(app: &LightcraftApp, ui: &egui::Ui, list: SideList, chosen: bool, row: egui::Rect, inset: f32) {
+    if chosen && has_keys(app, list) {
+        let t = crate::theme::Tokens::get(ui.ctx());
+        ui.painter().rect_stroke(row.shrink2(egui::vec2(inset, 1.0)), 4.0, egui::Stroke::new(1.0, t.accent), egui::StrokeKind::Inside);
+    }
+}
+
+/// The confirmation for removing several folders from the library.
+fn remove_folders_dialog(app: &LightcraftApp, paths: &[String]) -> Dialog {
+    let f = lightcraft_catalog::Filter { library_folders: paths.to_vec(), ..Default::default() };
+    let count = app.session.catalog.query(&f, &lightcraft_catalog::Sort::default()).len();
+    Dialog::Several(Several::RemoveFolders { paths: paths.to_vec(), count })
+}
+
 /// A new frame of the left panel: the rows of the last one are what a click now is on.
 pub(crate) fn begin_left(app: &mut LightcraftApp) {
     let s = &mut app.ui.side;
@@ -88,8 +167,10 @@ fn albums_shown(app: &LightcraftApp) -> Vec<u64> {
 /// others chosen.
 pub(crate) fn album_clicked(app: &mut LightcraftApp, ui: &egui::Ui, id: AlbumId) {
     let chosen = albums_shown(app);
-    let keys = app.ui.side.albums.click(&chosen, &id.0, how(ui), &same_id);
+    let how = how(ui);
+    let keys = app.ui.side.albums.click(&chosen, &id.0, how, &same_id);
     show_albums(app, &keys);
+    take_keys(app, SideList::Albums, how, albums_shown(app).len());
 }
 
 /// Show these albums (none: All Photos).
@@ -193,13 +274,15 @@ pub(crate) fn folder_shown(app: &LightcraftApp, path: &str) -> bool {
 /// A click on the row of library folder `path`.
 pub(crate) fn folder_clicked(app: &mut LightcraftApp, ui: &egui::Ui, path: &str) {
     let chosen = app.session.source_library_folders();
-    let keys = app.ui.side.folders.click(&chosen, &path.to_string(), how(ui), &same_dir);
+    let how = how(ui);
+    let keys = app.ui.side.folders.click(&chosen, &path.to_string(), how, &same_dir);
     match keys.as_slice() {
         [] => app.act("library.source", json!({"kind": "all"})),
         // a source like an album or a Local folder: it replaces what the grid showed
         [one] => app.act("library.source", json!({"kind": "libraryFolder", "path": one})),
         many => app.act("library.source", json!({"kind": "libraryFolder", "paths": many})),
     };
+    take_keys(app, SideList::Folders, how, app.session.source_library_folders().len());
 }
 
 /// The folders a context menu opened on folder `path` acts on.
@@ -234,9 +317,7 @@ pub(crate) fn folders_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, paths: &[
         .on_hover_text(crate::i18n::tr("Moves the photos imported from these folders to Recently Deleted; no file is touched"))
         .on_disabled_hover_text(crate::i18n::tr("One of them is a whole disk: remove a disk by itself"));
     if remove.clicked() {
-        let f = lightcraft_catalog::Filter { library_folders: paths.to_vec(), ..Default::default() };
-        let count = app.session.catalog.query(&f, &lightcraft_catalog::Sort::default()).len();
-        app.ui.dialog = Some(Dialog::Several(Several::RemoveFolders { paths: paths.to_vec(), count }));
+        app.ui.dialog = Some(remove_folders_dialog(app, paths));
         ui.close();
     }
 }
@@ -268,6 +349,7 @@ pub(crate) fn keyword_clicked(app: &mut LightcraftApp, ui: &egui::Ui, path: &str
         [one] => app.act("library.filter", json!({"keyword": one, "keywords": []})),
         many => app.act("library.filter", json!({"keyword": null, "keywords": many})),
     };
+    take_keys(app, SideList::Keywords, how, app.session.filter.keywords_wanted().len());
 }
 
 /// The keywords a context menu opened on the Keywords row `path` acts on.
@@ -373,7 +455,9 @@ pub(crate) fn list_pick(app: &mut LightcraftApp, mut keys: Vec<String>) {
 /// A click on the Keyword List's row `path`.
 pub(crate) fn list_clicked(app: &mut LightcraftApp, ui: &egui::Ui, path: &str) {
     let chosen = list_picked(app);
-    let keys = app.ui.side.keyword_list.click(&chosen, &path.to_string(), how(ui), &same_kw);
+    let how = how(ui);
+    let keys = app.ui.side.keyword_list.click(&chosen, &path.to_string(), how, &same_kw);
+    take_keys(app, SideList::KeywordList, how, keys.len());
     list_pick(app, keys);
 }
 

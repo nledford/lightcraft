@@ -17,6 +17,9 @@
 //! - The Keyword List: Cmd+click and Shift+click pick several; − and the menu delete them all
 //!   after one question; the menu gives them all to the selected photos; dragging one of them
 //!   nests them all.
+//! - Given several rows just chosen with Cmd/Shift+click, when Delete is pressed, then the
+//!   question about those rows comes up; after a click elsewhere, or with one row chosen the
+//!   usual way, Delete is the photos' as it always was.
 
 use std::time::Duration;
 
@@ -433,4 +436,56 @@ fn dragging_one_of_several_keywords_nests_them_all() {
     assert!(h.app.ui.dragging_keyword.is_none(), "the drag ended");
     run(&mut h, "edit.undo", json!({}));
     assert_eq!(keywords_of(&h, ids[0]), vec!["Sel K1", "Sel K2"]);
+}
+
+fn several_dialog(h: &Headless) -> bool {
+    matches!(h.app.ui.dialog, Some(Dialog::Several(_)))
+}
+
+#[test]
+fn delete_asks_about_several_rows_just_chosen_and_is_the_photos_otherwise() {
+    let mut h = app("info");
+    let ([a, _, c, _], _) = four_albums(&mut h);
+    // one album chosen the usual way: Delete is not about albums
+    click(&mut h, &row(a));
+    assert!(h.app.ui.side.keys.is_none());
+    ask(&mut h, "ui.key", json!({"key": "Backspace"}));
+    assert!(!several_dialog(&h), "{:?}", h.app.ui.dialog);
+    ask(&mut h, "ui.dialog.cancel", json!({}));
+    // several chosen with Cmd+click: Delete asks about them
+    click(&mut h, &row(a));
+    cmd_click(&mut h, &row(c));
+    assert!(has(&h, &format!("highlight:album:{a}")));
+    ask(&mut h, "ui.key", json!({"key": "Backspace"}));
+    assert_eq!(h.app.ui.dialog, Some(Dialog::Several(Several::DeleteAlbums { ids: vec![a, c] })));
+    ask(&mut h, "ui.dialog.cancel", json!({}));
+    assert!(h.app.session.catalog.album(AlbumId(a)).is_some(), "asking deleted nothing");
+    // forward Delete too
+    ask(&mut h, "ui.key", json!({"key": "Delete"}));
+    assert!(several_dialog(&h));
+    ask(&mut h, "ui.dialog.cancel", json!({}));
+    // a click anywhere else gives the key back to the photos, with both albums still shown
+    let cell =
+        h.app.widgets.iter().find(|(w, _)| w.starts_with("cell:") || w.starts_with("thumb:")).map(|(w, _)| w.clone()).expect("a photo in the grid");
+    click(&mut h, &cell);
+    assert_eq!(shown(&h), vec![a, c]);
+    ask(&mut h, "ui.key", json!({"key": "Backspace"}));
+    assert!(!several_dialog(&h), "{:?}", h.app.ui.dialog);
+}
+
+#[test]
+fn delete_asks_about_several_keywords_picked_in_the_keyword_list() {
+    let (mut h, _) = keyword_list();
+    click(&mut h, "keywordRow:Sel K1");
+    shift_click(&mut h, "keywordRow:Sel K3");
+    ask(&mut h, "ui.key", json!({"key": "Backspace"}));
+    assert_eq!(
+        h.app.ui.dialog,
+        Some(Dialog::Several(Several::DeleteKeywords { keywords: vec!["Sel K1".to_string(), "Sel K2".to_string(), "Sel K3".to_string()], count: 2 }))
+    );
+    click(&mut h, "button:dialogOk");
+    assert!(!h.app.session.catalog.has_keyword("Sel K2"));
+    // nothing is chosen there any more: Delete is the photos' again
+    ask(&mut h, "ui.key", json!({"key": "Backspace"}));
+    assert!(!several_dialog(&h), "{:?}", h.app.ui.dialog);
 }

@@ -1307,6 +1307,7 @@ impl LightcraftApp {
         focus_scan::pump(self, ctx);
         self.collect_screenshots(ctx);
         self.issue_screenshots(ctx);
+        panels::side_select::keys_frame(self, ctx);
         if self.fonts_ready {
             shortcuts::handle(self, ctx);
         }
