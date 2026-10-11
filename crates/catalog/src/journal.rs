@@ -47,7 +47,8 @@
 //! # Format versions
 //!
 //! The snapshot's `version` is the catalog format, and it covers the log beside it: the log has
-//! no header of its own, and is only ever appended to under a snapshot of this build's format.
+//! no header of its own, and is only ever appended to under a snapshot that states the defaults
+//! its records leave out (this build's format, or one from 9 on with this build's defaults).
 //!
 //! Every format, what it adds and which build wrote it first is one row of [`FORMATS`]: the
 //! newest row is [`VERSION`], what this build writes.
@@ -71,11 +72,16 @@
 //! - **An upgrade keeps what it replaces**: older builds can't read the upgraded library, so the
 //!   files it was are first kept beside it as `catalog.snap.v<format>-<seq>` and
 //!   `catalog.log.v<format>-<seq>` (`seq`: the last change they hold), byte for byte
-//!   ([`LoadReport::kept`]). Put back under their own names, they are the library as the older
-//!   build left it. A library whose files can't be kept is not upgraded (it opens as it is, and
-//!   the next open tries again), and an upgrade that fails leaves no copy behind. Nothing removes
-//!   the kept files: they are the user's to delete. (Not where the store says there is no going
-//!   back, [`Store::keeps_replaced_formats`].)
+//!   ([`LoadReport::kept`]; a damaged log is kept under its own name instead). Put back under
+//!   their own names, they are the library as the older build left it. They stay exactly when
+//!   the library on disk is upgraded: an upgrade that did not happen leaves no copy. Nothing
+//!   removes them afterwards: they are the user's to delete. (Not where the store says there is
+//!   no going back, [`Store::keeps_replaced_formats`].)
+//! - **A library that can't be upgraded is not opened**, where appending to it as it is would
+//!   not be safe: one that states no defaults for develop settings (formats before 9) or other
+//!   ones than this build's ([`crate::stored`]), since a record written by this build leaves
+//!   out what equals this build's defaults. It is left as it was, and the error says why. (A
+//!   library that states this build's defaults opens as it is, and the next open tries again.)
 //! - **A newer format is refused, untouched**: a snapshot whose `version` is above [`VERSION`],
 //!   or a log record whose CRC matches (so it is exactly what was written) but whose op doesn't
 //!   parse, fails [`Journal::open`] with [`CatalogError::Newer`] before any file is modified — it
@@ -431,6 +437,8 @@ impl Journal {
         // (dropped once the snapshot and the log are read: their records are read over the
         // library's own defaults where those are not this build's)
         let mut reading = None;
+        // (the snapshot says what its records' missing develop settings read as: from format 10)
+        let mut states_defaults = false;
         let (mut catalog, snapshot_seq, snapshot_version) = match &snap {
             Some(bytes) => {
                 // the header first: a newer snapshot may not parse as this version's catalog
@@ -441,6 +449,7 @@ impl Journal {
                 if h.version > VERSION {
                     return Err(newer(format!("{SNAPSHOT} is catalog format v{}", h.version)));
                 }
+                states_defaults = h.defaults.is_some();
                 if let Some(theirs) = h.defaults.filter(|theirs| !crate::stored::reads_the_same(theirs)) {
                     log::info!("catalog: the library was written with other develop defaults; reading it over its own");
                     report.other_defaults = true;
@@ -545,15 +554,26 @@ impl Journal {
         }
 
         drop(reading);
+        // An older (or snapshot-less) library is brought to this build's format before anything
+        // is appended: a snapshot in this format makes older builds refuse the library instead
+        // of misreading ops or dropping fields they don't know.
+        let older = (!report.created && snapshot_version != Some(VERSION)).then(|| snapshot_version.unwrap_or(0));
         // (what this open has written the library anew with: this build's format and defaults)
         let mut rewritten = false;
         if let Some(at) = damaged_at {
-            rewritten = true;
             let name = format!("{LOG}.damaged-{}", j.seq);
             j.store.write_atomic(&name, &log).map_err(io)?;
             log::warn!("catalog log damaged at byte {at}; kept as {name}; state recovered up to op {}", j.seq);
             report.damaged = Some(name);
-            j.snapshot(&catalog)?;
+            match older {
+                // (its log goes either way: the snapshot it was is kept like any other upgrade's)
+                Some(from) => {
+                    report.kept = j.upgrade(&catalog, from, snap.as_deref(), &[], true)?.unwrap_or_default();
+                    report.upgraded_from = Some(from);
+                }
+                None => j.snapshot(&catalog)?,
+            }
+            rewritten = true;
         } else {
             if good_end < log.len() {
                 report.torn_bytes = (log.len() - good_end) as u64;
@@ -567,9 +587,6 @@ impl Journal {
                 j.log_bytes = good_end as u64;
             }
         }
-        // Bring an older (or new, or snapshot-less) library to this version's format before
-        // anything is appended: a snapshot in this format makes older builds refuse the library
-        // instead of misreading ops or dropping fields they don't know.
         if report.created {
             // tiny: written directly, not counted as a compaction
             let empty = format!("{}{}}}\n", snapshot_head(0), catalog.to_snapshot());
@@ -577,37 +594,73 @@ impl Journal {
                 Ok(()) => j.snapshot_bytes = empty.len() as u64,
                 Err(e) => log::warn!("catalog: can't write the new library's snapshot: {e}"),
             }
-        } else if report.damaged.is_none() && snapshot_version != Some(VERSION) {
-            let from = snapshot_version.unwrap_or(0);
-            match j.keep_replaced(from, snap.as_deref(), &log) {
-                Ok(kept) => match j.snapshot(&catalog) {
-                    Ok(()) => {
-                        rewritten = true;
-                        report.upgraded_from = Some(from);
-                        report.kept = kept;
-                        log::info!("catalog: upgraded from format v{from} to v{VERSION}; the files it was are kept as {:?}", report.kept);
-                    }
-                    Err(e) => {
-                        // nothing lost: the old files are intact and still load; retried on next
-                        // open. No copy of them stays: there is nothing to go back from.
-                        log::warn!("catalog: can't write the format v{VERSION} snapshot: {e}");
-                        j.forget_kept(&kept);
-                    }
-                },
-                // not upgraded without its way back: it opens as it is; retried on next open
-                Err(e) => log::warn!("catalog: can't keep the format v{from} files, so the library is not upgraded: {e}"),
+        } else if let (Some(from), false) = (older, rewritten) {
+            // A library that states its defaults and has this build's may go on as it is when it
+            // can't be upgraded now (the next open tries again): what is appended to it reads the
+            // same in every build that reads it. One that states none (formats before 9), or
+            // other ones, must not be appended to as it is: a record written from here on leaves
+            // out what equals this build's defaults.
+            let must = report.other_defaults || !states_defaults;
+            if let Some(kept) = j.upgrade(&catalog, from, snap.as_deref(), &log, must)? {
+                rewritten = true;
+                report.upgraded_from = Some(from);
+                report.kept = kept;
             }
         }
         if report.other_defaults && !rewritten {
-            // The library must state this build's defaults before anything is appended: a record
-            // written from here on leaves out what equals them. Unlike a format upgrade, this
-            // can't wait for the next open, and needs no copy kept (any build reads a library
-            // over the defaults it states).
+            // The same format, other defaults: the library must state this build's before
+            // anything is appended. Nothing is kept for that: any build reads a library over
+            // the defaults it states.
             j.snapshot(&catalog)?;
         }
 
         catalog.revision = 0;
         Ok((j, catalog, report))
+    }
+
+    /// Bring a library in format `from` to this build's: keep the files it was (`snap` and `log`,
+    /// see [`Journal::keep_replaced`]), then write the snapshot. `Some`: upgraded, with the names
+    /// of the files kept. `None`: not upgraded, and as it was (nothing kept). With `must`, that
+    /// is an error instead: the library can't be used as it is.
+    ///
+    /// The kept files stay exactly when the library on disk is in this build's format: also
+    /// when the snapshot was committed and something after it failed (resetting the log).
+    fn upgrade(&mut self, catalog: &Catalog, from: u32, snap: Option<&[u8]>, log: &[u8], must: bool) -> Result<Option<Vec<String>>> {
+        let refused = |what: &str, e: String| CatalogError::Io(format!("the library is in an older format (v{from}) and {what}: {e}"));
+        let kept = match self.keep_replaced(from, snap, log) {
+            Ok(kept) => kept,
+            Err(e) if must => return Err(refused("its files can't be kept before it is upgraded", e.to_string())),
+            Err(e) => {
+                // not upgraded without its way back: it opens as it is; retried on next open
+                log::warn!("catalog: can't keep the format v{from} files, so the library is not upgraded: {e}");
+                return Ok(None);
+            }
+        };
+        match self.snapshot(catalog) {
+            Ok(()) => {}
+            Err(e) if self.on_disk_version() == Some(VERSION) => {
+                // committed all the same: the library is upgraded, and its way back stays
+                log::warn!("catalog: upgraded to format v{VERSION}, but: {e}");
+            }
+            Err(e) => {
+                // nothing lost: the old files are intact and still load. No copy of them stays:
+                // there is nothing to go back from.
+                self.forget_kept(&kept);
+                if must {
+                    return Err(refused("can't be upgraded", e.to_string()));
+                }
+                log::warn!("catalog: can't write the format v{VERSION} snapshot: {e}");
+                return Ok(None);
+            }
+        }
+        log::info!("catalog: upgraded from format v{from} to v{VERSION}; the files it was are kept as {kept:?}");
+        Ok(Some(kept))
+    }
+
+    /// The format of the snapshot in the store, if it can be read.
+    fn on_disk_version(&mut self) -> Option<u32> {
+        let bytes = self.store.read(SNAPSHOT).ok()??;
+        serde_json::from_slice::<SnapHeader>(&bytes).ok().map(|h| h.version)
     }
 
     /// Keep the files of a library in format `from` before an upgrade replaces them: `snap` and
