@@ -28,8 +28,18 @@ Three rules keep what is left out safe:
   first one), and not single fields of a value that is read all or nothing (the crop rectangle).
 - **Every difference is read back and compared before it is written.** Settings that would not survive are stored in
   full, as before.
-- **What a missing value reads as is pinned** by a test (`crates/catalog/src/develop_defaults.json`). Changing a
-  default is a new catalog format whose loader gives the photos of older libraries the old value.
+- **The library says what a missing value reads as.** `catalog.snap` states it (`"defaults"`: the settings of a
+  record with nothing stated, about 2.6 kB once per library), and that covers the log beside it. So what a photo's
+  record means does not depend on the defaults of the LightCraft that reads it:
+  - a build with the same defaults reads the records as they are, at no cost;
+  - a build that only has settings the library never heard of does too (they take that build's default);
+  - a build whose defaults differ reads every record over the library's own, then rewrites the library with its own
+    before anything is added to it (`LoadReport::other_defaults`). If that can't be written, the library is refused
+    and left as it is.
+
+  What a missing value reads as in the current build is also pinned by a test
+  (`crates/catalog/src/develop_defaults.json`), so a changed default is seen when it is made. A setting that is
+  removed or renamed needs a loader of its own.
 
 ## Going back to an older version
 

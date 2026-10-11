@@ -1,7 +1,7 @@
 //! Crash-safe catalog persistence: an append-only op log plus periodic snapshots.
 //!
 //! Files (in a [`Store`]):
-//! - `catalog.snap` — `{"format":"lightcraft-catalog","version":V,"seq":N,"catalog":{…}}`, the
+//! - `catalog.snap` — `{"format":"lightcraft-catalog","version":V,"seq":N,"defaults":{…},"catalog":{…}}`, the
 //!   state after op `N` in catalog format `V` ([`VERSION`]); replaced atomically (temp + fsync +
 //!   rename).
 //! - `catalog.log` — JSON lines, one per op applied after the snapshot:
@@ -205,6 +205,10 @@ pub struct LoadReport {
     /// The files that upgrade replaced, kept beside the library under these names (the snapshot,
     /// then the log; a file there was none of has no copy).
     pub kept: Vec<String>,
+    /// The library stated other defaults for develop settings than this build has (it was written
+    /// by a build with other ones): its records were read over its own defaults, and it was
+    /// rewritten with this build's.
+    pub other_defaults: bool,
 }
 
 /// Where persistence time goes (reported by `library.info` → `persistence`; printed to stderr
@@ -379,7 +383,7 @@ fn write_snapshot(store: &mut dyn Store, seq: u64, catalog: &Catalog) -> std::io
         // serde_json emits many tiny writes: buffer them in a concrete writer (inlined), so only
         // 1 MiB chunks go through the store's `dyn Write`
         let mut b = std::io::BufWriter::with_capacity(1 << 20, w);
-        write!(b, "{{\"format\":\"{FORMAT}\",\"version\":{VERSION},\"seq\":{seq},\"catalog\":")?;
+        write!(b, "{}", snapshot_head(seq))?;
         serde_json::to_writer(&mut b, catalog).map_err(std::io::Error::other)?;
         b.write_all(b"}\n")?;
         b.flush()?;
@@ -392,11 +396,20 @@ fn write_snapshot(store: &mut dyn Store, seq: u64, catalog: &Catalog) -> std::io
 /// The highest `seq` a snapshot may hold; beyond it the counter is treated as corrupt, far from overflow.
 const MAX_SEQ: u64 = u64::MAX / 2;
 
+/// How `catalog.snap` starts for the state after op `seq`, up to the catalog itself: what it is,
+/// and what a record's missing develop settings read as ([`crate::stored`]).
+fn snapshot_head(seq: u64) -> String {
+    format!("{{\"format\":\"{FORMAT}\",\"version\":{VERSION},\"seq\":{seq},\"defaults\":{},\"catalog\":", crate::stored::base().0)
+}
+
 /// Just the identification of `catalog.snap` (read before the catalog itself).
 #[derive(serde::Deserialize)]
 struct SnapHeader {
     format: String,
     version: u32,
+    /// What a record's missing develop settings read as (from format 10 on).
+    #[serde(default)]
+    defaults: Option<serde_json::Value>,
 }
 
 /// The whole `catalog.snap` (after [`SnapHeader`] was checked; `format` and `version` are ignored).
@@ -415,6 +428,9 @@ impl Journal {
         let log = store.read(LOG).map_err(io)?;
         report.created = snap.is_none() && log.is_none();
         let snapshot_bytes = snap.as_ref().map_or(0, |b| b.len() as u64);
+        // (dropped once the snapshot and the log are read: their records are read over the
+        // library's own defaults where those are not this build's)
+        let mut reading = None;
         let (mut catalog, snapshot_seq, snapshot_version) = match &snap {
             Some(bytes) => {
                 // the header first: a newer snapshot may not parse as this version's catalog
@@ -424,6 +440,11 @@ impl Journal {
                 }
                 if h.version > VERSION {
                     return Err(newer(format!("{SNAPSHOT} is catalog format v{}", h.version)));
+                }
+                if let Some(theirs) = h.defaults.filter(|theirs| !crate::stored::reads_the_same(theirs)) {
+                    log::info!("catalog: the library was written with other develop defaults; reading it over its own");
+                    report.other_defaults = true;
+                    reading = Some(crate::stored::reading_over(Some(std::sync::Arc::new(theirs))));
                 }
                 let s: SnapFile = serde_json::from_slice(bytes).map_err(|e| CatalogError::Corrupt(format!("{SNAPSHOT}: {e}")))?;
                 // a seq this high can't come from real use; the next record's seq would wrap
@@ -523,7 +544,11 @@ impl Journal {
             needs_newline = !has_nl;
         }
 
+        drop(reading);
+        // (what this open has written the library anew with: this build's format and defaults)
+        let mut rewritten = false;
         if let Some(at) = damaged_at {
+            rewritten = true;
             let name = format!("{LOG}.damaged-{}", j.seq);
             j.store.write_atomic(&name, &log).map_err(io)?;
             log::warn!("catalog log damaged at byte {at}; kept as {name}; state recovered up to op {}", j.seq);
@@ -547,7 +572,7 @@ impl Journal {
         // instead of misreading ops or dropping fields they don't know.
         if report.created {
             // tiny: written directly, not counted as a compaction
-            let empty = format!("{{\"format\":\"{FORMAT}\",\"version\":{VERSION},\"seq\":0,\"catalog\":{}}}\n", catalog.to_snapshot());
+            let empty = format!("{}{}}}\n", snapshot_head(0), catalog.to_snapshot());
             match j.store.write_atomic(SNAPSHOT, empty.as_bytes()) {
                 Ok(()) => j.snapshot_bytes = empty.len() as u64,
                 Err(e) => log::warn!("catalog: can't write the new library's snapshot: {e}"),
@@ -557,6 +582,7 @@ impl Journal {
             match j.keep_replaced(from, snap.as_deref(), &log) {
                 Ok(kept) => match j.snapshot(&catalog) {
                     Ok(()) => {
+                        rewritten = true;
                         report.upgraded_from = Some(from);
                         report.kept = kept;
                         log::info!("catalog: upgraded from format v{from} to v{VERSION}; the files it was are kept as {:?}", report.kept);
@@ -571,6 +597,13 @@ impl Journal {
                 // not upgraded without its way back: it opens as it is; retried on next open
                 Err(e) => log::warn!("catalog: can't keep the format v{from} files, so the library is not upgraded: {e}"),
             }
+        }
+        if report.other_defaults && !rewritten {
+            // The library must state this build's defaults before anything is appended: a record
+            // written from here on leaves out what equals them. Unlike a format upgrade, this
+            // can't wait for the next open, and needs no copy kept (any build reads a library
+            // over the defaults it states).
+            j.snapshot(&catalog)?;
         }
 
         catalog.revision = 0;
