@@ -301,10 +301,8 @@ fn host_supports(app: &LightcraftApp, id: &str) -> bool {
         "file.restoreLibrary" => app.services.restore_library.is_some(),
         // a library that is a folder on disk is backed up to a folder (the browser's has its own backup, above)
         "library.backup" => app.session.library.as_ref().is_some_and(|l| l.on_disk),
-        // put back from a folder that is chosen: where there is a folder dialog
-        "library.restore" => {
-            app.session.library.as_ref().is_some_and(|l| l.on_disk) && (app.services.pick_folder.is_some() || app.services.picker.is_some())
-        }
+        // put back from one of the library's backups, which are listed (or from a folder that is chosen)
+        "library.restore" => app.session.library.as_ref().is_some_and(|l| l.on_disk),
         "photo.restore" | "photo.deletePermanently" => selection_deleted(app),
         "photo.delete" => !selection_deleted(app),
         // only in an album that holds its photos (not a smart one)
@@ -1212,11 +1210,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// File ▸ Restore Library from Backup… is for a library that is a folder on disk, where a
-    /// folder can be chosen: it asks for the backup's folder, copies it while the library stays
-    /// in use, and the library is the backup once that is moved into place.
+    /// File ▸ Restore Library from Backup… is for a library that is a folder on disk: it lists
+    /// the library's backups to choose from (`tests_restore_list`), and with `choose` it asks for
+    /// the backup's folder, copies it while the library stays in use, and the library is the
+    /// backup once that is moved into place.
     #[test]
-    fn restore_library_from_backup_asks_for_the_backups_folder() {
+    fn restore_library_from_backup_lists_the_backups_or_asks_for_a_folder() {
         let all = |app: &LightcraftApp| -> Vec<MenuNode> { menu_bar(app).into_iter().flat_map(|(_, v)| v).collect() };
         // (the demo library has no folder: not offered, dialog or no dialog)
         let mut demo = app();
@@ -1226,9 +1225,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         let mut session = lightcraft_engine::Session::new();
         session.open_library(&dir, true).unwrap();
-        // (no folder dialog on this host: not offered)
+        // (no folder dialog on this host: offered all the same, the backups are listed)
         let mut plain = LightcraftApp::new(session, crate::Services::default());
-        assert!(find(&all(&plain), "library.restore").is_none());
+        assert!(matches!(find(&all(&plain), "library.restore"), Some(MenuNode::Item { enabled: true, .. })));
+        assert_eq!(run_item(&mut plain, "library.restore", json!({})), Ok(Value::Null));
+        assert!(matches!(plain.ui.dialog.take(), Some(crate::state::Dialog::RestoreBackup { backups, .. }) if backups.is_empty()));
+        assert!(run_item(&mut plain, "library.restore", json!({"choose": true})).is_err(), "no folder dialog to choose with");
         let made = run_item(&mut plain, "library.backup", json!({"background": false})).unwrap()["report"]["dir"].as_str().unwrap().to_string();
         let then = plain.session.catalog.to_snapshot();
         let id = plain.session.selection.active.unwrap();
@@ -1239,7 +1241,7 @@ mod tests {
         let services = crate::Services { pick_folder: Some(Box::new(move || Some(chosen.clone()))), ..Default::default() };
         let mut app = LightcraftApp::new(session, services);
         assert!(matches!(find(&all(&app), "library.restore"), Some(MenuNode::Item { enabled: true, .. })));
-        let r = run_item(&mut app, "library.restore", json!({})).unwrap();
+        let r = run_item(&mut app, "library.restore", json!({"choose": true})).unwrap();
         assert_eq!((r["running"].as_bool(), r["backup"].as_str()), (Some(true), Some(made.as_str())), "{r}");
         let t0 = std::time::Instant::now();
         while app.session.execute("library.restoreStatus", &json!({})).unwrap()["running"] == json!(true)
@@ -1265,7 +1267,7 @@ mod tests {
         // nothing chosen: nothing done
         app.services.pick_folder = Some(Box::new(|| None));
         let seen = app.session.restore.clone().map(|r| std::sync::Arc::as_ptr(&r) as usize);
-        assert_eq!(run_item(&mut app, "library.restore", json!({})), Ok(Value::Null));
+        assert_eq!(run_item(&mut app, "library.restore", json!({"choose": true})), Ok(Value::Null));
         assert_eq!(app.session.restore.clone().map(|r| std::sync::Arc::as_ptr(&r) as usize), seen, "no restore was started");
         // while one runs, the item is off, and nothing is asked
         app.services.pick_folder = Some(Box::new(move || Some(made.clone())));
@@ -1277,7 +1279,8 @@ mod tests {
             flag.store(true, std::sync::atomic::Ordering::SeqCst);
             None
         }));
-        assert!(app.run("library.restore", json!({})).is_err());
+        assert!(app.run("library.restore", json!({})).is_err() && app.ui.dialog.is_none(), "nothing is listed either");
+        assert!(app.run("library.restore", json!({"choose": true})).is_err());
         assert!(!asked.load(std::sync::atomic::Ordering::SeqCst), "asked for a folder for a restore that can't be made");
         let t0 = std::time::Instant::now();
         while app.session.restore.as_ref().is_some_and(|r| r.running()) && t0.elapsed() < std::time::Duration::from_secs(20) {

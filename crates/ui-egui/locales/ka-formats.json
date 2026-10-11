@@ -249,6 +249,7 @@
   "Older backups that could not be removed: {}": "ძველი სარეზერვო ასლები, რომელთა წაშლა ვერ მოხერხდა: {}",
   "Restored the library. What it held before is in {}": "ბიბლიოთეკა აღდგა. მისი წინა შიგთავსი არის აქ: {}",
   "The library was not restored: {}": "ბიბლიოთეკა ვერ აღდგა: {}",
+  "Backups in {}": "სარეზერვო ასლები: {}",
   "· {n} photo{}": "· ფოტო: {n}{:.0}",
   "· {trashed} in Recently Deleted": "· ახლახან წაშლილებში: {trashed}",
   "“{parent}” has a “{name}” already. Merge the two?": "„{parent}“-ში „{name}“ უკვე არსებობს. გაერთიანდეს ორივე?",

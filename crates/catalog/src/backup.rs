@@ -531,7 +531,7 @@ pub fn list(dest: &Path) -> Vec<BackupReport> {
         .filter_map(|name| {
             let marker = dest.join(&name).join(MARKER);
             let made = std::fs::metadata(&marker).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
-            let mut report: BackupReport = serde_json::from_slice(&std::fs::read(&marker).ok()?).ok()?;
+            let mut report = self::marker(&dest.join(&name))?;
             report.dir = dest.join(&name);
             Some((made, name, report))
         })
