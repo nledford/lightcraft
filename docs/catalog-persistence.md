@@ -209,6 +209,22 @@ the other).
   `library.pruneBackups` says which backups are that old without removing any (`remove: true` removes them). A
   removal that is cut short leaves a `<name>.partial` folder, which is no backup and is cleared away by a later
   backup once it is an hour old; a backup of which nothing could be removed has its name back.
+- **What restores replaced goes by the same rule.** Each restore keeps the whole catalog it replaced in
+  `Replaced/<the time>` in the library folder, and nothing else ever removes those. A library that keeps its backups
+  for a time removes them with its old backups, after a backup is made to its own folder: the folders of `Replaced`
+  whose names say they are older than that, never the newest three of them (a folder named `… (not opened)`, which
+  holds a backup that did not open and not what the library was, goes by its age and is not one of the three).
+  Only a folder that is as the restore left it goes. One that was renamed has no age to go by; one that holds anything
+  a restore did not put there stays, which covers a folder that was opened as a library since (that leaves its
+  lock), anything you put into it, and also what the system adds when a folder is looked at (`.DS_Store`,
+  `Thumbs.db`): the rule can't tell those from yours. Nothing goes while a restore is cut short. What it can't tell
+  is a file you put there under a name the catalog uses (`presets.json`, a segment's name): that goes with the
+  folder.
+  The backup says what went (`replacedRemoved`, `replacedNotRemoved`), and so does the app's note. Before any is
+  removed, `library.pruneBackups` says which would go (`replaced.outdated`) and which are as old but stay, with why
+  (`replaced.kept`), so a folder that never goes is no riddle. A library that keeps its backups forever keeps all of
+  it. A removal that was cut short leaves `<name>.partial`, which goes with the next; one of which nothing could be
+  removed has its name back.
 - **For more than that, use a backup tool.** Each backup is an ordinary folder that stands on its own, so tools made
   for keeping snapshots (`restic`, `rustic` and the like) can take the folder backups go to, with their own rules
   for what to keep and where. Point them at finished backups, not at the library folder while LightCraft has it

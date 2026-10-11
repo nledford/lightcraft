@@ -2083,6 +2083,7 @@
   "Days": "Dias",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Os backups mais antigos desta biblioteca são removidos depois que um novo é feito. Os três mais recentes são sempre mantidos.",
   "Removing old backups": "Removendo backups antigos",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "O que as restaurações substituíram (Replaced, na pasta da biblioteca) segue a mesma regra.",
   "Lightroom Catalog Import": "Importação de catálogo do Lightroom",
   "These photos are only in memory. Open a library on disk and import the catalog again to save them.": "Estas fotos estão apenas na memória. Abra uma biblioteca no disco e importe o catálogo novamente para salvá-las.",
   "Show in Library": "Mostrar na biblioteca",

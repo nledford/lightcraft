@@ -253,6 +253,8 @@
   "Older backups that could not be removed: {}": "Starsze kopie zapasowe, których nie udało się usunąć: {}",
   "Restored the library. What it held before is in {}": "Przywrócono bibliotekę. Jej poprzednia zawartość jest w {}",
   "The library was not restored: {}": "Nie przywrócono biblioteki: {}",
+  "Folders of what restores replaced, removed: {}": "Usunięte foldery z tym, co zastąpiły przywrócenia: {}",
+  "Folders of what restores replaced that could not be removed: {}": "Foldery z tym, co zastąpiły przywrócenia, których nie udało się usunąć: {}",
   "· {trashed} in Recently Deleted": "· w Ostatnio usuniętych: {trashed}",
   " in {g} group{}": " w grupach: {g}{:.0}",
   " · kept, not applied: {}": " · zachowane, niezastosowane: {}",

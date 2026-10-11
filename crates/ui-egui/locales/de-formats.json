@@ -274,6 +274,8 @@
   "Older backups that could not be removed: {}": "Ältere Sicherungen, die nicht entfernt werden konnten: {}",
   "Restored the library. What it held before is in {}": "Bibliothek wiederhergestellt. Der vorherige Stand liegt in {}",
   "The library was not restored: {}": "Die Bibliothek wurde nicht wiederhergestellt: {}",
+  "Folders of what restores replaced, removed: {}": "Entfernte Ordner mit dem, was Wiederherstellungen ersetzt haben: {}",
+  "Folders of what restores replaced that could not be removed: {}": "Ordner mit dem, was Wiederherstellungen ersetzt haben, die nicht entfernt werden konnten: {}",
   "{count} more warnings.": "{count} weitere Warnungen.",
   "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "{skipped} Katalogbilder wurden nicht importiert, weil ihre Einträge im Katalog unvollständig sind.",
   "{photos} catalog records processed; {collections} collections.": "{photos} Katalogeinträge verarbeitet; {collections} Sammlungen.",

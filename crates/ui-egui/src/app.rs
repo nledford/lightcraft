@@ -411,6 +411,15 @@ impl LightcraftApp {
                 if not_removed > 0 {
                     msg = format!("{msg}\n{}", crate::i18n::tr_format!("Older backups that could not be removed: {}", not_removed));
                 }
+                // (and what earlier restores replaced, as old as that)
+                let replaced = count(&b.replaced_removed);
+                if replaced > 0 {
+                    msg = format!("{msg}\n{}", crate::i18n::tr_format!("Folders of what restores replaced, removed: {}", replaced));
+                }
+                let replaced = count(&b.replaced_not_removed);
+                if replaced > 0 {
+                    msg = format!("{msg}\n{}", crate::i18n::tr_format!("Folders of what restores replaced that could not be removed: {}", replaced));
+                }
                 // (long enough to read a path, or what went wrong)
                 self.toast_for(ctx, msg, 8.0);
             }

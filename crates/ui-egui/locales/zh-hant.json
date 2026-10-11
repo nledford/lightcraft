@@ -2044,6 +2044,7 @@
   "Days": "天數",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "建立新備份後，會移除此照片庫較舊的備份。最新的三個備份一律保留。",
   "Removing old backups": "正在移除舊備份",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "回復時被取代的內容（照片庫檔案夾中的 Replaced）適用相同的規則。",
   "Lightroom Catalog Import": "Lightroom 目錄匯入",
   "These photos are only in memory. Open a library on disk and import the catalog again to save them.": "這些相片僅保存在記憶體中。請開啟磁碟上的照片庫並再次匯入目錄以儲存相片。",
   "Show in Library": "在照片庫中顯示",

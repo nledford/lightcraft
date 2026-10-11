@@ -651,3 +651,107 @@ pub fn restore(backup: &Path, library: &Path, options: &RestoreOptions<'_>, watc
     }
     stage(backup, library, options, watch)?.replace()
 }
+
+/// What a restore replaced, as it is in `Replaced` now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Replaced {
+    /// Its folder's name (the time of the restore, as the caller named it).
+    pub name: String,
+    pub dir: PathBuf,
+    /// How much its files take.
+    pub bytes: u64,
+    /// It holds nothing but what a restore moves there (the catalog's files and `also`): nothing
+    /// was put into it since, and it was not opened as a library (which leaves a lock).
+    pub untouched: bool,
+    /// What it holds that a restore did not put there, when it is not [`Self::untouched`].
+    pub other: Option<String>,
+    /// It is `<name>.partial`: a removal of it was cut short.
+    pub going: bool,
+}
+
+/// The names a restore moves to a folder of `Replaced`.
+fn set_aside_by_a_restore(name: &str, also: &[&str]) -> bool {
+    name == SNAPSHOT || name == LOG || segments::valid_name(name) || also.contains(&name)
+}
+
+/// What a folder holds ([`backup::held`]) that a restore did not put there, if anything: the
+/// one test of whether a folder of `Replaced` is as a restore left it, for listing and removing.
+fn not_a_restores(held: &Result<Vec<String>, String>, also: &[&str]) -> Option<String> {
+    match held {
+        Err(other) => Some(other.clone()),
+        Ok(names) => names.iter().find(|n| !set_aside_by_a_restore(n, also)).cloned(),
+    }
+}
+
+fn replaced_at(dir: PathBuf, name: String, also: &[&str]) -> Replaced {
+    let held = backup::held(&dir);
+    let other = not_a_restores(&held, also);
+    let bytes =
+        held.unwrap_or_default().iter().filter_map(|n| std::fs::symlink_metadata(dir.join(n)).ok()).fold(0u64, |sum, m| sum.saturating_add(m.len()));
+    let going = name.ends_with(backup::PARTIAL);
+    Replaced { name, dir, bytes, untouched: other.is_none(), other, going }
+}
+
+/// What restores of `library` replaced: the folders of its `Replaced`, by name. Folders of its
+/// own only (not a link to one elsewhere, not a file). None while a restore of the library is
+/// cut short: its note names a folder there, and finishing it comes first.
+pub fn replaced(library: &Path, also: &[&str]) -> Vec<Replaced> {
+    let folder = library.join(REPLACED);
+    if there(&library.join(PENDING)) || !real_dir(&folder) {
+        return Vec::new();
+    }
+    let Ok(entries) = std::fs::read_dir(&folder) else { return Vec::new() };
+    let mut found: Vec<Replaced> = entries
+        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        .filter(|name| real_dir(&folder.join(name)))
+        .map(|name| replaced_at(folder.join(&name), name, also))
+        .collect();
+    found.sort_by(|a, b| a.name.cmp(&b.name));
+    found
+}
+
+/// Remove what a restore replaced: the folder `name` of the library's `Replaced`, as a whole.
+/// Only one that is as the restore left it ([`Replaced::untouched`]): a folder that something
+/// else was put into, or that was opened as a library since, is somebody's and is refused, as
+/// is anything while a restore of the library is cut short.
+///
+/// It is first named `<name>.partial`, so that a removal cut short leaves no half library that
+/// looks whole; one of that name is removed as it is, and one of which nothing could be removed
+/// has its name back. `Replaced` itself goes when it is empty.
+pub fn remove_replaced(library: &Path, name: &str, also: &[&str]) -> Result<(), BackupError> {
+    let folder = library.join(REPLACED);
+    let nothing = |why: String| refused(format!("{why}: nothing was removed"));
+    let plain = name.strip_suffix(backup::PARTIAL).unwrap_or(name);
+    if !backup::valid_name(plain) {
+        return Err(nothing(format!("{name:?} is not the name of a folder of {REPLACED}")));
+    }
+    if there(&library.join(PENDING)) {
+        return Err(nothing("a restore of this library was cut short; open the library to finish it first".into()));
+    }
+    let dir = folder.join(name);
+    if !real_dir(&folder) || !real_dir(&dir) {
+        return Err(nothing(format!("{} is not a folder of what a restore replaced", dir.display())));
+    }
+    if let Some(other) = not_a_restores(&backup::held(&dir), also) {
+        return Err(nothing(format!("{} holds what a restore did not put there ({other})", dir.display())));
+    }
+    let going = if name.ends_with(backup::PARTIAL) {
+        dir.clone()
+    } else {
+        let going = folder.join(format!("{name}{}", backup::PARTIAL));
+        if there(&going) {
+            return Err(nothing(format!("{} is in the way of removing {}", going.display(), dir.display())));
+        }
+        std::fs::rename(&dir, &going).map_err(|e| backup::io("can't remove", &dir, e))?;
+        backup::sync_dir(&folder);
+        going
+    };
+    if let Err(e) = std::fs::remove_dir_all(&going) {
+        // nothing of it went (a folder that may be renamed but not emptied): it has its name back
+        let whole = going != dir && there(&going.join(SNAPSHOT)) && std::fs::rename(&going, &dir).is_ok();
+        let left = if whole { "it is as it was".to_string() } else { format!("what is left of it is in {}", going.display()) };
+        return Err(refused(format!("can't remove {}: {e}; {left}", dir.display())));
+    }
+    let _ = std::fs::remove_dir(&folder);
+    Ok(())
+}

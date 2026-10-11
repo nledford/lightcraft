@@ -2243,6 +2243,7 @@
   "Days": "日数",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "このライブラリの古いバックアップは、新しいバックアップの作成後に削除されます。最新の 3 つは常に残ります。",
   "Removing old backups": "古いバックアップを削除中",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "復元で置き換えられた内容（ライブラリフォルダー内の Replaced）にも同じルールが適用されます。",
   "Lightroom Catalog Import": "Lightroomカタログの読み込み",
   "These photos are only in memory. Open a library on disk and import the catalog again to save them.": "これらの写真はメモリ内にのみあります。ディスク上のライブラリを開き、カタログを再度読み込んで保存してください。",
   "Show in Library": "ライブラリに表示",

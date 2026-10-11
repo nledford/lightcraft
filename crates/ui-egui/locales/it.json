@@ -2398,5 +2398,6 @@
   "1 year": "1 anno",
   "Days": "Giorni",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "I backup meno recenti di questa libreria vengono rimossi dopo la creazione di uno nuovo. I tre più recenti vengono sempre conservati.",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Ciò che i ripristini hanno sostituito (Replaced, nella cartella della libreria) segue la stessa regola.",
   "Removing old backups": "Rimozione dei backup vecchi"
 }

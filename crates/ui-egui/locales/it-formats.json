@@ -270,6 +270,8 @@
   "Older backups that could not be removed: {}": "Backup meno recenti che non è stato possibile rimuovere: {}",
   "Restored the library. What it held before is in {}": "Libreria ripristinata. Ciò che conteneva prima è in {}",
   "The library was not restored: {}": "La libreria non è stata ripristinata: {}",
+  "Folders of what restores replaced, removed: {}": "Cartelle di ciò che i ripristini hanno sostituito, rimosse: {}",
+  "Folders of what restores replaced that could not be removed: {}": "Cartelle di ciò che i ripristini hanno sostituito che non è stato possibile rimuovere: {}",
   "Imported {e} mask effect{} (Masking ▸ Effect)": "Imported {e} mask effect{} (Masking → Effect)",
   "{photos} catalog records processed; {collections} collections.": "Record del catalogo elaborati: {photos}; raccolte: {collections}.",
   "Skipped {problem}": "Saltato: {problem}",

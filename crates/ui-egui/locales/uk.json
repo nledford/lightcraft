@@ -2241,6 +2241,7 @@
   "Days": "Днів",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Старіші резервні копії цієї бібліотеки видаляються після створення нової. Три найновіші зберігаються завжди.",
   "Removing old backups": "Видалення старих резервних копій",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "До того, що було замінено під час відновлень (Replaced у папці бібліотеки), застосовується те саме правило.",
   "Lightroom Catalog Import": "Імпорт каталогу Lightroom",
   "Destination library": "Бібліотека призначення",
   "Show in Library": "Показати в бібліотеці",

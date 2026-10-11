@@ -55,6 +55,10 @@ pub struct BackupJob {
     /// The backups that were removed after it, by name, and the ones that could not be.
     pub removed: std::sync::Mutex<Vec<String>>,
     pub not_removed: std::sync::Mutex<Vec<String>>,
+    /// What earlier restores replaced (folders of the library's `Replaced`) that was removed
+    /// with them, by name, and what could not be.
+    pub replaced_removed: std::sync::Mutex<Vec<String>>,
+    pub replaced_not_removed: std::sync::Mutex<Vec<String>>,
 }
 
 impl BackupJob {
@@ -77,6 +81,9 @@ impl BackupJob {
             // (older than the library keeps them, removed once this backup was made)
             "removed": *self.removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
             "notRemoved": *self.not_removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+            // (what earlier restores replaced, as old as that)
+            "replacedRemoved": *self.replaced_removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+            "replacedNotRemoved": *self.replaced_not_removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
         })
     }
 }
@@ -162,6 +169,17 @@ fn run(name: String, job: &BackupJob, task: &TaskGuard, hold: &AtomicBool) {
         *job.removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = removed;
         *job.not_removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = not_removed;
     }
+    // And so does what earlier restores replaced, by the same rule (no restore is under way:
+    // none starts while a backup runs).
+    if let (Ok(_), Some(days)) = (&made, job.keep_days) {
+        let (removed, not_removed) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let old = outdated_replaced(&job.library, &job.started, days).goes;
+            remove_replaced(&job.library, &old, days, &|| job.cancel.load(Ordering::Relaxed), &|_| {})
+        }))
+        .unwrap_or_else(|_| (Vec::new(), vec!["what restores replaced: stopped on an internal error".to_string()]));
+        *job.replaced_removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = removed;
+        *job.replaced_not_removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = not_removed;
+    }
     *job.outcome.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(made.map_err(|e| e.to_string()));
 }
 
@@ -205,6 +223,108 @@ fn remove_outdated(dest: &Path, own: Own<'_>, now: &str, days: u32, spare: Optio
                 not_removed.push(format!("{}: {e}", name_of(&old)));
             }
         }
+    }
+    (removed, not_removed)
+}
+
+/// When a folder of `Replaced` was made, by its name: the time (UTC) the restore that made it
+/// was asked for, as [`free_name`] writes it, also with ` (2)` and up after it (another one of
+/// that second) or ` (not opened)` (a backup that did not open). `None` for any other name: a
+/// folder that was renamed is the person's own, and has no age to go by.
+pub(crate) fn replaced_time(name: &str) -> Option<String> {
+    let (time, rest) = (name.get(..19)?, name.get(19..)?.strip_prefix(" UTC")?);
+    let numbered = |rest: &str| {
+        let Some(n) = rest.strip_prefix(" (").and_then(|r| r.strip_suffix(')')) else { return false };
+        n.len() <= 6 && !n.starts_with('0') && n.parse::<u32>().is_ok_and(|n| n >= 2)
+    };
+    if !(rest.is_empty() || rest == NOT_OPENED || numbered(rest)) {
+        return None;
+    }
+    let (date, clock) = (time.get(..10)?, time.get(11..)?);
+    if time.as_bytes().get(10) != Some(&b' ') || clock.contains(':') {
+        return None;
+    }
+    let iso = format!("{date}T{}", clock.replace('.', ":"));
+    lightcraft_catalog::dates::shift_iso(&iso, 0).filter(|same| *same == iso)
+}
+
+/// What a folder of `Replaced` is named after when the backup put in the library's place did
+/// not open: it holds that backup's files, not what the library was.
+const NOT_OPENED: &str = " (not opened)";
+
+/// What of the library's `Replaced` is older than the library keeps its backups at `now`
+/// ([`outdated_replaced`]): what goes, oldest first, and what is that old and stays, with why.
+#[derive(Default)]
+struct OldReplaced {
+    goes: Vec<restore::Replaced>,
+    stays: Vec<(String, String)>,
+}
+
+/// What restores of `library` replaced that is older than the library keeps its backups at
+/// `now`: folders of `Replaced` under the name the restore gave them, whose time is not yet to
+/// come.
+///
+/// They go when they are as a restore left them (nothing put in, not opened as a library
+/// since), and never the newest [`backup::KEEP_AT_LEAST`] of the ones that hold what the library
+/// was (a folder of a backup that did not open is not one of those: it goes by its age alone).
+/// Before them, what a removal that was cut short left (`<name>.partial`). One that is that old
+/// and was touched since stays, and is said with what it holds.
+fn outdated_replaced(library: &Path, now: &str, days: u32) -> OldReplaced {
+    let Some(before) = kept_since(now, days) else { return OldReplaced::default() };
+    let all = restore::replaced(library, ALSO);
+    let mut dated: Vec<(String, &restore::Replaced)> =
+        all.iter().filter(|r| !r.going).filter_map(|r| Some((replaced_time(&r.name).filter(|at| at.as_str() <= now)?, r))).collect();
+    dated.sort_by(|a, b| (&a.0, &a.1.name).cmp(&(&b.0, &b.1.name)));
+    let stays = dated
+        .iter()
+        .filter(|(at, r)| !r.untouched && at.as_str() < before.as_str())
+        .map(|(_, r)| (r.name.clone(), format!("it holds what a restore did not put there ({})", r.other.as_deref().unwrap_or("something else"))))
+        .collect();
+    // (the floor is of what the library was: untouched, and not a backup that did not open)
+    let was = |r: &restore::Replaced| r.untouched && !r.name.ends_with(NOT_OPENED);
+    let beyond = dated.iter().filter(|(_, r)| was(r)).count().saturating_sub(backup::KEEP_AT_LEAST);
+    let mut seen = 0usize;
+    let mut goes: Vec<restore::Replaced> =
+        all.iter().filter(|r| r.untouched && r.going && r.name.strip_suffix(backup::PARTIAL).and_then(replaced_time).is_some()).cloned().collect();
+    for (at, r) in &dated {
+        let beyond_the_newest = if was(r) {
+            seen += 1;
+            seen <= beyond
+        } else {
+            true
+        };
+        if r.untouched && beyond_the_newest && at.as_str() < before.as_str() {
+            goes.push((*r).clone());
+        }
+    }
+    OldReplaced { goes, stays }
+}
+
+/// Remove `old` of the library's `Replaced` ([`outdated_replaced`]), until told to stop: the
+/// names of the ones removed, and of the ones that could not be (each with why).
+fn remove_replaced(
+    library: &Path,
+    old: &[restore::Replaced],
+    days: u32,
+    stop: &dyn Fn() -> bool,
+    done: &dyn Fn(usize),
+) -> (Vec<String>, Vec<String>) {
+    let (mut removed, mut not_removed) = (Vec::new(), Vec::new());
+    for (i, r) in old.iter().enumerate() {
+        if stop() {
+            break;
+        }
+        match restore::remove_replaced(library, &r.name, ALSO) {
+            Ok(()) => {
+                log::info!("library: removed what a restore replaced, {} (older than {days} days)", r.dir.display());
+                removed.push(r.name.clone());
+            }
+            Err(e) => {
+                log::warn!("library: {e}");
+                not_removed.push(format!("{}: {e}", r.name));
+            }
+        }
+        done(i + 1);
     }
     (removed, not_removed)
 }
@@ -315,10 +435,24 @@ fn prune(s: &mut Session, p: &Value) -> Result<Value> {
     };
     let listed: Vec<Value> =
         old.iter().map(|b| json!({"name": name_of(b), "dir": b.dir.to_string_lossy(), "made": b.made, "bytes": b.bytes})).collect();
+    // what earlier restores replaced, by the same rule
+    let OldReplaced { goes: old_replaced, stays } = outdated_replaced(&library, &now, days);
+    let listed_replaced: Vec<Value> = old_replaced
+        .iter()
+        .map(|r| {
+            let at = replaced_time(r.name.strip_suffix(backup::PARTIAL).unwrap_or(&r.name));
+            json!({"name": r.name, "dir": r.dir.to_string_lossy(), "at": at, "bytes": r.bytes})
+        })
+        .collect();
+    // (as old as that, and not as a restore left it: it stays, and is said, so that a folder
+    // that never goes is no riddle)
+    let kept_replaced: Vec<Value> = stays.iter().map(|(name, why)| json!({"name": name, "why": why})).collect();
     let (mut removed, mut not_removed) = (Vec::new(), Vec::new());
-    if remove && !old.is_empty() {
+    let (mut replaced_removed, mut replaced_not_removed) = (Vec::new(), Vec::new());
+    let all = (old.len() + old_replaced.len()) as u64;
+    if remove && all > 0 {
         let task = s.activity.start("backup", "Removing old backups", Cancel::No);
-        task.progress(0, old.len() as u64);
+        task.progress(0, all);
         // (the ones that were just listed, one by one: each must still be a backup that holds
         // nothing but its own files when it goes)
         for (done, b) in old.iter().enumerate() {
@@ -332,8 +466,10 @@ fn prune(s: &mut Session, p: &Value) -> Result<Value> {
                     not_removed.push(format!("{}: {e}", name_of(b)));
                 }
             }
-            task.progress(done as u64 + 1, old.len() as u64);
+            task.progress(done as u64 + 1, all);
         }
+        (replaced_removed, replaced_not_removed) =
+            remove_replaced(&library, &old_replaced, days, &|| false, &|done| task.progress((old.len() + done) as u64, all));
     }
     Ok(json!({
         "dir": dest.to_string_lossy(),
@@ -343,6 +479,7 @@ fn prune(s: &mut Session, p: &Value) -> Result<Value> {
         "outdated": listed,
         "removed": removed,
         "notRemoved": not_removed,
+        "replaced": {"outdated": listed_replaced, "kept": kept_replaced, "removed": replaced_removed, "notRemoved": replaced_not_removed},
     }))
 }
 
@@ -825,7 +962,7 @@ fn place(s: &mut Session, staged: restore::Staged, from: &Path, target: &Path, a
         // the restored catalog is not one this version opens: back to the library as it was
         // (the session still has it, and its files are the same ones once they are back)
         let e = e.to_string();
-        let not_opened = format!("{aside} (not opened)");
+        let not_opened = format!("{aside}{NOT_OPENED}");
         return Err(match restore::take_back(&made, &not_opened) {
             Ok(_) => {
                 (s.presets, s.profile_favorites, s.profile_recent, s.media.smart_dir) = kept;
@@ -1062,7 +1199,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Back Up Library",
             ["File"],
             None,
-            "{dir?: absolute folder path (not inside the library folder other than Backups, nor inside a backup), background?: bool} — back up the library's catalog (not the photos) to a folder named after the time (UTC) in `dir`, else in the library's backup folder (`library.backupPreferences`), else in Backups in the library folder. The backup holds a whole library (`library.restore` puts it back; it is not opened where it is); files that didn't change since the backup before are shared with it (hard links, each read and checked first), so it copies what changed. When the library keeps its backups for a time (`keepDays` in `library.backupPreferences`) and this one goes to its own folder, its older backups are removed afterwards (`removed`, `notRemoved`; see `library.pruneBackups`). Has a row in the activity stack (kind `backup`) that can stop it. Returns when the backup is made, or with `background` at once (then see `library.backupStatus`) → {running, cancelled, library, dest, report: {dir, seq, photos, segments, files, copied, linked, bytes, copiedBytes, made, library, libraryId, contents: {file: {bytes, crc}}} | null, error, removed: [older backups removed after it], notRemoved}",
+            "{dir?: absolute folder path (not inside the library folder other than Backups, nor inside a backup), background?: bool} — back up the library's catalog (not the photos) to a folder named after the time (UTC) in `dir`, else in the library's backup folder (`library.backupPreferences`), else in Backups in the library folder. The backup holds a whole library (`library.restore` puts it back; it is not opened where it is); files that didn't change since the backup before are shared with it (hard links, each read and checked first), so it copies what changed. When the library keeps its backups for a time (`keepDays` in `library.backupPreferences`) and this one goes to its own folder, its older backups are removed afterwards (`removed`, `notRemoved`), and so is what earlier restores replaced (`replacedRemoved`, `replacedNotRemoved`; see `library.pruneBackups`). Has a row in the activity stack (kind `backup`) that can stop it. Returns when the backup is made, or with `background` at once (then see `library.backupStatus`) → {running, cancelled, library, dest, report: {dir, seq, photos, segments, files, copied, linked, bytes, copiedBytes, made, library, libraryId, contents: {file: {bytes, crc}}} | null, error, removed: [older backups removed after it], notRemoved, replacedRemoved, replacedNotRemoved}",
             can_back_up,
             back_up
         ),
@@ -1129,7 +1266,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Remove Old Backups",
             [],
             None,
-            "{keepDays?: whole days, remove?: bool} — the library's own backups (in the folder its backups go to) that are older than it keeps them, or than `keepDays` given for this once: never one of its newest three, never another library's (a backup says which library it is of, by folder and id), never one that was renamed, never one whose time is missing or yet to come. Says which; removes them, each as a whole, only with `remove: true`. Not while the library is being restored → {dir, keepDays, before, keptAtLeast, outdated: [{name, dir, made, bytes}], removed: [name], notRemoved: [name: why]}",
+            "{keepDays?: whole days, remove?: bool} — the library's own backups (in the folder its backups go to) that are older than it keeps them, or than `keepDays` given for this once: never one of its newest three, never another library's (a backup says which library it is of, by folder and id), never one that was renamed, never one whose time is missing or yet to come. Says which; removes them, each as a whole, only with `remove: true`. Not while the library is being restored. By the same rule, what earlier restores replaced (folders of `Replaced` in the library folder, as old as their names say, as the restore left them: not renamed, nothing put in, not opened as a library since) → {dir, keepDays, before, keptAtLeast, outdated: [{name, dir, made, bytes}], removed: [name], notRemoved: [name: why], replaced: {outdated: [{name, dir, at, bytes}], kept: [{name, why}] (as old, but touched since: they stay), removed, notRemoved}}",
             can_back_up,
             prune
         ),

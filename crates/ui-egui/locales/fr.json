@@ -2241,6 +2241,7 @@
   "Days": "Jours",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Les sauvegardes plus anciennes de cette bibliothèque sont supprimées après la création d’une nouvelle. Les trois plus récentes sont toujours conservées.",
   "Removing old backups": "Suppression des anciennes sauvegardes",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Ce que les restaurations ont remplacé (Replaced, dans le dossier de la bibliothèque) suit la même règle.",
   "Lightroom Catalog Import": "Importation de catalogue Lightroom",
   "These photos are only in memory. Open a library on disk and import the catalog again to save them.": "Ces photos sont uniquement en mémoire. Ouvrez une bibliothèque sur disque et importez à nouveau le catalogue pour les enregistrer.",
   "Show in Library": "Afficher dans la bibliothèque",

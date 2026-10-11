@@ -807,6 +807,7 @@
   "Days": "დღეები",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "ამ ბიბლიოთეკის ძველი სარეზერვო ასლები ახლის შექმნის შემდეგ იშლება. სამი უახლესი ყოველთვის ინახება.",
   "Removing old backups": "ძველი სარეზერვო ასლების წაშლა",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "იგივე წესი ვრცელდება იმაზე, რაც აღდგენებმა ჩაანაცვლა (Replaced ბიბლიოთეკის საქაღალდეში).",
   "Fill": "შევსება",
   "Fill Edges": "კიდეების შევსება",
   "Fill Location": "მდებარეობის შევსება",
