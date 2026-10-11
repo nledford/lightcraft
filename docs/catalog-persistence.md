@@ -74,9 +74,15 @@ library was, byte for byte, beside it:
   a library (and `library.info` lists it under `settingsWarnings`). Delete them once the older version is no longer
   wanted. The browser build keeps none (it always runs the newest version).
 
-**To go back**, with LightCraft closed: move `catalog.snap` and `catalog.log` away, then rename the kept pair to
-`catalog.snap` and `catalog.log`. The older version opens the library as it was when it was upgraded; changes made
-since, in the newer version, are in the files that were moved away and are not carried back.
+**To go back**, with LightCraft closed: move `catalog.snap`, `catalog.log` **and the `segments` folder** away, then
+rename the kept pair to `catalog.snap` and `catalog.log`. The older version opens the library as it was when it was
+upgraded; changes made since, in the newer version, are in what was moved away and are not carried back.
+
+The `segments` folder must go with them. It holds the newer library's photos, and left in place it would be taken for
+leftovers once a newer version has opened the library the older one wrote (when it next opens it), and removed.
+
+Only a library in one file (formats up to 10) is kept this way. One already in segments would need its segments kept
+too; no upgrade from such a format exists yet, and a backup (below) is the way back from a future one.
 
 ## Segments (format 11)
 
@@ -99,9 +105,10 @@ several threads.
 - **Checks on open.** Each segment's size, CRC-32, photo count and range of ids, and the total number of photos, must
   be what `catalog.snap` states. A damaged or missing segment fails the open with an error naming the file, and
   nothing is modified. Segment files without a `catalog.snap` are refused, not opened as a new library.
-- **Upgrade.** A one-file library (formats up to 8) is split when first opened: the segments are written, read back
+- **Upgrade.** A one-file library (formats up to 10) is split when first opened: the segments are written, read back
   and compared with the photos that were loaded, and only then does the new `catalog.snap` replace the old one. If
-  they don't read back the same, the one file stays and the library opens from it as before.
+  they don't read back the same, the one file stays: a format 10 library opens from it as before (and the next open
+  tries again), an older one is not opened (see "Going back to an older version").
 - **Stores without segments.** The browser build keeps the photos in `catalog.snap` itself (its storage holds a fixed
   set of files). Either layout is read wherever it is found; a desktop library folder is not a browser library.
 

@@ -590,20 +590,29 @@ fn fixture_snapshot() -> Catalog {
     catalog_of([full(), plain(8), rich_photo])
 }
 
-/// Writes this build's fixture, `fixtures/v<VERSION>-catalog.*`: the fixture library as this
-/// build saves it, snapshot and log. Run it once, when a format is new: put two empty files there
-/// (the tests include them), then
-/// `cargo test -p lightcraft-catalog write_this_formats_fixture -- --ignored`. The files are then
-/// what that build wrote, and are never written again.
+/// Writes this build's fixture, `fixtures/v<VERSION>-…`: the fixture library as this build saves
+/// it, every file of it (`catalog.snap` as `v<N>-catalog.snap.json`, `catalog.log` as
+/// `v<N>-catalog.log.jsonl`, a segment `segments/<name>.json` as `v<N>-segments-<name>.json`).
+/// Run it once, when a format is new: put empty files there for the snapshot and the log (the
+/// tests include them), run
+/// `cargo test -p lightcraft-catalog write_this_formats_fixture -- --ignored`, and list the
+/// files it wrote in `tests_format_version::fixture`. They are then what that build wrote, and
+/// are never written again.
 #[test]
-#[ignore = "writes fixtures/v<VERSION>-catalog.*"]
+#[ignore = "writes fixtures/v<VERSION>-*"]
 fn write_this_formats_fixture() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fixtures");
-    let (snap, log) = (dir.join(format!("v{VERSION}-catalog.snap.json")), dir.join(format!("v{VERSION}-catalog.log.jsonl")));
+    let file = |name: &str| {
+        let name = match name {
+            SNAPSHOT => "catalog.snap.json".to_string(),
+            LOG => "catalog.log.jsonl".to_string(),
+            other => other.replace('/', "-"),
+        };
+        dir.join(format!("v{VERSION}-{name}"))
+    };
     let written = |f: &std::path::Path| std::fs::metadata(f).is_ok_and(|m| m.len() > 0);
-    assert!(!written(&snap) && !written(&log), "format {VERSION} has its fixture: a fixture is what that build wrote");
-    // (in one file, as a store without segments keeps it: the fixture is a snapshot and a log)
-    let m = MemStore { single_file: true, ..Default::default() };
+    assert!(!written(&file(SNAPSHOT)) && !written(&file(LOG)), "format {VERSION} has its fixture: a fixture is what that build wrote");
+    let m = MemStore::new();
     let (mut j, _, _) = Journal::open(Box::new(m.clone())).unwrap();
     // the snapshot first, then the later changes as the log beside it
     let mut library = fixture_snapshot();
@@ -615,8 +624,9 @@ fn write_this_formats_fixture() {
         j.append(&[op]).unwrap();
     }
     drop(j);
-    std::fs::write(snap, m.get(SNAPSHOT).unwrap()).unwrap();
-    std::fs::write(log, m.get(LOG).unwrap()).unwrap();
+    for (name, bytes) in m.files.lock().unwrap().iter() {
+        std::fs::write(file(name), bytes).unwrap();
+    }
 }
 
 /// Given a library saved by the format 6 build (every field of every record written out; the

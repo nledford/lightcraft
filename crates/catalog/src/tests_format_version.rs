@@ -275,17 +275,32 @@ fn a_format_number_means_one_format() {
     assert!(FORMATS.last().unwrap().here, "this build writes the newest format");
 }
 
-/// The library `fixtures/v<N>-catalog.*` holds, written by the build of format `N`.
-fn fixture(version: u32) -> Option<(&'static str, &'static str)> {
+/// The library a format's fixture holds (`fixtures/v<N>-…`, written by the build of format `N`):
+/// its files, by their names in the library.
+fn fixture(version: u32) -> Option<Vec<(&'static str, &'static str)>> {
     match version {
-        6 => Some((include_str!("fixtures/v6-catalog.snap.json"), include_str!("fixtures/v6-catalog.log.jsonl"))),
-        7 => Some((include_str!("fixtures/v7-catalog.snap.json"), include_str!("fixtures/v7-catalog.log.jsonl"))),
-        8 => Some((include_str!("fixtures/v8-catalog.snap.json"), include_str!("fixtures/v8-catalog.log.jsonl"))),
-        9 => Some((include_str!("fixtures/v9-catalog.snap.json"), include_str!("fixtures/v9-catalog.log.jsonl"))),
-        10 => Some((include_str!("fixtures/v10-catalog.snap.json"), include_str!("fixtures/v10-catalog.log.jsonl"))),
-        11 => Some((include_str!("fixtures/v11-catalog.snap.json"), include_str!("fixtures/v11-catalog.log.jsonl"))),
+        6 => Some(vec![(SNAPSHOT, include_str!("fixtures/v6-catalog.snap.json")), (LOG, include_str!("fixtures/v6-catalog.log.jsonl"))]),
+        7 => Some(vec![(SNAPSHOT, include_str!("fixtures/v7-catalog.snap.json")), (LOG, include_str!("fixtures/v7-catalog.log.jsonl"))]),
+        8 => Some(vec![(SNAPSHOT, include_str!("fixtures/v8-catalog.snap.json")), (LOG, include_str!("fixtures/v8-catalog.log.jsonl"))]),
+        9 => Some(vec![(SNAPSHOT, include_str!("fixtures/v9-catalog.snap.json")), (LOG, include_str!("fixtures/v9-catalog.log.jsonl"))]),
+        10 => Some(vec![(SNAPSHOT, include_str!("fixtures/v10-catalog.snap.json")), (LOG, include_str!("fixtures/v10-catalog.log.jsonl"))]),
+        // (in segments, which is what format 11 adds)
+        11 => Some(vec![
+            (SNAPSHOT, include_str!("fixtures/v11-catalog.snap.json")),
+            (LOG, include_str!("fixtures/v11-catalog.log.jsonl")),
+            ("segments/7-3.json", include_str!("fixtures/v11-segments-7-3.json")),
+        ]),
         _ => None,
     }
+}
+
+/// A fixture's files in a store.
+fn store_of(files: &[(&'static str, &'static str)]) -> MemStore {
+    let m = MemStore::new();
+    for (name, content) in files {
+        m.set(name, content.as_bytes().to_vec());
+    }
+    m
 }
 
 /// Given a library written by the build of each format from 6 on (its fixture), when this build
@@ -295,21 +310,23 @@ fn fixture(version: u32) -> Option<(&'static str, &'static str)> {
 fn every_format_has_a_fixture_that_opens_as_it_was() {
     for f in FORMATS.iter().filter(|f| f.version >= 6) {
         let expected = crate::tests_stored::fixture_library(f.version);
-        let Some((snap, log)) = fixture(f.version) else {
+        let Some(files) = fixture(f.version) else {
             assert!(!f.here, "format {} has no fixture (tests_stored::write_this_formats_fixture writes it)", f.version);
             continue;
         };
         assert!(f.here, "format {} has a fixture: it is in this build", f.version);
+        let snap = files.iter().find(|(name, _)| *name == SNAPSHOT).map(|(_, snap)| *snap).expect("a snapshot");
         assert!(snap.starts_with(&format!("{{\"format\":\"lightcraft-catalog\",\"version\":{},", f.version)), "v{}", f.version);
-        let m = MemStore::new();
-        m.set(SNAPSHOT, snap.as_bytes().to_vec());
-        m.set(LOG, log.as_bytes().to_vec());
+        let m = store_of(&files);
         let (_, mut loaded, r) = Journal::open(Box::new(m.clone())).unwrap();
         loaded.revision = expected.revision;
         assert_eq!(loaded, expected, "v{}", f.version);
         assert_eq!((r.failed, r.upgraded_from), (0, (f.version != VERSION).then_some(f.version)), "v{}", f.version);
         assert_eq!(snapshot_version(&m), u64::from(VERSION), "v{}", f.version);
     }
+    // the format that put the photos in segments has a fixture that is in segments
+    let v11 = fixture(11).unwrap();
+    assert!(v11.iter().any(|(name, _)| name.starts_with(crate::journal::SEGMENT_PREFIX)) && v11[0].1.contains("\"photos\":{}"));
 }
 
 // ---- an upgrade keeps what it replaces
@@ -346,11 +363,9 @@ impl Store for Refusing {
 
 /// A format 6 library (the fixture) in a store.
 fn v6_library() -> (MemStore, Vec<u8>, Vec<u8>) {
-    let (snap, log) = fixture(6).unwrap();
-    let m = MemStore::new();
-    m.set(SNAPSHOT, snap.as_bytes().to_vec());
-    m.set(LOG, log.as_bytes().to_vec());
-    (m, snap.as_bytes().to_vec(), log.as_bytes().to_vec())
+    let m = store_of(&fixture(6).unwrap());
+    let (snap, log) = (m.get(SNAPSHOT).unwrap(), m.get(LOG).unwrap());
+    (m, snap, log)
 }
 
 /// Given a library in an older format, when it is opened (which rewrites it in this build's
