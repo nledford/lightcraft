@@ -2242,6 +2242,7 @@
   "Days": "Tage",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Ältere Sicherungen dieser Bibliothek werden entfernt, nachdem eine neue erstellt wurde. Die drei neuesten bleiben immer erhalten.",
   "Removing old backups": "Alte Sicherungen werden entfernt",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Was Wiederherstellungen ersetzt haben (Replaced im Bibliotheksordner), folgt derselben Regel.",
   "Lightroom Catalog Import": "Lightroom-Katalogimport",
   "Destination library": "Zielbibliothek",
   "Show in Library": "In Bibliothek anzeigen",

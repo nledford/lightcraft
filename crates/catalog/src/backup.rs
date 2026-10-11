@@ -41,7 +41,7 @@ use crate::segments::{self, Segment};
 /// The file that marks a finished backup: what it is of, as JSON.
 pub const MARKER: &str = "backup.json";
 /// A backup being written is `<name>.partial`.
-const PARTIAL: &str = ".partial";
+pub const PARTIAL: &str = ".partial";
 /// How often a backup starts over because the library was compacted under it.
 const ATTEMPTS: usize = 8;
 /// How old a `<name>.partial` folder is before a later backup removes it.
