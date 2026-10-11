@@ -235,6 +235,17 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             result = Some(app.run(ID, json!({"onClose": schedule.on_close.id()})));
         }
     });
+    // how long backups are kept: forever unless chosen (an agent may have set another time)
+    let mut keep = app.session.backup_keep_days;
+    row(ui, t, crate::i18n::tr("Keep backups"), |ui| {
+        let ages = [(None, "Forever"), (Some(30), "1 month"), (Some(90), "3 months"), (Some(180), "6 months"), (Some(365), "1 year")];
+        if choices(ui, "settingsBackupKeep", &ages, &mut keep) {
+            result = Some(app.run(ID, json!({"keepDays": keep})));
+        }
+        if let Some(days) = keep.filter(|days| !ages.iter().any(|(age, _)| *age == Some(*days))) {
+            hint(ui, t, &format!("{}: {days}", crate::i18n::tr("Days")));
+        }
+    });
     row(ui, t, crate::i18n::tr("Last backup"), |ui| {
         let last = match &app.session.last_backup {
             // (the session's clock is UTC, as the backups' names say)
@@ -252,6 +263,9 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         t,
         crate::i18n::tr("A backup holds the catalog, not the photos. Keep it on another drive than the library, so that it outlives that drive."),
     );
+    if keep.is_some() {
+        hint(ui, t, crate::i18n::tr("Older backups of this library are removed after a new one is made. Its newest three are always kept."));
+    }
 }
 
 /// The file Edit In hands an editor: format, colour space and bit depth (`button:{id}Format-…`).

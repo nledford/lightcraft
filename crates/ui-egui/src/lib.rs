@@ -806,10 +806,20 @@ impl LightcraftApp {
         match b.outcome() {
             Some(outcome) => {
                 self.ui.backup_seen = Some(key);
-                let msg = match outcome {
+                let mut msg = match outcome {
                     Ok(report) => crate::i18n::tr_format!("Backed up the library to {}", report.dir.display()),
                     Err(e) => crate::i18n::tr_format!("The library was not backed up: {}", e),
                 };
+                // (what the backup removed is said, not done in silence: the backups older than
+                // the library keeps them, and the ones that could not be removed)
+                let count = |names: &std::sync::Mutex<Vec<String>>| names.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len();
+                let (removed, not_removed) = (count(&b.removed), count(&b.not_removed));
+                if removed > 0 {
+                    msg = format!("{msg}\n{}", crate::i18n::tr_format!("Older backups removed: {}", removed));
+                }
+                if not_removed > 0 {
+                    msg = format!("{msg}\n{}", crate::i18n::tr_format!("Older backups that could not be removed: {}", not_removed));
+                }
                 // (long enough to read a path, or what went wrong)
                 self.toast_for(ctx, msg, 8.0);
             }

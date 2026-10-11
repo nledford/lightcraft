@@ -381,3 +381,51 @@ fn a_key_bound_to_back_up_library_backs_up_in_the_background() {
     assert!(running, "the key's backup waited for the backup to be made");
     assert!(h.step_until(T, |_| backups(&dir) == 1));
 }
+
+/// Given Settings ▸ General ▸ Backups, when "3 months" is clicked under Keep backups, then the
+/// library keeps its backups for ninety days; "Forever" keeps them all again.
+#[test]
+fn how_long_backups_are_kept_is_chosen_in_settings() {
+    let dir = temp("keep");
+    let mut h = app_with_a_library_in(&dir);
+    assert_eq!(h.request("ui.key", json!({"key": ",", "cmd": true}), T)["ok"], true);
+    assert!(has(&mut h, "button:settingsBackupKeep-0") && has(&mut h, "button:settingsBackupKeep-4"));
+    assert!(prefs(&mut h, json!({}))["keepDays"].is_null(), "forever until chosen");
+    click(&mut h, "button:settingsBackupKeep-2");
+    assert_eq!(prefs(&mut h, json!({}))["keepDays"], json!(90));
+    click(&mut h, "button:settingsBackupKeep-0");
+    assert!(prefs(&mut h, json!({}))["keepDays"].is_null());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given a library that keeps its backups for a month and has four from a year ago, when it is
+/// backed up, then the toast that says where the backup went also says that older backups were
+/// removed: nothing of the person's goes in silence.
+#[test]
+fn the_app_says_when_a_backup_removed_older_ones() {
+    let dir = temp("says");
+    let mut h = app_with_a_library_in(&dir);
+    let now = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let clock = now.clone();
+    h.app.session.clock = Box::new(move || clock.lock().unwrap().clone());
+    for day in 10..14 {
+        *now.lock().unwrap() = format!("2025-01-{day}T09:00:00");
+        h.app.run("library.backup", json!({"background": false})).unwrap();
+    }
+    assert!(h.step_until(T, |h| h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("Backed up the library") && !t.0.contains("Older backups"))));
+    prefs(&mut h, json!({"keepDays": 30}));
+    *now.lock().unwrap() = "2026-01-10T09:00:00".into();
+    h.app.run("library.backup", json!({"background": false})).unwrap();
+    assert!(
+        h.step_until(T, |h| h
+            .app
+            .ui
+            .toast
+            .as_ref()
+            .is_some_and(|t| t.0.contains("Backed up the library") && t.0.contains("Older backups removed: 2"))),
+        "{:?}",
+        h.app.ui.toast
+    );
+    assert_eq!(backups(&dir), 3);
+    let _ = std::fs::remove_dir_all(&dir);
+}
