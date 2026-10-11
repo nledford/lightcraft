@@ -29,10 +29,13 @@ Three rules keep what is left out safe:
 - **Every difference is read back and compared before it is written.** Settings that would not survive are stored in
   full, as before.
 - **The library says what a missing value reads as.** `catalog.snap` states it (`"defaults"`: the settings of a
-  record with nothing stated, about 2.6 kB once per library), and that covers the log beside it. So what a photo's
+  record with nothing stated, about 2.8 kB once per library), and that covers the log beside it. Every setting is
+  stated, also the few whose own JSON is left out at their default (the white balance scale, the HDR section, the
+  camera's local tone, Denoise on or off); only the rendering process is not, since a record without one is on the first process in every build. So what a photo's
   record means does not depend on the defaults of the LightCraft that reads it:
   - a build with the same defaults reads the records as they are, at no cost;
-  - a build that only has settings the library never heard of does too (they take that build's default);
+  - a build that only has settings the library never heard of does too (they take that build's default), and so
+    does one that lacks settings the library knows (it would not read them whatever it read them over);
   - a build whose defaults differ reads every record over the library's own, then rewrites the library with its own
     before anything is added to it (`LoadReport::other_defaults`). If that can't be written, the library is refused
     and left as it is.
