@@ -242,9 +242,9 @@ fn only_a_synchronize_that_was_taken_is_remembered_and_ticking_back_forgets() {
 
     synchronize_dialog(&mut h, &dir);
     click(&mut h, "check:syncRead.keywords");
-    // the folder's photo changed since the scan
-    let id = h.app.session.catalog.photos().next().map(|p| p.id.0).unwrap();
-    h.app.session.execute("photo.rate", &json!({"ids": [id], "rating": 2})).unwrap();
+    // the folder holds another photo of the library since the scan (it came in some other way)
+    a_rated_photo_with_a_keyword(&dir, "extra", 9);
+    h.app.session.execute("library.import", &json!({"paths": [dir.join("extra.png").to_string_lossy()]})).unwrap();
     let dlg = h.app.ui.dialog.take().expect("the dialog is open");
     assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_err(), "what was shown is no longer so");
     assert!(h.app.session.import_defaults.read_last.is_empty(), "nothing was synchronized: nothing is remembered");
@@ -252,7 +252,7 @@ fn only_a_synchronize_that_was_taken_is_remembered_and_ticking_back_forgets() {
 
     let dlg = h.app.ui.dialog.take().expect("the dialog is open");
     assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_ok());
-    assert!(h.step_until(T, |h| h.app.sync_run.is_none() && h.app.session.catalog.len() == 2));
+    assert!(h.step_until(T, |h| h.app.sync_run.is_none() && h.app.session.catalog.len() == 3));
     assert!(h.app.session.import_defaults.read_last.synchronize.is_some_and(|r| !r.keywords), "now it is");
 
     // the next time, Keywords is ticked again: as the library has it, so nothing to remember
@@ -262,7 +262,7 @@ fn only_a_synchronize_that_was_taken_is_remembered_and_ticking_back_forgets() {
     click(&mut h, "check:syncRead.keywords");
     let dlg = h.app.ui.dialog.take().expect("the dialog is open");
     assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_ok());
-    assert!(h.step_until(T, |h| h.app.sync_run.is_none() && h.app.session.catalog.len() == 3));
+    assert!(h.step_until(T, |h| h.app.sync_run.is_none() && h.app.session.catalog.len() == 4));
     assert!(h.app.session.import_defaults.read_last.is_empty(), "the dialog follows the library again");
     assert_eq!(imported(&h, "three"), (4, vec!["fjord".to_string()]));
 
