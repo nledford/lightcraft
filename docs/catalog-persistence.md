@@ -51,14 +51,18 @@ Opening a library with a newer LightCraft rewrites it in that version's format, 
 library was, byte for byte, beside it:
 
 - `catalog.snap.v<format>-<seq>` and `catalog.log.v<format>-<seq>`, where `<format>` is the format they are in and
-  `<seq>` the number of the last change they hold (a library that had no log, or only a log, has only the one file).
-  `Journal::open` reports their names (`LoadReport::kept`) and logs them.
-- The kept files stay exactly when the library is upgraded. A library whose files can't be kept, or whose upgrade
-  can't be written (a full disk), is not opened: it is left as it was, and the error says why. (Working in it as it
-  is would add records that leave out this version's defaults to a library that states none.) Once the upgrade is
-  written, nothing that fails after it takes the kept files away.
-- A library whose log was damaged is upgraded like any other: its snapshot is kept under the name above, its log as
-  `catalog.log.damaged-<seq>`.
+  `<seq>` the number of the last change the library held when it was upgraded (a library that had no log, or only a
+  log, has only the one file). `Journal::open` reports their names (`LoadReport::kept`) and logs them.
+- The kept files stay unless the library is known to be in its old format still: once the upgrade is written,
+  nothing that fails after it takes them away.
+- A library that can't be kept, or whose upgrade can't be written (a full disk, a folder that can't be written to),
+  is not opened where working in it as it is would not be safe: one that states no defaults for develop settings
+  (formats before 9), or other ones than this version's. The error says why, and the catalog is not changed (a torn
+  last record of its log is still cut off, as on any open). A library that states this version's defaults opens as
+  it is, and the next open tries again.
+- A library whose log was damaged is upgraded like any other. What it was is then its snapshot, kept under the name
+  above, and its log, kept as `catalog.log.damaged-<seq>`: the snapshot alone is the library without the changes
+  that log held.
 - Nothing removes the kept files. They are as large as the library was; LightCraft says so once when it has upgraded
   a library (and `library.info` lists it under `settingsWarnings`). Delete them once the older version is no longer
   wanted. The browser build keeps none (it always runs the newest version).
