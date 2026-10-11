@@ -68,6 +68,14 @@
 //!   snapshot in this build's format (also for a new library), before anything is appended — so a
 //!   library is never a mix, and older builds refuse it from then on instead of reading part of it.
 //!   [`LoadReport::upgraded_from`] says when that happened.
+//! - **An upgrade keeps what it replaces**: older builds can't read the upgraded library, so the
+//!   files it was are first kept beside it as `catalog.snap.v<format>-<seq>` and
+//!   `catalog.log.v<format>-<seq>` (`seq`: the last change they hold), byte for byte
+//!   ([`LoadReport::kept`]). Put back under their own names, they are the library as the older
+//!   build left it. A library whose files can't be kept is not upgraded (it opens as it is, and
+//!   the next open tries again), and an upgrade that fails leaves no copy behind. Nothing removes
+//!   the kept files: they are the user's to delete. (Not where the store says there is no going
+//!   back, [`Store::keeps_replaced_formats`].)
 //! - **A newer format is refused, untouched**: a snapshot whose `version` is above [`VERSION`],
 //!   or a log record whose CRC matches (so it is exactly what was written) but whose op doesn't
 //!   parse, fails [`Journal::open`] with [`CatalogError::Newer`] before any file is modified — it
@@ -194,6 +202,9 @@ pub struct LoadReport {
     pub upgraded_from: Option<u32>,
     /// What [`Catalog::repair`] changed in a damaged snapshot (empty for a sound one).
     pub repaired: Vec<String>,
+    /// The files that upgrade replaced, kept beside the library under these names (the snapshot,
+    /// then the log; a file there was none of has no copy).
+    pub kept: Vec<String>,
 }
 
 /// Where persistence time goes (reported by `library.info` → `persistence`; printed to stderr
@@ -404,17 +415,17 @@ impl Journal {
         let log = store.read(LOG).map_err(io)?;
         report.created = snap.is_none() && log.is_none();
         let snapshot_bytes = snap.as_ref().map_or(0, |b| b.len() as u64);
-        let (mut catalog, snapshot_seq, snapshot_version) = match snap {
+        let (mut catalog, snapshot_seq, snapshot_version) = match &snap {
             Some(bytes) => {
                 // the header first: a newer snapshot may not parse as this version's catalog
-                let h: SnapHeader = serde_json::from_slice(&bytes).map_err(|e| CatalogError::Corrupt(format!("{SNAPSHOT}: {e}")))?;
+                let h: SnapHeader = serde_json::from_slice(bytes).map_err(|e| CatalogError::Corrupt(format!("{SNAPSHOT}: {e}")))?;
                 if h.format != FORMAT {
                     return Err(CatalogError::Corrupt(format!("{SNAPSHOT}: not a LightCraft catalog (format {:?})", h.format)));
                 }
                 if h.version > VERSION {
                     return Err(newer(format!("{SNAPSHOT} is catalog format v{}", h.version)));
                 }
-                let s: SnapFile = serde_json::from_slice(&bytes).map_err(|e| CatalogError::Corrupt(format!("{SNAPSHOT}: {e}")))?;
+                let s: SnapFile = serde_json::from_slice(bytes).map_err(|e| CatalogError::Corrupt(format!("{SNAPSHOT}: {e}")))?;
                 // a seq this high can't come from real use; the next record's seq would wrap
                 if s.seq > MAX_SEQ {
                     return Err(CatalogError::Corrupt(format!("{SNAPSHOT}: seq {} is out of range", s.seq)));
@@ -542,19 +553,60 @@ impl Journal {
                 Err(e) => log::warn!("catalog: can't write the new library's snapshot: {e}"),
             }
         } else if report.damaged.is_none() && snapshot_version != Some(VERSION) {
-            report.upgraded_from = Some(snapshot_version.unwrap_or(0));
-            match j.snapshot(&catalog) {
-                Ok(()) => {
-                    if let Some(v) = report.upgraded_from {
-                        log::info!("catalog: upgraded from format v{v} to v{VERSION}");
+            let from = snapshot_version.unwrap_or(0);
+            match j.keep_replaced(from, snap.as_deref(), &log) {
+                Ok(kept) => match j.snapshot(&catalog) {
+                    Ok(()) => {
+                        report.upgraded_from = Some(from);
+                        report.kept = kept;
+                        log::info!("catalog: upgraded from format v{from} to v{VERSION}; the files it was are kept as {:?}", report.kept);
                     }
-                }
-                // nothing lost: the old files are intact and still load; retried on next open
-                Err(e) => log::warn!("catalog: can't write the format v{VERSION} snapshot: {e}"),
+                    Err(e) => {
+                        // nothing lost: the old files are intact and still load; retried on next
+                        // open. No copy of them stays: there is nothing to go back from.
+                        log::warn!("catalog: can't write the format v{VERSION} snapshot: {e}");
+                        j.forget_kept(&kept);
+                    }
+                },
+                // not upgraded without its way back: it opens as it is; retried on next open
+                Err(e) => log::warn!("catalog: can't keep the format v{from} files, so the library is not upgraded: {e}"),
             }
         }
+
         catalog.revision = 0;
         Ok((j, catalog, report))
+    }
+
+    /// Keep the files of a library in format `from` before an upgrade replaces them: `snap` and
+    /// `log` as they were read, under names that say their format and the last change they hold.
+    /// Returns the names (none where the store keeps none). All or nothing: on an error, what was
+    /// written is removed again.
+    fn keep_replaced(&mut self, from: u32, snap: Option<&[u8]>, log: &[u8]) -> std::io::Result<Vec<String>> {
+        if !self.store.keeps_replaced_formats() {
+            return Ok(Vec::new());
+        }
+        let seq = self.seq;
+        let files = [(SNAPSHOT, snap), (LOG, (!log.is_empty()).then_some(log))];
+        let mut kept = Vec::new();
+        for (name, bytes) in files {
+            let Some(bytes) = bytes else { continue };
+            let name = format!("{name}.v{from}-{seq}");
+            if let Err(e) = self.store.write_atomic(&name, bytes) {
+                self.forget_kept(&kept);
+                return Err(e);
+            }
+            kept.push(name);
+        }
+        Ok(kept)
+    }
+
+    /// Remove kept files that keep nothing (the upgrade they were for did not happen).
+    fn forget_kept(&mut self, kept: &[String]) {
+        for name in kept {
+            if let Err(e) = self.store.remove(name) {
+                log::warn!("catalog: can't remove {name}: {e}");
+            }
+        }
     }
 
     /// Append ops (already applied to the live catalog) durably, in order.
