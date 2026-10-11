@@ -30,9 +30,10 @@
 //! heard of takes this build's default.
 //!
 //! That works where a setting is a value in a struct, which every setting is (a test reads every
-//! one both ways). What a missing value reads as in this build is pinned by a test as well
-//! (`develop_defaults.json`), so a changed default is seen when it is made; a setting that is
-//! removed or renamed needs a loader of its own.
+//! one both ways), and because the library states every setting, also those the settings' own
+//! JSON leaves out at their default ([`UNWRITTEN`]). What a missing value reads as in this build
+//! is pinned by a test as well (`develop_defaults.json`), so a changed default is seen when it
+//! is made; a setting that is removed or renamed needs a loader of its own.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
@@ -122,25 +123,61 @@ fn defaults() -> &'static Defaults {
 
 /// The settings a record with nothing stated (`{}`) reads as in this build, as `catalog.snap`
 /// states them (`"defaults"`): the JSON text, and its value.
+///
+/// Every setting is stated, also the ones the settings' own JSON leaves out at their default
+/// ([`UNWRITTEN`]): a record never states those at their default either, so a default of theirs
+/// that changed would otherwise go unseen.
 pub(crate) fn base() -> &'static (String, Value) {
     static BASE: OnceLock<(String, Value)> = OnceLock::new();
     BASE.get_or_init(|| {
         let settings = serde_json::from_str::<DevelopSettings>("{}").unwrap_or_default();
-        (serde_json::to_string(&settings).unwrap_or_else(|_| "{}".into()), serde_json::to_value(&settings).unwrap_or(Value::Null))
+        let mut v = serde_json::to_value(&settings).unwrap_or(Value::Null);
+        for (path, read) in UNWRITTEN {
+            state(&mut v, path, read(&settings));
+        }
+        (v.to_string(), v)
     })
 }
 
+/// A setting's value in `settings`, as JSON.
+type Stated = fn(&DevelopSettings) -> Value;
+
+/// The settings whose JSON is left out at their default (`skip_serializing_if`), and what each
+/// is: [`base`] states them all the same. A test holds that these are all of them, but for the
+/// rendering process: a record without one is on the first process in every build (a missing
+/// process never means "the default one"), so there is no default of it to state.
+pub(crate) const UNWRITTEN: [(&[&str], Stated); 4] = [
+    (&["wb", "scale"], |s| serde_json::to_value(s.wb.scale).unwrap_or(Value::Null)),
+    (&["hdr"], |s| serde_json::to_value(s.hdr).unwrap_or(Value::Null)),
+    (&["profile", "camera_local_tone"], |s| Value::Bool(s.profile.camera_local_tone)),
+    (&["enhance", "denoise_on"], |s| serde_json::to_value(s.enhance.denoise_on).unwrap_or(Value::Null)),
+];
+
+/// Put `value` at `path` of `v` (through objects that are there).
+fn state(v: &mut Value, path: &[&str], value: Value) {
+    let Some((last, parents)) = path.split_last() else { return };
+    let mut at = v;
+    for k in parents {
+        let Some(next) = at.get_mut(*k) else { return };
+        at = next;
+    }
+    if let Some(m) = at.as_object_mut() {
+        m.insert((*last).to_string(), value);
+    }
+}
+
 /// Whether a library that states `theirs` as its defaults reads the same over this build's:
-/// every value it states is this build's too. (This build may have more: settings newer than
-/// the library.)
+/// every setting both know has the same default. A setting only this build knows takes this
+/// build's default (the library never heard of it); one only the library knows is not read by
+/// this build, whatever it is read over.
 pub(crate) fn reads_the_same(theirs: &Value) -> bool {
-    fn within(theirs: &Value, ours: &Value) -> bool {
+    fn agree(theirs: &Value, ours: &Value) -> bool {
         match (theirs, ours) {
-            (Value::Object(t), Value::Object(o)) => t.iter().all(|(k, x)| o.get(k).is_some_and(|y| within(x, y))),
+            (Value::Object(t), Value::Object(o)) => t.iter().all(|(k, x)| o.get(k).is_none_or(|y| agree(x, y))),
             _ => same(theirs, ours),
         }
     }
-    within(theirs, &base().1)
+    agree(theirs, &base().1)
 }
 
 thread_local! {

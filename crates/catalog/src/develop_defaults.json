@@ -2,13 +2,15 @@
   "version": 1,
   "profile": {
     "id": "lc.color",
-    "amount": 100.0
+    "amount": 100.0,
+    "camera_local_tone": false
   },
   "treatment": "color",
   "wb": {
     "mode": "asShot",
     "temp": 6500.0,
-    "tint": 0.0
+    "tint": 0.0,
+    "scale": "legacy"
   },
   "light": {
     "exposure": 0.0,
@@ -17,6 +19,16 @@
     "shadows": 0.0,
     "whites": 0.0,
     "blacks": 0.0
+  },
+  "hdr": {
+    "enabled": false,
+    "max_ev": 3.0,
+    "sdr_brightness": 0.0,
+    "sdr_clarity": 0.0,
+    "sdr_contrast": 0.0,
+    "sdr_highlights": 0.0,
+    "sdr_shadows": 0.0,
+    "sdr_whites": 0.0
   },
   "curve": {
     "highlights": 0.0,
@@ -201,7 +213,8 @@
   "enhance": {
     "denoise": 0.0,
     "raw_details": false,
-    "super_resolution": false
+    "super_resolution": false,
+    "denoise_on": null
   },
   "calibration": {
     "shadows_tint": 0.0,
