@@ -265,6 +265,7 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     );
     if keep.is_some() {
         hint(ui, t, crate::i18n::tr("Older backups of this library are removed after a new one is made. Its newest three are always kept."));
+        hint(ui, t, crate::i18n::tr("What restores replaced (Replaced in the library folder) goes by the same rule."));
     }
 }
 

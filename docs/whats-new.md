@@ -515,6 +515,9 @@
   `library.backup` (`dir`; returns when the backup is made, or at once with `background`), `library.backupStatus`,
   `library.backupPreferences` (the folder a library's backups go to), `library.checkBackup` (reads a backup against
   the list of files it was made with, and names one that was edited or damaged since).
+- What restores replaced (the Replaced folder in the library) no longer piles up for a library that keeps its
+  backups for a time: those folders go with the old backups, by the same rule, and the newest three stay. One you
+  renamed, put something into or opened as a library is left alone.
 - File ▸ Restore Library from Backup… now lists the library's backups to choose from, newest first, with when each
   was made, how many photos it holds and its size; a backup of another library in the same folder is marked. Choose
   Folder… is still there for a backup kept elsewhere, and also takes the folder the backups are in.

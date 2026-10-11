@@ -107,6 +107,7 @@
   "another library": "jiná knihovna",
   "Choose a backup first": "Nejprve vyberte zálohu",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "Knihovna se vrátí do stavu, v jakém byla při vytvoření zálohy. Její současný obsah se uchová v Replaced ve složce knihovny.",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Pro to, co obnovení nahradila (Replaced ve složce knihovny), platí stejné pravidlo.",
   "Adding to Apple Photos…": "Přidávání do Apple Photos…",
   "Advanced search…": "Rozšířené hledání…",
   "After": "Po",

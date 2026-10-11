@@ -457,3 +457,205 @@ fn the_backups_in_a_folder_are_listed_to_choose_from() {
         let _ = std::fs::remove_dir_all(d);
     }
 }
+
+// ---- what restores replaced (the library's `Replaced` folder) goes by the same rule
+
+/// Restore the library from `backup` at `time`; the name of the folder of `Replaced` that took
+/// what the library held.
+fn restore_at(s: &mut Session, now: &Arc<Mutex<String>>, time: &str, backup: &Value) -> String {
+    *now.lock().unwrap() = time.to_string();
+    let r = s.execute("library.restore", &json!({"dir": backup["report"]["dir"]})).unwrap();
+    assert!(r["error"].is_null(), "{r}");
+    Path::new(r["restored"]["aside"].as_str().expect("something was replaced")).file_name().unwrap().to_string_lossy().into_owned()
+}
+
+/// Given a library that keeps its backups for 30 days and was restored five times in January,
+/// when it is backed up a year later, then what the two oldest restores replaced is removed
+/// (the backup says so), and what the three newest replaced stays, old as it is. A library that
+/// keeps its backups forever keeps all of it.
+#[test]
+fn what_restores_replaced_goes_with_the_old_backups_but_never_the_newest_three() {
+    let dir = temp_dir("replaced");
+    let (mut s, now) = open(&dir);
+    let first = back_up_at(&mut s, &now, "2026-01-01T09:00:00");
+    let times = ["2026-01-10T09:00:00", "2026-01-11T09:00:00", "2026-01-12T09:00:00", "2026-01-13T09:00:00", "2026-01-14T09:00:00"];
+    let names: Vec<String> = times.iter().map(|t| restore_at(&mut s, &now, t, &first)).collect();
+    assert_eq!(names[0], "2026-01-10 09.00.00 UTC");
+    let r = back_up_at(&mut s, &now, "2027-01-01T09:00:00");
+    assert_eq!(r["replacedRemoved"], json!([]), "forever: {r}");
+    assert_eq!(backups(&dir.join("Replaced")), names);
+
+    prefs(&mut s, json!({"keepDays": 30}));
+    let r = back_up_at(&mut s, &now, "2027-01-02T09:00:00");
+    assert_eq!(r["replacedRemoved"], json!(names[..2]), "{r}");
+    assert_eq!(r["replacedNotRemoved"], json!([]));
+    assert_eq!(backups(&dir.join("Replaced")), names[2..]);
+    // and what is left opens as the library it was
+    drop(s);
+    let (kept, _) = open(&dir.join("Replaced").join(&names[4]));
+    assert!(kept.catalog.photos().next().is_some());
+    drop(kept);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Given folders of `Replaced` that are no longer as a restore left them, then they stay,
+/// however old: one renamed, one something else was put into, one opened as a library since,
+/// and a folder of the person's own.
+#[test]
+fn what_was_touched_in_replaced_is_somebodys_and_stays() {
+    let dir = temp_dir("replaced-touched");
+    let (mut s, now) = open(&dir);
+    let first = back_up_at(&mut s, &now, "2026-01-01T09:00:00");
+    let names: Vec<String> = (10..=17).map(|d| restore_at(&mut s, &now, &format!("2026-01-{d}T09:00:00"), &first)).collect();
+    let replaced = dir.join("Replaced");
+    std::fs::rename(replaced.join(&names[0]), replaced.join("before the big edit")).unwrap();
+    std::fs::write(replaced.join(&names[1]).join("notes.txt"), b"mine").unwrap();
+    // opened as a library, and closed again
+    let (peek, _) = open(&replaced.join(&names[2]));
+    drop(peek);
+    std::fs::create_dir_all(replaced.join("holiday photos")).unwrap();
+    std::fs::write(replaced.join("holiday photos").join("a.jpg"), b"x").unwrap();
+
+    *now.lock().unwrap() = "2027-01-01T09:00:00".into();
+    let r = s.execute("library.pruneBackups", &json!({"keepDays": 30})).unwrap();
+    let old: Vec<&str> = r["replaced"]["outdated"].as_array().unwrap().iter().map(|o| o["name"].as_str().unwrap()).collect();
+    assert_eq!(old, [names[3].as_str(), names[4].as_str()], "of the five untouched, the two oldest: {r}");
+    assert_eq!(backups(&replaced).len(), 9, "asked, not removed");
+    let r = s.execute("library.pruneBackups", &json!({"keepDays": 30, "remove": true})).unwrap();
+    assert_eq!(r["replaced"]["removed"], json!([names[3], names[4]]), "{r}");
+    let left = backups(&replaced);
+    for stays in ["before the big edit", names[1].as_str(), names[2].as_str(), "holiday photos", names[5].as_str(), names[7].as_str()] {
+        assert!(left.iter().any(|n| n == stays), "{stays}: {left:?}");
+    }
+    assert!(replaced.join(&names[1]).join("notes.txt").is_file() && replaced.join("holiday photos").join("a.jpg").is_file());
+    drop(s);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The time a folder of `Replaced` says by its name, which is how old it is: the names a
+/// restore gives (also a second one of the same second, and one whose backup did not open),
+/// and no other.
+#[test]
+fn a_folder_of_replaced_is_as_old_as_its_name_says() {
+    use crate::cmd::backup::replaced_time;
+    assert_eq!(replaced_time("2026-01-10 09.00.00 UTC").as_deref(), Some("2026-01-10T09:00:00"));
+    assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (2)").as_deref(), Some("2026-01-10T09:00:00"));
+    assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (12)").as_deref(), Some("2026-01-10T09:00:00"));
+    assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (not opened)").as_deref(), Some("2026-01-10T09:00:00"));
+    for other in [
+        "",
+        "before the big edit",
+        "2026-01-10 09.00.00",
+        "2026-01-10 09.00.00 UTC kept",
+        "2026-01-10 09.00.00 UTC (two)",
+        "2026-02-30 09.00.00 UTC",
+        "2026-01-10T09:00:00 UTC",
+        "２０２６-01-10 09.00.00 UTC",
+        "2026-01-10 09.00.00 UTC ()",
+        "2026-01-10 09.00.00 UTC (0)",
+        "2026-01-10 09.00.00 UTC (1)",
+        "2026-01-10 09.00.00 UTC (000123)",
+        "2026-01-10 09.00.00 UTC ",
+        "2026-01-10 09.00.00 utc",
+    ] {
+        assert_eq!(replaced_time(other), None, "{other:?}");
+    }
+}
+
+/// A folder of `Replaced` as a restore names it, holding a catalog's file.
+fn replaced_folder(library: &Path, name: &str) -> PathBuf {
+    let dir = library.join("Replaced").join(name);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("catalog.snap"), b"{}").unwrap();
+    dir
+}
+
+fn old_replaced(s: &mut Session, days: u32) -> (Vec<String>, Vec<String>) {
+    let r = s.execute("library.pruneBackups", &json!({"keepDays": days})).unwrap();
+    let names = |key: &str| r["replaced"][key].as_array().unwrap().iter().map(|o| o["name"].as_str().unwrap().to_string()).collect();
+    (names("outdated"), names("kept"))
+}
+
+/// Which folders of `Replaced` count as old, at the edges: one made exactly when the library
+/// begins to keep them stays; one whose time is yet to come stays and is not one of the newest
+/// three; one that was touched stays, is said with why, and does not take a place among the
+/// newest three; one of a backup that did not open goes by its age and takes no such place
+/// either; and of two of the same second the plain one is the older.
+#[test]
+fn what_in_replaced_is_old_enough_to_go_is_told_at_the_edges() {
+    let dir = temp_dir("replaced-edges");
+    let (mut s, now) = open(&dir);
+    *now.lock().unwrap() = "2026-03-01T00:00:00".into();
+    for name in
+        ["2026-01-01 00.00.00 UTC", "2026-01-01 00.00.00 UTC (2)", "2026-01-30 00.00.00 UTC", "2026-02-10 00.00.00 UTC", "2026-02-20 00.00.00 UTC"]
+    {
+        replaced_folder(&dir, name);
+    }
+    // thirty days before the first of March is the thirtieth of January, to the second
+    assert_eq!(old_replaced(&mut s, 30).0, ["2026-01-01 00.00.00 UTC", "2026-01-01 00.00.00 UTC (2)"], "the one of the 30th is kept");
+    assert_eq!(old_replaced(&mut s, 29).0, ["2026-01-01 00.00.00 UTC", "2026-01-01 00.00.00 UTC (2)"], "and is one of the newest three besides");
+
+    // yet to come: neither old nor one of the newest three
+    replaced_folder(&dir, "2031-01-01 00.00.00 UTC");
+    assert_eq!(old_replaced(&mut s, 1).0, ["2026-01-01 00.00.00 UTC", "2026-01-01 00.00.00 UTC (2)"]);
+
+    // touched: stays, is said, and takes no place among the newest three
+    std::fs::write(dir.join("Replaced").join("2026-02-20 00.00.00 UTC").join("notes.txt"), b"mine").unwrap();
+    let (old, kept) = old_replaced(&mut s, 1);
+    assert_eq!(old, ["2026-01-01 00.00.00 UTC"], "the three newest untouched are of January (2), the 30th, and February");
+    assert_eq!(kept, ["2026-02-20 00.00.00 UTC"]);
+    let r = s.execute("library.pruneBackups", &json!({"keepDays": 1})).unwrap();
+    assert!(r["replaced"]["kept"][0]["why"].as_str().is_some_and(|why| why.contains("notes.txt")), "{r}");
+
+    // a backup that did not open: by its age, and no place among the three
+    replaced_folder(&dir, "2026-02-25 00.00.00 UTC (not opened)");
+    replaced_folder(&dir, "2026-02-28 12.00.00 UTC (not opened)");
+    let (old, _) = old_replaced(&mut s, 2);
+    assert_eq!(old, ["2026-01-01 00.00.00 UTC", "2026-02-25 00.00.00 UTC (not opened)"]);
+    drop(s);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Nothing of `Replaced` goes by a backup that was not made, or by one made to some other
+/// folder for once; nor is anything listed or removed while a restore of the library is cut
+/// short. What a removal that was cut short left goes with the next, unless something else is
+/// in it by then.
+#[test]
+fn what_restores_replaced_goes_only_after_a_backup_of_the_librarys_own() {
+    let (dir, other) = (temp_dir("replaced-only"), temp_dir("replaced-only-other"));
+    let (mut s, now) = open(&dir);
+    for day in 1..=5 {
+        replaced_folder(&dir, &format!("2026-01-0{day} 00.00.00 UTC"));
+    }
+    let cut_short = replaced_folder(&dir, "2025-12-01 00.00.00 UTC.partial");
+    let somebodys = replaced_folder(&dir, "2025-12-02 00.00.00 UTC.partial");
+    std::fs::write(somebodys.join("notes.txt"), b"mine").unwrap();
+    let renamed = replaced_folder(&dir, "my own.partial");
+    prefs(&mut s, json!({"keepDays": 30}));
+    *now.lock().unwrap() = "2027-01-01T09:00:00".into();
+
+    let r = s.execute("library.backup", &json!({"dir": other.to_string_lossy()})).unwrap();
+    assert!(r["error"].is_null() && r["replacedRemoved"] == json!([]), "{r}");
+    let r = s.execute("library.backup", &json!({"dir": dir.join("catalog.snap").join("x").to_string_lossy()}));
+    assert!(r.is_err() || r.is_ok_and(|r| r["replacedRemoved"] == json!([])));
+    assert_eq!(backups(&dir.join("Replaced")).len(), 8, "all still there");
+
+    // a restore cut short: its note is there
+    std::fs::write(dir.join("restore.json"), b"{}").unwrap();
+    let r = s.execute("library.pruneBackups", &json!({"remove": true})).unwrap();
+    assert_eq!((r["replaced"]["outdated"].clone(), r["replaced"]["removed"].clone()), (json!([]), json!([])), "{r}");
+    assert_eq!(backups(&dir.join("Replaced")).len(), 8);
+    std::fs::remove_file(dir.join("restore.json")).unwrap();
+
+    let r = back_up_at(&mut s, &now, "2027-01-02T09:00:00");
+    assert_eq!(
+        r["replacedRemoved"],
+        json!(["2025-12-01 00.00.00 UTC.partial", "2026-01-01 00.00.00 UTC", "2026-01-02 00.00.00 UTC"]),
+        "what was cut short, and the two oldest: {r}"
+    );
+    assert!(!cut_short.exists() && somebodys.join("notes.txt").is_file() && renamed.join("catalog.snap").is_file());
+    drop(s);
+    for d in [dir, other] {
+        let _ = std::fs::remove_dir_all(d);
+    }
+}

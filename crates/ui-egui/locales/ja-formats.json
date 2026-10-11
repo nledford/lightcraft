@@ -278,6 +278,8 @@
   "Restored the library. What it held before is in {}": "ライブラリを復元しました。以前の内容は {} にあります",
   "The library was not restored: {}": "ライブラリを復元できませんでした: {}",
   "Backups in {}": "{} 内のバックアップ",
+  "Folders of what restores replaced, removed: {}": "復元で置き換えられた内容のフォルダーを削除: {}",
+  "Folders of what restores replaced that could not be removed: {}": "復元で置き換えられた内容のフォルダーのうち削除できなかったもの: {}",
   "{count} more warnings.": "ほかに{count}件の警告があります。",
   "{photos} catalog records processed; {collections} collections.": "カタログの{photos}件のレコードを処理しました。コレクションは{collections}件です。",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing}件のオリジナルが見つかりません。カタログのレコードは利用できます。「見つからない写真を検索」で再リンクしてください。",

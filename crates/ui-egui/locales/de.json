@@ -2244,6 +2244,7 @@
   "another library": "andere Bibliothek",
   "Choose a backup first": "Wähle zuerst eine Sicherung",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "Die Bibliothek wird wieder so, wie sie bei der Sicherung war. Ihr jetziger Stand bleibt im Ordner „Replaced“ der Bibliothek erhalten.",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Was Wiederherstellungen ersetzt haben (Replaced im Bibliotheksordner), folgt derselben Regel.",
   "Lightroom Catalog Import": "Lightroom-Katalogimport",
   "Destination library": "Zielbibliothek",
   "Show in Library": "In Bibliothek anzeigen",

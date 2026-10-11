@@ -2241,6 +2241,7 @@
   "another library": "інша бібліотека",
   "Choose a backup first": "Спершу виберіть резервну копію",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "Бібліотека стане такою, якою була під час створення резервної копії. Її теперішній вміст збережеться в папці Replaced у папці бібліотеки.",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "До того, що було замінено під час відновлень (Replaced у папці бібліотеки), застосовується те саме правило.",
   "Lightroom Catalog Import": "Імпорт каталогу Lightroom",
   "Destination library": "Бібліотека призначення",
   "Show in Library": "Показати в бібліотеці",

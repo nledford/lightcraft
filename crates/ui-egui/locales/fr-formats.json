@@ -274,6 +274,8 @@
   "Restored the library. What it held before is in {}": "Bibliothèque restaurée. Son contenu précédent se trouve dans {}",
   "The library was not restored: {}": "La bibliothèque n’a pas été restaurée : {}",
   "Backups in {}": "Sauvegardes dans {}",
+  "Folders of what restores replaced, removed: {}": "Dossiers supprimés de ce que les restaurations ont remplacé : {}",
+  "Folders of what restores replaced that could not be removed: {}": "Dossiers de ce que les restaurations ont remplacé qui n’ont pas pu être supprimés : {}",
   "{count} more warnings.": "{count} avertissements supplémentaires.",
   "{photos} catalog records processed; {collections} collections.": "{photos} entrées du catalogue traitées ; {collections} collections.",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing} originaux sont manquants. Leurs entrées de catalogue sont disponibles ; utilisez Rechercher les photos manquantes pour rétablir les liens.",

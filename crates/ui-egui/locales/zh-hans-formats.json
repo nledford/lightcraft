@@ -278,6 +278,8 @@
   "Restored the library. What it held before is in {}": "已恢复图库。之前的内容位于 {}",
   "The library was not restored: {}": "未能恢复图库：{}",
   "Backups in {}": "{} 中的备份",
+  "Folders of what restores replaced, removed: {}": "已移除的恢复时被替换内容的文件夹：{}",
+  "Folders of what restores replaced that could not be removed: {}": "未能移除的恢复时被替换内容的文件夹：{}",
   "{count} more warnings.": "另有 {count} 条警告。",
   "{photos} catalog records processed; {collections} collections.": "已处理 {photos} 条目录记录；{collections} 个收藏集。",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "有 {missing} 个原始文件缺失。其目录记录可用；请使用“查找缺失照片”重新链接文件。",

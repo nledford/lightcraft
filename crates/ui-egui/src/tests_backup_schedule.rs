@@ -429,3 +429,31 @@ fn the_app_says_when_a_backup_removed_older_ones() {
     assert_eq!(backups(&dir), 3);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Given a library that keeps its backups for a month and was restored four times a year ago,
+/// when it is backed up, then the note also says that what the oldest restore replaced was
+/// removed.
+#[test]
+fn the_app_says_when_a_backup_removed_what_restores_replaced() {
+    let dir = temp("says-replaced");
+    let mut h = app_with_a_library_in(&dir);
+    let now = std::sync::Arc::new(std::sync::Mutex::new("2025-01-01T09:00:00".to_string()));
+    let clock = now.clone();
+    h.app.session.clock = Box::new(move || clock.lock().unwrap().clone());
+    let made = h.app.run("library.backup", json!({"background": false})).unwrap()["report"]["dir"].clone();
+    for day in 10..14 {
+        *now.lock().unwrap() = format!("2025-01-{day}T09:00:00");
+        h.app.run("library.restore", json!({"dir": made, "background": false})).unwrap();
+    }
+    prefs(&mut h, json!({"keepDays": 30}));
+    *now.lock().unwrap() = "2026-01-10T09:00:00".into();
+    h.app.run("library.backup", json!({"background": false})).unwrap();
+    assert!(
+        h.step_until(T, |h| h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("Folders of what restores replaced, removed: 1"))),
+        "{:?}",
+        h.app.ui.toast
+    );
+    let left = std::fs::read_dir(dir.join("library/Replaced")).unwrap().count();
+    assert_eq!(left, 3);
+    let _ = std::fs::remove_dir_all(&dir);
+}

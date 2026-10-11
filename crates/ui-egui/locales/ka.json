@@ -811,6 +811,7 @@
   "another library": "სხვა ბიბლიოთეკა",
   "Choose a backup first": "ჯერ აირჩიეთ სარეზერვო ასლი",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "ბიბლიოთეკა დაუბრუნდება იმ მდგომარეობას, რომელიც სარეზერვო ასლის შექმნისას ჰქონდა. მისი ამჟამინდელი შიგთავსი ინახება ბიბლიოთეკის საქაღალდის Replaced-ში.",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "იგივე წესი ვრცელდება იმაზე, რაც აღდგენებმა ჩაანაცვლა (Replaced ბიბლიოთეკის საქაღალდეში).",
   "Fill": "შევსება",
   "Fill Edges": "კიდეების შევსება",
   "Fill Location": "მდებარეობის შევსება",

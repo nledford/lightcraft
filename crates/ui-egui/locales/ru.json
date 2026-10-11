@@ -2236,6 +2236,7 @@
   "another library": "другая библиотека",
   "Choose a backup first": "Сначала выберите резервную копию",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "Библиотека станет такой, какой была при создании резервной копии. Её нынешнее содержимое сохранится в папке Replaced в папке библиотеки.",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "К тому, что было заменено при восстановлениях (Replaced в папке библиотеки), применяется то же правило.",
   "Lightroom Catalog Import": "Импорт каталога Lightroom",
   "Destination library": "Библиотека назначения",
   "Show in Library": "Показать в библиотеке",
