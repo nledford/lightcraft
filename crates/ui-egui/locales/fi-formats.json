@@ -311,5 +311,6 @@
   "Restored the library. What it held before is in {}": "Kirjasto palautettu. Sen aiempi sisältö on kohteessa {}",
   "The library was not restored: {}": "Kirjastoa ei palautettu: {}",
   "Older backups removed: {}": "Vanhoja varmuuskopioita poistettu: {}",
-  "Older backups that could not be removed: {}": "Vanhoja varmuuskopioita, joita ei voitu poistaa: {}"
+  "Older backups that could not be removed: {}": "Vanhoja varmuuskopioita, joita ei voitu poistaa: {}",
+  "Backups in {}": "Varmuuskopiot kansiossa {}"
 }

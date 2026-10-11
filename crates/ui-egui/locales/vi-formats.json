@@ -311,5 +311,6 @@
   "Restored the library. What it held before is in {}": "Đã khôi phục thư viện. Nội dung trước đó nằm trong {}",
   "The library was not restored: {}": "Thư viện chưa được khôi phục: {}",
   "Older backups removed: {}": "Đã xóa các bản sao lưu cũ: {}",
-  "Older backups that could not be removed: {}": "Các bản sao lưu cũ không thể xóa: {}"
+  "Older backups that could not be removed: {}": "Các bản sao lưu cũ không thể xóa: {}",
+  "Backups in {}": "Bản sao lưu trong {}"
 }

@@ -864,7 +864,22 @@ fn backups(s: &mut Session, p: &Value) -> Result<Value> {
         },
         Some(dir) => folder(C, "dir", dir)?,
     };
-    Ok(json!({"dir": dir.to_string_lossy(), "backups": backup::list(&dir)}))
+    // (a backup is of the open library when it says so by the library's id: a library made anew
+    // in the same folder has another, and one that was moved has the one it had)
+    let open = s.library.as_ref().filter(|l| l.on_disk).and(s.library_id.as_deref());
+    let mut listed = backup::list(&dir);
+    // newest first by when each says it was made (the ones that don't say come after, as listed)
+    listed.sort_by(|a, b| b.made.cmp(&a.made));
+    let listed: Vec<Value> = listed
+        .iter()
+        .filter_map(|b| {
+            let mut one = serde_json::to_value(b).ok()?;
+            one["name"] = json!(name_of(b));
+            one["ofThisLibrary"] = json!(open.is_some() && b.library_id.as_deref() == open);
+            Some(one)
+        })
+        .collect();
+    Ok(json!({"dir": dir.to_string_lossy(), "isBackup": backup::is_made_backup(&dir), "backups": listed}))
 }
 
 /// Take note of a backup of the open library that has ended: one that was made, in the folder
@@ -1099,7 +1114,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Backups",
             [],
             None,
-            "{dir?: absolute folder path} — the finished backups in `dir`, else in the folder the open library's backups go to, newest first → {dir, backups: [report as `library.backup` returns it]}",
+            "{dir?: absolute folder path} — the finished backups in `dir`, else in the folder the open library's backups go to, newest first by when each was made → {dir, isBackup: `dir` is a backup itself (and holds none), backups: [report as `library.backup` returns it, with name: its folder's, ofThisLibrary: it was made of the open library (by the library's id: also where the library was before it was moved, not of one that was in its folder before)]}",
             always,
             backups
         ),
@@ -1108,7 +1123,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Restore Library from Backup…",
             ["File"],
             None,
-            "{dir: a backup's folder (absolute path), to?: absolute folder path, background?: bool} — put a backup back. Without `to` (or with `to` naming the open library): the open library becomes what the backup holds (catalog, log, presets, view and preferences; not the photos, and the folder its backups go to stays), and the session goes on in it: undo history is gone, as after opening a library. What the library held is kept, also changes not yet saved, in Replaced/<the time (UTC)> in its folder, which is a library folder itself. Refused while a backup or other background work is under way. With another `to`: the backup is restored into that folder (one that isn't there or is empty, or a library nothing has open, which is replaced the same way; not a folder in the backup or in the open library) and nothing is opened. The backup is checked against its marker first and is only read; one that was edited or damaged, or whose catalog or log a newer LightCraft wrote, is refused with the library untouched. A restored catalog that then doesn't open is taken back (the library is as it was; the backup's files are in Replaced/<the time> (not opened)); with `to` that is not found out, since nothing is opened. Has a row in the activity stack (kind `restore`). The command returns when it is done; with `background` (a restore of the open library only) it returns at once with what `library.restoreStatus` reports: the backup is copied and checked while the library stays in use (the row's ✕ stops it then), and its files are moved into place once the library is at rest (no slider held, no other background work), which the app sees to between frames and `library.restoreStatus` when asked; so `background` is for a session that goes on (the app, MCP, the control channel), not for a program that ends when the command returns. Opening a library (another, or this one again) before that gives the restore up, with nothing changed. A backup can't be opened as a library where it is → {restored: {backup, library, aside | null, seq, photos, files, bytes, skipped, placed, replaced}, opened}",
+            "{dir: a backup's folder (absolute path), to?: absolute folder path, background?: bool} — put a backup back (in the app, without `dir`: the library's backups are listed to choose from, `library.backups`; `choose: true` asks for the folder with a folder dialog, and lists the backups in it when it is a folder of backups, not one; `to` needs `dir`). Without `to` (or with `to` naming the open library): the open library becomes what the backup holds (catalog, log, presets, view and preferences; not the photos, and the folder its backups go to stays), and the session goes on in it: undo history is gone, as after opening a library. What the library held is kept, also changes not yet saved, in Replaced/<the time (UTC)> in its folder, which is a library folder itself. Refused while a backup or other background work is under way. With another `to`: the backup is restored into that folder (one that isn't there or is empty, or a library nothing has open, which is replaced the same way; not a folder in the backup or in the open library) and nothing is opened. The backup is checked against its marker first and is only read; one that was edited or damaged, or whose catalog or log a newer LightCraft wrote, is refused with the library untouched. A restored catalog that then doesn't open is taken back (the library is as it was; the backup's files are in Replaced/<the time> (not opened)); with `to` that is not found out, since nothing is opened. Has a row in the activity stack (kind `restore`). The command returns when it is done; with `background` (a restore of the open library only) it returns at once with what `library.restoreStatus` reports: the backup is copied and checked while the library stays in use (the row's ✕ stops it then), and its files are moved into place once the library is at rest (no slider held, no other background work), which the app sees to between frames and `library.restoreStatus` when asked; so `background` is for a session that goes on (the app, MCP, the control channel), not for a program that ends when the command returns. Opening a library (another, or this one again) before that gives the restore up, with nothing changed. A backup can't be opened as a library where it is → {restored: {backup, library, aside | null, seq, photos, files, bytes, skipped, placed, replaced}, opened}",
             can_restore,
             restore_library
         ),

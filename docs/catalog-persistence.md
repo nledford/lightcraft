@@ -241,7 +241,16 @@ the other).
 
 ### Restoring
 
-File ▸ Restore Library from Backup… (`library.restore {dir}`) puts a backup back (`crates/catalog/src/restore.rs`): the open library becomes what the backup
+File ▸ Restore Library from Backup… lists the backups in the folder the library's backups go to, newest first by
+when each says it was made: the time (UTC), how many photos, the size, and "another library" for one that was not
+made of this library (told by the library's id, so a library that was moved still knows its backups, and one made
+anew in the same folder does not take the old one's for its own). The newest of the library's own is chosen beforehand; when the folder holds only
+another library's, none is, and one has to be picked. Choose Folder… (where there is a folder dialog) takes a backup
+kept elsewhere, or a folder that backups are in, which are then the ones listed. Agents: `library.backups` is the
+list (`name`, `made`, `ofThisLibrary`, and `isBackup` for a folder that is a backup itself), and `library.restore`
+with `dir` asks nothing; in the app, `library.restore {}` opens the list and `{choose: true}` the folder dialog.
+
+`library.restore {dir}` puts a backup back (`crates/catalog/src/restore.rs`): the open library becomes what the backup
 holds (catalog, log, presets, view and preferences; the folder its backups go to stays as it is now), and the session
 goes on in it, with no undo history, as after opening a library. With `to`, the backup is restored into that folder
 instead, which is how to look at a backup without giving up the library; nothing is opened. `to` is a folder that

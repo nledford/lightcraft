@@ -311,5 +311,6 @@
   "Restored the library. What it held before is in {}": "Biblioteket återställdes. Det som fanns i det tidigare finns i {}",
   "The library was not restored: {}": "Biblioteket återställdes inte: {}",
   "Older backups removed: {}": "Äldre säkerhetskopior borttagna: {}",
-  "Older backups that could not be removed: {}": "Äldre säkerhetskopior som inte kunde tas bort: {}"
+  "Older backups that could not be removed: {}": "Äldre säkerhetskopior som inte kunde tas bort: {}",
+  "Backups in {}": "Säkerhetskopior i {}"
 }

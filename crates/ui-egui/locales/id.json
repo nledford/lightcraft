@@ -2376,5 +2376,9 @@
   "1 year": "1 tahun",
   "Days": "Hari",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Cadangan pustaka ini yang lebih lama dihapus setelah cadangan baru dibuat. Tiga yang terbaru selalu disimpan.",
-  "Removing old backups": "Menghapus cadangan lama"
+  "Removing old backups": "Menghapus cadangan lama",
+  "There are no backups in this folder.": "Tidak ada cadangan di folder ini.",
+  "another library": "pustaka lain",
+  "Choose a backup first": "Pilih cadangan terlebih dahulu",
+  "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "Pustaka menjadi seperti saat cadangan dibuat. Isinya saat ini disimpan di Replaced di folder pustaka."
 }

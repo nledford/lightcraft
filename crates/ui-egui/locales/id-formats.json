@@ -311,5 +311,6 @@
   "Restored the library. What it held before is in {}": "Pustaka dipulihkan. Isinya sebelumnya ada di {}",
   "The library was not restored: {}": "Pustaka tidak dipulihkan: {}",
   "Older backups removed: {}": "Cadangan lama dihapus: {}",
-  "Older backups that could not be removed: {}": "Cadangan lama yang tidak dapat dihapus: {}"
+  "Older backups that could not be removed: {}": "Cadangan lama yang tidak dapat dihapus: {}",
+  "Backups in {}": "Cadangan di {}"
 }

@@ -30,6 +30,9 @@
   `library.backup` (`dir`; returns when the backup is made, or at once with `background`), `library.backupStatus`,
   `library.backupPreferences` (the folder a library's backups go to), `library.checkBackup` (reads a backup against
   the list of files it was made with, and names one that was edited or damaged since).
+- File ▸ Restore Library from Backup… now lists the library's backups to choose from, newest first, with when each
+  was made, how many photos it holds and its size; a backup of another library in the same folder is marked. Choose
+  Folder… is still there for a backup kept elsewhere, and also takes the folder the backups are in.
 - Old backups can go by themselves: Settings ▸ General ▸ Backups ▸ **Keep backups** (Forever, which is the usual, or
   1, 3, 6 months or a year). After a backup is made, the library's own backups older than that are removed, and the note
   that the library was backed up says how many; its newest three always stay, as does a backup you renamed or put
