@@ -274,6 +274,8 @@
   "· {in_source} identical copies": "· {in_source} cópias idênticas",
   "Backed up the library to {}": "Backup da biblioteca salvo em {}",
   "The library was not backed up: {}": "O backup da biblioteca não foi feito: {}",
+  "Older backups removed: {}": "Backups antigos removidos: {}",
+  "Older backups that could not be removed: {}": "Backups antigos que não puderam ser removidos: {}",
   "Restored the library. What it held before is in {}": "Biblioteca restaurada. O conteúdo anterior está em {}",
   "The library was not restored: {}": "A biblioteca não foi restaurada: {}",
   "{count} more warnings.": "Mais {count} avisos.",

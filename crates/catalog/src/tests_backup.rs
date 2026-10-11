@@ -53,7 +53,7 @@ pub(crate) fn library(dir: &Path, n: u64) -> (Journal, Catalog) {
 }
 
 pub(crate) fn options(name: &str) -> BackupOptions<'_> {
-    BackupOptions { name, also: &["presets.json", "view.json"] }
+    BackupOptions { name, also: &["presets.json", "view.json"], made: None, library_id: None }
 }
 
 pub(crate) fn back_up(library: &Path, dest: &Path, name: &str) -> BackupReport {
@@ -440,7 +440,7 @@ fn absurd_sizes_in_a_snapshot_are_an_error() {
     assert!(files(&dest).is_empty());
     // and the other files to take along are plain names, none of them the catalog's own
     for bad in ["../x", "a/b", SNAPSHOT, LOG, backup::MARKER, "segments/1-1.json", "segments", ""] {
-        let e = backup::back_up(&lib, &dest, &BackupOptions { name: "a", also: &[bad] }, &()).unwrap_err();
+        let e = backup::back_up(&lib, &dest, &BackupOptions { name: "a", also: &[bad], made: None, library_id: None }, &()).unwrap_err();
         assert!(matches!(e, BackupError::Name(_)), "{bad:?}: {e}");
     }
 }
@@ -498,4 +498,222 @@ fn a_backup_that_was_touched_is_found_out() {
     let copy = copy_of(&made.dir, "outside");
     std::fs::write(copy.join(backup::MARKER), serde_json::to_vec(&v).unwrap()).unwrap();
     assert!(matches!(backup::check(&copy), Err(BackupError::Changed(msg)) if msg.contains("not a file of the backup")));
+}
+
+// ---- backups that are older than a library keeps them
+
+/// A backup of `library` (whose id is `id`) in `dest`, made at `made` (and named after it).
+fn back_up_at(library: &Path, id: &str, dest: &Path, made: &str) -> BackupReport {
+    let name = made.replace(':', ".").replace('T', " ");
+    backup::back_up(library, dest, &BackupOptions { made: Some(made), library_id: Some(id), ..options(&name) }, &()).unwrap()
+}
+
+fn names(reports: &[BackupReport]) -> Vec<String> {
+    reports.iter().map(|r| r.dir.file_name().unwrap().to_string_lossy().into_owned()).collect()
+}
+
+/// The backups of `library` (id `id`) in `dest` that are older than `before`, seen in 2030.
+fn old(dest: &Path, library: &Path, id: &str, before: &str) -> Vec<String> {
+    names(&backup::outdated(dest, backup::Own { library, id }, before, "2030-01-01T00:00:00"))
+}
+
+/// Given a backup, then its list of files says when it was made and which library it is of.
+#[test]
+fn a_backup_says_when_it_was_made_and_what_it_is_of() {
+    let (lib, dest) = (temp("lib"), temp("dest"));
+    let (j, _) = library(&lib, 6);
+    drop(j);
+    let made = back_up_at(&lib, "one", &dest, "2026-10-11T09:00:00");
+    assert_eq!(made.made.as_deref(), Some("2026-10-11T09:00:00"));
+    assert_eq!((made.library.clone(), made.library_id.as_deref()), (Some(std::fs::canonicalize(&lib).unwrap()), Some("one")));
+    let listed = backup::list(&dest);
+    assert_eq!((listed[0].made.clone(), listed[0].library.clone(), listed[0].library_id.clone()), (made.made, made.library, made.library_id));
+    // and the backup is still what its list says, and opens
+    backup::check(&made.dir).unwrap();
+}
+
+/// Given a library's backups of January to June, when the ones older than a time are asked
+/// for, then they are the ones made before then, oldest first, but never one of its three
+/// newest, however old: there is always more than the backup just made.
+#[test]
+fn the_backups_a_library_no_longer_keeps_are_its_old_ones_but_never_its_newest_three() {
+    let (lib, dest) = (temp("lib"), temp("dest"));
+    let (j, _) = library(&lib, 6);
+    drop(j);
+    for month in 1..=6 {
+        back_up_at(&lib, "one", &dest, &format!("2026-0{month}-10T09:00:00"));
+    }
+    assert_eq!(old(&dest, &lib, "one", "2026-01-01T00:00:00"), Vec::<String>::new(), "none is that old");
+    assert_eq!(old(&dest, &lib, "one", "2026-03-01T00:00:00"), ["2026-01-10 09.00.00", "2026-02-10 09.00.00"]);
+    assert_eq!(
+        old(&dest, &lib, "one", "2029-01-01T00:00:00"),
+        ["2026-01-10 09.00.00", "2026-02-10 09.00.00", "2026-03-10 09.00.00"],
+        "the three newest stay, however old"
+    );
+    assert_eq!(backup::KEEP_AT_LEAST, 3);
+}
+
+/// Given a folder that also holds what is not certainly an old backup of this library, then
+/// none of it is among the backups the library no longer keeps: another library's backups; the
+/// backups of a library that was at this path before (another id); a backup set aside under
+/// another name; one from before backups said when and of what; one cut short; a folder of the
+/// person's own; and backups whose time is yet to come, or is no time at all.
+#[test]
+fn only_what_is_certainly_an_old_backup_of_the_library_is_one() {
+    let (lib, other, dest) = (temp("lib"), temp("other"), temp("dest"));
+    for l in [&lib, &other] {
+        let (j, _) = library(l, 6);
+        drop(j);
+    }
+    for month in 1..=5 {
+        back_up_at(&lib, "one", &dest, &format!("2026-0{month}-10T09:00:00"));
+    }
+    let all = "2029-01-01T00:00:00";
+    assert_eq!(old(&dest, &lib, "one", all), ["2026-01-10 09.00.00", "2026-02-10 09.00.00"]);
+
+    // another library's, and one of a library that was here before: older than all of them
+    back_up_at(&other, "two", &dest, "2025-01-01T00:00:00");
+    back_up_at(&lib, "before", &dest, "2025-02-01T00:00:00");
+    // the January backup set aside under a name of the person's own
+    let kept = dest.join("2026-01-10 keep");
+    std::fs::rename(dest.join("2026-01-10 09.00.00"), &kept).unwrap();
+    // from before backups said when and of what; cut short; the person's own folder
+    backup::back_up(&lib, &dest, &options("unsigned"), &()).unwrap();
+    std::fs::create_dir_all(dest.join("2025-12-01 09.00.00.partial")).unwrap();
+    std::fs::create_dir_all(dest.join("holiday photos")).unwrap();
+    std::fs::write(dest.join("holiday photos").join("backup.json"), b"{\"not\": \"a backup\"}").unwrap();
+    // a time yet to come (the clock was wrong), and no time at all
+    back_up_at(&lib, "one", &dest, "2031-01-01T00:00:00");
+    backup::back_up(&lib, &dest, &BackupOptions { made: Some("0000"), library_id: Some("one"), ..options("no time") }, &()).unwrap();
+
+    assert_eq!(old(&dest, &lib, "one", all), ["2026-02-10 09.00.00"], "what is left of its own: Feb to May, the newest three stay");
+    // the other library, and the one that was here before, have their own to keep or not
+    assert_eq!(old(&dest, &other, "two", all), Vec::<String>::new());
+    assert_eq!(old(&dest, &lib, "before", all), Vec::<String>::new());
+    // and a backup dated after "now" is not counted as the newest either: seen in 2026, the real
+    // newest three are March to May
+    assert_eq!(names(&backup::outdated(&dest, backup::Own { library: &lib, id: "one" }, all, "2026-06-01T00:00:00")), ["2026-02-10 09.00.00"]);
+}
+
+/// Given backups that share their unchanged files, when an old one is removed, then it is gone
+/// as a whole, and the ones that stay are whole: each still is what its list says, and opens.
+/// Only a backup is removed: a folder that is none is refused and left as it is.
+#[test]
+fn removing_an_old_backup_takes_nothing_from_the_others() {
+    let (lib, dest) = (temp("lib"), temp("dest"));
+    let (mut j, mut c) = library(&lib, 12);
+    j.snapshot(&c).unwrap();
+    let first = back_up_at(&lib, "one", &dest, "2026-01-10T09:00:00");
+    run(&mut j, &mut c, vec![Op::SetRating { id: PhotoId(6), rating: 5 }]);
+    j.snapshot(&c).unwrap();
+    let second = back_up_at(&lib, "one", &dest, "2026-06-10T09:00:00");
+    assert!(second.linked > 0, "they share files: {second:?}");
+    drop(j);
+
+    backup::remove(&first.dir).unwrap();
+    assert!(!first.dir.exists());
+    assert_eq!(names(&backup::list(&dest)), ["2026-06-10 09.00.00"]);
+    backup::check(&second.dir).unwrap();
+
+    let mine = dest.join("holiday photos");
+    std::fs::create_dir_all(&mine).unwrap();
+    std::fs::write(mine.join("a.jpg"), b"x").unwrap();
+    assert!(backup::remove(&mine).is_err());
+    assert!(backup::remove(&lib).is_err(), "a library is no backup");
+    assert!(mine.join("a.jpg").exists() && lib.join("catalog.snap").exists());
+}
+
+/// Given two copies of a library (the same id) in two folders that back up to one folder, then
+/// neither's old backups are the other's to remove: a backup is a library's own by where the
+/// library is, too.
+#[test]
+fn a_copy_of_a_library_elsewhere_keeps_its_own_backups() {
+    let (lib, copy, dest) = (temp("lib"), temp("copy"), temp("dest"));
+    for l in [&lib, &copy] {
+        let (j, _) = library(l, 6);
+        drop(j);
+    }
+    for month in 1..=4 {
+        back_up_at(&copy, "one", &dest, &format!("2025-0{month}-10T09:00:00"));
+        back_up_at(&lib, "one", &dest, &format!("2026-0{month}-10T09:00:00"));
+    }
+    let all = "2029-01-01T00:00:00";
+    assert_eq!(old(&dest, &lib, "one", all), ["2026-01-10 09.00.00"], "its own oldest, none of the copy's of 2025");
+    assert_eq!(old(&dest, &copy, "one", all), ["2025-01-10 09.00.00"]);
+}
+
+/// The times a backup may say it was made at: one made exactly when backups begin to be kept
+/// is kept; one made this very moment counts (it is among the newest); and a time that is no
+/// time (the 30th of February, a time with a zone after it) says nothing, so that backup stays.
+#[test]
+fn a_backup_is_old_only_by_a_time_that_is_one() {
+    let (lib, dest) = (temp("lib"), temp("dest"));
+    let (j, _) = library(&lib, 6);
+    drop(j);
+    for made in ["2026-01-10T09:00:00", "2026-02-10T09:00:00", "2026-03-10T09:00:00", "2026-04-10T09:00:00", "2026-05-10T09:00:00"] {
+        back_up_at(&lib, "one", &dest, made);
+    }
+    for (name, no_time) in [("feb 30", "2026-02-30T00:00:00"), ("zoned", "2026-01-01T00:00:00Z"), ("empty", ""), ("words", "a while ago, I think")] {
+        backup::back_up(&lib, &dest, &BackupOptions { made: Some(no_time), library_id: Some("one"), ..options(name) }, &()).unwrap();
+    }
+    let own = backup::Own { library: &lib, id: "one" };
+    let at = |before: &str, now: &str| names(&backup::outdated(&dest, own, before, now));
+    assert_eq!(at("2026-02-10T09:00:00", "2030-01-01T00:00:00"), ["2026-01-10 09.00.00"], "made exactly then: kept");
+    assert_eq!(at("2026-02-10T09:00:01", "2030-01-01T00:00:00"), ["2026-01-10 09.00.00", "2026-02-10 09.00.00"]);
+    // now is the moment the newest was made: it counts as one of the three
+    assert_eq!(at("2029-01-01T00:00:00", "2026-05-10T09:00:00"), ["2026-01-10 09.00.00", "2026-02-10 09.00.00"]);
+    // a moment earlier it is yet to come, and March to April with February are the three
+    assert_eq!(at("2029-01-01T00:00:00", "2026-05-10T08:59:59"), ["2026-01-10 09.00.00"]);
+    // and a clock that says nothing makes nothing old
+    assert_eq!(at("2029-01-01T00:00:00", ""), Vec::<String>::new());
+}
+
+/// Given a backup that something else was put into since it was made (notes, an export), when
+/// it is to be removed, then it is refused and everything in it stays: what a person put there
+/// is not the library's to remove. So is one whose `<name>.partial` is taken.
+#[test]
+fn a_backup_that_holds_something_else_is_not_removed() {
+    let (lib, dest) = (temp("lib"), temp("dest"));
+    let (j, _) = library(&lib, 6);
+    drop(j);
+    let with_notes = back_up_at(&lib, "one", &dest, "2026-01-10T09:00:00");
+    let with_folder = back_up_at(&lib, "one", &dest, "2026-02-10T09:00:00");
+    let in_the_way = back_up_at(&lib, "one", &dest, "2026-03-10T09:00:00");
+    std::fs::write(with_notes.dir.join("notes.txt"), b"before the trip").unwrap();
+    std::fs::create_dir_all(with_folder.dir.join("exports")).unwrap();
+    std::fs::write(with_folder.dir.join("exports").join("a.jpg"), b"x").unwrap();
+    std::fs::create_dir_all(dest.join("2026-03-10 09.00.00.partial")).unwrap();
+
+    let e = backup::remove(&with_notes.dir).unwrap_err().to_string();
+    assert!(e.contains("notes.txt") && e.contains("nothing was removed"), "{e}");
+    let e = backup::remove(&with_folder.dir).unwrap_err().to_string();
+    assert!(e.contains("exports") && e.contains("nothing was removed"), "{e}");
+    let e = backup::remove(&in_the_way.dir).unwrap_err().to_string();
+    assert!(e.contains("in the way") && e.contains("nothing was removed"), "{e}");
+    assert!(with_notes.dir.join("notes.txt").is_file() && with_folder.dir.join("exports").join("a.jpg").is_file());
+    for b in [&with_notes, &with_folder, &in_the_way] {
+        assert!(b.dir.join("backup.json").is_file() && b.dir.join("catalog.snap").is_file(), "{}", b.dir.display());
+    }
+    backup::check(&in_the_way.dir).unwrap();
+}
+
+/// Given a link in the folder backups go to that leads to a backup kept elsewhere, then that
+/// backup is not among the ones the library no longer keeps, and removing by the link is
+/// refused: only folders of the backup folder itself are the library's to remove.
+#[cfg(unix)]
+#[test]
+fn a_link_to_a_backup_elsewhere_is_not_followed() {
+    let (lib, dest, vault) = (temp("lib"), temp("dest"), temp("vault"));
+    let (j, _) = library(&lib, 6);
+    drop(j);
+    let kept = back_up_at(&lib, "one", &vault, "2025-01-10T09:00:00");
+    for month in 1..=4 {
+        back_up_at(&lib, "one", &dest, &format!("2026-0{month}-10T09:00:00"));
+    }
+    let link = dest.join("2025-01-10 09.00.00");
+    std::os::unix::fs::symlink(&kept.dir, &link).unwrap();
+    assert_eq!(old(&dest, &lib, "one", "2029-01-01T00:00:00"), ["2026-01-10 09.00.00"]);
+    assert!(backup::remove(&link).is_err());
+    backup::check(&kept.dir).unwrap();
+    assert!(std::fs::symlink_metadata(&link).is_ok(), "the link is the person's too");
 }

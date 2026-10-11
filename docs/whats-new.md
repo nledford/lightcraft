@@ -30,6 +30,12 @@
   `library.backup` (`dir`; returns when the backup is made, or at once with `background`), `library.backupStatus`,
   `library.backupPreferences` (the folder a library's backups go to), `library.checkBackup` (reads a backup against
   the list of files it was made with, and names one that was edited or damaged since).
+- Old backups can go by themselves: Settings ▸ General ▸ Backups ▸ **Keep backups** (Forever, which is the usual, or
+  1, 3, 6 months or a year). After a backup is made, the library's own backups older than that are removed, and the note
+  that the library was backed up says how many; its newest three always stay, as does a backup you renamed or put
+  something of your own into, and backups of another library in the same folder are never touched. Agents: `keepDays` in
+  `library.backupPreferences` (any number of days), and `library.pruneBackups` to see which backups are that old
+  before any is removed. For more elaborate keeping, a backup tool such as `restic` or `rustic` can take the folder.
 - A library can be backed up without being asked, in two ways of their own, both off until chosen in Settings ▸
   General ▸ Backups. **While open**: once a day, a week or a month, by itself in the background when the last backup
   is that old (a month is thirty days; one that fails is tried again an hour later). **When quitting**: Ask (Back Up,

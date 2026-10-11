@@ -274,6 +274,8 @@
   "· {in_source} identical copies": "・同一のコピー {in_source} 件",
   "Backed up the library to {}": "ライブラリを {} にバックアップしました",
   "The library was not backed up: {}": "ライブラリをバックアップできませんでした: {}",
+  "Older backups removed: {}": "削除した古いバックアップ: {}",
+  "Older backups that could not be removed: {}": "削除できなかった古いバックアップ: {}",
   "Restored the library. What it held before is in {}": "ライブラリを復元しました。以前の内容は {} にあります",
   "The library was not restored: {}": "ライブラリを復元できませんでした: {}",
   "{count} more warnings.": "ほかに{count}件の警告があります。",

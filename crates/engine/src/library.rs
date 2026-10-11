@@ -310,6 +310,12 @@ struct PrefsFile {
     backup_schedule: crate::backup_schedule::BackupSchedule,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_backup: Option<String>,
+    /// How many days backups are kept (none: forever).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    backup_keep_days: Option<u32>,
+    /// The library's own id (see `Session::library_id`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    library_id: Option<String>,
     /// Parameters of the last export (for Export with Previous).
     #[serde(alias = "last_export")]
     last_export: Option<serde_json::Value>,
@@ -663,6 +669,8 @@ impl Session {
         self.backup_dir = prefs.backup_dir;
         self.backup_schedule = prefs.backup_schedule;
         self.last_backup = prefs.last_backup;
+        self.backup_keep_days = prefs.backup_keep_days.filter(|days| *days > 0);
+        self.library_id = prefs.library_id.filter(|id| !id.trim().is_empty());
         self.backup_tried = None;
         self.last_export = prefs.last_export;
         self.last_merge = prefs.last_merge;
@@ -974,6 +982,8 @@ impl Session {
             backup_dir: self.backup_dir.clone(),
             backup_schedule: self.backup_schedule,
             last_backup: self.last_backup.clone(),
+            backup_keep_days: self.backup_keep_days,
+            library_id: self.library_id.clone(),
             last_export: self.last_export.clone(),
             last_merge: self.last_merge.clone(),
             export_presets: self.export_presets.clone(),

@@ -76,6 +76,10 @@ pub struct BackupOptions<'a> {
     /// Other files of the library folder to copy when they are there (presets, preferences):
     /// plain file names, none of them the catalog's own.
     pub also: &'a [&'a str],
+    /// When it is made (ISO 8601, the caller's clock), for the backup to say so itself.
+    pub made: Option<&'a str>,
+    /// The library's own id, if it has one, likewise.
+    pub library_id: Option<&'a str>,
 }
 
 /// A backup that was made.
@@ -98,6 +102,16 @@ pub struct BackupReport {
     /// Every file of the backup but the marker itself, by name: its size and CRC-32.
     #[serde(default)]
     pub contents: BTreeMap<String, Held>,
+    /// When it was made (ISO 8601, the clock of whoever made it). Backups from before they said
+    /// so have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub made: Option<String>,
+    /// The library folder it is of, as the file system named it then. Likewise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library: Option<PathBuf>,
+    /// The id of the library it is of (a library made anew at the same path has another).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library_id: Option<String>,
 }
 
 /// A file of a backup, as its marker lists it.
@@ -411,6 +425,9 @@ impl Job<'_> {
             bytes: total,
             copied_bytes: snapshot.len() as u64,
             contents: BTreeMap::new(),
+            made: self.options.made.map(str::to_string),
+            library: std::fs::canonicalize(self.library).ok(),
+            library_id: self.options.library_id.map(str::to_string),
         };
         report.contents.insert(SNAPSHOT.to_string(), Held { bytes: snapshot.len() as u64, crc: crc32fast::hash(&snapshot) });
         for segment in &head.segments {
@@ -523,12 +540,106 @@ pub fn list(dest: &Path) -> Vec<BackupReport> {
     found.into_iter().map(|(_, _, report)| report).collect()
 }
 
+/// The longest a backup's list of its files is read (it names a few files and the catalog's
+/// segments: kilobytes. A file of that name that is larger is no list of ours).
+const MARKER_MAX: u64 = 64 << 20;
+
+/// The list of its files that the backup in `dir` was made with (its marker), when it has one
+/// that reads as such.
+fn marker(dir: &Path) -> Option<BackupReport> {
+    let path = dir.join(MARKER);
+    let small = std::fs::symlink_metadata(&path).is_ok_and(|m| m.is_file() && m.len() <= MARKER_MAX);
+    serde_json::from_slice(&std::fs::read(path).ok().filter(|_| small)?).ok()
+}
+
+/// How many of a library's newest backups stay however old they are: age is told by clocks, and
+/// one backup made while the clock was wrong must not cost the others.
+pub const KEEP_AT_LEAST: usize = 3;
+
+/// Which library's backups are asked for ([`outdated`]): the library folder, and its own id.
+#[derive(Clone, Copy, Debug)]
+pub struct Own<'a> {
+    pub library: &'a Path,
+    pub id: &'a str,
+}
+
+/// The backups of a library in `dest` that were made before `before`, as of `now` (ISO 8601),
+/// oldest first: what a library that keeps its backups for some time no longer keeps.
+///
+/// Only what is certainly an old backup of this library:
+/// - a finished backup that says itself that it is of this library, by folder and by id (not
+///   another library's that goes to the same folder, not one of a library that was at this path
+///   before, not one from before backups said so, not a folder that is no backup, not a link
+///   to a backup that is kept elsewhere);
+/// - still under the name it was made under (a copy set aside under another name is the
+///   person's own to keep);
+/// - that says when it was made, as a time, and not one yet to come (a clock that was wrong
+///   when it was made tells nothing about its age: it is left alone);
+/// - and never one of the newest [`KEEP_AT_LEAST`] of them, however old.
+pub fn outdated(dest: &Path, own: Own<'_>, before: &str, now: &str) -> Vec<BackupReport> {
+    let library = std::fs::canonicalize(own.library).unwrap_or_else(|_| own.library.to_path_buf());
+    let a_time = |t: &str| t.len() == 19 && crate::dates::shift_iso(t, 0).is_some_and(|same| same == t);
+    let Ok(entries) = std::fs::read_dir(dest) else { return Vec::new() };
+    let mut theirs: Vec<(String, BackupReport)> = entries
+        .filter_map(|e| e.ok()?.file_name().into_string().ok())
+        // (a folder of this folder: not a link to a backup that is kept elsewhere)
+        .filter(|name| !name.ends_with(PARTIAL) && std::fs::symlink_metadata(dest.join(name)).is_ok_and(|m| m.is_dir()))
+        .filter_map(|name| {
+            let mut b = marker(&dest.join(&name))?;
+            // (the marker says where the backup was made: under this name, or it was renamed since)
+            let as_made = b.dir.file_name().is_some_and(|made_as| made_as == name.as_str());
+            let of_this = b.library.as_deref() == Some(library.as_path()) && b.library_id.as_deref() == Some(own.id);
+            let made = b.made.clone().filter(|t| a_time(t) && t.as_str() <= now)?;
+            b.dir = dest.join(&name);
+            (as_made && of_this).then_some((made, b))
+        })
+        .collect();
+    theirs.sort_by(|a, b| (&a.0, &a.1.dir).cmp(&(&b.0, &b.1.dir)));
+    let old = theirs.len().saturating_sub(KEEP_AT_LEAST);
+    theirs.into_iter().take(old).filter(|(made, _)| made.as_str() < before).map(|(_, b)| b).collect()
+}
+
+/// Remove the backup in `dir`, as a whole. Backups share their unchanged files as links, so the
+/// others lose nothing by it; a file of one is never removed on its own.
+///
+/// Only a backup that was made, holding nothing but the files it lists, is removed: a folder
+/// that is no backup, and a backup that something else was put into since, are refused and left
+/// as they are (what a person put there is not the library's to remove).
+///
+/// It is first named `<name>.partial`, so that what a removal cut short leaves is no backup (and
+/// is cleared away by a later backup once it is an hour old, like one that was cut short being
+/// made). A backup of which nothing could be removed has its name back.
+pub fn remove(dir: &Path) -> Result<(), BackupError> {
+    let refused = |why: String| BackupError::Io(format!("{} {why}: nothing was removed", dir.display()));
+    let Some(listed) = marker(dir).filter(|_| std::fs::symlink_metadata(dir).is_ok_and(|m| m.is_dir())) else {
+        return Err(refused("is not a backup".into()));
+    };
+    let names = held(dir).map_err(|other| refused(format!("holds what is not a backup's ({other})")))?;
+    if let Some(other) = names.iter().find(|name| name.as_str() != MARKER && !listed.contents.contains_key(name.as_str())) {
+        return Err(refused(format!("holds {other}, which is not one of the backup's files")));
+    }
+    let name = dir.file_name().and_then(|n| n.to_str()).ok_or_else(|| refused("has no name to go by".into()))?;
+    let going = dir.with_file_name(format!("{name}{PARTIAL}"));
+    if std::fs::symlink_metadata(&going).is_ok() {
+        return Err(refused(format!("can't be removed while {} is in the way", going.display())));
+    }
+    std::fs::rename(dir, &going).map_err(|e| io("can't remove the backup", dir, e))?;
+    if let Some(dest) = dir.parent() {
+        sync_dir(dest);
+    }
+    std::fs::remove_dir_all(&going).map_err(|e| {
+        // nothing of it went (a folder that may be renamed but not emptied): it is a backup still
+        let whole = check(&going).is_ok() && std::fs::rename(&going, dir).is_ok();
+        let left = if whole { "it is as it was".to_string() } else { format!("what is left of it is in {}", going.display()) };
+        BackupError::Io(format!("can't remove the backup {}: {e}; {left}", dir.display()))
+    })
+}
+
 /// Whether `dir` is a backup that was made: its marker is a file that reads as a backup's list.
 /// (Stricter than [`is_backup`], for telling a backup from a folder that merely holds a file of
 /// that name: an export called `backup.json` does not make a drive a backup.)
 pub fn is_made_backup(dir: &Path) -> bool {
-    let marker = dir.join(MARKER);
-    regular(&marker) && std::fs::read(&marker).ok().is_some_and(|bytes| serde_json::from_slice::<BackupReport>(&bytes).is_ok())
+    marker(dir).is_some()
 }
 
 /// Whether `dir` is a backup: it has a backup's marker (whatever that is: a folder with

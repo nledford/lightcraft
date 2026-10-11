@@ -176,6 +176,43 @@ the other).
   quits when the backup is made; one that fails asks whether to quit anyway. A restore keeps the schedule, like the
   folder: both are the library's choices now, not the backup's from then. Only the app a
   person has open does either: headless sessions (snapshots, agents, the command line) back up when they are told to.
+- **A library keeps its backups forever, unless told for how long** (`library.backupPreferences`, `keepDays`;
+  Settings ▸ General ▸ Backups ▸ Keep backups: 1, 3, 6 months or a year, a month being thirty days). After a backup is
+  made to the folder the library's backups go to, its backups older than that are removed, each as a whole folder:
+  - only after a backup that was made, never that backup, and never one of the library's newest three, however old
+    they are. Age is told by clocks, and one backup made while the clock was wrong must not cost the others: a
+    clock that jumped ahead costs the backups beyond those three, and no more.
+  - only what is certainly an old backup of this library. A backup says in its `backup.json` which library it is of
+    (`library`, the library folder, and `libraryId`, the id a library is given at its first backup and keeps in its
+    preferences) and when it was made (`made`). It is left alone when either is another's or missing (another
+    library's backup in the same folder; one of a library that was in this place before and was deleted; a folder
+    that is no backup), when it no longer has the name it was made under (a backup set aside under a name of your
+    own is yours to keep), and when the time it was made is yet to come or is no time at all: such a backup is
+    neither removed nor counted among the newest. A library that was moved does not remove the backups made of
+    it where it was.
+  - by the time the backup says it was made, not by file dates, which change when a drive is copied.
+  - not while the library is being restored: a restore reads a backup, so none is made or removed until it is over.
+  - only a backup that holds nothing but the files it lists: one that something else was put into since (notes,
+    an export) stays with everything in it, and the backup says it could not be removed and why. A link in the
+    folder that leads to a backup kept elsewhere is not followed.
+
+  A library restored into another folder (`library.restore` with `to`) is another library from then on, with an
+  id of its own from its first backup. What the rule can't tell apart is a library folder copied by hand to the
+  same path on another computer (or a cloned drive mounted at the same place) while both copies back up to one
+  shared folder with a time set: they have the same id and the same path, so each counts the other's backups as
+  its own. Give such copies folders of their own for backups. And a library put back from a backup of another
+  library, or from one made before libraries had ids, no longer removes the backups made of it before that: the
+  folder then grows until they are removed by hand.
+
+  The backup says which older ones it removed and which it could not (`removed`, `notRemoved`), and so does the
+  app's note that the library was backed up.
+  `library.pruneBackups` says which backups are that old without removing any (`remove: true` removes them). A
+  removal that is cut short leaves a `<name>.partial` folder, which is no backup and is cleared away by a later
+  backup once it is an hour old; a backup of which nothing could be removed has its name back.
+- **For more than that, use a backup tool.** Each backup is an ordinary folder that stands on its own, so tools made
+  for keeping snapshots (`restic`, `rustic` and the like) can take the folder backups go to, with their own rules
+  for what to keep and where. Point them at finished backups, not at the library folder while LightCraft has it
+  open: the catalog's files change as you work.
 - **A backup takes every file the library has.** The library's own files beside the catalog are one list
   (`SettingsFile` in `crates/engine/src/library.rs`), which is what a backup takes along and what the browser build
   reads at start-up. The library's file store refuses to write a file that is not on it, so a new one can't be added

@@ -396,6 +396,12 @@ pub struct Session {
     pub backup_dir: Option<std::path::PathBuf>,
     /// When the library is backed up without being asked (`library.backupPreferences`).
     pub backup_schedule: backup_schedule::BackupSchedule,
+    /// How many days the library keeps its backups (`None`: forever). Older ones are removed
+    /// after a backup is made (`library.backupPreferences`, `keepDays`).
+    pub backup_keep_days: Option<u32>,
+    /// The library's own id, which its backups say they are of (given at its first backup, and
+    /// saved with it: a library made anew in the same folder has another).
+    pub library_id: Option<String>,
     /// When the library was last backed up to the folder its backups go to (the session clock's
     /// time; saved with the library).
     pub last_backup: Option<String>,
@@ -550,6 +556,8 @@ impl Session {
             backup: None,
             backup_dir: None,
             backup_schedule: Default::default(),
+            backup_keep_days: None,
+            library_id: None,
             last_backup: None,
             backup_tried: None,
             backup_hold: Default::default(),

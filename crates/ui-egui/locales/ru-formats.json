@@ -270,6 +270,8 @@
   "· {in_source} identical copies": "· идентичных копий: {in_source}",
   "Backed up the library to {}": "Резервная копия библиотеки сохранена в {}",
   "The library was not backed up: {}": "Резервная копия библиотеки не создана: {}",
+  "Older backups removed: {}": "Удалено старых резервных копий: {}",
+  "Older backups that could not be removed: {}": "Не удалось удалить старых резервных копий: {}",
   "Restored the library. What it held before is in {}": "Библиотека восстановлена. Прежнее содержимое находится в {}",
   "The library was not restored: {}": "Библиотека не восстановлена: {}",
   "{count} more warnings.": "Других предупреждений: {count}.",

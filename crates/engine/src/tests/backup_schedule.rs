@@ -283,13 +283,14 @@ fn a_restore_keeps_the_schedule() {
     let made = s.execute("library.backup", &json!({})).unwrap();
     let from = made["report"]["dir"].as_str().unwrap().to_string();
     s.persist_if_dirty();
-    prefs(&mut s, json!({"every": "week", "onClose": "always"}));
+    prefs(&mut s, json!({"every": "week", "onClose": "always", "keepDays": 90}));
     let last = prefs(&mut s, json!({}))["lastBackup"].clone();
     assert!(last.is_string());
     s.execute("library.restore", &json!({"dir": from})).unwrap();
     let p = prefs(&mut s, json!({}));
     assert_eq!((p["every"].as_str(), p["onClose"].as_str()), (Some("week"), Some("always")));
     assert_eq!(p["lastBackup"], last);
+    assert_eq!(p["keepDays"], json!(90), "and how long backups are kept");
     drop(s);
     let _ = std::fs::remove_dir_all(dir);
 }
