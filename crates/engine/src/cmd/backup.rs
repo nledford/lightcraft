@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use lightcraft_catalog::backup::{self, BackupOptions, BackupReport, Watch};
+use lightcraft_catalog::backup::{self, BackupOptions, BackupReport, Own, Watch};
 use lightcraft_catalog::restore::{self, RestoreOptions};
 use serde_json::{Value, json};
 
@@ -47,6 +47,14 @@ pub struct BackupJob {
     pub own: bool,
     /// The session has taken note of how it ended (see [`note_finished`]).
     noted: AtomicBool,
+    /// How many days the library keeps its backups, when this one is of its own folder: older
+    /// ones are removed once it is made (`None`: none are).
+    pub keep_days: Option<u32>,
+    /// The library's own id, which the backup says it is of.
+    pub library_id: Option<String>,
+    /// The backups that were removed after it, by name, and the ones that could not be.
+    pub removed: std::sync::Mutex<Vec<String>>,
+    pub not_removed: std::sync::Mutex<Vec<String>>,
 }
 
 impl BackupJob {
@@ -66,6 +74,9 @@ impl BackupJob {
             "dest": self.dest.to_string_lossy(),
             "report": outcome.as_ref().and_then(|o| o.as_ref().ok()).and_then(|r| serde_json::to_value(r).ok()),
             "error": outcome.as_ref().and_then(|o| o.as_ref().err()),
+            // (older than the library keeps them, removed once this backup was made)
+            "removed": *self.removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+            "notRemoved": *self.not_removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
         })
     }
 }
@@ -128,13 +139,122 @@ fn run(name: String, job: &BackupJob, task: &TaskGuard, hold: &AtomicBool) {
     while hold.load(Ordering::SeqCst) && !job.cancel.load(Ordering::Relaxed) {
         std::thread::sleep(std::time::Duration::from_millis(2));
     }
-    let options = BackupOptions { name: &name, also: ALSO };
+    let options = BackupOptions {
+        name: &name,
+        also: ALSO,
+        made: Some(job.started.as_str()).filter(|at| !at.trim().is_empty()),
+        library_id: job.library_id.as_deref(),
+    };
     let made = backup::back_up(&job.library, &job.dest, &options, &Row { task, cancel: &job.cancel });
     match &made {
         Ok(r) => log::info!("library: backed up to {} ({} files, {} shared with the backup before)", r.dir.display(), r.files, r.linked),
         Err(e) => log::warn!("library: backup: {e}"),
     }
+    // Now that there is a new backup, the ones older than the library keeps them go: only after
+    // one that was made, and never that one.
+    if let (Ok(new), Some(days), Some(id)) = (&made, job.keep_days, job.library_id.as_deref()) {
+        let own = Own { library: &job.library, id };
+        // (the backup is made, whatever becomes of this: a fault here is not the backup's)
+        let (removed, not_removed) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            remove_outdated(&job.dest, own, &job.started, days, Some(&new.dir), &|| job.cancel.load(Ordering::Relaxed))
+        }))
+        .unwrap_or_else(|_| (Vec::new(), vec!["older backups: stopped on an internal error".to_string()]));
+        *job.removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = removed;
+        *job.not_removed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = not_removed;
+    }
     *job.outcome.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(made.map_err(|e| e.to_string()));
+}
+
+/// The time `days` before `now` (ISO 8601): backups made before it are older than a library
+/// that keeps them that long keeps them. `None`: there is no such time to tell (a clock that
+/// can't be read), and then nothing is old.
+fn kept_since(now: &str, days: u32) -> Option<String> {
+    lightcraft_catalog::dates::shift_iso(now, -i64::from(days).checked_mul(24 * 60 * 60)?)
+}
+
+/// The library's own backups in `dest` that are older than it keeps them at `now`
+/// ([`backup::outdated`]: only what is certainly an old backup of it, never its newest few).
+fn outdated(dest: &Path, own: Own<'_>, now: &str, days: u32) -> Vec<BackupReport> {
+    kept_since(now, days).map(|before| backup::outdated(dest, own, &before, now)).unwrap_or_default()
+}
+
+/// A backup's name: its folder's.
+fn name_of(b: &BackupReport) -> String {
+    b.dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+/// Remove the library's backups that are older than it keeps them ([`outdated`]), oldest first,
+/// until told to stop, and never `spare` (the backup just made): the names of the ones removed,
+/// and of the ones that could not be (each with why).
+fn remove_outdated(dest: &Path, own: Own<'_>, now: &str, days: u32, spare: Option<&Path>, stop: &dyn Fn() -> bool) -> (Vec<String>, Vec<String>) {
+    let (mut removed, mut not_removed) = (Vec::new(), Vec::new());
+    for old in outdated(dest, own, now, days) {
+        if stop() {
+            break;
+        }
+        if spare.is_some_and(|new| same_folder(new, &old.dir)) {
+            continue;
+        }
+        match backup::remove(&old.dir) {
+            Ok(()) => {
+                log::info!("library: removed the backup {} (older than {days} days)", old.dir.display());
+                removed.push(name_of(&old));
+            }
+            Err(e) => {
+                log::warn!("library: {e}");
+                not_removed.push(format!("{}: {e}", name_of(&old)));
+            }
+        }
+    }
+    (removed, not_removed)
+}
+
+/// An id for a library that has none: 128 bits that no other library has (the standard
+/// library's per-process random keys, and the time).
+fn new_id() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let part = |salt: u64| {
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u64(salt);
+        #[cfg(not(target_arch = "wasm32"))]
+        h.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or_default());
+        h.finish()
+    };
+    format!("{:016x}{:016x}", part(1), part(2))
+}
+
+/// A library restored into another folder is another library from then on: it does not keep
+/// the id of the one the backup was made of (whose backups are not its own to remove, should
+/// both ever back up to one folder from the same path), and is given its own at its first backup.
+fn forget_id(library: &Path) {
+    let path = library.join(crate::library::SettingsFile::Prefs.name());
+    let Some(mut prefs) = std::fs::read(&path).ok().and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok()) else { return };
+    if prefs.as_object_mut().and_then(|p| p.remove("libraryId")).is_none() {
+        return;
+    }
+    let fresh = path.with_extension("json.tmp");
+    let written = serde_json::to_vec_pretty(&prefs)
+        .map_err(|e| e.to_string())
+        .and_then(|bytes| std::fs::write(&fresh, bytes).and_then(|()| std::fs::rename(&fresh, &path)).map_err(|e| e.to_string()));
+    if let Err(e) = written {
+        let _ = std::fs::remove_file(&fresh);
+        log::warn!("library: {}: {e}", path.display());
+    }
+}
+
+/// The open library's own id; it is given one, kept in its preferences, when it has none.
+fn library_id(s: &mut Session) -> String {
+    if let Some(id) = &s.library_id {
+        return id.clone();
+    }
+    let id = new_id();
+    s.library_id = Some(id.clone());
+    // (not saved: the library's backups say this id only for this session, and then none of
+    // them is its own to a later one. Nothing is removed that should stay.)
+    if let Err(e) = s.save_prefs() {
+        log::warn!("library: {e}");
+    }
+    id
 }
 
 /// A folder given as a parameter: an absolute path (a relative one would mean another folder to
@@ -153,6 +273,78 @@ fn flag(cmd: &str, p: &Value, key: &str) -> Result<bool> {
         Some(Value::Bool(b)) => Ok(*b),
         Some(_) => Err(bad(cmd, format!("`{key}` is true or false"))),
     }
+}
+
+/// The longest a library can be told to keep its backups: a hundred years, in days.
+const KEEP_DAYS_MAX: u64 = 36_500;
+
+/// `keepDays`: how many days backups are kept. `None`: not given; `Some(None)`: forever (null).
+fn keep_days(cmd: &str, p: &Value) -> Result<Option<Option<u32>>> {
+    match p.get("keepDays") {
+        None => Ok(None),
+        Some(Value::Null) => Ok(Some(None)),
+        Some(v) => match v.as_u64().filter(|days| (1..=KEEP_DAYS_MAX).contains(days)).and_then(|days| u32::try_from(days).ok()) {
+            Some(days) => Ok(Some(Some(days))),
+            None => {
+                Err(bad(cmd, format!("`keepDays` is a whole number of days from 1 to {KEEP_DAYS_MAX}, or null to keep backups forever, not {v}")))
+            }
+        },
+    }
+}
+
+/// Say which of the library's backups are older than it keeps them, and remove them when told
+/// to (`remove`). `keepDays` given here is for this once.
+fn prune(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "library.pruneBackups";
+    let remove = flag(C, p, "remove")?;
+    let Some(days) = keep_days(C, p)?.unwrap_or(s.backup_keep_days) else {
+        return Err(bad(C, "this library keeps its backups forever: say how many days with `keepDays` (or set it with `library.backupPreferences`)"));
+    };
+    let Some(library) = s.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.clone()) else {
+        return Err(bad(C, "this library is not a folder on disk; it has no backups in a folder"));
+    };
+    let Some((dest, _)) = backup_folder(s) else { return Err(bad(C, "this library has no folder for backups")) };
+    // (set before the rule for where backups go, or in the preferences file by hand)
+    if let Some(why) = not_for_backups(s, &dest) {
+        return Err(bad(C, format!("the folder set for this library's backups can't be used: {why} (`library.backupPreferences`)")));
+    }
+    let now = (s.clock)();
+    // (a library that was never backed up has no id, and no backups of its own)
+    let old = match s.library_id.as_deref() {
+        Some(id) => outdated(&dest, Own { library: &library, id }, &now, days),
+        None => Vec::new(),
+    };
+    let listed: Vec<Value> =
+        old.iter().map(|b| json!({"name": name_of(b), "dir": b.dir.to_string_lossy(), "made": b.made, "bytes": b.bytes})).collect();
+    let (mut removed, mut not_removed) = (Vec::new(), Vec::new());
+    if remove && !old.is_empty() {
+        let task = s.activity.start("backup", "Removing old backups", Cancel::No);
+        task.progress(0, old.len() as u64);
+        // (the ones that were just listed, one by one: each must still be a backup that holds
+        // nothing but its own files when it goes)
+        for (done, b) in old.iter().enumerate() {
+            match backup::remove(&b.dir) {
+                Ok(()) => {
+                    log::info!("library: removed the backup {} (older than {days} days)", b.dir.display());
+                    removed.push(name_of(b));
+                }
+                Err(e) => {
+                    log::warn!("library: {e}");
+                    not_removed.push(format!("{}: {e}", name_of(b)));
+                }
+            }
+            task.progress(done as u64 + 1, old.len() as u64);
+        }
+    }
+    Ok(json!({
+        "dir": dest.to_string_lossy(),
+        "keepDays": days,
+        "before": kept_since(&now, days),
+        "keptAtLeast": backup::KEEP_AT_LEAST,
+        "outdated": listed,
+        "removed": removed,
+        "notRemoved": not_removed,
+    }))
 }
 
 /// One of a few choices given by its id (`None`: not given).
@@ -194,12 +386,16 @@ fn back_up(s: &mut Session, p: &Value) -> Result<Value> {
         },
         Some(dir) => destination(s, C, "dir", dir)?,
     };
+    // (the library's id is in its preferences before they are backed up)
+    let library_id = Some(library_id(s));
     // everything changed so far is in the log before it is read
     s.persist()?;
     let started = (s.clock)();
     let name = free_name(&dest, &started);
     let own = backup_folder(s).is_some_and(|(folder, _)| folder == dest);
-    let job = Arc::new(BackupJob { library, dest, started, own, ..Default::default() });
+    // (old backups are removed from the library's own folder only, by a backup made there)
+    let keep_days = s.backup_keep_days.filter(|_| own);
+    let job = Arc::new(BackupJob { library, dest, started, own, keep_days, library_id, ..Default::default() });
     s.backup = Some(job.clone());
     let task = s.activity.start("backup", "Backing up the library", Cancel::Flag(job.cancel.clone()));
     task.set_unit(Unit::Bytes);
@@ -278,6 +474,7 @@ fn restore_into(s: &Session, from: &Path, to: &Path, row: &Row<'_>) -> Result<Va
         }
     }
     let made = made?;
+    forget_id(to);
     log::info!("library: restored {} into {}", from.display(), to.display());
     Ok(json!({"restored": made, "opened": false}))
 }
@@ -587,7 +784,7 @@ fn can_restore(s: &Session) -> std::result::Result<(), String> {
 fn place(s: &mut Session, staged: restore::Staged, from: &Path, target: &Path, aside: &str) -> Result<Value> {
     // what of the session is the library's (it is put back if the restore is taken back), and
     // what stays: the folder backups go to is the library's choice now, not the backup's from then
-    let (backups, active) = ((s.backup_dir.clone(), s.backup_schedule, s.last_backup.clone()), s.active());
+    let (backups, active) = ((s.backup_dir.clone(), s.backup_schedule, s.last_backup.clone(), s.backup_keep_days), s.active());
     let kept = (s.presets.clone(), s.profile_favorites.clone(), s.profile_recent.clone(), s.media.smart_dir.clone());
     // everything this session changed is on disk, and nothing of it writes any more
     s.close_library()?;
@@ -637,8 +834,8 @@ fn place(s: &mut Session, staged: restore::Staged, from: &Path, target: &Path, a
     }
     log::info!("library: restored from {}; what it held is in {}", from.display(), made.aside.as_deref().unwrap_or(Path::new("")).display());
     // (and so is when it is backed up by itself, and when it last was)
-    if (s.backup_dir.clone(), s.backup_schedule, s.last_backup.clone()) != backups {
-        (s.backup_dir, s.backup_schedule, s.last_backup) = backups;
+    if (s.backup_dir.clone(), s.backup_schedule, s.last_backup.clone(), s.backup_keep_days) != backups {
+        (s.backup_dir, s.backup_schedule, s.last_backup, s.backup_keep_days) = backups;
         if let Err(e) = s.save_prefs() {
             log::warn!("library: {e}");
         }
@@ -785,9 +982,9 @@ fn preferences(s: &mut Session, p: &Value) -> Result<Value> {
     let every = choice(C, p, "every", crate::backup_schedule::BackupEvery::from_id, &crate::backup_schedule::BackupEvery::ALL.map(|e| e.id()))?;
     let on_close =
         choice(C, p, "onClose", crate::backup_schedule::BackupOnClose::from_id, &crate::backup_schedule::BackupOnClose::ALL.map(|c| c.id()))?;
-    let before = (s.backup_dir.clone(), s.backup_schedule, s.last_backup.clone(), s.backup_tried.clone());
+    let keep = keep_days(C, p)?;
+    let before = (s.backup_dir.clone(), s.backup_schedule, s.last_backup.clone(), s.backup_tried.clone(), s.backup_keep_days);
     if let Some(dir) = p.get("dir") {
-        let before = s.backup_dir.clone();
         s.backup_dir = match dir {
             Value::Null => None,
             dir => {
@@ -813,11 +1010,14 @@ fn preferences(s: &mut Session, p: &Value) -> Result<Value> {
     if let Some(on_close) = on_close {
         s.backup_schedule.on_close = on_close;
     }
-    if p.get("dir").is_some() || every.is_some() || on_close.is_some() {
+    if let Some(keep) = keep {
+        s.backup_keep_days = keep;
+    }
+    if p.get("dir").is_some() || every.is_some() || on_close.is_some() || keep.is_some() {
         // (a choice that was not saved is not made: Settings and the next backup would use what the
         // next session does not know)
         if let Err(e) = s.save_prefs() {
-            (s.backup_dir, s.backup_schedule, s.last_backup, s.backup_tried) = before;
+            (s.backup_dir, s.backup_schedule, s.last_backup, s.backup_tried, s.backup_keep_days) = before;
             return Err(e);
         }
     }
@@ -829,6 +1029,7 @@ fn preferences(s: &mut Session, p: &Value) -> Result<Value> {
         "every": s.backup_schedule.every.id(),
         "onClose": s.backup_schedule.on_close.id(),
         "lastBackup": s.last_backup,
+        "keepDays": s.backup_keep_days,
     }))
 }
 
@@ -836,9 +1037,16 @@ fn on_disk(s: &Session) -> std::result::Result<(), String> {
     if s.library.as_ref().is_some_and(|l| l.on_disk) { Ok(()) } else { Err("the library is not a folder on disk".into()) }
 }
 
-/// [`on_disk`], and no backup of the library under way.
+/// [`on_disk`], and no backup or restore of the library under way (a restore reads a backup,
+/// and then puts another library in this one's place: nothing is made or removed meanwhile).
 fn can_back_up(s: &Session) -> std::result::Result<(), String> {
     on_disk(s)?;
+    if restore_status(s).is_some_and(|r| r.running()) {
+        return Err("a restore of this library is under way".into());
+    }
+    if s.library.as_ref().is_some_and(|l| l.stuck.is_some()) {
+        return Err("a restore of this library stopped part-way; open the library again".into());
+    }
     if status(s).is_some_and(|b| !b.finished.load(Ordering::Relaxed)) { Err("a backup of this library is running".into()) } else { Ok(()) }
 }
 
@@ -849,7 +1057,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Back Up Library",
             ["File"],
             None,
-            "{dir?: absolute folder path (not inside the library folder other than Backups, nor inside a backup), background?: bool} — back up the library's catalog (not the photos) to a folder named after the time (UTC) in `dir`, else in the library's backup folder (`library.backupPreferences`), else in Backups in the library folder. The backup holds a whole library (`library.restore` puts it back; it is not opened where it is); files that didn't change since the backup before are shared with it (hard links, each read and checked first), so it copies what changed. Has a row in the activity stack (kind `backup`) that can stop it. Returns when the backup is made, or with `background` at once (then see `library.backupStatus`) → {running, cancelled, library, dest, report: {dir, seq, photos, segments, files, copied, linked, bytes, copiedBytes, contents: {file: {bytes, crc}}} | null, error}",
+            "{dir?: absolute folder path (not inside the library folder other than Backups, nor inside a backup), background?: bool} — back up the library's catalog (not the photos) to a folder named after the time (UTC) in `dir`, else in the library's backup folder (`library.backupPreferences`), else in Backups in the library folder. The backup holds a whole library (`library.restore` puts it back; it is not opened where it is); files that didn't change since the backup before are shared with it (hard links, each read and checked first), so it copies what changed. When the library keeps its backups for a time (`keepDays` in `library.backupPreferences`) and this one goes to its own folder, its older backups are removed afterwards (`removed`, `notRemoved`; see `library.pruneBackups`). Has a row in the activity stack (kind `backup`) that can stop it. Returns when the backup is made, or with `background` at once (then see `library.backupStatus`) → {running, cancelled, library, dest, report: {dir, seq, photos, segments, files, copied, linked, bytes, copiedBytes, made, library, libraryId, contents: {file: {bytes, crc}}} | null, error, removed: [older backups removed after it], notRemoved}",
             can_back_up,
             back_up
         ),
@@ -912,11 +1120,20 @@ pub fn specs() -> Vec<CommandSpec> {
             }
         ),
         cmd!(
+            "library.pruneBackups",
+            "Remove Old Backups",
+            [],
+            None,
+            "{keepDays?: whole days, remove?: bool} — the library's own backups (in the folder its backups go to) that are older than it keeps them, or than `keepDays` given for this once: never one of its newest three, never another library's (a backup says which library it is of, by folder and id), never one that was renamed, never one whose time is missing or yet to come. Says which; removes them, each as a whole, only with `remove: true`. Not while the library is being restored → {dir, keepDays, before, keptAtLeast, outdated: [{name, dir, made, bytes}], removed: [name], notRemoved: [name: why]}",
+            can_back_up,
+            prune
+        ),
+        cmd!(
             "library.backupPreferences",
             "Backup Preferences",
             [],
             None,
-            "{dir?: absolute folder path | null, choose?: bool, every?: never | day | week | month, onClose?: never | ask | always} — the folder the library's backups go to (saved with the library); null: Backups in the library folder; not a folder inside the library folder (other than Backups) or inside a backup; `choose: true` (in the app only, without `dir`): ask for it with a folder dialog, and the answer is null while the dialog is open `every`: back the library up by itself while it is open, when the last backup is that old (the app does; a month is thirty days); `onClose`: back it up when it is closed, asking first or not → {dir: what was chosen | null, folder: where backups go, every, onClose, lastBackup: when it was last backed up there | null}",
+            "{dir?: absolute folder path | null, choose?: bool, every?: never | day | week | month, onClose?: never | ask | always, keepDays?: whole days | null} — the folder the library's backups go to (saved with the library); null: Backups in the library folder; not a folder inside the library folder (other than Backups) or inside a backup; `choose: true` (in the app only, without `dir`): ask for it with a folder dialog, and the answer is null while the dialog is open `every`: back the library up by itself while it is open, when the last backup is that old (the app does; a month is thirty days); `onClose`: back it up when it is closed, asking first or not `keepDays`: how long the library keeps its backups (null: forever, the usual); older ones of its own are removed after a backup is made there, never its newest three → {dir: what was chosen | null, folder: where backups go, every, onClose, lastBackup: when it was last backed up there | null, keepDays}",
             on_disk,
             preferences
         ),

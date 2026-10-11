@@ -186,8 +186,13 @@ fn only_the_files_asked_for_are_restored() {
     let (j, _) = library(&dir, 10);
     drop(j);
     std::fs::write(dir.join("view.json"), b"{\"then\":1}").unwrap();
-    let made =
-        backup::back_up(&dir, &dir.join("Backups"), &backup::BackupOptions { name: "first", also: &["presets.json", "view.json"] }, &()).unwrap();
+    let made = backup::back_up(
+        &dir,
+        &dir.join("Backups"),
+        &backup::BackupOptions { name: "first", also: &["presets.json", "view.json"], made: None, library_id: None },
+        &(),
+    )
+    .unwrap();
     std::fs::write(dir.join("view.json"), b"{\"now\":1}").unwrap();
     std::fs::write(dir.join("presets.json"), b"[2]").unwrap();
     let r = restore::restore(&made.dir, &dir, &RestoreOptions { also: &["presets.json"], aside: "before" }, &()).unwrap();

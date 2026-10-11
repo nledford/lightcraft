@@ -279,6 +279,9 @@ fn a_backup_takes_every_file_of_the_library() {
     use crate::library::SettingsFile;
     let dir = temp_dir("every-file");
     let mut s = open(&dir);
+    // (a library gets its id at its first backup, and notes it in its preferences before the
+    // backup is made: this one has it already)
+    s.library_id = Some("a library".into());
     for file in SettingsFile::ALL {
         std::fs::write(dir.join(file.name()), format!("{{\"file\":\"{}\"}}", file.name())).unwrap();
     }
