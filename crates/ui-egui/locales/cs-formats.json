@@ -212,6 +212,7 @@
   "Backups in {}": "Zálohy v {}",
   "Folders of what restores replaced, removed: {}": "Odstraněné složky s tím, co obnovení nahradila: {}",
   "Folders of what restores replaced that could not be removed: {}": "Složky s tím, co obnovení nahradila, které nebylo možné odstranit: {}",
+  "Not available right now: {}": "Momentálně nedostupné: {}",
   "{n} photo{}": "fotografií: {n}{:.0}",
   "{n} photo{} match · updates automatically as photos change": "Odpovídající fotografie: {n}{:.0} · aktualizuje se automaticky při změnách fotografií",
   "{n} photo{} now · updates automatically as photos change": "Aktuální fotografie: {n}{:.0} · aktualizuje se automaticky při změnách fotografií",

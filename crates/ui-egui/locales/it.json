@@ -2033,5 +2033,12 @@
   "Choose a backup first": "Scegli prima un backup",
   "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "La libreria torna com'era quando è stato fatto il backup. Ciò che contiene ora viene conservato in Replaced, nella cartella della libreria.",
   "What restores replaced (Replaced in the library folder) goes by the same rule.": "Ciò che i ripristini hanno sostituito (Replaced, nella cartella della libreria) segue la stessa regola.",
-  "Choose a Folder": "Scegli una cartella"
+  "Choose a Folder": "Scegli una cartella",
+  "a restore of this library is under way": "è in corso un ripristino di questa libreria",
+  "a backup of this library is running": "è in corso un backup di questa libreria",
+  "a restore of this library stopped part-way; open the library again": "un ripristino di questa libreria si è interrotto a metà; riapri la libreria",
+  "the library is not a folder on disk": "la libreria non è una cartella sul disco",
+  "the library was closed or opened again before the backup was moved into place; it is as it was": "la libreria è stata chiusa o riaperta prima che il backup venisse messo al suo posto; è com'era",
+  "the backup was cancelled": "il backup è stato annullato",
+  "the restore was stopped; the library is as it was": "il ripristino è stato interrotto; la libreria è com'era"
 }

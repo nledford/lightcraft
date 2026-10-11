@@ -810,7 +810,7 @@ impl LightcraftApp {
                 self.ui.backup_seen = Some(key);
                 let mut msg = match outcome {
                     Ok(report) => crate::i18n::tr_format!("Backed up the library to {}", report.dir.display()),
-                    Err(e) => crate::i18n::tr_format!("The library was not backed up: {}", e),
+                    Err(e) => crate::i18n::tr_format!("The library was not backed up: {}", crate::i18n::refusal_text(&e)),
                 };
                 // (what the backup removed is said, not done in silence: the backups older than
                 // the library keeps them, and the ones that could not be removed)
@@ -865,7 +865,7 @@ impl LightcraftApp {
                             None => crate::i18n::tr("Restored the library").to_string(),
                         }
                     }
-                    Err(e) => crate::i18n::tr_format!("The library was not restored: {}", e),
+                    Err(e) => crate::i18n::tr_format!("The library was not restored: {}", crate::i18n::refusal_text(&e)),
                 };
                 self.toast_for(ctx, msg, 10.0);
             }

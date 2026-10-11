@@ -412,3 +412,28 @@ fn a_backup_folder_that_could_not_be_saved_is_not_chosen() {
         let _ = std::fs::remove_dir_all(d);
     }
 }
+
+/// The sentences an app says in its person's language are the ones the commands give: a
+/// refusal's reason is one of them word for word.
+#[test]
+fn the_reasons_a_backup_or_restore_is_refused_are_the_listed_sentences() {
+    use crate::cmd::backup::{BACKUP_RUNNING, CANCELLED, NOT_ON_DISK, REFUSALS};
+    assert_eq!(lightcraft_catalog::backup::BackupError::Cancelled.to_string(), CANCELLED);
+    let mut memory = Session::with_demo();
+    let e = memory.execute("library.backup", &json!({})).unwrap_err().to_string();
+    assert_eq!(e, format!("command `library.backup` is not available right now: {NOT_ON_DISK}"));
+    let dir = temp_dir("refusals");
+    let mut s = open(&dir);
+    s.backup_hold.store(true, Ordering::SeqCst);
+    s.execute("library.backup", &json!({"background": true})).unwrap();
+    let e = s.execute("library.restore", &json!({"dir": dir.to_string_lossy()})).unwrap_err().to_string();
+    assert_eq!(e, format!("command `library.restore` is not available right now: {BACKUP_RUNNING}"));
+    s.backup_hold.store(false, Ordering::SeqCst);
+    let t0 = std::time::Instant::now();
+    while !s.activity.list().is_empty() && t0.elapsed() < std::time::Duration::from_secs(20) {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(REFUSALS.iter().all(|r| !r.is_empty() && !r.contains('{')));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&dir);
+}

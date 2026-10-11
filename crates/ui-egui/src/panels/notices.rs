@@ -161,7 +161,7 @@ fn waiting_for_the_backup(app: &mut LightcraftApp) {
 /// as if the library had been backed up.)
 fn backup_failed(app: &mut LightcraftApp, why: &str) {
     app.quit_backup = QuitBackup::Undecided;
-    app.quit_prompt = Some(QuitPrompt::BackupFailed(crate::i18n::tr_format!("The library was not backed up: {}", why)));
+    app.quit_prompt = Some(QuitPrompt::BackupFailed(crate::i18n::tr_format!("The library was not backed up: {}", crate::i18n::refusal_text(why))));
 }
 
 /// The quit was called off: the next one starts over, with its own question about the backup.

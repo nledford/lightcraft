@@ -260,6 +260,7 @@
   "Backups in {}": "Backup in {}",
   "Folders of what restores replaced, removed: {}": "Cartelle di ciò che i ripristini hanno sostituito, rimosse: {}",
   "Folders of what restores replaced that could not be removed: {}": "Cartelle di ciò che i ripristini hanno sostituito che non è stato possibile rimuovere: {}",
+  "Not available right now: {}": "Non disponibile al momento: {}",
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})",
   "{n} preset{}": "{n} preset{}",
   " — kept but not applied: {}": " — kept but not applied: {}",

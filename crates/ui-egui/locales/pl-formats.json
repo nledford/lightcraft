@@ -256,6 +256,7 @@
   "Backups in {}": "Kopie zapasowe w {}",
   "Folders of what restores replaced, removed: {}": "Usunięte foldery z tym, co zastąpiły przywrócenia: {}",
   "Folders of what restores replaced that could not be removed: {}": "Foldery z tym, co zastąpiły przywrócenia, których nie udało się usunąć: {}",
+  "Not available right now: {}": "Obecnie niedostępne: {}",
   "· {trashed} in Recently Deleted": "· w Ostatnio usuniętych: {trashed}",
   " in {g} group{}": " in {g} group{}",
   " · kept, not applied: {}": " · kept, not applied: {}",

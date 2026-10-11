@@ -1466,7 +1466,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             Ok(serde_json::Value::Null) => {}
             // a backup was chosen: its restore has begun
             Ok(_) => close = true,
-            Err(e) => app.toast(ctx, e),
+            Err(e) => app.toast(ctx, crate::i18n::refusal_text(&e)),
         }
     }
     if confirm {
@@ -1501,7 +1501,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     *backups = crate::menus::backups_to_choose_from(&listed);
                     *selected = chosen.and_then(|dir| backups.iter().position(|b| b["dir"] == dir));
                 }
-                app.toast(ctx, e)
+                app.toast(ctx, crate::i18n::refusal_text(&e))
             }
             // the SAM 3 dialog stays open to show the download (or why it can't start)
             Err(e) if matches!(dlg, Dialog::SamModel { .. }) => {

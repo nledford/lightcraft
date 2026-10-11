@@ -280,6 +280,7 @@
   "Backups in {}": "Backups em {}",
   "Folders of what restores replaced, removed: {}": "Pastas removidas do que as restaurações substituíram: {}",
   "Folders of what restores replaced that could not be removed: {}": "Pastas do que as restaurações substituíram que não puderam ser removidas: {}",
+  "Not available right now: {}": "Indisponível no momento: {}",
   "{count} more warnings.": "Mais {count} avisos.",
   "{photos} catalog records processed; {collections} collections.": "{photos} registros do catálogo processados; {collections} coleções.",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing} originais estão ausentes. Seus registros no catálogo estão disponíveis; use Encontrar fotos ausentes para vinculá-los novamente.",

@@ -276,6 +276,7 @@
   "Backups in {}": "Резервные копии в {}",
   "Folders of what restores replaced, removed: {}": "Удалено папок с тем, что было заменено при восстановлениях: {}",
   "Folders of what restores replaced that could not be removed: {}": "Не удалось удалить папок с тем, что было заменено при восстановлениях: {}",
+  "Not available right now: {}": "Сейчас недоступно: {}",
   "{count} more warnings.": "Других предупреждений: {count}.",
   "{photos} catalog records processed; {collections} collections.": "Обработано записей каталога: {photos}; коллекций: {collections}.",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "Не найдены оригиналы: {missing}. Их записи каталога доступны; используйте поиск отсутствующих фотографий, чтобы восстановить ссылки.",
