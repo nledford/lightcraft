@@ -287,8 +287,11 @@ first.
   and says where the files are; with the note removed, the library opens as whatever is in place.
 - **A restored catalog that doesn't open is taken back.** If the session can't open what it restored (a segment that
   has its checksum but is no catalog data), the library's files are moved back, the backup's go to
-  `Replaced/<the time> (not opened)`, and the session goes on in the library as it was. With `to` nothing is opened,
-  so that is found out only when the folder is.
+  `Replaced/<the time> (not opened)`, and the session goes on in the library as it was. With `to` nothing is opened for
+  work, so the restored catalog is tried instead (read as opening would read it, with nothing written to the
+  folder): one that doesn't open is taken back the same way; from a folder that held nothing before, what the restore
+  put there is removed again (those files and no others: the folder is never emptied wholesale). `to` names the
+  folder outright: a path with `..` in it is refused, since it can come to mean another folder once part of it is made.
 - **Not while the library is at work.** A restore of the open library is refused while a backup or any other
   background task is running.
 - **If it can neither go on nor go back** (the disk fails between two moves), the session changes and writes nothing

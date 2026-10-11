@@ -121,7 +121,10 @@ fn free_name(dest: &Path, now: &str) -> String {
         })
         .collect();
     let base = if time.trim().is_empty() { "backup".to_string() } else { format!("{time} UTC") };
-    let taken = |name: &str| dest.join(name).exists() || dest.join(format!("{name}.partial")).exists();
+    // (also the names it may yet be given: while it is removed, and, in `Replaced`, for a backup
+    // that did not open)
+    let taken =
+        |name: &str| [String::new(), ".partial".to_string(), NOT_OPENED.to_string()].iter().any(|after| dest.join(format!("{name}{after}")).exists());
     if !taken(&base) {
         return base;
     }
@@ -579,36 +582,51 @@ fn restore_into(s: &Session, from: &Path, to: &Path, row: &Row<'_>) -> Result<Va
     if backup::is_backup(to) {
         return Err(bad(C, format!("`to` ({}) is a backup itself; restore into a library folder", to.display())));
     }
+    // The folder is named outright: a path with `..` in it can come to mean another folder once
+    // a part of it is made, and what is there now would be judged by the wrong one.
+    if to.components().any(|c| matches!(c, std::path::Component::ParentDir | std::path::Component::CurDir)) {
+        return Err(bad(C, format!("`to` ({}) has `.` or `..` in it; name the folder outright", to.display())));
+    }
+    // What is there now, for certain: a folder that can't be looked at is not taken for one that
+    // isn't there, or for an empty one.
+    let unseen = |e: std::io::Error| bad(C, format!("`to` ({}) can't be looked at ({e}); nothing was restored", to.display()));
+    let existed = match std::fs::symlink_metadata(to) {
+        Ok(_) => true,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+        Err(e) => return Err(unseen(e)),
+    };
+    let mut holds: Vec<String> = Vec::new();
+    if existed {
+        for entry in std::fs::read_dir(to).map_err(unseen)? {
+            holds.push(entry.map_err(unseen)?.file_name().to_string_lossy().into_owned());
+        }
+    }
     // a folder with things in it that is no library is not rearranged
-    let holds: Vec<String> = std::fs::read_dir(to).map(|d| d.filter_map(|e| e.ok()?.file_name().into_string().ok()).collect()).unwrap_or_default();
     let library = holds.iter().any(|n| n == "catalog.snap" || n == "catalog.log");
     if !holds.is_empty() && !library {
         return Err(bad(C, format!("`to` ({}) holds other files and is not a library; restore into an empty folder", to.display())));
     }
     // the backup is sound before anything is made for it
     backup::check(from).map_err(other)?;
-    let existed = to.exists();
     let had_lock = [LOCK, OWNER].map(|n| to.join(n).exists());
     std::fs::create_dir_all(to).map_err(|e| crate::EngineError::Other(format!("can't make the folder {}: {e}", to.display())))?;
     let aside = free_name(&to.join(restore::REPLACED), &(s.clock)());
-    let made = {
-        // the folder is nobody's while it is restored into
-        let _lock = lightcraft_catalog::LibraryLock::acquire(to, &crate::library::program_name())
-            .map_err(|e| crate::EngineError::LibraryInUse(e.to_string()));
-        match _lock {
-            Ok(_held) => {
-                let made = restore::restore(from, to, &RestoreOptions { also: ALSO, aside: &aside }, row).map_err(other);
-                // (with the folder's lock still held: nobody else has prefs.json to save meanwhile)
-                if made.is_ok() {
-                    forget_id(to);
-                }
-                made
+    // The folder is nobody's while it is restored into, tried and (should it not open) put back:
+    // one lock for all of it.
+    let lock = match lightcraft_catalog::LibraryLock::acquire(to, &crate::library::program_name()) {
+        Ok(lock) => lock,
+        Err(e) => {
+            // (somebody has it: the lock's files are theirs)
+            if !existed {
+                let _ = std::fs::remove_dir(to);
             }
-            Err(e) => Err(e),
+            return Err(crate::EngineError::LibraryInUse(e.to_string()));
         }
     };
-    if made.is_err() {
-        // nothing of a restore that was refused stays: the lock files and the folder it made
+    // nothing of a restore that was not made stays: the lock's files, and the folder if it was
+    // made for it (only when it is empty: it is never emptied here)
+    let leave = |lock: lightcraft_catalog::LibraryLock| {
+        drop(lock);
         for (name, had) in [LOCK, OWNER].iter().zip(had_lock) {
             if !had {
                 let _ = std::fs::remove_file(to.join(name));
@@ -617,10 +635,67 @@ fn restore_into(s: &Session, from: &Path, to: &Path, row: &Row<'_>) -> Result<Va
         if !existed {
             let _ = std::fs::remove_dir(to);
         }
+    };
+    let made = match restore::restore(from, to, &RestoreOptions { also: ALSO, aside: &aside }, row) {
+        Ok(made) => made,
+        Err(e) => {
+            leave(lock);
+            return Err(other(e));
+        }
+    };
+    // The restored catalog is opened nowhere here, so it is tried: a backup whose files are all
+    // what its marker lists and are no catalog all the same is not left as a library.
+    if let Err(why) = restore::opens(to) {
+        let not_opened = format!("{aside}{NOT_OPENED}");
+        let back = if holds.is_empty() {
+            // the folder held nothing: what the restore put there goes again, and nothing else
+            remove_placed(to, &made.placed).map(|()| format!("nothing of it is left in {}", to.display()))
+        } else {
+            restore::take_back(&made, &not_opened)
+                .map(|_| {
+                    format!("{} is as it was, and the backup's files are in {}", to.display(), to.join(restore::REPLACED).join(&not_opened).display())
+                })
+                .map_err(|e| match &made.aside {
+                    Some(aside) => format!("{e}; what the folder held is in {}", aside.display()),
+                    None => e.to_string(),
+                })
+        };
+        leave(lock);
+        return Err(crate::EngineError::Other(match back {
+            Ok(said) => format!("the backup's catalog can't be opened ({why}); {said}"),
+            Err(e) => {
+                format!(
+                    "the backup's catalog can't be opened ({why}), and the restore could not be taken back ({e}): {} is no library that opens",
+                    to.display()
+                )
+            }
+        }));
     }
-    let made = made?;
+    // (before the lock is let go: nobody else has prefs.json to save meanwhile)
+    forget_id(to);
+    drop(lock);
     log::info!("library: restored {} into {}", from.display(), to.display());
     Ok(json!({"restored": made, "opened": false}))
+}
+
+/// Remove what a restore put into a folder that held nothing before it (`placed`: the names of
+/// that folder it moved in, a file each or the segments folder). Those and nothing else: the
+/// folder itself, and anything that came to be in it since, stay.
+fn remove_placed(to: &Path, placed: &[String]) -> std::result::Result<(), String> {
+    for name in placed {
+        if !backup::is_plain_name(name) {
+            return Err(format!("{name:?} is not a file of the folder"));
+        }
+        let path = to.join(name);
+        let removed = match std::fs::symlink_metadata(&path) {
+            Ok(m) if m.is_dir() => std::fs::remove_dir_all(&path),
+            Ok(_) => std::fs::remove_file(&path),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e),
+        };
+        removed.map_err(|e| format!("can't remove {}: {e}", path.display()))?;
+    }
+    Ok(())
 }
 
 /// Put a backup back: as the open library (which the session then reopens), or into the folder
@@ -1247,7 +1322,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Restore Library from Backup…",
             ["File"],
             None,
-            "{dir: a backup's folder (absolute path), to?: absolute folder path, background?: bool} — put a backup back. Without `to` (or with `to` naming the open library): the open library becomes what the backup holds (catalog, log, presets, view and preferences; not the photos, and the folder its backups go to stays), and the session goes on in it: undo history is gone, as after opening a library. What the library held is kept, also changes not yet saved, in Replaced/<the time (UTC)> in its folder, which is a library folder itself. Refused while a backup or other background work is under way. With another `to`: the backup is restored into that folder (one that isn't there or is empty, or a library nothing has open, which is replaced the same way; not a folder in the backup or in the open library) and nothing is opened. The backup is checked against its marker first and is only read; one that was edited or damaged, or whose catalog or log a newer LightCraft wrote, is refused with the library untouched. A restored catalog that then doesn't open is taken back (the library is as it was; the backup's files are in Replaced/<the time> (not opened)); with `to` that is not found out, since nothing is opened. Has a row in the activity stack (kind `restore`). The command returns when it is done; with `background` (a restore of the open library only) it returns at once with what `library.restoreStatus` reports: the backup is copied and checked while the library stays in use (the row's ✕ stops it then), and its files are moved into place once the library is at rest (no slider held, no other background work), which the app sees to between frames and `library.restoreStatus` when asked; so `background` is for a session that goes on (the app, MCP, the control channel), not for a program that ends when the command returns. Opening a library (another, or this one again) before that gives the restore up, with nothing changed. A backup can't be opened as a library where it is → {restored: {backup, library, aside | null, seq, photos, files, bytes, skipped, placed, replaced}, opened}",
+            "{dir: a backup's folder (absolute path), to?: absolute folder path, background?: bool} — put a backup back. Without `to` (or with `to` naming the open library): the open library becomes what the backup holds (catalog, log, presets, view and preferences; not the photos, and the folder its backups go to stays), and the session goes on in it: undo history is gone, as after opening a library. What the library held is kept, also changes not yet saved, in Replaced/<the time (UTC)> in its folder, which is a library folder itself. Refused while a backup or other background work is under way. With another `to`: the backup is restored into that folder (one that isn't there or is empty, or a library nothing has open, which is replaced the same way; not a folder in the backup or in the open library) and nothing is opened. The backup is checked against its marker first and is only read; one that was edited or damaged, or whose catalog or log a newer LightCraft wrote, is refused with the library untouched. A restored catalog that then doesn't open is taken back (the library is as it was; the backup's files are in Replaced/<the time> (not opened)); with `to` it is tried without opening it for work, and taken back the same way (from a folder that held nothing, what the restore put there is removed again, and nothing else). `to` is named outright, without `..`. Has a row in the activity stack (kind `restore`). The command returns when it is done; with `background` (a restore of the open library only) it returns at once with what `library.restoreStatus` reports: the backup is copied and checked while the library stays in use (the row's ✕ stops it then), and its files are moved into place once the library is at rest (no slider held, no other background work), which the app sees to between frames and `library.restoreStatus` when asked; so `background` is for a session that goes on (the app, MCP, the control channel), not for a program that ends when the command returns. Opening a library (another, or this one again) before that gives the restore up, with nothing changed. A backup can't be opened as a library where it is → {restored: {backup, library, aside | null, seq, photos, files, bytes, skipped, placed, replaced}, opened}",
             can_restore,
             restore_library
         ),

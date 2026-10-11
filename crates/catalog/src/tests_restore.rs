@@ -942,3 +942,42 @@ fn a_folder_of_replaced_that_was_browsed_is_still_the_restores() {
     restore::remove_replaced(&dir, "first", ALSO).unwrap();
     assert!(!folder.exists());
 }
+
+// ---- trying whether a library opens, without touching it
+
+/// Every file of a folder with its bytes.
+fn bytes_of(dir: &Path) -> Vec<(String, Vec<u8>)> {
+    files(dir).into_iter().filter(|n| dir.join(n).is_file()).map(|n| (n.clone(), std::fs::read(dir.join(&n)).unwrap())).collect()
+}
+
+/// Given a library in an older format (which opening for work brings to this build's, keeping
+/// the old files beside it), when it is tried whether it opens, then it does, and not a file
+/// of it is changed or added. A folder whose snapshot is no catalog does not open, and says
+/// why; it is not changed either.
+#[test]
+fn trying_whether_a_library_opens_changes_nothing_of_it() {
+    let dir = temp("opens-old");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(SNAPSHOT), include_str!("fixtures/v6-catalog.snap.json")).unwrap();
+    std::fs::write(dir.join(LOG), include_str!("fixtures/v6-catalog.log.jsonl")).unwrap();
+    let before = bytes_of(&dir);
+    restore::opens(&dir).unwrap();
+    assert_eq!(bytes_of(&dir), before);
+    // (opened for work, it is brought to this build's format: the trial held that in memory)
+    drop(Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap());
+    assert_ne!(bytes_of(&dir), before);
+
+    let junk = temp("opens-junk");
+    std::fs::create_dir_all(&junk).unwrap();
+    std::fs::write(junk.join(SNAPSHOT), b"{\"not\": \"a catalog\"}").unwrap();
+    let before = bytes_of(&junk);
+    assert!(!restore::opens(&junk).unwrap_err().is_empty());
+    assert_eq!(bytes_of(&junk), before);
+    // a folder that isn't there is not made, and one with no catalog is no new library
+    let missing = temp("opens-missing");
+    let _ = std::fs::remove_dir_all(&missing);
+    assert!(restore::opens(&missing).is_err() && !missing.exists());
+    std::fs::create_dir_all(&missing).unwrap();
+    assert!(restore::opens(&missing).is_err());
+    assert_eq!(files(&missing), Vec::<String>::new());
+}
