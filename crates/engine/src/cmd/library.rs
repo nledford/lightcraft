@@ -1867,7 +1867,8 @@ pub(crate) fn covers_other_disks(s: &Session, path: &str, ids: &[PhotoId]) -> bo
 fn view_rules(s: &Session) -> lightcraft_catalog::Filter {
     use lightcraft_catalog::Filter;
     let smart = match s.source {
-        LibrarySource::Album(a) => s.catalog.album(a).and_then(|a| a.smart.as_deref().cloned()),
+        // (one smart album alone: among several albums shown it is one more album)
+        LibrarySource::Album(a) if s.also_albums.is_empty() => s.catalog.album(a).and_then(|a| a.smart.as_deref().cloned()),
         _ => None,
     };
     match smart {
