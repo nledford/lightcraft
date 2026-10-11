@@ -1,7 +1,7 @@
 //! Issue #102: catalog format versions. Older formats load and are upgraded; a newer format is
 //! refused with a clear error and left untouched (never read in part, truncated or set aside).
 
-use crate::journal::{LOG, SNAPSHOT, VERSION, encode_record};
+use crate::journal::{FORMATS, LOG, SNAPSHOT, VERSION, encode_record};
 use crate::*;
 
 fn photo(c: &mut Catalog) -> Op {
@@ -238,9 +238,53 @@ fn op_variants_are_versioned() {
             Op::SetHistoryCursor { .. } => 8,
         }
     }
-    // format 9 added fields (`Photo.preview_checked`, `Op::SetContent.preview_checked`) and
-    // format 10 no op either: it changed how records are stored (`crate::stored`)
-    const STORED_FORM: u32 = 10;
-    let newest = since(&Op::SetHistoryCursor { id: PhotoId(1), cursor: None }).max(STORED_FORM);
-    assert_eq!(newest, VERSION, "the newest op's version must be the current format version");
+    // (formats 9 and 10 added no op: 9 added fields, 10 changed how records are stored, `crate::stored`)
+    let newest = since(&Op::SetHistoryCursor { id: PhotoId(1), cursor: None });
+    let format = FORMATS.iter().find(|f| f.version == newest).expect("the newest op's format is listed");
+    assert!(format.here && format.adds.contains("Op::SetHistoryCursor"), "{format:?}");
+}
+
+/// Given the list of catalog formats, then each number is there once, in order and without a
+/// gap, and the newest one is what this build writes: a number never means two formats.
+#[test]
+fn a_format_number_means_one_format() {
+    let numbers: Vec<u32> = FORMATS.iter().map(|f| f.version).collect();
+    assert_eq!(numbers, (1..=VERSION).collect::<Vec<_>>());
+    assert!(FORMATS.last().unwrap().here, "this build writes the newest format");
+}
+
+/// The library `fixtures/v<N>-catalog.*` holds, written by the build of format `N`.
+fn fixture(version: u32) -> Option<(&'static str, &'static str)> {
+    match version {
+        6 => Some((include_str!("fixtures/v6-catalog.snap.json"), include_str!("fixtures/v6-catalog.log.jsonl"))),
+        7 => Some((include_str!("fixtures/v7-catalog.snap.json"), include_str!("fixtures/v7-catalog.log.jsonl"))),
+        8 => Some((include_str!("fixtures/v8-catalog.snap.json"), include_str!("fixtures/v8-catalog.log.jsonl"))),
+        9 => Some((include_str!("fixtures/v9-catalog.snap.json"), include_str!("fixtures/v9-catalog.log.jsonl"))),
+        10 => Some((include_str!("fixtures/v10-catalog.snap.json"), include_str!("fixtures/v10-catalog.log.jsonl"))),
+        _ => None,
+    }
+}
+
+/// Given a library written by the build of each format from 6 on (its fixture), when this build
+/// opens it, then it reads as that library and is left in this build's format. A format whose
+/// change is not in this build yet has no fixture here; every other one must have its own.
+#[test]
+fn every_format_has_a_fixture_that_opens_as_it_was() {
+    for f in FORMATS.iter().filter(|f| f.version >= 6) {
+        let expected = crate::tests_stored::fixture_library(f.version);
+        let Some((snap, log)) = fixture(f.version) else {
+            assert!(!f.here, "format {} has no fixture (tests_stored::write_this_formats_fixture writes it)", f.version);
+            continue;
+        };
+        assert!(f.here, "format {} has a fixture: it is in this build", f.version);
+        assert!(snap.starts_with(&format!("{{\"format\":\"lightcraft-catalog\",\"version\":{},", f.version)), "v{}", f.version);
+        let m = MemStore::new();
+        m.set(SNAPSHOT, snap.as_bytes().to_vec());
+        m.set(LOG, log.as_bytes().to_vec());
+        let (_, mut loaded, r) = Journal::open(Box::new(m.clone())).unwrap();
+        loaded.revision = expected.revision;
+        assert_eq!(loaded, expected, "v{}", f.version);
+        assert_eq!((r.failed, r.upgraded_from), (0, (f.version != VERSION).then_some(f.version)), "v{}", f.version);
+        assert_eq!(snapshot_version(&m), u64::from(VERSION), "v{}", f.version);
+    }
 }
