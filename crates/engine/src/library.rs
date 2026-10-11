@@ -315,9 +315,11 @@ fn kept_note(report: &LoadReport) -> Option<String> {
     if report.kept.is_empty() {
         return None;
     }
+    // (a library whose log was damaged: that log is the other half of what it was)
+    let kept: Vec<&str> = report.kept.iter().chain(&report.damaged).map(String::as_str).collect();
     Some(format!(
         "This library was upgraded for this version of LightCraft, and earlier versions can't open it now. The library as it was is kept beside it as {}: delete it once the earlier version is no longer wanted (docs/catalog-persistence.md, \"Going back to an older version\").",
-        report.kept.join(" and ")
+        kept.join(" and ")
     ))
 }
 

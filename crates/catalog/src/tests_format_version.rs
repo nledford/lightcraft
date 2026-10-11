@@ -448,3 +448,78 @@ fn a_damaged_older_library_keeps_its_snapshot() {
     assert_eq!((m.get("catalog.snap.v6-4"), m.get(&kept_log)), (Some(snap), Some(damaged)));
     assert_eq!(snapshot_version(&m), u64::from(VERSION));
 }
+
+/// Given an older library whose log is damaged, when the upgrade is written but the damaged log
+/// can't be replaced, then the library is refused (working in it would add changes after the
+/// damage, where the next open would not read them), with the snapshot it was kept; and it
+/// opens, repaired, once the log can be written.
+#[test]
+fn a_damaged_older_library_is_not_worked_in_with_its_damaged_log_in_place() {
+    let (m, snap, log) = v6_library();
+    let mut lines: Vec<String> = String::from_utf8(log).unwrap().lines().map(str::to_string).collect();
+    lines[1] = lines[1].replacen("\"crc\":", "\"crc\":1", 1);
+    m.set(LOG, format!("{}\n", lines.join("\n")).into_bytes());
+    let store = Refusing { files: m.clone(), refuse: |name| name == LOG };
+    let e = Journal::open(Box::new(store)).err().expect("refused");
+    assert!(matches!(&e, CatalogError::Io(why) if why.contains("damaged log")), "{e}");
+    assert_eq!(m.get("catalog.snap.v6-4"), Some(snap), "its way back stays");
+
+    let (_, c, r) = Journal::open(Box::new(m.clone())).unwrap();
+    assert_eq!(c.photos().count(), 3);
+    assert!(r.damaged.is_some() && m.get(LOG).unwrap().is_empty(), "{r:?}");
+}
+
+/// Given an older library whose upgrade fails in a way that leaves it unknown whether it was
+/// written (the snapshot can't be read afterwards), then the files it was are kept: the way
+/// back is given up only when the library is known to be as it was.
+#[test]
+fn an_upgrade_that_cannot_be_checked_keeps_its_copies() {
+    /// Fails the write of the snapshot, and every read of it after that.
+    struct Blind {
+        files: MemStore,
+        failed: bool,
+    }
+    impl Store for Blind {
+        fn read(&mut self, name: &str) -> std::io::Result<Option<Vec<u8>>> {
+            if self.failed && name == SNAPSHOT {
+                return Err(std::io::Error::other("unreadable"));
+            }
+            self.files.read(name)
+        }
+        fn write_atomic(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+            if name == SNAPSHOT {
+                self.failed = true;
+                return Err(std::io::Error::other("the share went away"));
+            }
+            self.files.write_atomic(name, data)
+        }
+        fn append(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+            self.files.append(name, data)
+        }
+        fn truncate(&mut self, name: &str, len: u64) -> std::io::Result<()> {
+            self.files.truncate(name, len)
+        }
+        fn remove(&mut self, name: &str) -> std::io::Result<()> {
+            self.files.remove(name)
+        }
+        fn describe(&self) -> String {
+            "blind".into()
+        }
+    }
+    let (m, snap, log) = v6_library();
+    let e = Journal::open(Box::new(Blind { files: m.clone(), failed: false })).err().expect("refused");
+    assert!(matches!(&e, CatalogError::Io(why) if why.contains("can't be told")), "{e}");
+    assert_eq!((m.get("catalog.snap.v6-8"), m.get("catalog.log.v6-8")), (Some(snap), Some(log)));
+}
+
+/// Given a place a new library can't be written to, when one is opened there, then it is
+/// refused and nothing is left: a library without its first snapshot would be a log that states
+/// no defaults for its records.
+#[test]
+fn a_new_library_that_cannot_be_written_is_not_opened() {
+    let m = MemStore::new();
+    let store = Refusing { files: m.clone(), refuse: |name| name == SNAPSHOT };
+    let e = Journal::open(Box::new(store)).err().expect("refused");
+    assert!(matches!(&e, CatalogError::Io(why) if why.contains("new library")), "{e}");
+    assert!(m.files.lock().unwrap().is_empty());
+}
