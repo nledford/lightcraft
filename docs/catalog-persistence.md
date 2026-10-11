@@ -50,10 +50,15 @@ library was, byte for byte, beside it:
 - `catalog.snap.v<format>-<seq>` and `catalog.log.v<format>-<seq>`, where `<format>` is the format they are in and
   `<seq>` the number of the last change they hold (a library that had no log, or only a log, has only the one file).
   `Journal::open` reports their names (`LoadReport::kept`) and logs them.
-- A library whose files can't be kept (a full disk) is not upgraded: it opens as it is, and the next open tries
-  again. An upgrade that fails leaves no copy behind.
-- Nothing removes the kept files. They are as large as the library was; delete them once the older version is no
-  longer wanted. The browser build keeps none (it always runs the newest version).
+- The kept files stay exactly when the library is upgraded. A library whose files can't be kept, or whose upgrade
+  can't be written (a full disk), is not opened: it is left as it was, and the error says why. (Working in it as it
+  is would add records that leave out this version's defaults to a library that states none.) Once the upgrade is
+  written, nothing that fails after it takes the kept files away.
+- A library whose log was damaged is upgraded like any other: its snapshot is kept under the name above, its log as
+  `catalog.log.damaged-<seq>`.
+- Nothing removes the kept files. They are as large as the library was; LightCraft says so once when it has upgraded
+  a library (and `library.info` lists it under `settingsWarnings`). Delete them once the older version is no longer
+  wanted. The browser build keeps none (it always runs the newest version).
 
 **To go back**, with LightCraft closed: move `catalog.snap` and `catalog.log` away, then rename the kept pair to
 `catalog.snap` and `catalog.log`. The older version opens the library as it was when it was upgraded; changes made

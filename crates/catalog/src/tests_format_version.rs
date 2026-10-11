@@ -240,8 +240,10 @@ fn op_variants_are_versioned() {
     }
     // (formats 9 and 10 added no op: 9 added fields, 10 changed how records are stored, `crate::stored`)
     let newest = since(&Op::SetHistoryCursor { id: PhotoId(1), cursor: None });
-    let format = FORMATS.iter().find(|f| f.version == newest).expect("the newest op's format is listed");
-    assert!(format.here && format.adds.contains("Op::SetHistoryCursor"), "{format:?}");
+    // the newest format in this build that adds an op is the newest op's, and says so
+    let adds_an_op = FORMATS.iter().rev().find(|f| f.here && f.adds.contains("`Op::")).expect("a format adds an op");
+    assert_eq!(adds_an_op.version, newest, "the newest op's format is the newest row of FORMATS that adds one: {adds_an_op:?}");
+    assert!(adds_an_op.adds.contains("Op::SetHistoryCursor"), "{adds_an_op:?}");
 }
 
 /// Given the list of catalog formats, then each number is there once, in order and without a
@@ -381,30 +383,68 @@ fn an_upgrade_of_a_log_only_library_keeps_the_log() {
 }
 
 /// Given an older library whose files can't be kept (the disk is full), when it is opened, then
-/// it is not upgraded: it opens from the files it has, which stay as they were, nothing half
-/// kept is left, and the upgrade is tried again at the next open.
+/// it is refused, and says why: it is not upgraded without its way back, and it is not worked in
+/// as it is (it states no defaults for the records this build would add). Its files stay as they
+/// were, nothing half kept is left, and it opens once there is room.
 #[test]
-fn a_library_that_cannot_be_kept_is_not_upgraded() {
+fn a_library_that_cannot_be_kept_is_not_opened() {
     let (m, snap, log) = v6_library();
     let store = Refusing { files: m.clone(), refuse: |name| name.starts_with("catalog.log.v") };
-    let (_, c, r) = Journal::open(Box::new(store)).unwrap();
-    assert_eq!(c.photos().count(), 3);
-    assert_eq!((r.upgraded_from, r.kept.len()), (None, 0));
+    let e = Journal::open(Box::new(store)).err().expect("refused");
+    assert!(matches!(&e, CatalogError::Io(why) if why.contains("older format (v6)") && why.contains("can't be kept")), "{e}");
     assert_eq!((m.get(SNAPSHOT), m.get(LOG)), (Some(snap), Some(log)));
     assert_eq!(m.files.lock().unwrap().keys().collect::<Vec<_>>(), [LOG, SNAPSHOT], "nothing half kept");
 
-    let (_, _, r) = Journal::open(Box::new(m.clone())).unwrap();
-    assert_eq!((r.upgraded_from, r.kept.len()), (Some(6), 2));
+    let (_, c, r) = Journal::open(Box::new(m.clone())).unwrap();
+    assert_eq!((c.photos().count(), r.upgraded_from, r.kept.len()), (3, Some(6), 2));
 }
 
-/// Given an older library whose upgrade can't be written, when it is opened, then the library is
-/// as it was and no copy of it is left lying about: there is nothing to go back from.
+/// Given an older library whose upgrade can't be written, when it is opened, then it is refused
+/// and is as it was, with no copy of it left lying about: there is nothing to go back from.
 #[test]
 fn a_failed_upgrade_leaves_no_copy() {
     let (m, snap, log) = v6_library();
     let store = Refusing { files: m.clone(), refuse: |name| name == SNAPSHOT };
-    let (_, _, r) = Journal::open(Box::new(store)).unwrap();
-    assert_eq!((r.upgraded_from, r.kept.len()), (None, 0));
+    let e = Journal::open(Box::new(store)).err().expect("refused");
+    assert!(matches!(&e, CatalogError::Io(why) if why.contains("can't be upgraded")), "{e}");
     assert_eq!((m.get(SNAPSHOT), m.get(LOG)), (Some(snap), Some(log)));
     assert_eq!(m.files.lock().unwrap().keys().collect::<Vec<_>>(), [LOG, SNAPSHOT]);
+}
+
+/// Given an older library whose upgrade is written but whose log then can't be emptied, when it
+/// is opened, then it is upgraded all the same (the log's changes are in the snapshot, and are
+/// passed over when it is read), and the files it was are kept: its way back is not thrown away
+/// because something failed after the upgrade.
+#[test]
+fn an_upgrade_that_is_written_keeps_its_copies_whatever_fails_after() {
+    let (m, snap, log) = v6_library();
+    let store = Refusing { files: m.clone(), refuse: |name| name == LOG };
+    let (_, c, r) = Journal::open(Box::new(store)).unwrap();
+    assert_eq!((c.photos().count(), r.upgraded_from), (3, Some(6)));
+    assert_eq!(r.kept, ["catalog.snap.v6-8", "catalog.log.v6-8"]);
+    assert_eq!((m.get("catalog.snap.v6-8"), m.get("catalog.log.v6-8")), (Some(snap), Some(log.clone())));
+    assert_eq!(snapshot_version(&m), u64::from(VERSION));
+    // the log it could not empty is all in the snapshot
+    assert_eq!(m.get(LOG), Some(log));
+    let (_, mut again, r) = Journal::open(Box::new(m)).unwrap();
+    again.revision = c.revision;
+    assert_eq!((again, r.replayed, r.upgraded_from), (c, 0, None));
+}
+
+/// Given an older library whose log is damaged, when it is opened (which saves what could be
+/// read in this build's format), then that is an upgrade like any other: the snapshot it was is
+/// kept beside the damaged log.
+#[test]
+fn a_damaged_older_library_keeps_its_snapshot() {
+    let (m, snap, log) = v6_library();
+    // a record in the middle that is not what was written, with good ones after it
+    let mut lines: Vec<String> = String::from_utf8(log).unwrap().lines().map(str::to_string).collect();
+    lines[1] = lines[1].replacen("\"crc\":", "\"crc\":1", 1);
+    let damaged = format!("{}\n", lines.join("\n")).into_bytes();
+    m.set(LOG, damaged.clone());
+    let (_, _, r) = Journal::open(Box::new(m.clone())).unwrap();
+    let kept_log = r.damaged.clone().expect("damaged");
+    assert_eq!((r.upgraded_from, r.kept.as_slice()), (Some(6), ["catalog.snap.v6-4".to_string()].as_slice()), "{r:?}");
+    assert_eq!((m.get("catalog.snap.v6-4"), m.get(&kept_log)), (Some(snap), Some(damaged)));
+    assert_eq!(snapshot_version(&m), u64::from(VERSION));
 }
