@@ -565,6 +565,14 @@
   or ↓ to go down to them) and its tab opens at it. Esc empties the filter; a second Esc closes Settings. The
   choices of a closed list and tooltips are not looked through. Scripts: `field:settingsFilter`, and
   `settingsFound:<tab>:<section>` for each section found.
+- The filter of Settings finds more of what is typed and puts the best first. It is ready to type in when Settings
+  opens. Either spelling of a word finds the other (color, colour), and some words a section does not say itself
+  find it ("trash" for Culling, "theme" and "scheme" for Appearance; in English). A section or tab named for the
+  word comes first, then one with it in a label, choice or button, then one that mentions it in an explanation, so
+  Return opens the best match and not the first tab that has the word. The line under a result starts shortly
+  before the word it was found by, which is drawn stronger. The folders shown in Settings (the library's, a
+  cache's) are no longer looked through. The heading of the section opened is marked for a moment. Scripts:
+  `settingsLanded:<section>` while it is.
 - What Settings says can be read in every theme. Its explanations, the text a box shows while it is empty, "In Use"
   on a theme's card and the lines that warn or refuse now stand at least 4.5:1 against what they are on (the
   explanations were 4.2:1 in Charcoal and 4.3:1 in Silver, "In Use" 2.9:1 in Charcoal); the borders of text boxes,
