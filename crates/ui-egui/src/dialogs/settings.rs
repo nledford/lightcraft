@@ -38,6 +38,7 @@ pub(crate) use libraries::{can_switch_library, free_name};
 pub use libraries::{forget_library, library_name, new_library, open_library, open_library_name, recent_libraries, remember_library};
 use performance::performance_tab;
 use slideshow::slideshow_tab;
+use widgets::focus_style;
 pub(crate) use widgets::{check, choices, heading, hint, row};
 
 pub mod slide_layout;
@@ -106,14 +107,18 @@ const PREVIEW_CHROME: f32 = 82.0;
 pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_height: f32) {
     ui.set_width((ui.ctx().content_rect().width() - 64.0).clamp(240.0, PAGE_SIZE.x));
     let top = ui.cursor().top();
+    let t = Tokens::get(ui.ctx());
+    focus_style(ui, &t);
     // Each line of tabs stands on a line of its own the width of the window, so the open tab's
     // line always has the bar's under it: in a narrow window, or a language with long names, the
     // tabs take two lines or more.
     let mut lines: Vec<f32> = Vec::new();
+    // (the bar is one stop for Tab, at the open tab; the arrow keys go along it)
+    let mut bar = crate::widgets::Roving::new(ui, "settingsTabs", TABS.iter().position(|(id, _)| *id == tab.as_str()));
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(4.0, 5.0);
         for (id, label) in TABS {
-            let r = crate::widgets::tab_button(ui, &format!("settingsTab-{id}"), label, tab == id);
+            let r = crate::widgets::tab_button_in(ui, &mut bar, &format!("settingsTab-{id}"), label, tab == id);
             let bottom = egui::emath::GuiRounding::round_to_pixels(r.rect.bottom(), ui.pixels_per_point());
             if !lines.iter().any(|line| (line - bottom).abs() < 0.5) {
                 lines.push(bottom);
@@ -123,7 +128,8 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
             }
         }
     });
-    let divider = Tokens::get(ui.ctx()).divider;
+    bar.end(ui);
+    let divider = t.divider;
     for bottom in lines {
         let line = egui::Rect::from_min_max(egui::pos2(ui.min_rect().left(), bottom), egui::pos2(ui.min_rect().right(), bottom + 1.0));
         ui.painter().rect_filled(line, egui::CornerRadius::ZERO, divider);
