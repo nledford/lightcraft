@@ -551,6 +551,16 @@
   imported earlier switch over with Photo ▸ Reload from Disk.
 
 ### Settings window
+- The tabs of Settings are grouped by what you come to do. **Library** is the library itself: where it is, opening
+  or making another, where its smart previews are kept and when photos only seen in Local leave the catalog (the
+  last two were under Performance). **Files** is what is written beside the photo files and what they are opened
+  in: XMP sidecars (which was under Import, though it governs every later edit) and External Editing (which was
+  under General). General keeps the language, startup and culling; Performance keeps rendering and the thumbnail
+  cache. Display is now **Monitor** and Interface is **Appearance**, so the monitor's colour profile and how
+  LightCraft looks are not mistaken for each other. Agents: `app.settings` takes `library` and `files` as tabs;
+  every tab id from before still opens its tab (`display` and `interface` are Monitor and Appearance).
+- Each section of Settings can be found by scripts as `heading:<its English name>` in `ui.widgets`, whatever the
+  interface language.
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own
   size and the tabs moved under the pointer. The tabs stay in place while a long page scrolls, a page that goes on
   below shows a scroll handle without the pointer on it, and each page remembers where it was scrolled to.

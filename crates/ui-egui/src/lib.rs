@@ -81,6 +81,8 @@ mod tests_dialog_fit;
 mod tests_dialog_primary;
 mod tests_dialog_settings;
 #[cfg(test)]
+mod tests_dialog_settings_groups;
+#[cfg(test)]
 mod tests_dialog_settings_tabs;
 #[cfg(test)]
 mod tests_dialog_settings_trust;
@@ -279,7 +281,7 @@ pub struct Services {
     /// The host's current log file (`<settings>/logs/lightcraft.log`), which Help ▸ Open Log
     /// Folder reveals (#260). None where no log is kept: the web, `--memory`, `LIGHTCRAFT_NO_PREFS`.
     pub log_file: Option<String>,
-    /// Choose a folder (Settings → General → Open Library…; desktop only).
+    /// Choose a folder (Settings → Library → Open Library…; desktop only).
     pub pick_folder: Option<PickFolder>,
     /// Open a Lightroom Classic `.lrcat` catalog for read-only import.
     pub pick_lightroom_catalog: Option<PickFolder>,

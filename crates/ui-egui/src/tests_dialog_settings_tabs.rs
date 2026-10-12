@@ -141,16 +141,16 @@ fn a_tab_reached_with_the_keyboard_shows_the_focus() {
         run(&mut h, "view.theme", json!({"theme": kind.id()}));
         let t = Tokens::for_kind(kind);
         show(&mut h, "general");
-        let import = tab(&h, "import");
+        let import = tab(&h, "library");
         let ring = |h: &Headless| ring(&h.paint(), import, t.text);
-        // Given no tab has the focus, there is no ring round Import
+        // Given no tab has the focus, there is no ring round Library
         assert!(ring(&h) < 8, "{kind:?}: no ring before ({})", ring(&h));
-        // When Tab is pressed twice (General, then Import)
+        // When Tab is pressed twice (General, then Library)
         key(&mut h, "Tab");
         key(&mut h, "Tab");
-        // Then a ring in the text colour runs round Import
+        // Then a ring in the text colour runs round Library
         let length = import.width() + 2.0 * import.height();
-        assert!(ring(&h) as f32 > 1.5 * length, "{kind:?}: Import shows the focus ({} px of ring along {length} pt)", ring(&h));
+        assert!(ring(&h) as f32 > 1.5 * length, "{kind:?}: Library shows the focus ({} px of ring along {length} pt)", ring(&h));
         // And it is still General that is open: the focus is not the choice
         assert_eq!(h.app.ui.dialog, Some(crate::state::Dialog::Settings { tab: "general".into() }));
     }
@@ -169,16 +169,16 @@ fn the_arrow_keys_move_along_the_tabs_and_space_opens_one() {
     key(&mut h, "ArrowRight");
     key(&mut h, "ArrowRight");
     // Then the focus is on the third tab, and nothing has opened yet
-    assert!(ring(&h, "performance") > 60, "Performance has the focus");
-    assert!(ring(&h, "general") < 60 && ring(&h, "import") < 60, "and no other tab has");
+    assert!(ring(&h, "import") > 60, "Import has the focus");
+    assert!(ring(&h, "general") < 60 && ring(&h, "library") < 60, "and no other tab has");
     assert_eq!(h.app.ui.dialog, Some(crate::state::Dialog::Settings { tab: "general".into() }));
     // And ← goes back one
     key(&mut h, "ArrowLeft");
-    assert!(ring(&h, "import") > 60, "Import has the focus");
+    assert!(ring(&h, "library") > 60, "Library has the focus");
     // When Space is pressed, that tab opens and keeps the focus
     key(&mut h, "Space");
-    assert_eq!(h.app.ui.dialog, Some(crate::state::Dialog::Settings { tab: "import".into() }));
-    assert!(ring(&h, "import") > 60, "Import still has the focus");
+    assert_eq!(h.app.ui.dialog, Some(crate::state::Dialog::Settings { tab: "library".into() }));
+    assert!(ring(&h, "library") > 60, "Library still has the focus");
 }
 
 #[test]

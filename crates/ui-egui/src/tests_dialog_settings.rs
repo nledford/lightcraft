@@ -139,12 +139,12 @@ fn a_row_of_many_choices_wraps_under_itself() {
 
 #[test]
 fn a_label_longer_than_its_column_leaves_the_controls_in_line() {
-    // Given Performance, whose "Forget unchanged photos" label is wider than the label column
+    // Given Library, whose "Forget unchanged photos" label is wider than the label column
     let mut h = demo([1600.0, 1000.0]);
-    show(&mut h, "performance");
-    // Then its choices start where the choices of a short label do
-    let (short, long) = (rect(&h, "button:settingsPreview-0"), rect(&h, "button:settingsForgetLocal-0"));
-    assert!((short.left() - long.left()).abs() < 0.5, "Preview size starts at {} and Forget unchanged photos at {}", short.left(), long.left());
+    show(&mut h, "library");
+    // Then its choices start where the control of a short label does
+    let (short, long) = (rect(&h, "text:settingsLocation"), rect(&h, "button:settingsForgetLocal-0"));
+    assert!((short.left() - long.left()).abs() < 0.5, "Location starts at {} and Forget unchanged photos at {}", short.left(), long.left());
 }
 
 #[test]
@@ -160,14 +160,14 @@ fn a_long_library_folder_is_cut_short_and_its_tooltip_has_all_of_it() {
 
     let mut h = headless(session, [1600.0, 1000.0]);
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, h.size);
-    // When Settings opens on General, which shows where the library is
-    show(&mut h, "general");
-    let general = rect(&h, "dialog:window");
+    // When Settings opens on Library, which shows where the library is
+    show(&mut h, "library");
+    let library = rect(&h, "dialog:window");
     show(&mut h, "display");
     // Then the window is as wide as on a tab without a path
-    assert!(same(general, rect(&h, "dialog:window")), "General is {general:?} with a long path, Display is {:?}", rect(&h, "dialog:window"));
-    show(&mut h, "general");
-    assert!(screen.contains_rect(general), "Settings {general:?} runs off the {screen:?} window");
+    assert!(same(library, rect(&h, "dialog:window")), "Library is {library:?} with a long path, Display is {:?}", rect(&h, "dialog:window"));
+    show(&mut h, "library");
+    assert!(screen.contains_rect(library), "Settings {library:?} runs off the {screen:?} window");
     // And the path is cut short, inside the window
     let location = rect(&h, "text:settingsLocation");
     let room = rect(&h, "settings:pageRoom");
@@ -209,7 +209,7 @@ fn a_long_library_folder_is_cut_short_and_its_tooltip_has_all_of_it() {
 fn a_short_path_is_shown_whole_and_has_no_tooltip() {
     // Given the in-memory library, whose Location is a short sentence
     let mut h = demo([1600.0, 1000.0]);
-    show(&mut h, "general");
+    show(&mut h, "library");
     assert!(h.painted_text().iter().any(|text| text == "In memory — nothing is saved"), "it is all there");
     let before = h.painted_text().len();
     // When the pointer rests on it
@@ -237,11 +237,11 @@ fn a_page_that_goes_on_below_shows_a_scroll_handle_without_the_pointer_on_it() {
         let room = rect(h, "settings:pageRoom");
         other_than(&h.paint(), egui::Rect::from_min_max(egui::pos2(room.right() - 6.0, room.top()), room.max), chrome)
     };
-    // Given Import, which is taller than the room a 560 pt tall app window has for it
-    show(&mut h, "import");
+    // Given Appearance, which is taller than the room a 560 pt tall app window has for it
+    show(&mut h, "interface");
     assert!(rect(&h, "settings:page").height() > rect(&h, "settings:pageRoom").height());
     // Then a handle is drawn at the page's right edge
-    assert!(handle(&h) > 40, "Import shows a scroll handle ({} px)", handle(&h));
+    assert!(handle(&h) > 40, "Appearance shows a scroll handle ({} px)", handle(&h));
     // And Display, which fits, has none
     show(&mut h, "display");
     assert!(rect(&h, "settings:page").height() <= rect(&h, "settings:pageRoom").height());
@@ -275,10 +275,10 @@ fn a_window_too_short_for_a_page_of_its_own_scrolls_tabs_and_page_together() {
 fn the_tabs_stay_put_while_a_page_scrolls() {
     // Given a page taller than the window has room for
     let mut h = demo([900.0, 560.0]);
-    show(&mut h, "import");
+    show(&mut h, "interface");
     let window = rect(&h, "dialog:window");
     let tabs: Vec<egui::Rect> = TABS.iter().map(|(id, _)| rect(&h, &format!("button:settingsTab-{id}"))).collect();
-    let page_before = rect(&h, "check:settings.perCamera");
+    let page_before = rect(&h, "button:settingsAppearance-0");
     // When the page is scrolled
     h.request("ui.move", json!({"x": window.center().x, "y": window.center().y}), T);
     for _ in 0..3 {
@@ -287,7 +287,7 @@ fn the_tabs_stay_put_while_a_page_scrolls() {
     }
     h.settle(T);
     // Then the page moved
-    let page_after = rect(&h, "check:settings.perCamera");
+    let page_after = rect(&h, "button:settingsAppearance-0");
     assert!(page_after.top() < page_before.top() - 50.0, "the page scrolled: {page_before:?} -> {page_after:?}");
     // And the tabs and the window did not
     for ((id, _), before) in TABS.iter().zip(tabs) {
@@ -299,25 +299,25 @@ fn the_tabs_stay_put_while_a_page_scrolls() {
 #[test]
 fn each_tab_remembers_how_far_it_was_scrolled() {
     let mut h = demo([900.0, 560.0]);
-    show(&mut h, "interface");
-    let fresh = rect(&h, "button:settingsAppearance-0");
-    // Given Import scrolled down
     show(&mut h, "import");
+    let fresh = rect(&h, "check:settings.perCamera");
+    // Given Appearance scrolled down
+    show(&mut h, "interface");
     let window = rect(&h, "dialog:window");
-    let top = rect(&h, "check:settings.perCamera").top();
+    let top = rect(&h, "button:settingsAppearance-0").top();
     h.request("ui.move", json!({"x": window.center().x, "y": window.center().y}), T);
     for _ in 0..3 {
         h.request("ui.scroll", json!({"dy": -120.0}), T);
         h.step();
     }
     h.settle(T);
-    let scrolled = rect(&h, "check:settings.perCamera").top();
+    let scrolled = rect(&h, "button:settingsAppearance-0").top();
     assert!(scrolled < top - 50.0);
     // When another tab is opened, it starts at its top
-    show(&mut h, "interface");
-    let mode = rect(&h, "button:settingsAppearance-0");
-    assert!(same(fresh, mode), "Interface is at its top, as when first opened: {fresh:?} -> {mode:?}");
-    // And Import is where it was left
     show(&mut h, "import");
-    assert!((rect(&h, "check:settings.perCamera").top() - scrolled).abs() < 0.5, "Import is where it was left");
+    let mode = rect(&h, "check:settings.perCamera");
+    assert!(same(fresh, mode), "Import is at its top, as when first opened: {fresh:?} -> {mode:?}");
+    // And Appearance is where it was left
+    show(&mut h, "interface");
+    assert!((rect(&h, "button:settingsAppearance-0").top() - scrolled).abs() < 0.5, "Appearance is where it was left");
 }

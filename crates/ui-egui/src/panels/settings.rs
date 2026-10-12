@@ -22,7 +22,9 @@ use crate::widgets::register;
 /// (id, label) of the tabs, in order.
 pub const TABS: &[(&str, &str)] = &[
     ("general", "General"),
+    ("library", "Library"),
     ("import", "Import"),
+    ("files", "Files"),
     ("performance", "Performance"),
     ("display", "Display"),
     ("interface", "Interface"),
@@ -30,6 +32,18 @@ pub const TABS: &[(&str, &str)] = &[
     ("faces", "Faces"),
     ("denoise", "AI Denoise"),
 ];
+
+/// What a tab is called on the tab bar. Two tabs go by another name than [`TABS`] gives them,
+/// so that the monitor's colour profile and how LightCraft looks are not taken for each other:
+/// `display` is Monitor and `interface` is Appearance. (Said here and not in `TABS`, whose lines
+/// after these two are where other work adds its tabs; ids stay as they are.)
+pub fn tab_label(id: &str, label: &'static str) -> &'static str {
+    match id {
+        "display" => "Monitor",
+        "interface" => "Appearance",
+        _ => label,
+    }
+}
 
 /// Thumbnail cache sizes offered (MB).
 const CACHE_SIZES: [u32; 5] = [512, 1024, 2048, 4096, 8192];
@@ -40,6 +54,8 @@ const LABEL_W: f32 = 150.0;
 pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &str) {
     let t = Tokens::get(ui.ctx());
     match tab {
+        "library" => library_tab(app, ui, &t),
+        "files" => files_tab(app, ui, &t),
         "import" => import_tab(app, ui, &t),
         "performance" => performance_tab(app, ui, &t),
         "display" => display_tab(app, ui, &t),
@@ -81,7 +97,7 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(4.0, 5.0);
         for (id, label) in TABS {
-            let r = crate::widgets::tab_button(ui, &format!("settingsTab-{id}"), label, shown == *id);
+            let r = crate::widgets::tab_button(ui, &format!("settingsTab-{id}"), tab_label(id, label), shown == *id);
             let bottom = egui::emath::GuiRounding::round_to_pixels(r.rect.bottom(), ui.pixels_per_point());
             if !lines.iter().any(|line| (line - bottom).abs() < 0.5) {
                 lines.push(bottom);
@@ -231,7 +247,10 @@ pub(super) fn ask_first(t: &Tokens, id: &str, button: egui::Response, question: 
 
 pub(super) fn heading(ui: &mut egui::Ui, t: &Tokens, text: &str) {
     ui.add_space(4.0);
-    ui.label(RichText::new(crate::i18n::tr(text)).font(t.semibold(12.5)).color(t.text));
+    // (`heading:{its English name}`, whatever the language: where a section starts, for scripts
+    // and tests that look for one. Callers pass the name translated or not.)
+    let r = ui.label(RichText::new(crate::i18n::tr(text)).font(t.semibold(12.5)).color(t.text));
+    register(ui.ctx(), format!("heading:{}", crate::i18n::source_of(text)), r.rect);
 }
 
 pub(super) fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
@@ -279,6 +298,33 @@ pub(super) fn choices<V: PartialEq + Copy>(ui: &mut egui::Ui, id: &str, options:
 
 // ------------------------------------------------------------------------------------- General
 
+/// Library: the library itself. Where it is and opening another ([`library_section`]), where
+/// its smart previews are kept ([`smart_previews`], for a library on disk), and what leaves its
+/// catalog by itself ([`local_folders`]).
+fn library_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    library_section(app, ui, t);
+    #[cfg(not(target_arch = "wasm32"))]
+    smart_previews(app, ui, t);
+    local_folders(app, ui, t);
+    in_memory_note(app, ui, t);
+}
+
+/// Files: what LightCraft writes beside the photo files ([`xmp_sidecars`]) and what it opens
+/// them in ([`external_editing`]).
+fn files_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    xmp_sidecars(app, ui, t);
+    in_memory_note(app, ui, t);
+    external_editing(app, ui, t);
+}
+
+/// What is saved with the library lasts only as long as a library that is not on disk does:
+/// said under such settings wherever they are (Import says it at its foot itself).
+fn in_memory_note(app: &LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    if app.session.library.is_none() {
+        hint(ui, t, "In-memory session: these settings last until LightCraft quits.");
+    }
+}
+
 fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     row(ui, t, crate::i18n::tr("Language"), |ui| {
         let languages: Vec<_> = crate::i18n::Locale::ALL.iter().map(|language| (*language, language.name())).collect();
@@ -288,6 +334,11 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         });
         crate::i18n::set_language(app.ui.language);
     });
+    startup_and_culling(app, ui, t);
+}
+
+/// Library: where the open library is, and opening or making another.
+fn library_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, crate::i18n::tr("Library"));
     let location = match &app.session.library {
         Some(l) => l.dir.display().to_string(),
@@ -312,6 +363,10 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             hint(ui, t, crate::i18n::tr("not available here"));
         }
     });
+}
+
+/// Startup and Culling: what LightCraft opens in, and how rating and deleting behave.
+fn startup_and_culling(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, crate::i18n::tr("Startup"));
     row(ui, t, crate::i18n::tr("Open in"), |ui| {
         choices(
@@ -325,6 +380,10 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     check(ui, "settings.autoAdvance", &mut app.ui.auto_advance, "Auto Advance: move to the next photo after rating or flagging");
     check(ui, "settings.confirmDelete", &mut app.ui.settings.confirm_delete, "Confirm before moving photos to Recently Deleted");
     check(ui, "settings.askBeforeMove", &mut app.ui.settings.ask_before_move, "Confirm before moving photos to another folder on disk");
+}
+
+/// External Editing: the editors a photo is opened in, and the copy they are given.
+fn external_editing(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, crate::i18n::tr("External Editing"));
     row(ui, t, crate::i18n::tr("PhotoCraft"), |ui| {
         field(
@@ -534,6 +593,12 @@ fn import_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             }
         });
     }
+    auto_import(app, ui, t);
+}
+
+/// XMP sidecars: whether changes are written beside the photos by themselves, and how the files
+/// are named.
+fn xmp_sidecars(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, crate::i18n::tr("XMP sidecars"));
     let mut xmp = app.session.xmp;
     if check(ui, "settings.autoWriteXmp", &mut xmp.auto_write, "Automatically write changes into XMP sidecars") {
@@ -552,6 +617,11 @@ fn import_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             let _ = app.run("library.xmpPreferences", json!({"naming": naming}));
         }
     });
+}
+
+/// Auto Import: the folder watched for new photos, and what is done with what arrives there.
+fn auto_import(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    let d = app.session.import_defaults.clone();
     if !cfg!(target_arch = "wasm32") {
         heading(ui, t, crate::i18n::tr("Cameras and Cards"));
         let mut on_card = d.show_on_card;
@@ -669,6 +739,10 @@ fn performance_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             let _ = app.run("library.clearPreviews", json!({}));
         }
     });
+}
+
+/// Local folders: when photos only seen in Local, never added or changed, leave the catalog.
+fn local_folders(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, crate::i18n::tr("Local folders"));
     row(ui, t, crate::i18n::tr("Forget unchanged photos"), |ui| {
         let opts = [(0u32, "Never"), (7, "After 7 days"), (30, "After 30 days"), (90, "After 90 days"), (365, "After a year")];
@@ -684,8 +758,6 @@ fn performance_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             "Photos seen in Local but never added or changed leave the catalog when their folder hasn't been browsed for this long (checked when the library opens). Files stay on disk; browsing the folder shows them again.",
         ),
     );
-    #[cfg(not(target_arch = "wasm32"))]
-    smart_previews(app, ui, t);
 }
 
 /// Where this library keeps its smart previews (the offline-editing proxies, which can be large):

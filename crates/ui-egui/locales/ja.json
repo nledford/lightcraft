@@ -1925,6 +1925,8 @@
   "Not saved": "保存されていません",
   "A folder is being synchronized": "フォルダを同期中です",
   "Wait for the import to finish": "読み込みが終わるまでお待ちください",
+  "Files": "ファイル",
+  "Monitor": "モニター",
   "Appearance": "外観",
   "Appearance Mode": "外観モード",
   "Sync with System": "システムと同期",
