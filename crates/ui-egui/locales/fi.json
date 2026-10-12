@@ -2373,5 +2373,11 @@
   "the library is not a folder on disk": "kirjasto ei ole levyllä oleva kansio",
   "the library was closed or opened again before the backup was moved into place; it is as it was": "kirjasto suljettiin tai avattiin uudelleen ennen kuin varmuuskopio siirrettiin paikalleen; se on ennallaan",
   "the backup was cancelled": "varmuuskopiointi peruttiin",
-  "the restore was stopped; the library is as it was": "palautus pysäytettiin; kirjasto on ennallaan"
+  "the restore was stopped; the library is as it was": "palautus pysäytettiin; kirjasto on ennallaan",
+  "Back Up Now": "Varmuuskopioi nyt",
+  "Backing up…": "Varmuuskopioidaan…",
+  "On the same drive as the library: a backup here is lost with the library if that drive fails.": "Samalla asemalla kuin kirjasto: jos asema menee rikki, varmuuskopio menetetään kirjaston mukana.",
+  "This folder is not there now. If it is on a drive that is not connected, connect it before backing up.": "Tätä kansiota ei nyt ole. Jos se on asemalla, jota ei ole liitetty, liitä asema ennen varmuuskopiointia.",
+  "No backup of this library is in this folder, and nothing is set to make one.": "Tässä kansiossa ei ole tämän kirjaston varmuuskopiota, eikä mitään ole asetettu tekemään sellaista.",
+  "No backup of this library is in this folder.": "Tässä kansiossa ei ole tämän kirjaston varmuuskopiota."
 }

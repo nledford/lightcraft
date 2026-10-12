@@ -2385,5 +2385,11 @@
   "the library is not a folder on disk": "pustaka ini bukan folder di disk",
   "the library was closed or opened again before the backup was moved into place; it is as it was": "pustaka ditutup atau dibuka lagi sebelum cadangan dipindahkan ke tempatnya; pustaka tidak berubah",
   "the backup was cancelled": "pencadangan dibatalkan",
-  "the restore was stopped; the library is as it was": "pemulihan dihentikan; pustaka tidak berubah"
+  "the restore was stopped; the library is as it was": "pemulihan dihentikan; pustaka tidak berubah",
+  "Back Up Now": "Cadangkan sekarang",
+  "Backing up…": "Mencadangkan…",
+  "On the same drive as the library: a backup here is lost with the library if that drive fails.": "Di drive yang sama dengan pustaka: jika drive itu rusak, cadangan di sini ikut hilang bersama pustaka.",
+  "This folder is not there now. If it is on a drive that is not connected, connect it before backing up.": "Folder ini tidak ada sekarang. Jika folder ini berada di drive yang tidak terhubung, hubungkan drive itu sebelum mencadangkan.",
+  "No backup of this library is in this folder, and nothing is set to make one.": "Tidak ada cadangan pustaka ini di folder ini, dan tidak ada yang diatur untuk membuatnya.",
+  "No backup of this library is in this folder.": "Tidak ada cadangan pustaka ini di folder ini."
 }

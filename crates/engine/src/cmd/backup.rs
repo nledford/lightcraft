@@ -1177,6 +1177,59 @@ pub fn backup_folder(s: &Session) -> Option<(PathBuf, bool)> {
     })
 }
 
+/// Whether the folder the open library's backups go to is on the volume (the mounted file
+/// system) the library is on: a backup there is lost with the library when that volume's drive
+/// fails. `None` when it cannot be told: the library is not a folder on disk, or the folder
+/// is one that was chosen and is not there (a drive that is not connected), or the system has
+/// no volumes to compare. Two volumes of one physical disk count as different, so `Some(false)`
+/// does not promise another disk. Reads the file system: ask now and then, not on every frame.
+pub fn backup_shares_the_drive(s: &Session) -> Option<bool> {
+    let library = s.library.as_ref().filter(|l| l.on_disk)?.dir.clone();
+    let (folder, chosen) = backup_folder(s)?;
+    // (a folder someone chose that is not there says nothing about where it is: the folder above
+    // it may be the place drives are mounted in, `/Volumes` say, with its own drive not connected.
+    // The usual folder is made in the library folder by the first backup.)
+    if chosen && !folder.exists() {
+        return None;
+    }
+    same_drive(&library, &folder)
+}
+
+/// Whether two paths are on one volume. A path that is not there yet (a folder for backups is
+/// made by the first backup) counts as where the folder above it is; when that is not there
+/// either, nothing is known about it (`None`): it may be on a drive that is not connected.
+pub fn same_drive(a: &Path, b: &Path) -> Option<bool> {
+    Some(drive_of(a)? == drive_of(b)?)
+}
+
+/// What names the volume a path is on: the device of the path, or of the folder above it.
+#[cfg(unix)]
+fn drive_of(path: &Path) -> Option<String> {
+    use std::os::unix::fs::MetadataExt;
+    let there = std::fs::metadata(path).ok().or_else(|| std::fs::metadata(path.parent()?).ok())?;
+    Some(there.dev().to_string())
+}
+
+/// What names the volume a path is on: its drive letter, or its server and share, said the same
+/// way however the path is written (upper or lower case, with or without the verbatim prefix).
+#[cfg(windows)]
+fn drive_of(path: &Path) -> Option<String> {
+    use std::path::{Component, Prefix};
+    let Component::Prefix(prefix) = path.components().next()? else { return None };
+    match prefix.kind() {
+        Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => Some(char::from(letter.to_ascii_uppercase()).to_string()),
+        Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => {
+            Some(format!("{}/{}", server.to_string_lossy().to_lowercase(), share.to_string_lossy().to_lowercase()))
+        }
+        _ => None,
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn drive_of(_: &Path) -> Option<String> {
+    None
+}
+
 /// Why `dir` is no folder for the open library's backups to go to, if it is none: one of the
 /// library's own (inside the library folder only `Backups` is for backups: its other folders
 /// are the catalog's, and a restore moves them as such), or a backup or a folder inside one (it
@@ -1284,7 +1337,7 @@ fn on_disk(s: &Session) -> std::result::Result<(), String> {
 
 /// [`on_disk`], and no backup or restore of the library under way (a restore reads a backup,
 /// and then puts another library in this one's place: nothing is made or removed meanwhile).
-fn can_back_up(s: &Session) -> std::result::Result<(), String> {
+pub fn can_back_up(s: &Session) -> std::result::Result<(), String> {
     on_disk(s)?;
     if restore_status(s).is_some_and(|r| r.running()) {
         return Err(RESTORE_UNDER_WAY.into());

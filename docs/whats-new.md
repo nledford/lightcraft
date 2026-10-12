@@ -57,6 +57,12 @@
   the app you have open does either; snapshots, agents and the command line back up when told to. Settings shows when the library was last backed up. Agents:
   `library.backupPreferences` takes `every` (never, day, week, month) and `onClose` (never, ask, always), and
   answers them with `lastBackup`.
+- Settings ▸ General ▸ Backups says where the library stands. **Back Up Now**, beside Last backup, makes a backup
+  from there ("Backing up…" shows meanwhile, and the button is not on offer while a backup or a restore is under
+  way). A folder for backups on the library's own drive is pointed out, since a backup there is lost with the
+  library if that drive fails: for the usual folder as a note, for one you chose as a caution. A chosen folder that
+  is not there (a drive not connected) says that. And a folder that holds no backup of this library, with nothing
+  set to make one, says so. Agents: nothing new, `library.backup` as before.
 - Settings ▸ General ▸ Backups shows the folder the library's backups go to, and sets it: Choose Folder… for one of
   your own (on another drive, say), Use Library Folder for Backups in the library folder again. Agents:
   `library.backupPreferences` also answers `folder` (where backups go, chosen or not) and takes `choose` (ask with a
