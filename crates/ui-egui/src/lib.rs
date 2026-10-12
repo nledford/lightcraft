@@ -31,6 +31,7 @@ mod model_setup;
 pub mod panels;
 pub mod pick;
 pub mod print_view;
+mod readout;
 pub mod recheck;
 pub mod region;
 pub mod render;
@@ -189,6 +190,8 @@ mod tests_tool_overlay;
 mod tests_type_contrast;
 #[cfg(test)]
 mod tests_type_on_photo;
+#[cfg(test)]
+mod tests_type_readout;
 #[cfg(test)]
 mod tests_type_scale;
 #[cfg(test)]

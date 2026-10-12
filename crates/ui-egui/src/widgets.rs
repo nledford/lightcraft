@@ -205,7 +205,8 @@ pub struct SliderOut {
 /// (comma or point) or `5600 K`, on the control's steps and clamped to its range. `None` when it
 /// isn't a finite number, so the slider keeps its value.
 pub fn typed_value(spec: &ControlSpec, text: &str) -> Option<f64> {
-    let t = text.trim().replace(',', ".");
+    // (a minus as the value is shown with, or the hyphen of a keyboard)
+    let t = text.trim().replace(',', ".").replace(crate::readout::MINUS, "-");
     let t = t.trim_end_matches(|c: char| c == '%' || c == 'K' || c == 'k' || c.is_whitespace());
     let v: f64 = t.parse().ok().filter(|v: &f64| v.is_finite())?;
     let step = spec.step.max(1e-9);
@@ -215,7 +216,7 @@ pub fn typed_value(spec: &ControlSpec, text: &str) -> Option<f64> {
 /// A slider's value as shown next to its label.
 pub(crate) fn shown_value(spec: &ControlSpec, v: f64) -> String {
     let shown = if spec.id == "wb.temp" { format!("{v:.0}") } else { spec.format(v).replace("+0.00", "0").replace("-0.00", "0") };
-    if shown == "+0" || shown == "-0" { "0".to_string() } else { shown }
+    if shown == "+0" || shown == "-0" { "0".to_string() } else { crate::readout::signed(&shown) }
 }
 
 /// Pointer travel (points, sideways from the press) that turns a press on a slider's value into a
@@ -520,8 +521,8 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     let p = ui.painter();
     p.text(label_rect.left_center(), Align2::LEFT_CENTER, crate::i18n::tr(label_override.unwrap_or(spec.label)), t.body(), text_c);
     if typing.is_none() {
-        p.text(label_rect.right_center(), Align2::RIGHT_CENTER, shown_value(spec, v), t.body(), text_c);
-        // the scrub pointer, as over Lightroom's values: a drag here changes the value
+        // (in a column of figures: the value keeps its place while it changes)
+        crate::readout::value(p, label_rect.right_center(), &shown_value(spec, v), t.body(), text_c);
         if enabled && (value_resp.hovered() || scrub.is_some()) {
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
         }

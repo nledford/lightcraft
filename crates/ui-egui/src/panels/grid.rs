@@ -663,20 +663,7 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
     if square && app.ui.show_filenames {
         let m = &photo.meta;
         let name = match app.ui.grid_info.as_str() {
-            "exposure" => {
-                let parts: Vec<String> = [
-                    // whole seconds read "8 s"; fractions as written ("1/250")
-                    (!m.shutter.is_empty())
-                        .then(|| if m.shutter.contains('/') || m.shutter.ends_with('s') { m.shutter.clone() } else { format!("{} s", m.shutter) }),
-                    m.aperture.map(|a| format!("f/{a:.1}").replace(".0", "")),
-                    m.iso.map(|i| format!("ISO {i}")),
-                    m.focal_mm.map(|f| format!("{f:.0} mm")),
-                ]
-                .into_iter()
-                .flatten()
-                .collect();
-                if parts.is_empty() { "—".to_string() } else { parts.join(" · ") }
-            }
+            "exposure" => crate::readout::exposure_line(m).unwrap_or_else(|| "—".to_string()),
             "date" => photo.captured.as_deref().map(crate::i18n::display_time).unwrap_or_else(|| crate::i18n::tr("No date").into()),
             _ => photo.file_name.rsplit_once('.').map(|(n, _)| n.to_string()).unwrap_or(photo.file_name.clone()),
         };

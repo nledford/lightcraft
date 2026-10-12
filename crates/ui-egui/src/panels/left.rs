@@ -115,7 +115,7 @@ fn row_sensed(
     let color = if selected { t.text } else { t.text_label };
     // a count of nothing is there, but fainter: the rows that hold photos stand out
     let count_color = |n: usize| if n == 0 { t.text_dim.gamma_multiply(0.55) } else { t.text_dim };
-    let count_galley = count.filter(|_| app.ui.show_counts).map(|n| ui.painter().layout_no_wrap(n.to_string(), t.label(), count_color(n)));
+    let count_galley = count.filter(|_| app.ui.show_counts).map(|n| crate::readout::figures(ui.painter(), &n.to_string(), t.label(), count_color(n)));
     let label_left = r.left() + 42.0 + indent;
     let count_left = count_galley.as_ref().map_or(edge - 18.0, |g| edge - 18.0 - g.size().x);
     // a label's dot sits just before the count
