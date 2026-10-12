@@ -791,13 +791,26 @@ pub fn flyout_row(ui: &mut Ui, id: &str, title: &str, icon: Icon, open: bool) ->
 
 /// A small bordered text button (Auto, B&W, HDR…).
 pub fn text_button(ui: &mut Ui, id: &str, label: &str, active: bool) -> Response {
+    chip(ui, id, label, active, false)
+}
+
+/// One of a row of choices of which exactly one holds (`button:{id}`), drawn as [`text_button`]
+/// is, except that the one chosen is also outlined in the label colour: its fill alone stands
+/// about 1.4:1 against the others, the outline 3:1 or more in every theme. A screen reader is
+/// told it is a radio button.
+pub fn choice_button(ui: &mut Ui, id: &str, label: &str, chosen: bool) -> Response {
+    chip(ui, id, label, chosen, true)
+}
+
+fn chip(ui: &mut Ui, id: &str, label: &str, active: bool, choice: bool) -> Response {
     let label = if id.starts_with("labelSet-") { label } else { crate::i18n::tr(label) };
     let t = Tokens::get(ui.ctx());
     let font = t.semibold(11.5);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
     let size = vec2((galley.size().x + 18.0).max(37.0), 24.0);
     let (r, resp) = ui.allocate_exact_size(size, Sense::click());
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, active, label));
+    let kind = if choice { egui::Role::RadioButton } else { egui::Role::Button };
+    resp.widget_info(|| egui::WidgetInfo::selected(kind, true, active, label));
     register(ui, format!("button:{id}"), r);
     let fill = if active {
         t.pressed
@@ -806,9 +819,57 @@ pub fn text_button(ui: &mut Ui, id: &str, label: &str, active: bool) -> Response
     } else {
         t.button
     };
+    let border = if active && choice { t.text_label } else { t.button_border };
     let p = ui.painter();
-    p.rect(r, CornerRadius::same(4), fill, Stroke::new(1.0, t.button_border), StrokeKind::Inside);
+    p.rect(r, CornerRadius::same(4), fill, Stroke::new(1.0, border), StrokeKind::Inside);
     p.galley(r.center() - galley.size() / 2.0, galley, t.text);
+    focus_ring(ui, &t, &resp, r);
+    resp
+}
+
+/// The ring a button drawn here shows while it has the keyboard focus (Tab, the arrow keys): 2 pt
+/// in the text colour with a 1 pt line of the surface's colour inside it, both within its rect so
+/// that a neighbour or the edge of a scrolled list never cuts them. The inner line sets the ring
+/// off from the button's fill, and makes it a double line: a chosen [`choice_button`] has a
+/// single thin one, so "has the focus" and "is chosen" are told apart by shape, not thickness.
+fn focus_ring(ui: &Ui, t: &Tokens, resp: &Response, r: Rect) {
+    if resp.has_focus() {
+        let p = ui.painter();
+        p.rect_stroke(r, CornerRadius::same(4), Stroke::new(2.0, t.text), StrokeKind::Inside);
+        p.rect_stroke(r.shrink(2.0), CornerRadius::same(2), Stroke::new(1.0, t.chrome), StrokeKind::Inside);
+    }
+}
+
+/// How tall a [`tab_button`] is.
+const TAB_HEIGHT: f32 = 28.0;
+
+/// A tab of a tab bar (`button:{id}`): its name on the surface it is on, with no border and no
+/// fill, so that it does not read as one of the buttons a page holds. The open tab's name is in
+/// the text colour over a 2 pt line of that colour along its bottom edge (the bar's own line, when
+/// the caller draws one there); the others are in the label colour. The names are a size up from
+/// the headings inside a page, which are in the same face. To a screen reader a tab is a button
+/// that says whether it is the one chosen (egui has no tab role to give it).
+pub fn tab_button(ui: &mut Ui, id: &str, label: &str, open: bool) -> Response {
+    let label = crate::i18n::tr(label);
+    let t = Tokens::get(ui.ctx());
+    let color = if open { t.text } else { t.text_label };
+    let galley = ui.painter().layout_no_wrap(label.to_string(), t.semibold(13.5), color);
+    let size = vec2((galley.size().x + 20.0).max(37.0), TAB_HEIGHT);
+    let (r, resp) = ui.allocate_exact_size(size, Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, open, label));
+    register(ui, format!("button:{id}"), r);
+    let p = ui.painter();
+    // (on whole pixels, so the line under the open tab is crisp at a whole-number scale)
+    let r = egui::emath::GuiRounding::round_to_pixels(r, p.pixels_per_point());
+    if resp.hovered() && !open {
+        p.rect_filled(r.shrink2(vec2(0.0, 3.0)), CornerRadius::same(4), t.hover);
+    }
+    let color = if resp.hovered() { t.text } else { color };
+    p.galley_with_override_text_color(r.center() - galley.size() / 2.0, galley, color);
+    if open {
+        p.rect_filled(Rect::from_min_max(pos2(r.left(), r.bottom() - 2.0), r.max), CornerRadius::ZERO, t.text);
+    }
+    focus_ring(ui, &t, &resp, r);
     resp
 }
 

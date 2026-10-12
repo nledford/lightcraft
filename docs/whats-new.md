@@ -157,6 +157,14 @@
   the full count took about 14 s instead of about 23 s on a heavily loaded machine; the rest is the text rules of
   the albums themselves. The counts are the same as before, including for albums that loop through each other.
 
+### Settings window
+- The tabs of Settings look like tabs: names on the window with a line under the open one, no longer the same
+  buttons as the choices under them (on General the languages read as a second row of tabs). In Settings a chosen
+  option is outlined as well as filled, so it stands out in every theme.
+- A tab or a choice reached with the keyboard shows a ring. Tab moves through them, ← and → along a row, and Space
+  or Return opens or chooses, as before: the focus was there all along but could not be seen. Text buttons
+  elsewhere in LightCraft show the same ring. Screen readers are told a choice in Settings is a radio button.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around
