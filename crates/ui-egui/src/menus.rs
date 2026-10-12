@@ -191,6 +191,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.sidebarSection", "Show Sidebar Section", None, ""),
     ("view.sidebarMoveSection", "Move Sidebar Section", None, ""),
     ("view.sidebarReset", "Reset Sidebar Sections", None, ""),
+    ("view.sidebarKeys", "Keyboard in Sidebar", Some("Cmd+Alt+B"), "View"),
     ("view.slideshow", "Slideshow", Some("Cmd+Alt+Enter"), "View"),
     ("view.slideshowOptions", "Slideshow Options…", None, "View"),
     ("dialog.slideshowExport", "Export Slideshow…", None, "View"),
@@ -556,6 +557,28 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             // every section shown and open, in the usual order
             app.ui.sidebar = Default::default();
             Ok(json!({"sidebar": app.ui.sidebar}))
+        }
+        "view.sidebarKeys" => {
+            // {on?}: the arrow keys, Enter, typing and F2 go to the left sidebar (shown if it was
+            // not); Esc, a click elsewhere or this command again gives them back
+            let on = match bool_param(id, p, "on") {
+                Ok(on) => on.unwrap_or(!app.ui.sidebar_keys),
+                Err(e) => return Some(Err(e)),
+            };
+            if on && app.ui.fullscreen {
+                return Some(Err(format!("{id}: the sidebar is not on screen in full screen; leave full screen first")));
+            }
+            // (coming in starts at the row shown, not where the keys were left last time)
+            if on && !app.ui.sidebar_keys {
+                app.ui.sidebar_cursor = None;
+            }
+            app.ui.sidebar_keys = on;
+            if on {
+                app.ui.left_panel = true;
+                app.ui.sidebar_cursor_moved = true;
+                app.ui.sidebar_keys_grace = 4;
+            }
+            Ok(json!({"on": on, "cursor": app.ui.sidebar_cursor}))
         }
         "view.appearance" => appearance_command(app, p),
         "view.theme" => theme_command(app, p),
