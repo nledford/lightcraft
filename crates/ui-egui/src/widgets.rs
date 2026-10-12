@@ -690,20 +690,25 @@ impl Roving {
     fn drawn(&mut self, ui: &Ui, resp: &Response) {
         let place = self.now.len();
         self.now.push(resp.id);
-        // (a click anywhere in the row brings the focus there, as on a button that takes it by Tab)
-        if resp.clicked() && !resp.has_focus() {
-            resp.request_focus();
-        }
         if !resp.has_focus() {
             return;
         }
         // (the arrow keys are this row's while the focus is in it: not egui's, which go to
         // whatever is nearest in that direction)
         let arrows = egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, ..Default::default() };
-        ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, arrows));
+        // (and on the frame the focus came here, when egui takes no filter yet and would look for
+        // what is nearest in the arrow's direction, starting from the button the focus was just
+        // given to: that search is called off)
+        ui.memory_mut(|m| {
+            m.set_focus_lock_filter(resp.id, arrows);
+            m.move_focus(egui::FocusDirection::None);
+        });
         let end = self.last.len().saturating_sub(1);
         let to = ui.input(|i| {
-            if i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::ArrowDown) {
+            // (an arrow held with a modifier is somebody else's)
+            if i.modifiers.any() {
+                None
+            } else if i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::ArrowDown) {
                 Some(place.saturating_add(1).min(end))
             } else if i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::ArrowUp) {
                 Some(place.saturating_sub(1))

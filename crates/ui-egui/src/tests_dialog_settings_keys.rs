@@ -191,6 +191,53 @@ fn the_arrow_keys_move_inside_a_row_of_choices_and_space_chooses() {
     // And coming back, the stop is the choice that holds
     back_tab(&mut h);
     assert_eq!(focused(&h), "button:settingsStartup-1");
+    // Home and End go to the ends of the row, and Return chooses as Space does
+    key(&mut h, "End");
+    assert_eq!(focused(&h), "button:settingsStartup-2");
+    key(&mut h, "Home");
+    assert_eq!(focused(&h), "button:settingsStartup-0");
+    key(&mut h, "Enter");
+    assert_eq!(h.app.ui.settings.startup_view, crate::state::StartupView::Last);
+    // And an arrow key held with ⌘ or ⇧ is not this row's: the focus stays in it, where it was
+    assert_eq!(h.request("ui.key", json!({"key": "ArrowRight", "cmd": true}), T)["ok"], true);
+    steps(&mut h);
+    assert_eq!(h.request("ui.key", json!({"key": "ArrowRight", "shift": true}), T)["ok"], true);
+    steps(&mut h);
+    assert_eq!(focused(&h), "button:settingsStartup-0");
+}
+
+/// `key` pressed and let go within one frame, and that one frame drawn.
+fn press(h: &mut Headless, key: egui::Key) {
+    for pressed in [true, false] {
+        h.events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+    }
+    h.step();
+}
+
+#[test]
+fn arrow_keys_pressed_faster_than_frames_are_drawn_stay_in_the_row() {
+    let mut h = demo();
+    show(&mut h, "general");
+    key(&mut h, "Tab");
+    key(&mut h, "Tab");
+    assert_eq!(focused(&h), "button:settingsLanguage-0");
+    // Given the focus walked along the languages (so each of them has been the row's stop)
+    for _ in 0..4 {
+        key(&mut h, "ArrowRight");
+    }
+    assert_eq!(focused(&h), "button:settingsLanguage-4");
+    // When ← arrives on one frame after the other, with none drawn in between
+    for _ in 0..3 {
+        press(&mut h, egui::Key::ArrowLeft);
+    }
+    steps(&mut h);
+    // Then the focus has gone back along the row, and not up to the tabs
+    assert_eq!(focused(&h), "button:settingsLanguage-1");
+    for _ in 0..6 {
+        press(&mut h, egui::Key::ArrowRight);
+    }
+    steps(&mut h);
+    assert_eq!(focused(&h), "button:settingsLanguage-7");
 }
 
 #[test]
@@ -201,10 +248,17 @@ fn a_click_on_a_choice_that_is_not_the_stop_still_chooses_it() {
     assert_eq!(r["ok"], true, "{r}");
     steps(&mut h);
     assert_eq!(h.app.ui.settings.startup_view, crate::state::StartupView::Detail);
+    // And it is not left ringed as if the keyboard had come to it: a click on a choice shows no
+    // more of the focus than a click on a checkbox does
+    let t = Tokens::get(&h.view.ctx);
+    let ringed = |h: &Headless, id: &str| band(&h.paint(), rect(h, id), t.text) as f32 >= rect(h, id).width() + rect(h, id).height();
+    assert!(!ringed(&h, "button:settingsStartup-2"), "a clicked choice shows no focus ring");
     let r = h.request("ui.clickWidget", json!({"id": "button:settingsTab-performance"}), T);
     assert_eq!(r["ok"], true, "{r}");
     steps(&mut h);
     assert_eq!(h.app.ui.dialog, Some(Dialog::Settings { tab: "performance".into() }));
+    // (the open tab has its own line in the text colour: asked of the focus itself)
+    assert_ne!(focused(&h), "button:settingsTab-performance", "a clicked tab does not take the focus");
 }
 
 #[test]
@@ -273,7 +327,18 @@ fn a_themes_star_is_reached_and_pressed_with_the_keyboard() {
     // Then the star is drawn there, ringed
     let t = Tokens::get(&h.view.ctx);
     let star = rect(&h, "button:themeFavorite-paper");
-    assert!(band(&h.paint(), star, t.text) as f32 >= star.width() + star.height(), "the star shows the focus");
+    let image = h.paint();
+    assert!(band(&image, star, t.text) as f32 >= star.width() + star.height(), "the star shows the focus");
+    let inside = star.shrink(5.0);
+    let drawn = (inside.area() as usize).saturating_sub(count(&image, inside, t.inset));
+    assert!(drawn > 12, "the star itself is drawn while it has the focus ({drawn} px of it)");
+    // And the theme's radio button before it, with the focus, is ringed round the whole of it
+    back_tab(&mut h);
+    assert_eq!(focused(&h), "radio:theme-paper");
+    let radio = rect(&h, "radio:theme-paper");
+    let ring = band(&h.paint(), radio, t.text);
+    assert!(ring as f32 >= radio.width() + radio.height(), "the radio button shows the focus by {ring} px");
+    key(&mut h, "Tab");
     // And Space makes Paper a favourite, and the focus stays on the star
     key(&mut h, "Space");
     assert_eq!(h.app.ui.settings.favorite_themes, ["paper"]);

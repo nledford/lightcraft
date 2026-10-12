@@ -1819,6 +1819,8 @@ fn theme_card<V: PartialEq + Copy>(
                     ui.horizontal(|ui| {
                         let r = ui.radio_value(value, *v, crate::i18n::tr(kind.label()));
                         register(ui.ctx(), format!("radio:theme-{}", kind.id()), r.rect);
+                        // (ringed round the whole of it while it has the focus, as a checkbox is)
+                        crate::widgets::focus_ring(ui, t, &r, r.rect.expand2(egui::vec2(3.0, 1.0)));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let favorite = favorites.iter().any(|id| id == kind.id());
                             // (always there, so that Tab reaches it; drawn while it is a
