@@ -664,7 +664,13 @@ fn chip(ui: &mut Ui, id: &str, label: &str, active: bool, choice: bool) -> Respo
     } else {
         t.button
     };
-    let border = if active && choice { t.text_label } else { t.button_border };
+    // (a choice's border says where it is, among its neighbours on the window: it stands 3:1
+    // there in every theme, where a button's own border is 1.6 to 1.7:1)
+    let border = match (choice, active) {
+        (true, true) => t.text_label,
+        (true, false) => t.legible(t.button_border, t.chrome, 3.0),
+        (false, _) => t.button_border,
+    };
     let p = ui.painter();
     p.rect(r, CornerRadius::same(4), fill, Stroke::new(1.0, border), StrokeKind::Inside);
     p.galley(r.center() - galley.size() / 2.0, galley, t.text);

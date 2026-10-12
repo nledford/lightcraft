@@ -92,6 +92,11 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     let top = ui.cursor().top();
     // The filter, above the tabs it looks through. What is typed is kept from one frame of the
     // window to the next only: Settings opened again starts with it empty.
+    // What says where a control is, and what a text box says while it is empty, are made legible
+    // here for everything in the window: a theme's border is 1.6 to 1.7:1 against the window and
+    // its weak text under 4.3:1 in a box (the tokens keep their values for the rest of the app).
+    let t = Tokens::get(ui.ctx());
+    legible_controls(ui, &t);
     let filter_id = egui::Id::new("settings-filter");
     let pass = ui.ctx().cumulative_pass_nr();
     let kept: Option<Filter> = ui.data(|d| d.get_temp(filter_id));
@@ -142,7 +147,7 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
             }
         }
     });
-    let divider = Tokens::get(ui.ctx()).divider;
+    let divider = t.legible(t.divider, t.chrome, 3.0);
     for bottom in lines {
         let line = egui::Rect::from_min_max(egui::pos2(ui.min_rect().left(), bottom), egui::pos2(ui.min_rect().right(), bottom + 1.0));
         ui.painter().rect_filled(line, egui::CornerRadius::ZERO, divider);
@@ -195,6 +200,21 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
         ui.data_mut(|d| d.remove::<(&'static str, String)>(goto_id));
     }
     ui.data_mut(|d| d.insert_temp(filter_id, filter));
+}
+
+/// What says where a control is, and what a text box says while it is empty, made legible for
+/// everything drawn in `ui` from here on (the window, and each panel that opens over it, which
+/// has a style of its own): the border of a button, checkbox, radio button, list or text box
+/// stands 3:1 against the window and against a theme card's fill, a text box in use is
+/// outlined in an accent that does too, and placeholder text stands 4.5:1 in its box.
+pub(super) fn legible_controls(ui: &mut egui::Ui, t: &Tokens) {
+    // (a little over 3:1 as a colour: a radio button's ring is one antialiased pixel wide, and
+    // what is drawn of it is fainter than the colour it is drawn in)
+    let border = t.legible(t.legible(t.button_border, t.chrome, 3.0), t.inset, 3.6);
+    let visuals = ui.visuals_mut();
+    visuals.widgets.inactive.bg_stroke.color = border;
+    visuals.selection.stroke.color = t.legible(t.accent, t.chrome, 3.0);
+    visuals.weak_text_color = Some(t.legible(t.text_dim, t.field, 4.5));
 }
 
 /// Where the section to scroll to is kept between the click on a result and its page being drawn.
@@ -337,7 +357,9 @@ fn results(ui: &mut egui::Ui, found: &[Section], words: &str, open_first: bool, 
                     .take(2)
                     .collect();
                 for text in with {
-                    ui.add(egui::Label::new(RichText::new(text).size(11.0).color(t.text_dim)).selectable(false).truncate());
+                    // (legible on the fill a hovered or focused row has, and so on a plain one)
+                    let dim = t.legible(t.legible(t.text_dim, t.hover, 4.5), t.chrome, 4.5);
+                    ui.add(egui::Label::new(RichText::new(text).size(11.0).color(dim)).selectable(false).truncate());
                 }
                 ui.add_space(3.0);
             })
@@ -442,6 +464,7 @@ pub(super) fn ask_first(t: &Tokens, id: &str, button: egui::Response, question: 
     let opened = button.clicked();
     egui::Popup::from_toggle_button_response(&button).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         ui.set_max_width(280.0);
+        legible_controls(ui, t);
         ui.add(egui::Label::new(RichText::new(crate::i18n::tr(question)).color(t.text_label)).wrap());
         ui.horizontal(|ui| {
             let r = ui.button(crate::i18n::tr(yes));
@@ -500,7 +523,8 @@ pub(super) fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnc
 }
 
 pub(super) fn hint(ui: &mut egui::Ui, t: &Tokens, text: &str) {
-    ui.label(RichText::new(crate::i18n::tr(text)).size(11.0).color(t.text_dim));
+    // (an explanation is small text: the dim colour where it reads, else as near it as reads)
+    ui.label(RichText::new(crate::i18n::tr(text)).size(11.0).color(t.legible(t.text_dim, t.chrome, 4.5)));
 }
 
 /// A checkbox addressable as `check:{id}`; true when toggled.
@@ -625,7 +649,7 @@ fn external_editing(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         ui,
         t,
         crate::i18n::tr(
-            "Photo ▸ Edit In ▸ Edit in PhotoCraft (⇧⌘E, or right-click a photo) renders a copy with your edits, stacks it with the original and opens it in PhotoCraft. Save there and the copy updates here. As PSD, PhotoCraft saves straight back to it. Leave the location empty unless you use a portable copy.",
+            "Photo > Edit In > Edit in PhotoCraft (⇧⌘E, or right-click a photo) renders a copy with your edits, stacks it with the original and opens it in PhotoCraft. Save there and the copy updates here. As PSD, PhotoCraft saves straight back to it. Leave the location empty unless you use a portable copy.",
         ),
     );
     row(ui, t, crate::i18n::tr("Other editor"), |ui| {
@@ -914,7 +938,7 @@ fn performance_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             None => "No usable GPU found: rendering on the CPU".to_string(),
         }
     } else {
-        format!("GPU: {}", gpu::adapter_name().unwrap_or_else(|| "starting…".into()))
+        format!("GPU: {}", gpu::adapter_name().unwrap_or_else(|| crate::i18n::tr("starting…").into()))
     };
     // One line, the whole text on hover: the reason can be a long driver message (no adapter
     // among the backends …), and the GPU state is process-wide, so it may change between frames;
@@ -1010,9 +1034,16 @@ fn smart_previews(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let available = loc["available"].as_bool().unwrap_or(true);
     let custom = loc["custom"].as_bool().unwrap_or(false);
     row(ui, t, crate::i18n::tr("Folder"), |ui| {
-        path_label(ui, "settingsSmartFolder", &path, egui::TextStyle::Body.resolve(ui.style()), if available { t.text } else { t.reject });
+        path_label(
+            ui,
+            "settingsSmartFolder",
+            &path,
+            egui::TextStyle::Body.resolve(ui.style()),
+            if available { t.text } else { t.legible(t.reject, t.chrome, 4.5) },
+        );
         if !custom {
-            ui.label(RichText::new("(library default)").color(t.text));
+            // (the catalogs have it with the two spaces it once followed a path with)
+            ui.label(RichText::new(crate::i18n::tr("  (library default)").trim()).color(t.text));
         }
     });
     let (count, bytes) = (loc["count"].as_u64().unwrap_or(0), loc["bytes"].as_u64().unwrap_or(0));
@@ -1089,7 +1120,7 @@ fn smart_previews(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 "Photos whose originals are not connected are shown and edited from their smart previews; new ones can only be made from originals that are connected."
             ),
         );
-        ui.add(egui::Label::new(RichText::new(question).color(t.caution)).wrap());
+        ui.add(egui::Label::new(RichText::new(question).color(t.legible(t.caution, t.chrome, 4.5))).wrap());
         ui.horizontal(|ui| {
             let r = ui.button(crate::i18n::tr("Delete and Change Folder"));
             register(ui.ctx(), "button:settingsSmartDelete", r.rect);
@@ -1175,13 +1206,13 @@ fn display_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
     });
     if let Some(e) = &app.display_error {
-        ui.label(RichText::new(e).size(11.0).color(t.reject));
+        ui.label(RichText::new(e).size(11.0).color(t.legible(t.reject, t.chrome, 4.5)));
     }
     if let Some(d) = &current {
         let info = d.describe();
         if !screen {
             row(ui, t, crate::i18n::tr("File"), |ui| {
-                path_label(ui, "settingsDisplayFile", &d.path, egui::FontId::proportional(11.0), t.text_dim);
+                path_label(ui, "settingsDisplayFile", &d.path, egui::FontId::proportional(11.0), t.legible(t.text_dim, t.chrome, 4.5));
             });
         }
         row(ui, t, crate::i18n::tr("Type"), |ui| {
@@ -1195,7 +1226,7 @@ fn display_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             let p = &info["primaries"];
             let xy = |(k, l): (&str, &str)| format!("{l} {:.3}, {:.3}", p[k][0].as_f64().unwrap_or(0.0), p[k][1].as_f64().unwrap_or(0.0));
             let text = [("red", "R"), ("green", "G"), ("blue", "B")].map(xy).join("   ");
-            ui.label(RichText::new(text).size(11.0).color(t.text_dim));
+            ui.label(RichText::new(text).size(11.0).color(t.legible(t.text_dim, t.chrome, 4.5)));
         });
     }
     hint(
@@ -1427,7 +1458,8 @@ fn theme_card<V: PartialEq + Copy>(
 ) {
     egui::Frame::new()
         .fill(t.inset)
-        .stroke(egui::Stroke::new(1.0, if active { t.accent } else { t.field_border }))
+        // (the card in use is outlined in the accent, legible as a line on the window)
+        .stroke(egui::Stroke::new(1.0, if active { t.legible(t.accent, t.chrome, 3.0) } else { t.field_border }))
         .corner_radius(6)
         .inner_margin(8)
         .show(ui, |ui| {
@@ -1437,7 +1469,7 @@ fn theme_card<V: PartialEq + Copy>(
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(crate::i18n::tr(title)).font(t.semibold(12.0)).color(t.text));
                     if active {
-                        ui.label(RichText::new(crate::i18n::tr("In Use")).size(11.0).color(t.accent));
+                        ui.label(RichText::new(crate::i18n::tr("In Use")).size(11.0).color(t.legible(t.accent, t.inset, 4.5)));
                     }
                 });
                 let shown = options.iter().find(|(v, _)| v == value).or(options.first()).map(|(_, k)| *k).unwrap_or_default();

@@ -565,6 +565,19 @@
   or ↓ to go down to them) and its tab opens at it. Esc empties the filter; a second Esc closes Settings. The
   choices of a closed list and tooltips are not looked through. Scripts: `field:settingsFilter`, and
   `settingsFound:<tab>:<section>` for each section found.
+- What Settings says can be read in every theme. Its explanations, the text a box shows while it is empty, "In Use"
+  on a theme's card and the lines that warn or refuse now stand at least 4.5:1 against what they are on (the
+  explanations were 4.2:1 in Charcoal and 4.3:1 in Silver, "In Use" 2.9:1 in Charcoal); the borders of text boxes,
+  checkboxes, radio buttons, buttons and each choice of a row, and the line under the tabs, stand 3:1, where they
+  were 1.2 to 1.7:1; so do the buttons of a question a button asks. The AI Denoise page's own lines are read the
+  same way. The colours of the rest of LightCraft are as they were.
+- The hint under External Editing drew two empty boxes where its menu path had arrows; it reads "Photo > Edit In >
+  Edit in PhotoCraft" now.
+- Photo ▸ Edit In, Edit in PhotoCraft and Edit in Other Editor have names in all nine languages, the ones the hint
+  under External Editing gives.
+- 27 sentences and names in Settings that no language had are in all nine: External Editing and its hints, the
+  Monitor tab, the questions asked before clearing the cache, removing a model and deleting smart previews, and
+  what automatic XMP writing does. "memory only", "(library default)" and "starting…" are translated too.
 - Each section of Settings can be found by scripts as `heading:<its English name>` in `ui.widgets`, whatever the
   interface language.
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own
