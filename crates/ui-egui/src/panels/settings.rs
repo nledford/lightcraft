@@ -108,9 +108,8 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     let mut filter = kept.filter(|_| !opened).unwrap_or_default();
     filter.pass = pass;
     // (the mark is for arriving at a section from the filter: a tab left, however, and come back
-    // to shows none)
-    let arriving = ui.data(|d| d.get_temp::<(&'static str, String)>(egui::Id::new(GOTO))).is_some_and(|(to, _)| to == shown);
-    if filter.tab != shown && !arriving {
+    // to shows none. Arriving sets it again when the heading is drawn, further down this frame.)
+    if filter.tab != shown {
         ui.data_mut(|d| d.remove::<(String, f64)>(egui::Id::new(LANDED)));
     }
     filter.tab.clone_from(&shown);
@@ -283,6 +282,23 @@ fn fold(text: &str) -> String {
     folded
 }
 
+/// A word typed (in lower case) in the one spelling ([`fold`]), which a word still being typed
+/// in the other is brought to as well: "colou" is on the way to "colour" and is compared as
+/// "color", "catalogu" as "catalog". Only once it has gone past where the two spellings part,
+/// so that "colo" stays what it is.
+fn fold_typed(word: &str) -> String {
+    let folded = fold(word);
+    for (one, other) in SPELLINGS {
+        let shared = one.chars().zip(other.chars()).take_while(|(a, b)| a == b).count();
+        // (the longest start of the other spelling the word ends in, past what the two share)
+        let ends_in = other.char_indices().skip(shared + 1).filter_map(|(at, _)| other.get(..at)).filter(|start| folded.ends_with(start)).last();
+        if let Some(stem) = ends_in.and_then(|start| folded.strip_suffix(start)) {
+            return format!("{stem}{one}");
+        }
+    }
+    folded
+}
+
 /// A text as the filter compares it: in lower case, and in one spelling ([`fold`]).
 #[derive(Clone)]
 struct Compared {
@@ -300,7 +316,7 @@ impl Compared {
     /// typed counts too, so that a word is found all the way while it is typed ("colou" is on
     /// the way to "colour", and is in no text once that is spelt "color").
     fn has(&self, word: &str) -> bool {
-        self.lower.contains(word) || self.folded.contains(&fold(word))
+        self.lower.contains(word) || self.folded.contains(&fold_typed(word))
     }
 }
 
@@ -373,7 +389,7 @@ impl Section {
                     Some(0)
                 } else if self.texts.iter().any(|drawn| !drawn.small && drawn.compared.has(word)) {
                     Some(1)
-                } else if self.texts.iter().any(|drawn| drawn.compared.has(word)) || also().any(|also| also.starts_with(&fold(word))) {
+                } else if self.texts.iter().any(|drawn| drawn.compared.has(word)) || also().any(|also| also.starts_with(&fold_typed(word))) {
                     Some(2)
                 } else {
                     None
@@ -398,7 +414,7 @@ fn places(text: &str, words: &str) -> Vec<std::ops::Range<usize>> {
     let mut found: Vec<std::ops::Range<usize>> = Vec::new();
     for word in words.split_whitespace() {
         // (as typed, in the one spelling, and in the other)
-        let folded = fold(word);
+        let folded = fold_typed(word);
         let other = SPELLINGS.iter().find(|(one, _)| folded.contains(one)).map(|(one, other)| folded.replace(one, other));
         let mut spellings = vec![word.to_string()];
         spellings.extend(std::iter::once(folded).chain(other).filter(|spelt| spelt != word));

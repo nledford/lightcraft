@@ -129,9 +129,22 @@ fn either_spelling_of_a_word_finds_it() {
         |byte: usize| lines[0].job.sections.iter().find(|s| (s.byte_range.start.0..s.byte_range.end.0).contains(&byte)).unwrap().format.color;
     assert_eq!((colour(at), colour(at + 6)), (t.text, t.text), "\"colours\" is told apart for \"colors\"");
     // And on the way to either spelling, letter by letter, the section stays found
+    // (Monitor profile says "colours"; External Editing and Appearance are given "color")
     for typed in ["col", "colo", "colou", "colour", "color"] {
         filter(&mut h, typed);
-        assert!(found(&h).contains(&"display:Monitor profile".to_string()), "{typed}: {:?}", found(&h));
+        for section in ["display:Monitor profile", "files:External Editing", "interface:Appearance"] {
+            assert!(found(&h).contains(&section.to_string()), "{typed} finds {section}: {:?}", found(&h));
+        }
+    }
+    // And with another word beside it
+    for typed in ["colo space", "colou space", "colour space"] {
+        filter(&mut h, typed);
+        assert_eq!(found(&h), ["files:External Editing"], "{typed}");
+    }
+    // And for a word Settings has in the one spelling only (Library is given "catalog")
+    for typed in ["catalo", "catalog", "catalogu", "catalogue"] {
+        filter(&mut h, typed);
+        assert!(found(&h).contains(&"library:Library".to_string()), "{typed}: {:?}", found(&h));
     }
 }
 
