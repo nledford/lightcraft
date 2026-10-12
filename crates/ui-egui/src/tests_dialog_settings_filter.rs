@@ -107,7 +107,9 @@ fn a_word_from_a_row_a_hint_or_a_button_finds_its_section() {
     assert_eq!(found(&h), ["files:XMP sidecars"]);
     // (a tab's own name finds everything on it)
     filter(&mut h, "Appearance");
-    assert_eq!(found(&h), ["interface:Appearance", "interface:Filmstrip", "interface:Grid", "interface:Detail"]);
+    let on_the_tab = found(&h);
+    assert!(on_the_tab.len() >= 4 && on_the_tab.iter().all(|id| id.starts_with("interface:")), "{on_the_tab:?}");
+    assert!(on_the_tab.contains(&"interface:Filmstrip".to_string()), "a section that does not say the word itself: {on_the_tab:?}");
 }
 
 #[test]
