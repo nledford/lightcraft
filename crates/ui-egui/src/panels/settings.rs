@@ -147,10 +147,12 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     // line always has the bar's under it: in a narrow window, or a language with long names, the
     // tabs take two lines or more.
     let mut lines: Vec<f32> = Vec::new();
+    // (the bar is one stop for Tab, at the open tab; the arrow keys go along it)
+    let mut bar = crate::widgets::Roving::new(ui, "settingsTabs", TABS.iter().position(|(id, _)| *id == shown));
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(4.0, 5.0);
         for (id, label) in TABS {
-            let r = crate::widgets::tab_button(ui, &format!("settingsTab-{id}"), tab_label(id, label), shown == *id && !filtering);
+            let r = crate::widgets::tab_button_in(ui, &mut bar, &format!("settingsTab-{id}"), tab_label(id, label), shown == *id && !filtering);
             let bottom = egui::emath::GuiRounding::round_to_pixels(r.rect.bottom(), ui.pixels_per_point());
             if !lines.iter().any(|line| (line - bottom).abs() < 0.5) {
                 lines.push(bottom);
@@ -163,6 +165,7 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
             }
         }
     });
+    bar.end(ui);
     let divider = t.legible(t.divider, t.chrome, 3.0);
     for bottom in lines {
         let line = egui::Rect::from_min_max(egui::pos2(ui.min_rect().left(), bottom), egui::pos2(ui.min_rect().right(), bottom + 1.0));
@@ -229,7 +232,12 @@ pub(super) fn legible_controls(ui: &mut egui::Ui, t: &Tokens) {
     let border = t.legible(t.legible(t.button_border, t.chrome, 3.0), t.inset, 3.6);
     let visuals = ui.visuals_mut();
     visuals.widgets.inactive.bg_stroke.color = border;
-    visuals.selection.stroke.color = t.legible(t.accent, t.chrome, 3.0);
+    // One look for "the focus is here", whatever the control: a line 2 pt wide in the text
+    // colour round it, as round a tab or a choice ([`crate::widgets::focus_ring`]). egui draws a
+    // button, checkbox, radio button or list that has the focus (or is being pressed) with its
+    // "active" outline, and a text box in use with the selection's.
+    visuals.widgets.active.bg_stroke = egui::Stroke::new(2.0, t.text);
+    visuals.selection.stroke = egui::Stroke::new(2.0, t.text);
     visuals.weak_text_color = Some(t.legible(t.text_dim, t.field, 4.5));
 }
 
@@ -857,6 +865,8 @@ pub(super) fn hint(ui: &mut egui::Ui, t: &Tokens, text: &str) {
 pub(super) fn check(ui: &mut egui::Ui, id: &str, value: &mut bool, label: &str) -> bool {
     let r = ui.checkbox(value, crate::i18n::tr(label));
     register(ui.ctx(), format!("check:{id}"), r.rect);
+    // (ringed round the whole of it while it has the focus, as a choice or a tab is)
+    crate::widgets::focus_ring(ui, &Tokens::get(ui.ctx()), &r, r.rect.expand2(egui::vec2(3.0, 1.0)));
     r.changed()
 }
 
@@ -864,12 +874,15 @@ pub(super) fn check(ui: &mut egui::Ui, id: &str, value: &mut bool, label: &str) 
 pub(super) fn choices<V: PartialEq + Copy>(ui: &mut egui::Ui, id: &str, options: &[(V, &str)], value: &mut V) -> bool {
     let mut changed = false;
     ui.spacing_mut().item_spacing.x = 4.0;
+    // (the row is one stop for Tab, at the choice that holds; the arrow keys go along it)
+    let mut group = crate::widgets::Roving::new(ui, id, options.iter().position(|(v, _)| *v == *value));
     for (i, (v, l)) in options.iter().enumerate() {
-        if crate::widgets::choice_button(ui, &format!("{id}-{i}"), l, *value == *v).clicked() && *value != *v {
+        if crate::widgets::choice_button_in(ui, &mut group, &format!("{id}-{i}"), l, *value == *v).clicked() && *value != *v {
             *value = *v;
             changed = true;
         }
     }
+    group.end(ui);
     changed
 }
 
@@ -1808,8 +1821,10 @@ fn theme_card<V: PartialEq + Copy>(
                         register(ui.ctx(), format!("radio:theme-{}", kind.id()), r.rect);
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let favorite = favorites.iter().any(|id| id == kind.id());
+                            // (always there, so that Tab reaches it; drawn while it is a
+                            // favourite, under the mouse or has the focus)
                             let r = ui
-                                .add_visible(favorite || hovered, egui::Button::new("").min_size(egui::vec2(24.0, 24.0)).frame(false))
+                                .add(egui::Button::new("").min_size(egui::vec2(24.0, 24.0)).frame(false))
                                 .on_hover_text(crate::i18n::tr(if favorite { "Remove from favorites" } else { "Add to favorites" }));
                             r.widget_info(|| {
                                 egui::WidgetInfo::labeled(
@@ -1823,7 +1838,8 @@ fn theme_card<V: PartialEq + Copy>(
                                 )
                             });
                             register(ui.ctx(), format!("button:themeFavorite-{}", kind.id()), r.rect);
-                            if favorite || hovered {
+                            crate::widgets::focus_ring(ui, t, &r, r.rect);
+                            if favorite || hovered || r.has_focus() {
                                 crate::icons::paint(
                                     ui.painter(),
                                     r.rect.shrink(4.0),

@@ -574,6 +574,12 @@
   library's, a cache's) and its text boxes (what is typed into one, or what an empty one says) are no longer
   looked through. The heading of the section opened is marked for a moment. Scripts: `settingsLanded:<section>`
   while it is.
+- Settings by keyboard is a short way. Tab stops once at the tab bar (at the open tab) and once at each row of
+  choices (at the one that holds), and the arrow keys move inside: → ↓ to the next, ← ↑ to the one before, Home and
+  End to the ends, Space or Return to open or choose. General's first checkbox is four presses from the filter,
+  where it was some twenty. Whatever has the focus is ringed 2 pt in the text colour: tabs and choices as before,
+  and now checkboxes, buttons, lists, radio buttons, text boxes and the sections the filter finds. The star that
+  makes a theme a favourite is a Tab stop for every theme, not only for one that is a favourite already.
 - What Settings says can be read in every theme. Its explanations, the text a box shows while it is empty, "In Use"
   on a theme's card and the lines that warn or refuse now stand at least 4.5:1 against what they are on (the
   explanations were 4.2:1 in Charcoal and 4.3:1 in Silver, "In Use" 2.9:1 in Charcoal); the borders of text boxes,

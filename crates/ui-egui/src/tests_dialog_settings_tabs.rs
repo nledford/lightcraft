@@ -147,9 +147,10 @@ fn a_tab_reached_with_the_keyboard_shows_the_focus() {
         let ring = |h: &Headless| ring(&h.paint(), import, t.text);
         // Given no tab has the focus, there is no ring round Library
         assert!(ring(&h) < 8, "{kind:?}: no ring before ({})", ring(&h));
-        // When Tab is pressed twice (the filter has the focus as Settings opens: General, then Library)
+        // When Tab is pressed (the filter has the focus as Settings opens: the tab bar is the next
+        // stop, at General) and then → (to Library)
         key(&mut h, "Tab");
-        key(&mut h, "Tab");
+        key(&mut h, "ArrowRight");
         // Then a ring in the text colour runs round Library
         let length = import.width() + 2.0 * import.height();
         assert!(ring(&h) as f32 > 1.5 * length, "{kind:?}: Library shows the focus ({} px of ring along {length} pt)", ring(&h));
@@ -219,11 +220,14 @@ fn a_choice_reached_with_the_keyboard_shows_the_focus() {
     show(&mut h, "performance");
     let ring = |h: &Headless, id: &str| ring(&h.paint(), rect(h, id), t.text);
     assert!(ring(&h, "button:settingsPreview-1") < 8);
-    // When Tab is pressed until the second preview size has the focus (the tabs and the GPU checkbox come first)
+    // When Tab is pressed until the preview sizes have the focus (the tabs and the GPU checkbox
+    // come first; the row's stop is the size that holds, the first) and then → (to the second)
     let reached = (0..40).any(|_| {
         key(&mut h, "Tab");
-        ring(&h, "button:settingsPreview-1") > 60
+        ring(&h, "button:settingsPreview-0") > 60
     });
+    key(&mut h, "ArrowRight");
+    let reached = reached && ring(&h, "button:settingsPreview-1") > 60;
     // Then it shows a ring, and is not chosen by that
     assert!(reached, "a choice shows the focus");
     assert_eq!(h.app.ui.settings.preview_limit, 0);
