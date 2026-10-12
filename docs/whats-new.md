@@ -647,7 +647,7 @@
   at 2.4 to 2.8:1 in the light themes), and a caution or an error written as text (3.09:1 in Silver).
 - A chosen chip or selected text keeps its label 4.5:1 on the accent behind it; the count on the filter button and
   the "!" on the notices button are in black or white, whichever stands out from the circle; the name on a
-  selected filmstrip cell or square grid cell is made readable on that cell, and the format over a square cell is
+  selected filmstrip cell or square grid cell, or one tinted by a colour label, is made readable on that cell, and the format over a square cell is
   light on its dark chip in the light themes too; a hidden mask's name is dim, not the colour of what
   cannot be used.
 - Left as it was: a count of nothing in the sidebar ("0") is fainter than the other counts on purpose.

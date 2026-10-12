@@ -687,8 +687,10 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
         let ink = t.ink_on(chip);
         let g = p.layout_no_wrap(fmt, t.micro_strong(), ink);
         let br = Rect::from_min_size(pos2(r.right() - g.size().x - 14.0, r.top() + 5.0), g.size() + vec2(8.0, 3.0));
-        // (a selected cell is lighter than the cell the dim text is made for, or darker)
-        let dim = if selected { t.legible(t.text_dim, crate::theme::label_background(t.cell_selected, photo.label, true), 4.5) } else { t.text_dim };
+        // (a chosen cell is lighter than the cell the dim text is made for, or darker, and a
+        // colour label tints either: the line is made legible on the cell as it is)
+        let base = if selected { t.cell_selected } else { t.cell };
+        let dim = t.legible(t.text_dim, crate::theme::label_background(base, photo.label, selected), 4.5);
         // (the line ends before the format: it used to run on under it)
         let line = crate::widgets::one_line(p, &name, t.caption(), dim, br.left() - 6.0 - (r.left() + 8.0));
         p.galley(pos2(r.left() + 8.0, r.top() + 12.0 - line.size().y / 2.0), line, dim);

@@ -186,8 +186,15 @@ fn the_library_can_be_read_in_every_theme() {
         // in square cells, each with its name and format over it, one of them the chosen one
         run(&mut h, "library.filter", json!({"rating": 1}));
         run(&mut h, "view.squareGrid", json!({}));
-        let chosen = h.app.session.visible_cloned().first().map(|id| id.0).expect("a photo passes the filter");
+        // (two of them with a colour label, which tints the cell: the chosen one and another)
+        let shown: Vec<u64> = h.app.session.visible_cloned().iter().take(3).map(|id| id.0).collect();
+        let [chosen, other, ..] = shown[..] else { panic!("{kind:?}: three photos pass the filter") };
+        run(&mut h, "photo.label", json!({"ids": [chosen], "label": "red"}));
+        run(&mut h, "photo.label", json!({"ids": [other], "label": "yellow"}));
         run(&mut h, "library.select", json!({"ids": [chosen]}));
+        for id in [chosen, other] {
+            assert!(h.app.widgets.iter().any(|(w, _)| *w == format!("thumb:{id}")), "{kind:?}: photo {id} is on screen");
+        }
         assert!(h.painted_text().iter().any(|t| t == "JPEG"), "{kind:?}: the cells say their format");
         assert_readable(&h, kind, "square grid, filtered", &mut bad);
     }
