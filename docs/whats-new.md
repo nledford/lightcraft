@@ -658,10 +658,11 @@
   filmstrip cell were the theme's dark greys on a dark bar, and next to invisible; the toast wrote the theme's
   near-black text on its black shade.
 - A rated, flagged or edited thumbnail or filmstrip cell has a small shade under its marks, only as wide as they
-  are, whether or not the pointer is on it (the marks lay on the bare photo and went out on a bright one, and a
-  dark bar ran the width of a photo under the pointer, a chosen photo and every filmstrip cell). On a thumbnail
+  are, whether or not the pointer is on it (the marks lay on the bare photo and went out on a bright one). The band
+  along the lower edge of a photo under the pointer or a chosen one is as it was. In the photo grid, on a thumbnail
   narrower than its marks they end where the photo ends.
-- The flag of a rejected photo is a lighter red over a picture, which stands out from the shade in every theme.
+- The flag of a rejected photo is a lighter red over a picture, which stands out from its shade in every theme, and
+  a rejected thumbnail is dimmed under its marks, not over them.
 - "Before", over a photo shown as it was before its edits, is on a shade too.
 
 ### Switching libraries

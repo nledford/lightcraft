@@ -309,3 +309,77 @@ fn the_marks_of_a_narrow_thumbnail_stay_on_the_thumbnail() {
         assert!(cells.iter().any(|cell| cell.expand(0.5).contains_rect(shown)), "the mark at {shown:?} is on no thumbnail");
     }
 }
+
+#[test]
+fn a_chosen_photo_keeps_the_band_along_its_lower_edge() {
+    for kind in ThemeKind::ALL {
+        // Given the grid in a theme, and a photo with no rating, flag, label or edit
+        let mut h = demo(kind);
+        run(&mut h, "view.photoGrid", json!({}));
+        let r = h.request("ui.set", json!({"leftPanel": true, "right": "info", "thumbSize": 200}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        rest(&mut h);
+        let screen = Rect::from_min_size(egui::Pos2::ZERO, h.size);
+        let plain = h
+            .app
+            .widgets
+            .iter()
+            .filter_map(|(id, r)| Some((id.strip_prefix("thumb:")?.parse::<u64>().ok()?, *r)))
+            .filter(|(_, r)| screen.contains_rect(*r))
+            .find(|(id, _)| {
+                h.app
+                    .session
+                    .catalog
+                    .photo(lightcraft_catalog::PhotoId(*id))
+                    .is_some_and(|p| p.rating == 0 && p.flag == lightcraft_catalog::Flag::None && p.label.is_none() && !p.is_edited())
+            })
+            .map(|(id, _)| id)
+            .expect("a plain photo is on screen");
+        let band = |h: &Headless| {
+            let cell = h.app.widgets.iter().find(|(w, _)| *w == format!("thumb:{plain}")).map(|(_, r)| *r).expect("its thumbnail");
+            let strip = Rect::from_min_max(egui::pos2(cell.left(), cell.bottom() - 24.0), cell.right_bottom());
+            h.view.painted_shapes().iter().any(|s| matches!(s, egui::Shape::Rect(r) if r.fill == Color32::from_black_alpha(120) && (r.rect.width() - strip.width()).abs() < 1.0 && strip.expand(1.0).contains_rect(r.rect)))
+        };
+        // When it is not chosen, it has no band; when it is chosen, it has one the width of the
+        // photo: in the light themes its outline alone is 1.1 to 2.1:1 against the grid
+        run(&mut h, "library.select", json!({"ids": []}));
+        assert!(!band(&h), "{kind:?}: a photo that is not chosen has no band");
+        run(&mut h, "library.select", json!({"ids": [plain]}));
+        assert!(band(&h), "{kind:?}: the chosen photo has its band");
+    }
+}
+
+#[test]
+fn a_rejected_photos_flag_is_not_dimmed_with_the_photo() {
+    for kind in ThemeKind::ALL {
+        // Given the grid in a theme, with a rejected photo (which is drawn dimmed)
+        let mut h = demo(kind);
+        run(&mut h, "view.photoGrid", json!({}));
+        let r = h.request("ui.set", json!({"leftPanel": false, "right": "none", "thumbSize": 110}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        run(&mut h, "library.select", json!({"ids": []}));
+        let screen = Rect::from_min_size(egui::Pos2::ZERO, h.size);
+        let cell = h
+            .app
+            .widgets
+            .iter()
+            .filter_map(|(id, r)| Some((id.strip_prefix("thumb:")?.parse::<u64>().ok()?, *r)))
+            .filter(|(_, r)| screen.contains_rect(*r))
+            .find(|(id, _)| h.app.session.catalog.photo(lightcraft_catalog::PhotoId(*id)).is_some_and(|p| p.flag == lightcraft_catalog::Flag::Reject))
+            .map(|(_, r)| r)
+            .expect("a rejected photo is on screen");
+        // When it is painted
+        let image = h.paint();
+        let strip = Rect::from_min_max(egui::pos2(cell.left(), cell.bottom() - 24.0), cell.right_bottom());
+        // Then its flag is in the red for pictures as that red is, and stands 3:1 on what is
+        // beside it: the dimming lies under the marks, not over them
+        let red = Tokens::on_photo_reject();
+        let all = pixels(&image, strip);
+        let flag = all.iter().filter(|p| p.r().abs_diff(red.r()).max(p.g().abs_diff(red.g())).max(p.b().abs_diff(red.b())) <= 24).count();
+        assert!(flag >= 6, "{kind:?}: {flag} pixels of the flag's red {red:?} along the lower edge");
+        let mut stands: Vec<f32> = all.iter().map(|p| contrast(red, *p)).collect();
+        stands.sort_by(f32::total_cmp);
+        let darkest = stands.last().copied().unwrap_or(1.0);
+        assert!(darkest >= 3.0, "{kind:?}: the red stands {darkest:.2} against its shade");
+    }
+}
