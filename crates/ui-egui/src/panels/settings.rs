@@ -70,15 +70,29 @@ const PAGE_MIN_HEIGHT: f32 = 120.0;
 pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_height: f32) {
     ui.set_width((ui.ctx().content_rect().width() - 64.0).clamp(240.0, PAGE_SIZE.x));
     let top = ui.cursor().top();
+    // Each line of tabs stands on a line of its own the width of the window, so the open tab's
+    // line always has the bar's under it: in a narrow window, or a language with long names, the
+    // tabs take two lines or more.
+    let mut lines: Vec<f32> = Vec::new();
     ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
+        ui.spacing_mut().item_spacing = egui::vec2(4.0, 5.0);
         for (id, label) in TABS {
-            if crate::widgets::text_button(ui, &format!("settingsTab-{id}"), label, tab == id).clicked() {
+            let r = crate::widgets::tab_button(ui, &format!("settingsTab-{id}"), label, tab == id);
+            let bottom = egui::emath::GuiRounding::round_to_pixels(r.rect.bottom(), ui.pixels_per_point());
+            if !lines.iter().any(|line| (line - bottom).abs() < 0.5) {
+                lines.push(bottom);
+            }
+            if r.clicked() {
                 *tab = id.to_string();
             }
         }
     });
-    ui.separator();
+    let divider = Tokens::get(ui.ctx()).divider;
+    for bottom in lines {
+        let line = egui::Rect::from_min_max(egui::pos2(ui.min_rect().left(), bottom), egui::pos2(ui.min_rect().right(), bottom + 1.0));
+        ui.painter().rect_filled(line, egui::CornerRadius::ZERO, divider);
+    }
+    ui.add_space(1.0);
     // (a point less than the room left, so rounding never makes the dialog's own scroll area scroll)
     let room = max_height - (ui.cursor().top() - top) - 1.0;
     if room < PAGE_MIN_HEIGHT {
@@ -180,7 +194,7 @@ pub(super) fn choices<V: PartialEq + Copy>(ui: &mut egui::Ui, id: &str, options:
     let mut changed = false;
     ui.spacing_mut().item_spacing.x = 4.0;
     for (i, (v, l)) in options.iter().enumerate() {
-        if crate::widgets::text_button(ui, &format!("{id}-{i}"), l, *value == *v).clicked() && *value != *v {
+        if crate::widgets::choice_button(ui, &format!("{id}-{i}"), l, *value == *v).clicked() && *value != *v {
             *value = *v;
             changed = true;
         }
