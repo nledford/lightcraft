@@ -17,9 +17,10 @@ pub const FONT_SEMIBOLD: &str = "semibold";
 pub enum TextSize {
     /// A badge or a pill on a thumbnail or an icon.
     Micro,
-    /// An explanation, the caption over a field, a line of status.
+    /// An explanation, the caption over a field, a line of status; in semibold, a chip or a
+    /// choice.
     Caption,
-    /// What stands by something larger: a count, a chip, the title of a tab.
+    /// What stands by something larger: a count, the title of a tab, a control of the filter bar.
     Label,
     /// Controls, rows, values and menus.
     Body,
@@ -331,7 +332,7 @@ impl Tokens {
     pub fn micro_strong(&self) -> FontId {
         self.strong(TextSize::Micro)
     }
-    /// Caption: an explanation, the caption over a field, a line of status.
+    /// Caption: an explanation, the caption over a field, a line of status; in semibold, a chip.
     pub fn caption(&self) -> FontId {
         self.regular(TextSize::Caption)
     }
@@ -339,7 +340,7 @@ impl Tokens {
     pub fn caption_strong(&self) -> FontId {
         self.strong(TextSize::Caption)
     }
-    /// Label: what stands by something larger: a count, a chip, the title of a tab.
+    /// Label: what stands by something larger: a count, the title of a tab.
     pub fn label(&self) -> FontId {
         self.regular(TextSize::Label)
     }

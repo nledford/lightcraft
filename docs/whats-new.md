@@ -624,8 +624,8 @@
   the whole path.
 
 ### Text sizes
-- Text is set in seven sizes, each with a job: 10 pt for a badge on a thumbnail, 11 for an explanation or the
-  caption over a field, 12 for a count or a chip, 13 for controls, rows and values, 14 for the header of a section,
+- Text is set in seven sizes, each with a job: 10 pt for a badge on a thumbnail, 11 for an explanation, the
+  caption over a field or a chip, 12 for a count or the title of a tab, 13 for controls, rows and values, 14 for the header of a section,
   15 for the name of a panel or a window, 18 for the title over the photos. There were seventeen, from 8.5 to 20 pt
   and often half a point apart: a slider's name was 12.5 pt beside a checkbox's 13, a caption 11 pt in Settings and
   11.5 in Info.
