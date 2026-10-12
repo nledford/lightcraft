@@ -190,7 +190,16 @@ fn a_long_library_folder_is_cut_short_and_its_tooltip_has_all_of_it() {
     let watched = h.app.run("library.autoImport", json!({"folder": path}));
     assert!(watched.is_ok(), "{watched:?}");
     show(&mut h, "import");
+    // (the row is at the foot of the page: scrolled to, so that it is drawn however long the page is)
+    let window = rect(&h, "dialog:window");
+    h.request("ui.move", json!({"x": window.center().x, "y": window.center().y}), T);
+    for _ in 0..6 {
+        h.request("ui.scroll", json!({"dy": -400.0}), T);
+        h.step();
+    }
+    h.settle(T);
     let (folder, room) = (rect(&h, "text:settingsAutoFolder"), rect(&h, "settings:pageRoom"));
+    assert!(room.intersects(folder), "the watched folder {folder:?} is in view in {room:?}");
     assert!(folder.height() < 24.0 && folder.right() <= room.right(), "the watched folder {folder:?} is one line inside {room:?}");
     assert!(h.painted_text().iter().any(|text| text.starts_with('…') && text.ends_with(name)), "and keeps its end");
     drop(h);
