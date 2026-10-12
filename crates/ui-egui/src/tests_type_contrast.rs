@@ -86,13 +86,14 @@ fn ground(image: &egui::ColorImage, rect: Rect) -> Option<(Color32, f32)> {
     Some((Color32::from_rgba_premultiplied(most[0], most[1], most[2], most[3]), n as f32 / all as f32))
 }
 
-/// Whether any pixel of `rect` is nearly `colour`.
-fn inked(image: &egui::ColorImage, rect: Rect, colour: Color32) -> bool {
+/// Whether any pixel of `rect` is nearly `colour`, and nearer it than the ground it would be on
+/// (text under a light header is not "inked" by the header's being nearly white).
+fn inked(image: &egui::ColorImage, rect: Rect, colour: Color32, ground: Color32) -> bool {
     let [w, h] = image.size;
     let (x0, x1) = (rect.left().floor().max(0.0) as usize, (rect.right().ceil().max(0.0) as usize).min(w));
     let (y0, y1) = (rect.top().floor().max(0.0) as usize, (rect.bottom().ceil().max(0.0) as usize).min(h));
-    let near = |p: Color32| p.r().abs_diff(colour.r()).max(p.g().abs_diff(colour.g())).max(p.b().abs_diff(colour.b())) <= 20;
-    (y0..y1).any(|y| (x0..x1).any(|x| near(image.pixels[y * w + x])))
+    let far = |p: Color32, from: Color32| p.r().abs_diff(from.r()).max(p.g().abs_diff(from.g())).max(p.b().abs_diff(from.b()));
+    (y0..y1).any(|y| (x0..x1).any(|x| image.pixels.get(y * w + x).is_some_and(|p| far(*p, colour) <= 20 && far(*p, colour) < far(*p, ground))))
 }
 
 /// The text on screen that cannot be read: what it says, its colour, what it is on and how far
@@ -120,7 +121,9 @@ fn unreadable(h: &Headless, t: &Tokens, within: Option<Rect>) -> Vec<String> {
         if within.is_some_and(|within| !within.contains_rect(rect)) {
             continue;
         }
-        if rect.width() < 2.0 || rect.height() < 2.0 {
+        // (a row cut by the edge of what scrolls: too little of it is left to say what it is on)
+        let whole = text.visual_bounding_rect();
+        if rect.width() < 2.0 || rect.height() < 2.0 || rect.area() < 0.6 * whole.area() {
             continue;
         }
         // (a little around the letters: a dash's own rectangle is mostly dash)
@@ -139,7 +142,7 @@ fn unreadable(h: &Headless, t: &Tokens, within: Option<Rect>) -> Vec<String> {
             }
             let shown = blend(colour, on);
             // (text under a window is drawn and then covered: none of its colour is left)
-            if !inked(&image, rect, shown) {
+            if !inked(&image, rect, shown, on) {
                 continue;
             }
             let stands = contrast(shown, on);
@@ -179,6 +182,14 @@ fn the_library_can_be_read_in_every_theme() {
             // Then its text stands out from what it is on
             assert_readable(&h, kind, &format!("grid with {right}"), &mut bad);
         }
+        // And with a filter on (its count is written on a circle of the accent in the top bar),
+        // in square cells, each with its name and format over it, one of them the chosen one
+        run(&mut h, "library.filter", json!({"rating": 1}));
+        run(&mut h, "view.squareGrid", json!({}));
+        let chosen = h.app.session.visible_cloned().first().map(|id| id.0).expect("a photo passes the filter");
+        run(&mut h, "library.select", json!({"ids": [chosen]}));
+        assert!(h.painted_text().iter().any(|t| t == "JPEG"), "{kind:?}: the cells say their format");
+        assert_readable(&h, kind, "square grid, filtered", &mut bad);
     }
     report(bad);
 }
