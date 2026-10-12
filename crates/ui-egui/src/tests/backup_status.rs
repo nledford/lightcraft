@@ -81,8 +81,7 @@ fn a_library_never_backed_up_with_nothing_set_to_do_it_says_so() {
     let dir = TempFolder::new("never");
     // Given a new library: no backup yet, none while open, none when quitting
     let mut h = settings_of_a_library_in(&dir.0);
-    // Then Backups says so, beyond "Not yet"
-    assert!(says(&h, "Not yet"));
+    // Then Backups says so
     assert!(says(&h, NEVER), "{:?}", h.painted_text().iter().filter(|t| t.contains("back")).collect::<Vec<_>>());
     // When it is set to be backed up once a week
     h.app.run("library.backupPreferences", json!({"every": "week"})).unwrap();
@@ -237,4 +236,93 @@ fn a_folder_that_holds_a_backup_is_not_said_to_hold_none() {
     // Then the folder, which holds a backup of this library, is not said to hold none
     assert_eq!(backups(&mut h), 1);
     assert!(!says(&h, NEVER), "a backup of this library is in the folder");
+}
+
+fn has(h: &Headless, id: &str) -> bool {
+    h.app.widgets.iter().any(|(w, _)| w == id)
+}
+
+fn rect(h: &Headless, id: &str) -> egui::Rect {
+    h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| *r).unwrap_or_else(|| panic!("no widget {id}"))
+}
+
+/// WCAG contrast of two opaque colours.
+fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
+    let lum = |c: egui::Color32| {
+        let lin = |v: u8| {
+            let v = f32::from(v) / 255.0;
+            if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    };
+    let (a, b) = (lum(a), lum(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+/// The colour and size a piece of text is drawn in: the first text shape that has `part`.
+fn drawn(h: &Headless, part: &str) -> (egui::Color32, f32) {
+    fn find(shape: &egui::Shape, part: &str) -> Option<(egui::Color32, f32)> {
+        match shape {
+            egui::Shape::Text(text) if text.galley.job.text.contains(part) => {
+                let section = text.galley.job.sections.first()?;
+                let own = Some(section.format.color).filter(|c| *c != egui::Color32::PLACEHOLDER);
+                Some((text.override_text_color.or(own).unwrap_or(text.fallback_color), section.format.font_id.size))
+            }
+            egui::Shape::Vec(shapes) => shapes.iter().find_map(|shape| find(shape, part)),
+            _ => None,
+        }
+    }
+    h.view.painted_shapes().iter().find_map(|shape| find(shape, part)).unwrap_or_else(|| panic!("no text with {part:?} is drawn"))
+}
+
+#[test]
+fn where_the_library_stands_comes_first_with_back_up_now_beside_it() {
+    let dir = TempFolder::new("first");
+    let h = settings_of_a_library_in(&dir.0);
+    // Given Backups of a new library
+    let (status, now, choose) =
+        (rect(&h, "text:settingsBackupStatus"), rect(&h, "button:settingsBackupNow"), rect(&h, "button:settingsBackupChoose"));
+    // Then what there is to know comes before what there is to set
+    assert!(status.bottom() <= choose.top(), "the status {status:?} is above the folder's buttons {choose:?}");
+    // And Back Up Now is on that line, after the words
+    assert!(now.top() < status.bottom() && now.bottom() > status.top(), "Back Up Now {now:?} is on the status line {status:?}");
+    assert!(now.left() >= status.right() - 0.5, "and after its words");
+}
+
+#[test]
+fn a_library_without_a_backup_is_told_by_a_sign_and_plain_words_in_every_theme() {
+    use crate::theme::{ThemeKind, Tokens};
+    for kind in ThemeKind::ALL {
+        let dir = TempFolder::new(&format!("sign-{}", kind.id()));
+        let mut h = settings_of_a_library_in(&dir.0);
+        h.app.run("view.theme", json!({"theme": kind.id()})).unwrap();
+        steps(&mut h);
+        let t = Tokens::for_kind(kind);
+        // Given a library never backed up, with nothing set to do it
+        // Then a sign stands before the words (the state is not told by a colour alone)
+        assert!(has(&h, "icon:settingsBackupStatus:caution") && !has(&h, "icon:settingsBackupStatus:ok"), "{kind:?}");
+        // And the words are body text: the size of a row's own text, in the text colour
+        let (colour, size) = drawn(&h, NEVER);
+        assert!(size >= 13.0, "{kind:?}: the words are {size} pt");
+        assert!(contrast(colour, t.chrome) >= 7.0, "{kind:?}: the words are {:.2}:1", contrast(colour, t.chrome));
+        // When a backup is made
+        h.app.session.execute("library.backup", &json!({})).unwrap();
+        steps(&mut h);
+        // Then the sign is the one for "it is done", and the words say when
+        assert!(has(&h, "icon:settingsBackupStatus:ok") && !has(&h, "icon:settingsBackupStatus:caution"), "{kind:?}");
+        let (colour, size) = drawn(&h, "UTC");
+        assert!(size >= 13.0 && contrast(colour, t.chrome) >= 7.0, "{kind:?}: when it was backed up is body text");
+        assert!(says(&h, "Last backup"));
+    }
+}
+
+#[test]
+fn a_backup_that_is_set_to_be_made_is_not_cautioned_about() {
+    let dir = TempFolder::new("set");
+    let mut h = settings_of_a_library_in(&dir.0);
+    h.app.run("library.backupPreferences", json!({"onClose": "always"})).unwrap();
+    steps(&mut h);
+    // Then there is no caution: the words say there is none yet, without the sign
+    assert!(says(&h, "Not yet") && !says(&h, NEVER));
+    assert!(!has(&h, "icon:settingsBackupStatus:caution"));
 }
