@@ -183,6 +183,17 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     );
 }
 
+/// What Settings found out about the folder backups go to, and what it was found out for (the
+/// library, the folder, the last backup and whether one is under way) on which frame.
+#[derive(Clone)]
+struct BackupLook {
+    pass: u64,
+    of: (String, String, Option<String>, bool),
+    shares_the_drive: Option<bool>,
+    there: bool,
+    holds_a_backup: bool,
+}
+
 /// Where the library's backups go (`library.backupPreferences`): shown, chosen with a folder
 /// dialog, and put back to Backups in the library folder. Only for a library that is a folder on
 /// disk: nothing else is backed up to a folder.
@@ -197,6 +208,47 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     });
     if !chosen {
         row(ui, t, "", |ui| hint(ui, t, crate::i18n::tr("In the library folder")));
+    }
+    // What the folder is like is read from the file system: what volume it is on, whether it is
+    // there, whether it holds a backup of this library. It is looked at when this section is
+    // shown anew, when the library or the folder changes and when a backup starts or ends, not
+    // on a timer: a sleeping or missing drive is not asked again and again.
+    let running = lightcraft_engine::cmd::backup::status(&app.session).is_some_and(|job| !job.finished.load(std::sync::atomic::Ordering::Relaxed));
+    let look_id = egui::Id::new("backup-folder-look");
+    let pass = ui.ctx().cumulative_pass_nr();
+    let library = app.session.library.as_ref().map(|l| l.dir.display().to_string()).unwrap_or_default();
+    let of = (library, folder.clone(), app.session.last_backup.clone(), running);
+    let kept: Option<BackupLook> = ui.data(|d| d.get_temp(look_id));
+    let mut look = match kept.filter(|k| k.pass.checked_add(1) == Some(pass) && k.of == of) {
+        Some(kept) => kept,
+        None => BackupLook {
+            shares_the_drive: lightcraft_engine::cmd::backup::backup_shares_the_drive(&app.session),
+            there: std::path::Path::new(&folder).exists(),
+            // refusal expected: a folder that cannot be listed holds no backup we know of
+            holds_a_backup: app
+                .run("library.backups", json!({}))
+                .is_ok_and(|list| list["backups"].as_array().is_some_and(|all| all.iter().any(|b| b["ofThisLibrary"] == true))),
+            of,
+            pass,
+        },
+    };
+    look.pass = pass;
+    ui.data_mut(|d| d.insert_temp(look_id, look.clone()));
+    // A backup on the library's own drive goes with it when that drive fails, which is the day a
+    // backup is for. The usual folder is such a place, and is said to be in the grey of a hint;
+    // a folder someone chose that turns out to be on the same drive is said in the caution colour.
+    let aside = |ui: &mut egui::Ui, text: &str, color: egui::Color32| {
+        row(ui, t, "", |ui| {
+            ui.add(egui::Label::new(RichText::new(crate::i18n::tr(text)).size(11.0).color(color)).wrap());
+        });
+    };
+    // (a chosen folder that is not there is said to be just that: nothing is known of its drive)
+    let away = chosen && !look.there;
+    if away {
+        aside(ui, "This folder is not there now. If it is on a drive that is not connected, connect it before backing up.", t.caution);
+    } else if look.shares_the_drive == Some(true) {
+        let text = "On the same drive as the library: a backup here is lost with the library if that drive fails.";
+        aside(ui, text, if chosen { t.caution } else { t.text_dim });
     }
     let mut result = None;
     row(ui, t, "", |ui| {
@@ -246,6 +298,8 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             hint(ui, t, &format!("{}: {days}", crate::i18n::tr("Days")));
         }
     });
+    // (why a backup cannot be made right now, if it cannot: one or a restore is under way)
+    let refused = lightcraft_engine::cmd::backup::can_back_up(&app.session).err();
     row(ui, t, crate::i18n::tr("Last backup"), |ui| {
         let last = match &app.session.last_backup {
             // (the session's clock is UTC, as the backups' names say)
@@ -253,10 +307,33 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             None => crate::i18n::tr("Not yet").to_string(),
         };
         ui.label(RichText::new(last).color(t.text));
+        // (not on offer while it would be refused)
+        let r = ui.add_enabled(refused.is_none(), egui::Button::new(crate::i18n::tr("Back Up Now")));
+        register(ui.ctx(), "button:settingsBackupNow", r.rect);
+        if r.clicked() {
+            result = Some(app.run("library.backup", json!({})));
+        }
+        if running {
+            hint(ui, t, "Backing up…");
+        } else if let Some(why) = &refused {
+            hint(ui, t, why);
+        }
     });
+    // ("Not yet" is about the folder backups go to now: only a folder without a backup of this
+    // library, and nothing set to make one, is cautioned about; and only a folder that is there:
+    // what a folder that cannot be read holds is not known)
+    if !away
+        && !look.holds_a_backup
+        && app.session.last_backup.is_none()
+        && !running
+        && schedule.every == BackupEvery::Never
+        && schedule.on_close == BackupOnClose::Never
+    {
+        aside(ui, "No backup of this library is in this folder, and nothing is set to make one.", t.caution);
+    }
     // (a folder or a choice that was refused: why. What was set shows in the rows above.)
     if let Some(Err(e)) = result {
-        app.toast(ui.ctx(), e);
+        app.toast(ui.ctx(), crate::i18n::refusal_text(&e));
     }
     hint(
         ui,
