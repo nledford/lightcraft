@@ -63,7 +63,23 @@ fn steps(h: &mut Headless) {
     }
 }
 
+/// Scroll the Settings page until `id` is inside the room for it: a control below the fold of a
+/// long page is not drawn, and a click on where it would be goes nowhere.
+fn reach(h: &mut Headless, id: &str) {
+    let find = |h: &Headless, id: &str| h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| *r);
+    for _ in 0..6 {
+        let (Some(rect), Some(room)) = (find(h, id), find(h, "settings:pageRoom")) else { return };
+        if rect.top() >= room.top() && rect.bottom() <= room.bottom() {
+            return;
+        }
+        h.request("ui.move", json!({"x": room.center().x, "y": room.center().y}), T);
+        h.request("ui.scroll", json!({"dy": room.center().y - rect.center().y}), T);
+        steps(h);
+    }
+}
+
 fn click(h: &mut Headless, id: &str) {
+    reach(h, id);
     let r = h.request("ui.clickWidget", json!({"id": id}), T);
     assert_eq!(r["ok"], true, "click {id}: {r}");
     steps(h);
@@ -433,6 +449,7 @@ fn a_question_about_a_folder_that_has_changed_since_deletes_nothing() {
     std::fs::create_dir_all(&other).unwrap();
     h.app.run("library.smartPreviewsLocation", json!({"path": other, "existing": "move"})).unwrap();
     // When Delete and Change Folder is pressed all the same
+    reach(&mut h, "button:settingsSmartDelete");
     let r = h.request("ui.clickWidget", json!({"id": "button:settingsSmartDelete"}), T);
     assert_eq!(r["ok"], true, "{r}");
     steps(&mut h);
