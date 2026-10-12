@@ -673,9 +673,11 @@
   histogram, over a square cell of the grid and in the info overlay, and the same words on the rows of Info. One
   photo used to read "f / 2.8", "f/2.8" and "f/2.8", "35 mm" and "35mm", "1/250 sec", "1/250 s" and "1/250", in
   three different orders.
-- A negative value has a minus (−1.25), not a hyphen; either can be typed.
+- A negative value has a minus (−1.25), not a hyphen; either can be typed, and the field a value opens in
+  for typing has the hyphen, so that what is copied from it pastes anywhere.
 - A slider's value stands in a column of figures: it begins and ends where any other value of as many figures does,
-  and no longer shifts while it is dragged. The counts of the left sidebar stand under one another.
+  and no longer shifts while it is dragged. The counts on the rows of the left sidebar's lists (My Photos, Albums,
+  Folders) are set in the same figures.
 - A long file name on the filmstrip or in the Import grid is shortened in the middle to the room it has, so the
   number of the frame stays ("IMG_20…_153012" where it was "IMG_20240712_…").
 

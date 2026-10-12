@@ -135,3 +135,41 @@ fn the_values_of_sliders_stand_in_one_column() {
     assert!((narrow.left() - wide.left()).abs() < 1.0, "{narrow:?} {wide:?}");
     assert!((narrow.right() - wide.right()).abs() < 2.5, "{narrow:?} {wide:?}");
 }
+
+#[test]
+fn the_counts_of_the_sidebar_are_set_in_figures_of_one_width() {
+    // Given the library with its sidebar and the counts beside its rows
+    let mut h = demo();
+    run(&mut h, "view.photoGrid", json!({}));
+    set(&mut h, json!({"leftPanel": true, "right": "info", "thumbSize": 200}));
+    let left = h.app.widgets.iter().find(|(w, _)| w == "thumb:1").map_or(480.0, |(_, r)| r.left());
+    // When the count of all photos is drawn (two figures)
+    let all = h.app.session.catalog.photos().count().to_string();
+    let counts: Vec<egui::epaint::TextShape> = h
+        .view
+        .painted_shapes()
+        .into_iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Text(text) if text.galley.job.text == all && text.pos.x < left => Some(text),
+            _ => None,
+        })
+        .collect();
+    // Then on the row of All Photos a figure narrower than the widest is given the room it
+    // lacks before it (the font's own "2" is narrower than its "4"; rows drawn by other code,
+    // such as By Date, are not this change's)
+    let room = |count: &egui::epaint::TextShape| count.galley.job.sections.first().map_or(0.0, |s| s.leading_space);
+    assert!(all.starts_with('2'), "the demo has twenty-odd photos ({all})");
+    assert!(counts.iter().any(|count| room(count) > 0.1), "no count of {all} in the sidebar is set in cells ({} counts)", counts.len());
+}
+
+#[test]
+fn a_value_opens_for_typing_with_a_hyphen_a_keyboard_has() {
+    // Given a negative and a positive value as a slider shows them
+    let exposure = lightcraft_develop::controls::find("light.exposure").expect("the exposure control");
+    assert_eq!(crate::widgets::shown_value(exposure, -1.25), "−1.25");
+    // When the value is opened to be typed over
+    // Then the draft has the keyboard's hyphen (what is copied from it pastes anywhere) and no plus
+    assert_eq!(crate::widgets::draft_value(exposure, -1.25), "-1.25");
+    assert_eq!(crate::widgets::draft_value(exposure, 0.5), "0.50");
+    assert_eq!(crate::widgets::typed_value(exposure, &crate::widgets::draft_value(exposure, -1.25)), Some(-1.25));
+}
