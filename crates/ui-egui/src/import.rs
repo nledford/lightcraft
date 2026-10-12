@@ -1393,7 +1393,7 @@ fn badge_rect(img: Rect, cb: Rect, text: Vec2) -> Rect {
 /// Reserve the actual translated tag button width beside a template field.
 pub(crate) fn tag_field_width(ui: &egui::Ui) -> f32 {
     let t = Tokens::get(ui.ctx());
-    let galley = ui.painter().layout_no_wrap(crate::i18n::tr("Tags").to_string(), t.label_strong(), t.text);
+    let galley = ui.painter().layout_no_wrap(crate::i18n::tr("Tags").to_string(), t.caption_strong(), t.text);
     (ui.available_width() - (galley.size().x + 18.0).max(37.0) - ui.spacing().item_spacing.x).max(80.0)
 }
 

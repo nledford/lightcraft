@@ -634,8 +634,8 @@
   window's title 16 to 15 (the size of a panel's name), the title over the photos 17 to 18.
 - The smallest text is 10 pt: the format on a filmstrip cell was 8.5, the count on the filter button 9.5.
 - For those who write code: name the size (`t.caption()`, `t.body_strong()`, … in `theme.rs`); a number asked of
-  the theme (`t.font(12.5)`) is drawn at the nearest size, and `cargo xtask type`, part of `ci`, refuses a size
-  given past it (`.size(11.5)`).
+  the theme (`t.font(12.5)`) is drawn at the nearest size, and `cargo xtask type`, part of `ci`, refuses a number
+  written where a font is made past it (`.size(11.5)`).
 
 ### Switching libraries
 - File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).

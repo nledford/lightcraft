@@ -50,8 +50,11 @@ impl TextSize {
     }
 
     /// The size nearest a number of points; of two equally near, the one nearer [`TextSize::Body`]
-    /// (12.5 is 13 and so is 13.5). Not a number: the size of a control.
+    /// (12.5 is 13 and so is 13.5). Anything past the ends is the end: a huge number or infinity
+    /// the largest, a negative one the smallest. Not a number: the size of a control.
     pub fn nearest(points: f32) -> TextSize {
+        // (far from the scale every size is as near as the next in an f32)
+        let points = points.clamp(0.0, 1000.0);
         let body = TextSize::Body.points();
         let mut best = TextSize::Body;
         let mut least = f32::INFINITY;

@@ -738,7 +738,7 @@ impl Roving {
 fn chip(ui: &mut Ui, id: &str, label: &str, active: bool, choice: bool, row: Option<&mut Roving>) -> Response {
     let label = if id.starts_with("labelSet-") { label } else { crate::i18n::tr(label) };
     let t = Tokens::get(ui.ctx());
-    let font = t.label_strong();
+    let font = t.caption_strong();
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
     let size = vec2((galley.size().x + 18.0).max(37.0), 24.0);
     let (r, resp) = ui.allocate_exact_size(size, row.as_ref().map_or(Sense::click(), |row| row.sense()));
@@ -854,7 +854,7 @@ pub fn segmented(ui: &mut Ui, id: &str, items: &[(&str, &str)], active: Option<u
                 };
                 let p = ui.painter();
                 p.rect(r, CornerRadius::same(4), fill, Stroke::new(1.0, t.button_border), StrokeKind::Inside);
-                p.text(r.center(), Align2::CENTER_CENTER, label, t.label_strong(), t.text);
+                p.text(r.center(), Align2::CENTER_CENTER, label, t.caption_strong(), t.text);
                 if resp.clicked() {
                     clicked = Some(i);
                 }

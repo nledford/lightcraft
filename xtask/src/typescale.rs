@@ -25,10 +25,83 @@ pub fn scale(theme: &str) -> Vec<f32> {
         .collect()
 }
 
-/// The number written right after `open` (an index just past a `(`), when the argument starts
-/// with one: `13.0`, `11.5_f32`, `12`.
-fn number_at(line: &str, open: usize) -> Option<f32> {
-    let rest = line.get(open..)?.trim_start();
+/// `source` with everything that is not code to be checked blanked out, byte for byte (so that
+/// offsets and lines stay): comments, what strings and characters say, and each item under a
+/// `#[cfg(test)]` (a `mod tests;` line, or a block to its closing brace).
+fn code(source: &str) -> String {
+    let bytes = source.as_bytes();
+    let mut out = bytes.to_vec();
+    let blank = |out: &mut Vec<u8>, from: usize, to: usize| {
+        for b in out.iter_mut().take(to).skip(from) {
+            if *b != b'\n' {
+                *b = b' ';
+            }
+        }
+    };
+    let mut i = 0;
+    while let Some(&b) = bytes.get(i) {
+        match b {
+            b'/' if bytes.get(i + 1) == Some(&b'/') => {
+                let end = bytes.iter().skip(i).position(|c| *c == b'\n').map_or(bytes.len(), |n| i + n);
+                blank(&mut out, i, end);
+                i = end;
+            }
+            b'"' => {
+                let mut end = i + 1;
+                while let Some(&c) = bytes.get(end) {
+                    match c {
+                        b'\\' => end += 2,
+                        b'"' => break,
+                        _ => end += 1,
+                    }
+                }
+                blank(&mut out, i + 1, end.min(bytes.len()));
+                i = end + 1;
+            }
+            // a character ('"', '\'', '/'): not a lifetime, which has no closing quote two or three on
+            b'\'' => {
+                let len = if bytes.get(i + 1) == Some(&b'\\') { 3 } else { 2 };
+                if bytes.get(i + len) == Some(&b'\'') {
+                    blank(&mut out, i + 1, i + len);
+                    i += len + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    // (on the blanked text: a brace in a string or a comment is gone by now)
+    const TEST: &[u8] = b"#[cfg(test)]";
+    let mut from = 0;
+    while let Some(at) = out.get(from..).and_then(|rest| rest.windows(TEST.len()).position(|w| w == TEST)).map(|n| from + n) {
+        let after = at + TEST.len();
+        let Some(open) = out.iter().skip(after).position(|c| *c == b';' || *c == b'{').map(|n| after + n) else { break };
+        let mut end = open + 1;
+        if out.get(open) == Some(&b'{') {
+            let mut depth = 1usize;
+            while let Some(&c) = out.get(end) {
+                end += 1;
+                match c {
+                    b'{' => depth += 1,
+                    b'}' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+                if depth == 0 {
+                    break;
+                }
+            }
+        }
+        blank(&mut out, at, end.min(bytes.len()));
+        from = end;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// The number that is the argument starting at `open` (an index just past a `(` or a `:`), on
+/// that line or the next: `13.0`, `11.5_f32`, `12`.
+fn number_at(code: &str, open: usize) -> Option<f32> {
+    let rest = code.get(open..)?.trim_start();
     let end = rest.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(rest.len());
     let digits = rest.get(..end)?;
     if !digits.starts_with(|c: char| c.is_ascii_digit()) {
@@ -46,37 +119,45 @@ pub struct Found {
     pub nearest: Vec<String>,
 }
 
+/// Checks the numbers written where a font is made. A size held in a constant or a variable is
+/// not seen: the tests of what is drawn (`tests_type_scale.rs`) are what finds those.
 pub fn check(path: &str, source: &str, scale: &[f32]) -> Found {
     const PAST_THE_THEME: [&str; 4] = [".size(", "FontId::proportional(", "FontId::monospace(", "FontId::new("];
     const THROUGH_THE_THEME: [&str; 2] = [".font(", ".semibold("];
-    let mut found = Found::default();
-    let mut lines = source.lines().enumerate().peekable();
-    while let Some((n, line)) = lines.next() {
-        let code = line.trim_start();
-        // (the tests of a file are its last module)
-        if code == "#[cfg(test)]" && lines.peek().is_some_and(|(_, next)| next.trim_start().starts_with("mod ")) {
-            break;
-        }
-        if code.starts_with("//") {
-            continue;
-        }
-        let at = format!("{path}:{}", n + 1);
-        for needle in PAST_THE_THEME {
-            for (i, _) in line.match_indices(needle) {
-                if let Some(points) = number_at(line, i + needle.len()) {
-                    found.refused.push(format!("{at}: a text size of its own ({points}): name a size of the scale (t.caption(), t.body(), …)"));
-                }
-            }
-        }
-        for needle in THROUGH_THE_THEME {
-            for (i, _) in line.match_indices(needle) {
-                if let Some(points) = number_at(line, i + needle.len()).filter(|p| !scale.contains(p)) {
-                    found.nearest.push(format!("{at}: {points} pt is drawn at the nearest size of the scale: name the size it is to be"));
-                }
+    let code = code(source);
+    let line = |at: usize| code.get(..at).map_or(1, |before| before.matches('\n').count() + 1);
+    let mut refused = Vec::new();
+    let mut refuse = |at: usize, points: f32| {
+        refused.push((at, format!("{path}:{}: a text size of its own ({points}): name a size of the scale (t.caption(), t.body(), …)", line(at))));
+    };
+    for needle in PAST_THE_THEME {
+        for (i, _) in code.match_indices(needle) {
+            // (a spinner has a size too, and it is not text)
+            let spinner = needle == ".size(" && code.get(i.saturating_sub(60)..i).is_some_and(|before| before.contains("Spinner"));
+            if let Some(points) = number_at(&code, i + needle.len()).filter(|_| !spinner) {
+                refuse(i, points);
             }
         }
     }
-    found
+    for (i, _) in code.match_indices("FontId {") {
+        let field = code.get(i + "FontId {".len()..).map(str::trim_start).and_then(|rest| rest.strip_prefix("size:"));
+        if let Some(points) = field.and_then(|rest| number_at(rest, 0)) {
+            refuse(i, points);
+        }
+    }
+    let mut nearest = Vec::new();
+    for needle in THROUGH_THE_THEME {
+        for (i, _) in code.match_indices(needle) {
+            if let Some(points) = number_at(&code, i + needle.len()).filter(|p| !scale.contains(p)) {
+                nearest.push((i, format!("{path}:{}: {points} pt is drawn at the nearest size of the scale: name the size it is to be", line(i))));
+            }
+        }
+    }
+    let in_order = |mut lines: Vec<(usize, String)>| {
+        lines.sort();
+        lines.into_iter().map(|(_, line)| line).collect()
+    };
+    Found { refused: in_order(refused), nearest: in_order(nearest) }
 }
 
 /// The source files of the interface, test modules (`tests_*.rs`, `*_tests.rs`) left out.
@@ -164,6 +245,34 @@ mod tests {
         assert!(refused.is_empty(), "{refused:?}");
         assert_eq!(nearest.len(), 2, "{nearest:?}");
         assert!(nearest[0].contains("a.rs:1") && nearest[0].contains("12.5") && nearest[1].contains("a.rs:2"), "{nearest:?}");
+    }
+
+    #[test]
+    fn code_after_the_declaration_or_the_block_of_a_test_module_is_checked() {
+        // Given a file that declares its test modules first, as the interface's lib.rs does
+        let declared = "#[cfg(test)]\nmod tests_a;\n#[cfg(test)]\nmod tests_b;\n\npub fn f() { let x = RichText::new(a).size(11.5); }\n";
+        // Then what follows them is checked
+        assert_eq!(check("lib.rs", declared, &SCALE).refused.len(), 1);
+        // And given a test module in the middle of a file, with a brace in a string in it
+        let inline = "fn a() {}\n#[cfg(test)]\nmod tests {\n    fn t() { let s = \"}\"; let f = egui::FontId::proportional(9.0); }\n}\nfn b() { let f = egui::FontId::proportional(9.5); }\n";
+        // Then the module is left alone and the code after it is checked
+        let found = check("w.rs", inline, &SCALE).refused;
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].starts_with("w.rs:6: "), "{found:?}");
+    }
+
+    #[test]
+    fn a_number_on_the_next_line_and_a_font_written_out_are_found() {
+        let source = "let a = RichText::new(x)\n    .size(\n        11.5,\n    );\nlet f = egui::FontId { size: 9.5, family };\n";
+        let found = check("a.rs", source, &SCALE).refused;
+        assert_eq!(found.len(), 2, "{found:?}");
+        assert!(found[0].starts_with("a.rs:2: ") && found[1].starts_with("a.rs:5: "), "{found:?}");
+    }
+
+    #[test]
+    fn a_spinner_a_string_and_a_comment_after_code_are_not_text_sizes() {
+        let source = "ui.add(egui::Spinner::new().size(16.0));\nlet s = \"see .size(3) in docs\";\nlet f = t.caption(); // was .size(11.5)\nlet c = '\"'; let g = t.font(13.0);\n";
+        assert_eq!(check("a.rs", source, &SCALE), Found::default());
     }
 
     #[test]

@@ -448,7 +448,7 @@ fn profile_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings)
         }
     };
     let heading = |ui: &mut egui::Ui, s: &str| {
-        ui.label(egui::RichText::new(crate::i18n::tr(s)).font(t.label_strong()).color(t.text_dim));
+        ui.label(egui::RichText::new(crate::i18n::tr(s)).font(t.caption_strong()).color(t.text_dim));
     };
     for (title, key, ids) in [("Favorites", "fav", app.session.profile_favorites.clone()), ("Recent", "recent", app.session.profile_recent.clone())] {
         let list: Vec<_> = ids.iter().filter_map(|id| app.session.profile_info(id).map(|(name, _)| (id.as_str(), name))).collect();

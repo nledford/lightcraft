@@ -680,10 +680,12 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
             "date" => photo.captured.as_deref().map(crate::i18n::display_time).unwrap_or_else(|| crate::i18n::tr("No date").into()),
             _ => photo.file_name.rsplit_once('.').map(|(n, _)| n.to_string()).unwrap_or(photo.file_name.clone()),
         };
-        p.text(pos2(r.left() + 8.0, r.top() + 12.0), Align2::LEFT_CENTER, name, t.caption(), t.text_dim);
         let fmt = photo.format.clone();
         let g = p.layout_no_wrap(fmt, t.micro_strong(), t.text_label);
         let br = Rect::from_min_size(pos2(r.right() - g.size().x - 14.0, r.top() + 5.0), g.size() + vec2(8.0, 3.0));
+        // (the line ends before the format: it used to run on under it)
+        let line = crate::widgets::one_line(p, &name, t.caption(), t.text_dim, br.left() - 6.0 - (r.left() + 8.0));
+        p.galley(pos2(r.left() + 8.0, r.top() + 12.0 - line.size().y / 2.0), line, t.text_dim);
         p.rect_filled(br, 2.0, Color32::from_gray(26));
         p.galley(br.min + vec2(4.0, 1.5), g, t.text_label);
     }
@@ -826,7 +828,7 @@ fn folder_header(app: &mut LightcraftApp, ui: &mut egui::Ui, b: &lightcraft_engi
             if local_n > 0 {
                 let label = crate::i18n::tr_format!("Add {local_n} to My Photos", local_n = local_n);
                 let button =
-                    ui.add(egui::Button::new(egui::RichText::new(label).font(t.label_strong()).color(t.text)).wrap().min_size(vec2(37.0, 24.0)));
+                    ui.add(egui::Button::new(egui::RichText::new(label).font(t.caption_strong()).color(t.text)).wrap().min_size(vec2(37.0, 24.0)));
                 register(ui.ctx(), "button:addToLibrary", button.rect);
                 if button.clicked() {
                     let local: Vec<u64> = ids.iter().filter(|id| app.session.catalog.photo(**id).is_some_and(|p| p.local)).map(|id| id.0).collect();

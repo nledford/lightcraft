@@ -141,6 +141,11 @@ fn a_size_asked_for_by_number_is_given_on_the_scale() {
     for (asked, given) in [(8.5, 10.0), (10.5, 11.0), (11.5, 12.0), (12.5, 13.0), (13.5, 13.0), (16.0, 15.0), (17.0, 18.0), (20.0, 18.0)] {
         assert_eq!(TextSize::nearest(asked).points(), given, "{asked}");
     }
+    // And what is past either end is the end, however far
+    for (asked, given) in [(1e9, 18.0), (f32::MAX, 18.0), (f32::INFINITY, 18.0), (-1e9, 10.0), (f32::NEG_INFINITY, 10.0), (0.0, 10.0)] {
+        assert_eq!(TextSize::nearest(asked).points(), given, "{asked}");
+    }
+    assert_eq!(TextSize::nearest(f32::NAN), TextSize::Body);
     // And a size of the scale is itself
     for size in TextSize::ALL {
         assert_eq!(TextSize::nearest(size.points()), size);
@@ -151,5 +156,38 @@ fn a_size_asked_for_by_number_is_given_on_the_scale() {
 fn the_sizes_of_the_scale_are_a_point_or_more_apart() {
     for pair in TextSize::ALL.windows(2) {
         assert!(pair[1].points() - pair[0].points() >= 1.0, "{pair:?}");
+    }
+}
+
+#[test]
+fn the_line_over_a_square_cell_ends_before_the_format() {
+    // Given the square grid with small cells, and each thing a cell can say over its photo
+    // (one language: the language is the whole process's, and other tests read English)
+    for language in ["English"] {
+        let mut h = demo();
+        run(&mut h, "view.photoGrid", json!({}));
+        run(&mut h, "view.squareGrid", json!({}));
+        for info in ["exposure", "date", "filename"] {
+            run(&mut h, "view.gridInfo", json!({"info": info}));
+            set(&mut h, json!({"thumbSize": 110}));
+            // When the cells are drawn
+            let texts: Vec<(String, egui::Rect)> = h
+                .view
+                .painted_shapes()
+                .iter()
+                .filter_map(|shape| match shape {
+                    egui::Shape::Text(text) => Some((text.galley.job.text.clone(), text.visual_bounding_rect())),
+                    _ => None,
+                })
+                .collect();
+            let formats: Vec<&(String, egui::Rect)> = texts.iter().filter(|(said, _)| said == "JPEG").collect();
+            assert!(formats.len() >= 4, "{language} {info}: cells with their format are on screen ({})", formats.len());
+            // Then no line runs under a format: it is cut short before it
+            for (_, format) in formats {
+                let room = format.expand2(egui::vec2(3.0, 0.0));
+                let under: Vec<&String> = texts.iter().filter(|(said, at)| said != "JPEG" && at.intersects(room)).map(|(said, _)| said).collect();
+                assert!(under.is_empty(), "{language} {info}: {under:?} runs under the format at {format:?}");
+            }
+        }
     }
 }
