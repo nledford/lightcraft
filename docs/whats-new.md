@@ -563,6 +563,18 @@
 - A tab or a choice reached with the keyboard shows a ring. Tab moves through them, ← and → along a row, and Space
   or Return opens or chooses, as before: the focus was there all along but could not be seen. Text buttons
   elsewhere in LightCraft show the same ring. Screen readers are told a choice in Settings is a radio button.
+- Settings asks before it does what is slow or impossible to take back. Clear Cache says that thumbnails and
+  previews are made again as you browse, and a model's Remove that its file is deleted, each with the action and
+  Keep under the button. Keep has the focus, so Return alone changes nothing; Esc or a click elsewhere answers no.
+- Changing the smart previews folder with "Delete them" chosen no longer deletes at the press of Choose Folder: with
+  the new folder chosen, it says how many smart previews would go and what they are for, and waits for Delete and
+  Change Folder or Cancel. The choice goes back to "Move them" afterwards, and neither it nor the question is
+  left standing when Settings is closed or another library is opened.
+- Esc in a text box of Settings (Copyright, Creator, the Auto Import album, the two External Editing boxes) gives
+  the text back and stays in Settings; in the first three it used to save what was typed, and in all of them it
+  closed the window. Those three now have the Cut / Copy / Paste menu too, and what is typed in Copyright or
+  Creator is saved when another tab is clicked, where it used to be dropped.
+- Automatically write changes into XMP sidecars says what is written where.
 - A long folder (General ▸ Library ▸ Location, the folder Auto Import watches, the smart previews folder, a monitor
   profile's file) is shortened to its last folders ("…/Pictures/Library") on one line; rest the pointer on it for
   the whole path.
