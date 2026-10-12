@@ -1,0 +1,255 @@
+//! What the interface writes can be read in every theme: text stands 4.5:1 against what it is
+//! drawn on (3:1 at display size), on the panels, the grid, a photo being edited, Settings and the
+//! dialogs. Left out: what is disabled, and text over a picture (its own scrim is another test).
+//!
+//! Before: the dim text of captions, counts and explanations was 4.20:1 on a panel in Charcoal and
+//! 3.3 to 4.3:1 in the light themes, a link in the accent colour 2.56:1 in Charcoal, a caution
+//! 3.09:1 in Silver, and anything `.weak()` under 4.1:1 in every theme.
+
+use std::collections::BTreeMap;
+use std::time::Duration;
+
+use egui::{Color32, Rect};
+use serde_json::{Value, json};
+
+use crate::headless::Headless;
+use crate::panels::settings::TABS;
+use crate::theme::{TextSize, ThemeKind, Tokens};
+use crate::{LightcraftApp, Services};
+
+const T: Duration = Duration::from_secs(20);
+
+fn demo(kind: ThemeKind) -> Headless {
+    let services = Services { png: None, write_shared: Some(std::sync::Arc::new(|_: &str, _: &[u8]| Ok(()))), ..Default::default() };
+    let mut h = Headless::new(LightcraftApp::new(lightcraft_engine::Session::with_demo(), services), [1280.0, 900.0], 1.0);
+    // let the first renders finish (a render still running at exit can crash in GPU teardown)
+    h.settle(T);
+    run(&mut h, "view.theme", json!({"theme": kind.id()}));
+    h
+}
+
+fn run(h: &mut Headless, command: &str, params: Value) {
+    let r = h.request("engine.execute", json!({"command": command, "params": params}), T);
+    assert_eq!(r["ok"], true, "{command}: {r}");
+    rest(h);
+}
+
+fn set(h: &mut Headless, what: Value) {
+    let r = h.request("ui.set", what, T);
+    assert_eq!(r["ok"], true, "ui.set: {r}");
+    rest(h);
+}
+
+/// Everything drawn and at rest, the pointer over nothing.
+fn rest(h: &mut Headless) {
+    h.settle(T);
+    h.request("ui.move", json!({"x": 2.0, "y": 2.0}), T);
+    for _ in 0..3 {
+        h.step();
+    }
+}
+
+/// WCAG contrast of two opaque colours.
+fn contrast(a: Color32, b: Color32) -> f32 {
+    let lum = |c: Color32| {
+        let lin = |v: u8| {
+            let v = f32::from(v) / 255.0;
+            if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    };
+    let (a, b) = (lum(a), lum(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+/// `over` drawn on `under`.
+fn blend(over: Color32, under: Color32) -> Color32 {
+    let a = f32::from(over.a()) / 255.0;
+    // (premultiplied: the colour's channels already carry its alpha)
+    let mix = |o: u8, u: u8| (f32::from(o) + f32::from(u) * (1.0 - a)).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgb(mix(over.r(), under.r()), mix(over.g(), under.g()), mix(over.b(), under.b()))
+}
+
+/// The colour most of `rect` is, and the share of its pixels that are it (one pixel a point).
+fn ground(image: &egui::ColorImage, rect: Rect) -> Option<(Color32, f32)> {
+    let [w, h] = image.size;
+    let (x0, x1) = (rect.left().floor().max(0.0) as usize, (rect.right().ceil().max(0.0) as usize).min(w));
+    let (y0, y1) = (rect.top().floor().max(0.0) as usize, (rect.bottom().ceil().max(0.0) as usize).min(h));
+    let mut seen: BTreeMap<[u8; 4], usize> = BTreeMap::new();
+    for y in y0..y1 {
+        for x in x0..x1 {
+            *seen.entry(image.pixels[y * w + x].to_array()).or_default() += 1;
+        }
+    }
+    let all: usize = seen.values().sum();
+    let (most, n) = seen.into_iter().max_by_key(|(_, n)| *n)?;
+    Some((Color32::from_rgba_premultiplied(most[0], most[1], most[2], most[3]), n as f32 / all as f32))
+}
+
+/// Whether any pixel of `rect` is nearly `colour`.
+fn inked(image: &egui::ColorImage, rect: Rect, colour: Color32) -> bool {
+    let [w, h] = image.size;
+    let (x0, x1) = (rect.left().floor().max(0.0) as usize, (rect.right().ceil().max(0.0) as usize).min(w));
+    let (y0, y1) = (rect.top().floor().max(0.0) as usize, (rect.bottom().ceil().max(0.0) as usize).min(h));
+    let near = |p: Color32| p.r().abs_diff(colour.r()).max(p.g().abs_diff(colour.g())).max(p.b().abs_diff(colour.b())) <= 20;
+    (y0..y1).any(|y| (x0..x1).any(|x| near(image.pixels[y * w + x])))
+}
+
+/// The text on screen that cannot be read: what it says, its colour, what it is on and how far
+/// apart the two stand.
+fn unreadable(h: &Headless, t: &Tokens, within: Option<Rect>) -> Vec<String> {
+    let image = h.paint();
+    let mut out = BTreeMap::new();
+    fn texts(shape: &egui::Shape, clip: Rect, out: &mut Vec<(egui::epaint::TextShape, Rect)>) {
+        match shape {
+            egui::Shape::Text(text) => out.push((text.clone(), clip)),
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| texts(s, clip, out)),
+            _ => {}
+        }
+    }
+    let mut drawn = Vec::new();
+    h.view.shapes.iter().for_each(|s| texts(&s.shape, s.clip_rect, &mut drawn));
+    for (text, clip) in drawn {
+        let said = text.galley.job.text.trim();
+        // (a disabled control is drawn fainter as a whole; nothing to read in an empty string)
+        if said.is_empty() || text.opacity_factor < 1.0 {
+            continue;
+        }
+        let rect = text.visual_bounding_rect().intersect(clip);
+        // (what lies under a dialog's shade is not what is being read)
+        if within.is_some_and(|within| !within.contains_rect(rect)) {
+            continue;
+        }
+        if rect.width() < 2.0 || rect.height() < 2.0 {
+            continue;
+        }
+        // (a little around the letters: a dash's own rectangle is mostly dash)
+        let Some((on, share)) = ground(&image, rect.expand(2.0)) else { continue };
+        // (over a picture no colour is most of the rectangle)
+        if share < 0.3 {
+            continue;
+        }
+        let large = text.galley.job.sections.iter().all(|s| s.format.font_id.size >= TextSize::Display.points());
+        for section in &text.galley.job.sections {
+            let own = Some(section.format.color).filter(|c| *c != Color32::PLACEHOLDER);
+            let colour = text.override_text_color.or(own).unwrap_or(text.fallback_color);
+            // (a count of nothing is fainter on purpose: the rows that hold photos stand out)
+            if colour == t.text_disabled || colour.a() == 0 || colour == t.text_dim.gamma_multiply(0.55) {
+                continue;
+            }
+            let shown = blend(colour, on);
+            // (text under a window is drawn and then covered: none of its colour is left)
+            if !inked(&image, rect, shown) {
+                continue;
+            }
+            let stands = contrast(shown, on);
+            if stands < if large { 3.0 } else { 4.5 } {
+                let what: String = said.chars().take(28).collect();
+                out.entry((shown.to_array(), on.to_array()))
+                    .or_insert_with(|| format!("{what:?} {:?} on {:?}: {stands:.2}", shown.to_array(), on.to_array()));
+            }
+        }
+    }
+    out.into_values().collect()
+}
+
+fn assert_readable(h: &Headless, kind: ThemeKind, screen: &str, bad: &mut Vec<String>) {
+    let t = Tokens::for_kind(kind);
+    // (with a dialog open, the dialog is what is read)
+    let dialog = h.app.widgets.iter().find(|(w, _)| w == "dialog:window").map(|(_, r)| *r);
+    assert_eq!(dialog.is_some(), h.app.ui.dialog.is_some(), "{screen}: a dialog and its window go together");
+    bad.extend(unreadable(h, &t, dialog).into_iter().map(|line| format!("{kind:?}, {screen}: {line}")));
+}
+
+fn report(bad: Vec<String>) {
+    assert!(bad.is_empty(), "{} kinds of text cannot be read:\n{}", bad.len(), bad.join("\n"));
+}
+
+#[test]
+fn the_library_can_be_read_in_every_theme() {
+    let mut bad = Vec::new();
+    for kind in ThemeKind::ALL {
+        // Given the demo library in the grid in a theme, with the sidebar and each right panel
+        let mut h = demo(kind);
+        run(&mut h, "view.photoGrid", json!({}));
+        run(&mut h, "library.select", json!({"ids": [1]}));
+        for right in ["info", "keywords", "edit", "versions", "activity"] {
+            // When the panel is shown
+            set(&mut h, json!({"leftPanel": true, "right": right, "thumbSize": 200}));
+            // Then its text stands out from what it is on
+            assert_readable(&h, kind, &format!("grid with {right}"), &mut bad);
+        }
+    }
+    report(bad);
+}
+
+#[test]
+fn a_photo_being_edited_can_be_read_in_every_theme() {
+    let mut bad = Vec::new();
+    for kind in ThemeKind::ALL {
+        // Given a photo opened by itself in a theme, the filmstrip under it
+        let mut h = demo(kind);
+        run(&mut h, "library.select", json!({"ids": [1]}));
+        run(&mut h, "view.detail", json!({}));
+        for right in ["edit", "info", "masking", "crop", "remove", "profiles"] {
+            // When each tool panel is shown
+            set(&mut h, json!({"leftPanel": false, "right": right, "openSections": ["light", "color", "effects", "detail"]}));
+            // Then its text stands out from what it is on
+            assert_readable(&h, kind, &format!("detail with {right}"), &mut bad);
+        }
+    }
+    report(bad);
+}
+
+#[test]
+fn settings_and_the_dialogs_can_be_read_in_every_theme() {
+    let mut bad = Vec::new();
+    for kind in ThemeKind::ALL {
+        let mut h = demo(kind);
+        // Given each tab of Settings in a theme
+        for (tab, _) in TABS {
+            run(&mut h, "app.settings", json!({"tab": tab}));
+            assert_readable(&h, kind, &format!("Settings ▸ {tab}"), &mut bad);
+        }
+        h.request("ui.dialog.cancel", json!({}), T);
+        // And the dialogs a person meets most
+        for command in ["dialog.export", "app.shortcuts", "app.about"] {
+            run(&mut h, command, json!({}));
+            assert_readable(&h, kind, command, &mut bad);
+            h.request("ui.dialog.cancel", json!({}), T);
+            h.step();
+        }
+    }
+    report(bad);
+}
+
+#[test]
+fn the_colours_that_say_something_stand_out_from_every_surface_in_every_theme() {
+    for kind in ThemeKind::ALL {
+        let t = Tokens::for_kind(kind);
+        // Given the surfaces text is written on at rest
+        for on in [t.chrome, t.canvas, t.grid_bg, t.cell, t.inset, t.field, t.button] {
+            // When dim text, a link, a caution or an error is written on one
+            for (what, colour) in [("dim", t.text_dim), ("link", t.text_link()), ("caution", t.text_caution()), ("error", t.text_error())] {
+                // Then it stands 4.5:1
+                assert!(contrast(colour, on) >= 4.5, "{kind:?}: {what} {colour:?} on {on:?} is {:.2}", contrast(colour, on));
+            }
+        }
+        // And dim text is still dimmer than a label, which is dimmer than what is written
+        let (dim, label, text) = (contrast(t.text_dim, t.chrome), contrast(t.text_label, t.chrome), contrast(t.text, t.chrome));
+        assert!(dim + 1.0 < label && label < text, "{kind:?}: dim {dim:.2}, label {label:.2}, text {text:.2}");
+        // And what is chosen keeps its label readable on the accent mixed in behind it
+        assert!(contrast(t.text_label, t.selection_fill()) >= 4.5, "{kind:?}: a chosen chip");
+        assert_ne!(t.selection_fill(), t.chrome, "{kind:?}: what is chosen is marked");
+        // And a count or a mark on a filled circle is in the ink that stands out from the fill
+        for fill in [t.accent, t.reject, t.caution] {
+            let ink = t.ink_on(fill);
+            assert!(contrast(ink, fill) >= 4.5, "{kind:?}: {ink:?} on {fill:?} is {:.2}", contrast(ink, fill));
+        }
+    }
+    // And black or white is chosen by which is farther, also where neither is far
+    let t = Tokens::for_kind(ThemeKind::Charcoal);
+    assert_eq!(t.ink_on(Color32::BLACK), Color32::WHITE);
+    assert_eq!(t.ink_on(Color32::WHITE), Color32::BLACK);
+    assert_eq!(t.ink_on(Color32::from_gray(118)), Color32::BLACK);
+}

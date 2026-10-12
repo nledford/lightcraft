@@ -685,7 +685,7 @@ pub fn model_dialog(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, info
         );
     }
     let commercial = m["licence"]["commercial"].as_str().unwrap_or("unknown");
-    ui.label(RichText::new(licence_line(m)).font(t.body_strong()).color(if commercial == "yes" { t.text } else { t.caution }));
+    ui.label(RichText::new(licence_line(m)).font(t.body_strong()).color(if commercial == "yes" { t.text } else { t.text_caution() }));
     let notice = m["licence"]["notice"].as_str().unwrap_or("");
     if !notice.is_empty() {
         ui.add(egui::Label::new(RichText::new(notice).color(t.text_label)).wrap());

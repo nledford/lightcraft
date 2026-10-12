@@ -115,7 +115,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 ui.label(RichText::new(crate::i18n::tr("LightCraft couldn't open the library at")).color(t.text_label));
                 ui.label(RichText::new(&problem.path).font(t.body_strong()).color(t.text));
             }
-            ui.add(egui::Label::new(RichText::new(&problem.error).color(t.caution)).wrap());
+            ui.add(egui::Label::new(RichText::new(&problem.error).color(t.text_caution())).wrap());
             ui.label(
                 RichText::new(
                     "Your photos and edits in it are untouched. You can try again (e.g. after closing another program that has it open \

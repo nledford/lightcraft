@@ -150,7 +150,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             if active > 0 {
                 let c = fr.right_top() + vec2(-3.0, 8.0);
                 ui.painter().circle_filled(c, 7.0, t.accent);
-                ui.painter().text(c, Align2::CENTER_CENTER, active.to_string(), t.micro_strong(), t.canvas);
+                ui.painter().text(c, Align2::CENTER_CENTER, active.to_string(), t.micro_strong(), t.ink_on(t.accent));
             }
             let fresp = fresp.on_hover_text(if active > 0 {
                 crate::i18n::tr_format!("Filter bar — {active} active filter{}", if active == 1 { "" } else { "s" }, active = active)
@@ -203,7 +203,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 if warn {
                     let c = r.right_top() + vec2(-5.0, 6.0);
                     ui.painter().circle_filled(c, 6.0, t.reject);
-                    ui.painter().text(c, Align2::CENTER_CENTER, "!", t.micro_strong(), t.canvas);
+                    ui.painter().text(c, Align2::CENTER_CENTER, "!", t.micro_strong(), t.ink_on(t.reject));
                     register(ui.ctx(), "indicator:unsaved", r);
                 }
                 // a refusal says why (Import while a Lightroom catalog is coming in)

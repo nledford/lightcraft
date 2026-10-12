@@ -461,7 +461,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                                 .color(t.text_dim),
                         );
                     } else {
-                        ui.label(egui::RichText::new(crate::i18n::tr("Fix the marked rules to save this album.")).color(t.caution));
+                        ui.label(egui::RichText::new(crate::i18n::tr("Fix the marked rules to save this album.")).color(t.text_caution()));
                     }
                 }
                 Dialog::NewSmartAlbum { name, .. } => {

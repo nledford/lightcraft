@@ -186,6 +186,8 @@ mod tests_titlebar;
 #[cfg(test)]
 mod tests_tool_overlay;
 #[cfg(test)]
+mod tests_type_contrast;
+#[cfg(test)]
 mod tests_type_scale;
 #[cfg(test)]
 mod tests_unsaved;

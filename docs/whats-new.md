@@ -637,6 +637,20 @@
   the theme (`t.font(12.5)`) is drawn at the nearest size, and `cargo xtask type`, part of `ci`, refuses a number
   written where a font is made past it (`.size(11.5)`).
 
+### Text that can be read
+- The dim text of captions, counts, file names and explanations stands 4.5:1 against every panel, the grid, a
+  cell, a text box and a button, in all four themes. It was 4.20:1 on a panel in Charcoal, 3.3 to 4.3:1 on the
+  surfaces of Silver and Paper; Settings had been put right by itself, and now the colour is right where it is
+  defined. It stays dimmer than a label.
+- So do a placeholder in a text box and anything else written faintly (they were the label colour at 60 %, under
+  4.1:1 everywhere), a link (the accent as text was 2.56:1 on a panel in Charcoal, and links in About a bright blue
+  at 2.4 to 2.8:1 in the light themes), and a caution or an error written as text (3.09:1 in Silver).
+- A chosen chip or selected text keeps its label 4.5:1 on the accent behind it; the count on the filter button and
+  the "!" on the notices button are in black or white, whichever stands out from the circle; the name on a
+  selected filmstrip cell is made readable on that cell; a hidden mask's name is dim, not the colour of what
+  cannot be used.
+- Left as it was: a count of nothing in the sidebar ("0") is fainter than the other counts on purpose.
+
 ### Switching libraries
 - File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).
 - File ▸ Open Recent Library lists the last 8 libraries; ones that are gone (moved, drive disconnected) are greyed
