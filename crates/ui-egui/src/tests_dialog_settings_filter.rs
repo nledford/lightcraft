@@ -82,8 +82,8 @@ fn typing_lists_the_sections_that_match_on_whatever_tab() {
     let mut h = demo([1200.0, 1000.0]);
     // Given Settings open on General, which has nothing about sidecars
     show(&mut h, "general");
-    // When "sidecar" is typed into the filter
-    filter(&mut h, "sidecar");
+    // When "sidecar names" is typed into the filter
+    filter(&mut h, "sidecar names");
     // Then the section about them is listed with the tab it is on, and the page of General is not shown
     assert_eq!(found(&h), ["files:XMP sidecars"]);
     assert!(says(&h, "Files") && says(&h, "XMP sidecars"));
@@ -103,7 +103,7 @@ fn a_word_from_a_row_a_hint_or_a_button_finds_its_section() {
     filter(&mut h, "Clear Cache");
     assert_eq!(found(&h), ["performance:Thumbnail cache"]);
     // (a hint, in other letter case)
-    filter(&mut h, "BESIDE THE PHOTO");
+    filter(&mut h, "FOR OTHER APPS TO READ");
     assert_eq!(found(&h), ["files:XMP sidecars"]);
     // (a tab's own name finds everything on it)
     filter(&mut h, "Appearance");
@@ -157,7 +157,7 @@ fn choosing_a_result_opens_its_tab_at_that_section() {
 fn return_opens_the_first_result() {
     let mut h = demo([1200.0, 1000.0]);
     show(&mut h, "general");
-    filter(&mut h, "sidecar");
+    filter(&mut h, "sidecar names");
     key(&mut h, "Enter");
     h.settle(T);
     steps(&mut h);
@@ -170,7 +170,7 @@ fn return_opens_the_first_result() {
 fn esc_empties_the_filter_and_a_second_esc_closes_settings() {
     let mut h = demo([1200.0, 1000.0]);
     show(&mut h, "import");
-    filter(&mut h, "sidecar");
+    filter(&mut h, "sidecar names");
     assert_eq!(found(&h).len(), 1);
     // When Esc is pressed
     key(&mut h, "Escape");
@@ -187,7 +187,7 @@ fn esc_empties_the_filter_and_a_second_esc_closes_settings() {
 fn opening_a_tab_empties_the_filter() {
     let mut h = demo([1200.0, 1000.0]);
     show(&mut h, "general");
-    filter(&mut h, "sidecar");
+    filter(&mut h, "sidecar names");
     click(&mut h, "button:settingsTab-performance");
     assert_eq!(h.app.ui.dialog, Some(Dialog::Settings { tab: "performance".into() }));
     assert!(found(&h).is_empty());
@@ -228,12 +228,12 @@ fn looking_through_the_tabs_changes_nothing_and_leaves_no_double_names() {
 fn the_filter_is_empty_when_settings_is_opened_again() {
     let mut h = demo([1200.0, 1000.0]);
     show(&mut h, "general");
-    filter(&mut h, "sidecar");
+    filter(&mut h, "sidecar names");
     // (Esc once empties it; here Settings is closed from outside with the filter still set)
     h.app.ui.dialog = None;
     steps(&mut h);
     show(&mut h, "general");
-    assert!(found(&h).is_empty() && !says(&h, "sidecar"));
+    assert!(found(&h).is_empty() && !says(&h, "sidecar names"));
     assert!(headings(&h).contains(&"Startup".to_string()));
 }
 

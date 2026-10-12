@@ -311,7 +311,16 @@ fn each_tab_remembers_how_far_it_was_scrolled() {
         h.step();
     }
     h.settle(T);
-    let scrolled = rect(&h, "button:settingsAppearance-0").top();
+    // (the scroll glides to where it is going: read where it comes to rest)
+    let mut scrolled = rect(&h, "button:settingsAppearance-0").top();
+    for _ in 0..200 {
+        h.step();
+        let now = rect(&h, "button:settingsAppearance-0").top();
+        if (now - scrolled).abs() < 0.01 {
+            break;
+        }
+        scrolled = now;
+    }
     assert!(scrolled < top - 50.0);
     // When another tab is opened, it starts at its top
     show(&mut h, "import");
