@@ -657,9 +657,11 @@
   picture has no theme. In Silver and Paper the stars, the pick flag and the "edited" mark on a thumbnail or a
   filmstrip cell were the theme's dark greys on a dark bar, and next to invisible; the toast wrote the theme's
   near-black text on its black shade.
-- A rated or flagged thumbnail has a small shade under its marks whether or not the pointer is on it (the marks lay
-  on the bare photo and went out on a bright one); the whole bar still shows under the pointer and on a selected
-  photo.
+- A rated, flagged or edited thumbnail or filmstrip cell has a small shade under its marks, only as wide as they
+  are, whether or not the pointer is on it (the marks lay on the bare photo and went out on a bright one, and a
+  dark bar ran the width of a photo under the pointer, a chosen photo and every filmstrip cell). On a thumbnail
+  narrower than its marks they end where the photo ends.
+- The flag of a rejected photo is a lighter red over a picture, which stands out from the shade in every theme.
 - "Before", over a photo shown as it was before its edits, is on a shade too.
 
 ### Switching libraries

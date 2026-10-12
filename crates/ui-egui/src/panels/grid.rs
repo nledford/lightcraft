@@ -711,24 +711,24 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
     if show_badges {
         let bar = badge_bar;
         // A picture has no theme: its marks are in one light ink on a shade, not in the theme's
-        // star and label colours (dark in the light themes). The shade is the whole bar under the
-        // pointer or on a selected photo, else only as wide as the marks, so that a rated photo
-        // keeps its lower edge.
+        // star and label colours (dark in the light themes). The shade is only as wide as the
+        // marks, so that a photo keeps its lower edge, chosen or not; and shade and marks end
+        // where the photo ends (on a narrow one they ran on over the gap to the next).
         let ink = Tokens::on_photo();
         let (marks_w, flag_w) = (photo.rating as f32 * 13.0, if photo.flag == Flag::None { 0.0 } else { 18.0 });
         let right_w = if photo.is_edited() { 20.0 } else { 0.0 } + if photo.label.is_some() { 20.0 } else { 0.0 };
-        if (resp.hovered() || selected) && (square || photo.label.is_none()) {
-            p.rect_filled(bar, 0.0, Tokens::photo_shade());
-        } else {
-            let shade = |from: f32, to: f32| {
-                p.rect_filled(Rect::from_min_max(pos2(from, bar.top() + 3.0), pos2(to, bar.bottom() - 3.0)), 4.0, Tokens::photo_shade())
-            };
-            if marks_w + flag_w > 0.0 {
-                shade(bar.left() + 3.0, (bar.left() + 9.0 + marks_w + flag_w).min(bar.right()));
+        let clipped = p.with_clip_rect(bar.intersect(p.clip_rect()));
+        let p = &clipped;
+        let shade = |from: f32, to: f32| {
+            if to > from {
+                p.rect_filled(Rect::from_min_max(pos2(from, bar.top() + 3.0), pos2(to, bar.bottom() - 3.0)), 4.0, Tokens::photo_shade());
             }
-            if right_w > 0.0 {
-                shade((bar.right() - right_w - 6.0).max(bar.left()), bar.right() - 3.0);
-            }
+        };
+        if marks_w + flag_w > 0.0 {
+            shade(bar.left() + 3.0, (bar.left() + 9.0 + marks_w + flag_w).min(bar.right()));
+        }
+        if right_w > 0.0 {
+            shade((bar.right() - right_w - 6.0).max(bar.left()), bar.right() - 3.0);
         }
         let mut x = bar.left() + 6.0;
         for i in 0..photo.rating {
@@ -737,7 +737,9 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
         x += photo.rating as f32 * 13.0 + 4.0;
         match photo.flag {
             Flag::Pick => paint(p, Rect::from_min_size(pos2(x, bar.center().y - 7.0), vec2(14.0, 14.0)), Icon::FlagPick, ink),
-            Flag::Reject => paint(p, Rect::from_min_size(pos2(x, bar.center().y - 7.0), vec2(14.0, 14.0)), Icon::FlagReject, t.reject),
+            Flag::Reject => {
+                paint(p, Rect::from_min_size(pos2(x, bar.center().y - 7.0), vec2(14.0, 14.0)), Icon::FlagReject, Tokens::on_photo_reject())
+            }
             Flag::None => {}
         }
         let mut right = bar.right();

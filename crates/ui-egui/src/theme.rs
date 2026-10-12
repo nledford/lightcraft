@@ -327,9 +327,15 @@ impl Tokens {
         Color32::from_rgb(0xf2, 0xf2, 0xf2)
     }
 
+    /// The flag of a rejected photo over a picture: a red light enough to stand 3:1 on the shade
+    /// whatever is under it (a theme's own red is made for its panels: 2.3 to 3:1 here).
+    pub const fn on_photo_reject() -> Color32 {
+        Color32::from_rgb(0xff, 0x6b, 0x6b)
+    }
+
     /// The shade under what is written or marked over a picture.
-    /// (Black at 200 of 255: over white it is a grey the ink stands 12:1 against, and the red of a
-    /// rejection 3:1.)
+    /// (Black at 200 of 255: over white it is a grey the ink stands 12:1 against, and
+    /// [`Self::on_photo_reject`] 4:1.)
     pub fn photo_shade() -> Color32 {
         Color32::from_black_alpha(200)
     }

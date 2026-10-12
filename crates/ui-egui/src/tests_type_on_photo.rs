@@ -234,3 +234,78 @@ fn the_ink_for_pictures_stands_out_from_its_shade_over_any_picture() {
         assert!(contrast(ink, on) >= 4.5, "{ink:?} over {under:?}: {:.2}", contrast(ink, on));
     }
 }
+
+#[test]
+fn a_rejection_over_a_picture_is_a_red_that_stands_out_from_its_shade() {
+    // Given the red a rejected photo's flag is drawn in over a picture
+    let (red, shade) = (Tokens::on_photo_reject(), Tokens::photo_shade());
+    let a = f32::from(shade.a()) / 255.0;
+    // When the shade lies over the brightest a picture can be, and over the darkest
+    for under in [Color32::WHITE, Color32::BLACK] {
+        let mix = |u: u8| (f32::from(u) * (1.0 - a)).round() as u8;
+        let on = Color32::from_rgb(mix(under.r()), mix(under.g()), mix(under.b()));
+        // Then the flag stands 3:1, as a mark must
+        assert!(contrast(red, on) >= 3.0, "{red:?} over {under:?}: {:.2}", contrast(red, on));
+    }
+    // And it is drawn in that red in every theme, on a shade (the theme's own red is for panels)
+    for kind in ThemeKind::ALL {
+        let mut h = demo(kind);
+        run(&mut h, "view.photoGrid", json!({}));
+        let rejected = h
+            .app
+            .session
+            .catalog
+            .photos()
+            .find(|p| p.flag == lightcraft_catalog::Flag::Reject)
+            .map(|p| p.id.0)
+            .expect("the demo has a rejected photo");
+        run(&mut h, "library.select", json!({"ids": [rejected]}));
+        run(&mut h, "view.detail", json!({}));
+        let cell = h.app.widgets.iter().find(|(w, _)| *w == format!("film:{rejected}")).map(|(_, r)| *r).expect("its filmstrip cell");
+        let shapes = h.view.painted_shapes();
+        let flags: Vec<Rect> = shapes
+            .iter()
+            .filter(|s| colours(s).contains(&red) && cell.intersects(s.visual_bounding_rect()))
+            .map(|s| s.visual_bounding_rect())
+            .collect();
+        assert!(!flags.is_empty(), "{kind:?}: the flag is in {red:?}");
+        let shades: Vec<Rect> =
+            shapes.iter().filter(|s| matches!(s, egui::Shape::Rect(r) if r.fill == shade)).map(|s| s.visual_bounding_rect()).collect();
+        for flag in flags {
+            assert!(shades.iter().any(|shade| shade.expand(1.0).contains_rect(flag)), "{kind:?}: the flag at {flag:?} has no shade ({shades:?})");
+        }
+    }
+}
+
+#[test]
+fn the_marks_of_a_narrow_thumbnail_stay_on_the_thumbnail() {
+    // Given the grid with thumbnails so small that a portrait one is narrower than its marks
+    let mut h = demo(ThemeKind::Charcoal);
+    run(&mut h, "view.photoGrid", json!({}));
+    let r = h.request("ui.set", json!({"leftPanel": true, "right": "info", "thumbSize": 60}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    rest(&mut h);
+    let cells: Vec<Rect> = h.app.widgets.iter().filter(|(w, _)| w.starts_with("thumb:")).map(|(_, r)| *r).collect();
+    assert!(cells.len() >= 8 && cells.iter().any(|c| c.width() < 60.0), "narrow thumbnails are on screen");
+    // When their marks are drawn
+    fn marks(shape: &egui::Shape, clip: Rect, out: &mut Vec<(Rect, Rect)>) {
+        match shape {
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| marks(s, clip, out)),
+            other if colours(other).contains(&Tokens::on_photo()) && !matches!(other, egui::Shape::Rect(_)) => {
+                out.push((other.visual_bounding_rect(), clip))
+            }
+            _ => {}
+        }
+    }
+    let mut drawn = Vec::new();
+    h.view.shapes.iter().for_each(|s| marks(&s.shape, s.clip_rect, &mut drawn));
+    assert!(drawn.len() >= 8, "marks are drawn ({})", drawn.len());
+    // Then what shows of each lies on its own thumbnail: none reaches over the gap to the next
+    for (mark, clip) in drawn {
+        let shown = mark.intersect(clip);
+        if shown.width() <= 0.0 || shown.height() <= 0.0 {
+            continue;
+        }
+        assert!(cells.iter().any(|cell| cell.expand(0.5).contains_rect(shown)), "the mark at {shown:?} is on no thumbnail");
+    }
+}
