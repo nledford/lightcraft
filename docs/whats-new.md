@@ -59,8 +59,11 @@
   answers them with `lastBackup`.
 - Settings ▸ General ▸ Backups says where the library stands, first: one line with a sign before it and **Back Up
   Now** beside it. It reads "No backup of this library is in this folder, and nothing is set to make one" with a
-  caution sign, "Last backup: <when>" with a tick once there is one, "Backing up…" while one is made, or that a
-  chosen folder is not there (a drive not connected). The words are the size and colour of any row's, so they read
+  caution sign, "Last backup: <when>" with a tick while a backup of this library is in the folder, "Backing up…"
+  while one is made, or that a chosen folder is not there (a drive not connected). The tick and the time are read
+  from the folder, not remembered: a backup moved away or deleted since is no longer ticked ("No backup of this
+  library is in this folder"), and a folder that holds one says when it was made after the folder was changed and
+  changed back. The words are the size and colour of any row's, so they read
   in every theme and are not told by a colour alone. Back Up Now is not on offer while a backup or a restore is
   under way. A folder for backups on the same mounted volume, drive letter or share as the library is pointed out under the
   folder, since a backup there is lost with the library if that drive fails: for the usual folder as a note, for one

@@ -786,6 +786,7 @@
   "On the same drive as the library: a backup here is lost with the library if that drive fails.": "იმავე დისკზე, სადაც ბიბლიოთეკაა: თუ ეს დისკი გაფუჭდება, აქ შექმნილი სარეზერვო ასლი ბიბლიოთეკასთან ერთად დაიკარგება.",
   "This folder is not there now. If it is on a drive that is not connected, connect it before backing up.": "ეს საქაღალდე ახლა ადგილზე არ არის. თუ ის მიუერთებელ დისკზეა, სარეზერვო ასლის შექმნამდე მიაერთეთ.",
   "No backup of this library is in this folder, and nothing is set to make one.": "ამ საქაღალდეში ამ ბიბლიოთეკის სარეზერვო ასლი არ არის და მის შესაქმნელად არაფერია დაყენებული.",
+  "No backup of this library is in this folder.": "ამ საქაღალდეში ამ ბიბლიოთეკის სარეზერვო ასლი არ არის.",
   "Choose a Folder for Backups": "სარეზერვო ასლების საქაღალდის არჩევა",
   "A backup holds the catalog, not the photos. Keep it on another drive than the library, so that it outlives that drive.": "სარეზერვო ასლი შეიცავს კატალოგს და არა ფოტოებს. შეინახეთ ის ბიბლიოთეკისგან განსხვავებულ დისკზე, რომ იმ დისკის გაფუჭებას გადაურჩეს.",
   "While open": "მუშაობისას",
