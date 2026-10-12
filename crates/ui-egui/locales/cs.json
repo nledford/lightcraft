@@ -82,6 +82,7 @@
   "On the same drive as the library: a backup here is lost with the library if that drive fails.": "Na stejné jednotce jako knihovna: pokud tato jednotka selže, záloha zde se ztratí spolu s knihovnou.",
   "This folder is not there now. If it is on a drive that is not connected, connect it before backing up.": "Tato složka teď není k dispozici. Pokud je na jednotce, která není připojená, připojte ji před zálohováním.",
   "No backup of this library is in this folder, and nothing is set to make one.": "V této složce není žádná záloha této knihovny a nic není nastaveno, aby ji vytvořilo.",
+  "No backup of this library is in this folder.": "V této složce není žádná záloha této knihovny.",
   "Choose a Folder for Backups": "Vybrat složku pro zálohy",
   "A backup holds the catalog, not the photos. Keep it on another drive than the library, so that it outlives that drive.": "Záloha obsahuje katalog, ne fotografie. Uchovávejte ji na jiné jednotce než knihovnu, aby přežila selhání této jednotky.",
   "While open": "Za běhu",

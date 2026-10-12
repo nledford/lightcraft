@@ -2058,6 +2058,7 @@
   "On the same drive as the library: a backup here is lost with the library if that drive fails.": "Na mesma unidade que a biblioteca: um backup aqui se perde com a biblioteca se essa unidade falhar.",
   "This folder is not there now. If it is on a drive that is not connected, connect it before backing up.": "Esta pasta não está disponível agora. Se ela fica em uma unidade que não está conectada, conecte-a antes de fazer o backup.",
   "No backup of this library is in this folder, and nothing is set to make one.": "Não há nenhum backup desta biblioteca nesta pasta, e nada está configurado para fazer um.",
+  "No backup of this library is in this folder.": "Não há nenhum backup desta biblioteca nesta pasta.",
   "Choose a Folder for Backups": "Escolher uma pasta para os backups",
   "A backup holds the catalog, not the photos. Keep it on another drive than the library, so that it outlives that drive.": "Um backup contém o catálogo, não as fotos. Guarde-o em uma unidade diferente da biblioteca, para que sobreviva a uma falha dessa unidade.",
   "While open": "Enquanto aberta",

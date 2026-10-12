@@ -2216,6 +2216,7 @@
   "On the same drive as the library: a backup here is lost with the library if that drive fails.": "Sur le même disque que la bibliothèque : une sauvegarde ici est perdue avec la bibliothèque si ce disque tombe en panne.",
   "This folder is not there now. If it is on a drive that is not connected, connect it before backing up.": "Ce dossier est introuvable pour le moment. S’il se trouve sur un disque qui n’est pas connecté, connectez-le avant de sauvegarder.",
   "No backup of this library is in this folder, and nothing is set to make one.": "Ce dossier ne contient aucune sauvegarde de cette bibliothèque, et rien n’est réglé pour en créer une.",
+  "No backup of this library is in this folder.": "Ce dossier ne contient aucune sauvegarde de cette bibliothèque.",
   "Choose a Folder for Backups": "Choisir un dossier pour les sauvegardes",
   "A backup holds the catalog, not the photos. Keep it on another drive than the library, so that it outlives that drive.": "Une sauvegarde contient le catalogue, pas les photos. Conservez-la sur un autre disque que celui de la bibliothèque, pour qu’elle survive à une panne de ce disque.",
   "While open": "Pendant l’utilisation",

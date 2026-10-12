@@ -324,5 +324,101 @@ fn a_backup_that_is_set_to_be_made_is_not_cautioned_about() {
     steps(&mut h);
     // Then there is no caution: the words say there is none yet, without the sign
     assert!(says(&h, "Not yet") && !says(&h, NEVER));
-    assert!(!has(&h, "icon:settingsBackupStatus:caution"));
+    assert!(has(&h, "text:settingsBackupStatus"), "said on the line that says where the library stands");
+    assert!(!has(&h, "icon:settingsBackupStatus:caution") && !has(&h, "icon:settingsBackupStatus:ok"));
+}
+
+/// Settings closed and opened again: what the backups' folder is like is looked at anew.
+fn look_again(h: &mut Headless) {
+    h.app.ui.dialog = None;
+    steps(h);
+    h.app.ui.dialog = Some(Dialog::Settings { tab: "general".into() });
+    steps(h);
+}
+
+fn folder_of_backups(h: &mut Headless) -> PathBuf {
+    PathBuf::from(h.app.run("library.backups", json!({})).unwrap()["dir"].as_str().unwrap())
+}
+
+const OK: &str = "icon:settingsBackupStatus:ok";
+const CAUTION: &str = "icon:settingsBackupStatus:caution";
+
+#[test]
+fn a_backup_that_is_no_longer_in_the_folder_is_not_ticked() {
+    let dir = TempFolder::new("gone");
+    let mut h = settings_of_a_library_in(&dir.0);
+    // Given a backup made to the usual folder, which is remembered and ticked
+    h.app.session.execute("library.backup", &json!({})).unwrap();
+    steps(&mut h);
+    assert!(has(&h, OK) && says(&h, "UTC"));
+    // When the folder of backups is moved away by hand
+    let folder = folder_of_backups(&mut h);
+    std::fs::rename(&folder, dir.0.join("moved-away")).unwrap();
+    look_again(&mut h);
+    // Then nothing is ticked: no backup of this library is where backups go, and that is said
+    assert!(h.app.session.last_backup.is_some(), "the time of the backup is still remembered");
+    assert!(!has(&h, OK), "a backup that is gone is not ticked");
+    assert!(has(&h, CAUTION) && says(&h, NEVER) && says(&h, "nothing is set"));
+    // And with backups set to be made, it is still said that none is there, without the half about setting it
+    h.app.run("library.backupPreferences", json!({"every": "week"})).unwrap();
+    steps(&mut h);
+    assert!(!has(&h, OK) && has(&h, CAUTION), "the backup that was made is gone");
+    assert!(says(&h, "No backup of this library is in this folder.") && !says(&h, "nothing is set"));
+}
+
+#[test]
+fn a_chosen_folder_emptied_of_its_backup_is_not_ticked() {
+    let dir = TempFolder::new("emptied");
+    let mut h = settings_of_a_library_in(&dir.0);
+    let own = dir.0.join("own");
+    std::fs::create_dir_all(&own).unwrap();
+    h.app.run("library.backupPreferences", json!({"dir": own.to_string_lossy()})).unwrap();
+    h.app.session.execute("library.backup", &json!({})).unwrap();
+    steps(&mut h);
+    assert!(has(&h, OK));
+    // When what the folder held is removed
+    std::fs::remove_dir_all(&own).unwrap();
+    std::fs::create_dir_all(&own).unwrap();
+    look_again(&mut h);
+    assert!(!has(&h, OK) && has(&h, CAUTION) && says(&h, NEVER));
+    // And when the folder itself is gone, it is said to be not there, with the sign of a caution
+    std::fs::remove_dir_all(&own).unwrap();
+    look_again(&mut h);
+    assert!(says(&h, NOT_THERE) && has(&h, CAUTION) && !has(&h, OK));
+}
+
+#[test]
+fn a_folder_that_holds_a_backup_says_when_it_was_made_though_the_session_forgot() {
+    let dir = TempFolder::new("forgot");
+    let mut h = settings_of_a_library_in(&dir.0);
+    // Given a backup made to a folder of the person's own
+    let own = dir.0.join("own");
+    std::fs::create_dir_all(&own).unwrap();
+    h.app.run("library.backupPreferences", json!({"dir": own.to_string_lossy()})).unwrap();
+    h.app.session.execute("library.backup", &json!({})).unwrap();
+    // When backups are put back to the library folder and then to that folder again, which
+    // forgets when the last backup was
+    h.app.run("library.backupPreferences", json!({"dir": null})).unwrap();
+    steps(&mut h);
+    h.app.run("library.backupPreferences", json!({"dir": own.to_string_lossy()})).unwrap();
+    steps(&mut h);
+    assert!(h.app.session.last_backup.is_none());
+    // Then the row says when the backup in the folder was made, ticked: not "Not yet"
+    assert!(has(&h, OK) && !has(&h, CAUTION));
+    assert!(says(&h, "Last backup") && says(&h, "UTC") && !says(&h, "Not yet"), "{:?}", h.painted_text());
+}
+
+#[test]
+fn a_backup_under_way_has_no_sign() {
+    let dir = TempFolder::new("nosign");
+    let mut h = settings_of_a_library_in(&dir.0);
+    h.app.session.execute("library.backup", &json!({})).unwrap();
+    steps(&mut h);
+    h.app.session.backup_hold.store(true, Ordering::SeqCst);
+    click(&mut h, "button:settingsBackupNow");
+    assert!(running(&mut h) && says(&h, "Backing up"));
+    // Then neither sign stands before "Backing up…": it is neither done nor wrong
+    assert!(!has(&h, OK) && !has(&h, CAUTION));
+    h.app.session.backup_hold.store(false, Ordering::SeqCst);
+    assert!(h.step_until(T, |h| !h.app.widgets.is_empty() && h.painted_text().iter().any(|t| t.contains("UTC"))));
 }

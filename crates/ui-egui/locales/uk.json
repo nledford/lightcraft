@@ -2216,6 +2216,7 @@
   "On the same drive as the library: a backup here is lost with the library if that drive fails.": "На тому самому диску, що й бібліотека: резервна копія тут буде втрачена разом із бібліотекою, якщо цей диск вийде з ладу.",
   "This folder is not there now. If it is on a drive that is not connected, connect it before backing up.": "Цієї теки зараз немає. Якщо вона на диску, який не під’єднано, під’єднайте його перед резервним копіюванням.",
   "No backup of this library is in this folder, and nothing is set to make one.": "У цій теці немає резервної копії цієї бібліотеки, і її створення нічим не налаштовано.",
+  "No backup of this library is in this folder.": "У цій теці немає резервної копії цієї бібліотеки.",
   "Choose a Folder for Backups": "Виберіть теку для резервних копій",
   "A backup holds the catalog, not the photos. Keep it on another drive than the library, so that it outlives that drive.": "Резервна копія містить каталог, але не фотографії. Зберігайте її на іншому диску, ніж бібліотека, щоб вона пережила відмову цього диска.",
   "While open": "Поки відкрита",

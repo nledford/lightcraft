@@ -192,6 +192,8 @@ struct BackupLook {
     shares_the_drive: Option<bool>,
     there: bool,
     holds_a_backup: bool,
+    /// The newest backup of this library in the folder: when it says it was made, or its name.
+    newest: Option<String>,
 }
 
 /// Where the library's backups go (`library.backupPreferences`): shown, chosen with a folder
@@ -215,16 +217,27 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let kept: Option<BackupLook> = ui.data(|d| d.get_temp(look_id));
     let mut look = match kept.filter(|k| k.pass.checked_add(1) == Some(pass) && k.of == of) {
         Some(kept) => kept,
-        None => BackupLook {
-            shares_the_drive: lightcraft_engine::cmd::backup::backup_shares_the_drive(&app.session),
-            there: std::path::Path::new(&folder).exists(),
+        None => {
             // refusal expected: a folder that cannot be listed holds no backup we know of
-            holds_a_backup: app
-                .run("library.backups", json!({}))
-                .is_ok_and(|list| list["backups"].as_array().is_some_and(|all| all.iter().any(|b| b["ofThisLibrary"] == true))),
-            of,
-            pass,
-        },
+            // (the list is newest first)
+            let newest = app.run("library.backups", json!({})).ok().and_then(|list| {
+                let of_this = list["backups"].as_array()?.iter().find(|b| b["ofThisLibrary"] == true)?;
+                Some(
+                    of_this["made"]
+                        .as_str()
+                        .map(|made| format!("{} UTC", crate::i18n::display_time(made)))
+                        .or_else(|| of_this["name"].as_str().map(str::to_string)),
+                )
+            });
+            BackupLook {
+                shares_the_drive: lightcraft_engine::cmd::backup::backup_shares_the_drive(&app.session),
+                there: std::path::Path::new(&folder).exists(),
+                holds_a_backup: newest.is_some(),
+                newest: newest.flatten(),
+                of,
+                pass,
+            }
+        }
     };
     look.pass = pass;
     ui.data_mut(|d| d.insert_temp(look_id, look.clone()));
@@ -238,31 +251,44 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let schedule = app.session.backup_schedule;
     let unset = schedule.every == lightcraft_engine::backup_schedule::BackupEvery::Never
         && schedule.on_close == lightcraft_engine::backup_schedule::BackupOnClose::Never;
-    let (caution, says) = if running {
-        (false, crate::i18n::tr("Backing up…").to_string())
+    // (the tick is for a backup that is in the folder now, not for one that was made once: a
+    // folder moved away or emptied since holds none, whatever the session remembers)
+    let last = crate::i18n::tr("Last backup");
+    let (sign, says) = if running {
+        (None, crate::i18n::tr("Backing up…").to_string())
     } else if away {
-        (true, crate::i18n::tr("This folder is not there now. If it is on a drive that is not connected, connect it before backing up.").to_string())
-    } else if let Some(at) = &app.session.last_backup {
-        // (the session's clock is UTC, as the backups' names say)
-        (false, format!("{}: {} UTC", crate::i18n::tr("Last backup"), crate::i18n::display_time(at)))
-    } else if !look.holds_a_backup && unset {
-        // ("Not yet" alone is about the folder backups go to now, and is forgotten when the
-        // folder changes: only a folder without a backup of this library is cautioned about)
-        (true, crate::i18n::tr("No backup of this library is in this folder, and nothing is set to make one.").to_string())
+        (
+            Some(false),
+            crate::i18n::tr("This folder is not there now. If it is on a drive that is not connected, connect it before backing up.").to_string(),
+        )
+    } else if look.holds_a_backup {
+        // (the session's clock is UTC, as the backups' names say; a backup from before backups
+        // said when they were made is told by the session's memory of it, or by its name)
+        let when = look.newest.clone().or_else(|| app.session.last_backup.as_deref().map(|at| format!("{} UTC", crate::i18n::display_time(at))));
+        (Some(true), when.map_or_else(|| last.to_string(), |when| format!("{last}: {when}")))
+    } else if unset {
+        (Some(false), crate::i18n::tr("No backup of this library is in this folder, and nothing is set to make one.").to_string())
+    } else if app.session.last_backup.is_some() {
+        // (one was made and is gone; the next is made when it is due)
+        (Some(false), crate::i18n::tr("No backup of this library is in this folder.").to_string())
     } else {
-        (false, format!("{}: {}", crate::i18n::tr("Last backup"), crate::i18n::tr("Not yet")))
+        (None, format!("{last}: {}", crate::i18n::tr("Not yet")))
     };
     // (why a backup cannot be made right now, if it cannot: one or a restore is under way)
     let refused = lightcraft_engine::cmd::backup::can_back_up(&app.session).err();
     ui.horizontal(|ui| {
-        let (sign, _) = ui.allocate_exact_size(egui::vec2(16.0, 20.0), egui::Sense::hover());
-        let sign = egui::Rect::from_center_size(sign.center(), egui::vec2(16.0, 16.0));
-        if caution {
-            crate::icons::paint(ui.painter(), sign, crate::icons::Icon::Info, t.caution);
-            register(ui.ctx(), "icon:settingsBackupStatus:caution", sign);
-        } else if !running && app.session.last_backup.is_some() {
-            crate::icons::paint(ui.painter(), sign, crate::icons::Icon::Check, t.text_label);
-            register(ui.ctx(), "icon:settingsBackupStatus:ok", sign);
+        let (at, _) = ui.allocate_exact_size(egui::vec2(16.0, 20.0), egui::Sense::hover());
+        let at = egui::Rect::from_center_size(at.center(), egui::vec2(16.0, 16.0));
+        match sign {
+            Some(false) => {
+                crate::icons::paint(ui.painter(), at, crate::icons::Icon::Info, t.caution);
+                register(ui.ctx(), "icon:settingsBackupStatus:caution", at);
+            }
+            Some(true) => {
+                crate::icons::paint(ui.painter(), at, crate::icons::Icon::Check, t.text_label);
+                register(ui.ctx(), "icon:settingsBackupStatus:ok", at);
+            }
+            None => {}
         }
         // (the button keeps its place at the end of the line; the words wrap in what is left)
         let button = crate::i18n::tr("Back Up Now");
