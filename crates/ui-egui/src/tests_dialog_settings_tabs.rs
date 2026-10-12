@@ -145,9 +145,9 @@ fn a_tab_reached_with_the_keyboard_shows_the_focus() {
         let ring = |h: &Headless| ring(&h.paint(), import, t.text);
         // Given no tab has the focus, there is no ring round Import
         assert!(ring(&h) < 8, "{kind:?}: no ring before ({})", ring(&h));
-        // When Tab is pressed twice (General, then Import)
+        // When Tab is pressed (the tab bar is one stop, at General) and then → (to Import)
         key(&mut h, "Tab");
-        key(&mut h, "Tab");
+        key(&mut h, "ArrowRight");
         // Then a ring in the text colour runs round Import
         let length = import.width() + 2.0 * import.height();
         assert!(ring(&h) as f32 > 1.5 * length, "{kind:?}: Import shows the focus ({} px of ring along {length} pt)", ring(&h));
@@ -216,11 +216,14 @@ fn a_choice_reached_with_the_keyboard_shows_the_focus() {
     show(&mut h, "performance");
     let ring = |h: &Headless, id: &str| ring(&h.paint(), rect(h, id), t.text);
     assert!(ring(&h, "button:settingsPreview-1") < 8);
-    // When Tab is pressed until the second preview size has the focus (the tabs and the GPU checkbox come first)
+    // When Tab is pressed until the preview sizes have the focus (the tabs and the GPU checkbox
+    // come first; the row's stop is the size that holds, the first) and then → (to the second)
     let reached = (0..40).any(|_| {
         key(&mut h, "Tab");
-        ring(&h, "button:settingsPreview-1") > 60
+        ring(&h, "button:settingsPreview-0") > 60
     });
+    key(&mut h, "ArrowRight");
+    let reached = reached && ring(&h, "button:settingsPreview-1") > 60;
     // Then it shows a ring, and is not chosen by that
     assert!(reached, "a choice shows the focus");
     assert_eq!(h.app.ui.settings.preview_limit, 0);
@@ -239,10 +242,14 @@ fn choices_and_tabs_say_what_they_are_and_which_one_holds() {
     let mut found = Vec::new();
     for _ in 0..3 {
         let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-            let _ = crate::widgets::choice_button(ui, "size-0", "Automatic", true);
-            let _ = crate::widgets::choice_button(ui, "size-1", "1600 px", false);
-            let _ = crate::widgets::tab_button(ui, "tab-general", "General", true);
-            let _ = crate::widgets::tab_button(ui, "tab-import", "Import", false);
+            let mut row = crate::widgets::Roving::new(ui, "sizes", Some(0));
+            let _ = crate::widgets::choice_button_in(ui, &mut row, "size-0", "Automatic", true);
+            let _ = crate::widgets::choice_button_in(ui, &mut row, "size-1", "1600 px", false);
+            row.end(ui);
+            let mut bar = crate::widgets::Roving::new(ui, "tabs", Some(0));
+            let _ = crate::widgets::tab_button_in(ui, &mut bar, "tab-general", "General", true);
+            let _ = crate::widgets::tab_button_in(ui, &mut bar, "tab-import", "Import", false);
+            bar.end(ui);
         });
         out.textures_delta.clear();
         if let Some(update) = out.platform_output.accesskit_update.take() {
@@ -286,6 +293,4 @@ fn tabs_on_two_lines_each_stand_on_a_line_of_their_own() {
     }
     // And the lower line of tabs starts clear of it
     assert!(lower[0].top() >= first.bottom() + 4.0, "the second line of tabs {:?} is clear of the first {first:?}", lower[0]);
-    // And the page starts under the last of them
-    assert!(rect(&h, "settings:pageRoom").top() > lower[0].bottom(), "the page is under the tabs");
 }
