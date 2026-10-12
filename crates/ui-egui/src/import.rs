@@ -1364,7 +1364,7 @@ fn candidate_cell(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDial
         p.galley(br.min + vec2(4.0, 2.0), g, Color32::WHITE);
     }
     let name = if c.name.chars().count() > 18 { format!("{}…", c.name.chars().take(17).collect::<String>()) } else { c.name.clone() };
-    p.text(pos2(rect.left() + 2.0, img.bottom() + 9.0), Align2::LEFT_CENTER, name, t.font(10.5), if ok { t.text_label } else { t.text_dim });
+    p.text(pos2(rect.left() + 2.0, img.bottom() + 9.0), Align2::LEFT_CENTER, name, t.caption(), if ok { t.text_label } else { t.text_dim });
     let tip = format!(
         "{}\n{} × {} · {} · {:.1} MB{}",
         c.path,
@@ -1393,7 +1393,7 @@ fn badge_rect(img: Rect, cb: Rect, text: Vec2) -> Rect {
 /// Reserve the actual translated tag button width beside a template field.
 pub(crate) fn tag_field_width(ui: &egui::Ui) -> f32 {
     let t = Tokens::get(ui.ctx());
-    let galley = ui.painter().layout_no_wrap(crate::i18n::tr("Tags").to_string(), t.semibold(11.5), t.text);
+    let galley = ui.painter().layout_no_wrap(crate::i18n::tr("Tags").to_string(), t.label_strong(), t.text);
     (ui.available_width() - (galley.size().x + 18.0).max(37.0) - ui.spacing().item_spacing.x).max(80.0)
 }
 

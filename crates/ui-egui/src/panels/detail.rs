@@ -700,7 +700,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if app.ui.soft_proof && !fullscreen {
         p.rect_filled(canvas, 0.0, Color32::from_gray(238));
         let label = crate::i18n::tr_format!("Proof Preview · {}", app.ui.proof.space.label());
-        p.text(pos2(canvas.right() - 16.0, canvas.top() + 14.0), Align2::RIGHT_CENTER, label, t.font(12.5), Color32::from_gray(60));
+        p.text(pos2(canvas.right() - 16.0, canvas.top() + 14.0), Align2::RIGHT_CENTER, label, t.label(), Color32::from_gray(60));
     }
     let shown;
     if split {
@@ -947,7 +947,7 @@ fn info_overlay(app: &LightcraftApp, p: &egui::Painter, canvas: Rect, photo: &li
     let t = Tokens::get(p.ctx());
     let mut y = canvas.top() + 12.0;
     for (i, l) in lines.iter().enumerate() {
-        let font = if i == 0 { t.semibold(15.0) } else { t.font(12.5) };
+        let font = if i == 0 { t.semibold(15.0) } else { t.body() };
         // laid out uncoloured: `galley` only fills placeholder text with its colour, so a white
         // layout made the shadow a second white copy (#1690)
         let g = p.layout_no_wrap(l.clone(), font, Color32::PLACEHOLDER);
@@ -1763,7 +1763,7 @@ fn rotate_cursor_turn(pts: &[Pos2], q: Pos2, inside: bool) -> f32 {
 fn angle_readout(ui: &egui::Ui, at: Pos2, angle: f64, bounds: Rect) {
     let t = Tokens::get(ui.ctx());
     let p = top_painter(ui, "crop-angle-readout");
-    let galley = p.layout_no_wrap(crop_angle_label(angle), t.font(12.5), Color32::WHITE);
+    let galley = p.layout_no_wrap(crop_angle_label(angle), t.body(), Color32::WHITE);
     let rect = readout_rect(at, galley.size() + vec2(12.0, 6.0), bounds);
     p.rect_filled(rect, 4.0, Color32::from_black_alpha(170));
     p.galley(rect.min + vec2(6.0, 3.0), galley, Color32::WHITE);
@@ -2574,7 +2574,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
     let ppp = ui.ctx().pixels_per_point();
     if ids.is_empty() {
         let why = if app.session.filter != Default::default() { "No photos match the filters (View → Clear Filters)" } else { "No photos" };
-        ui.painter().text(r.center(), Align2::CENTER_CENTER, why, t.font(12.5), t.text_dim);
+        ui.painter().text(r.center(), Align2::CENTER_CENTER, why, t.label(), t.text_dim);
         return;
     }
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r.shrink2(vec2(0.0, 4.0))));
@@ -2620,8 +2620,8 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             let names = app.ui.settings.film_names;
             if let Some(ph) = app.session.catalog.photo(*id).filter(|_| names) {
                 let name = ph.file_name.rsplit_once('.').map(|(n, _)| n).unwrap_or(&ph.file_name);
-                p.text(pos2(cr.left() + 8.0, cr.top() + 10.0), Align2::LEFT_CENTER, film_label(name), t.font(10.0), t.text_dim);
-                p.text(pos2(cr.right() - 8.0, cr.top() + 10.0), Align2::RIGHT_CENTER, &ph.format, t.semibold(8.5), t.text_dim);
+                p.text(pos2(cr.left() + 8.0, cr.top() + 10.0), Align2::LEFT_CENTER, film_label(name), t.caption(), t.text_dim);
+                p.text(pos2(cr.right() - 8.0, cr.top() + 10.0), Align2::RIGHT_CENTER, &ph.format, t.micro(), t.text_dim);
             }
             let img_area = Rect::from_min_max(cr.min + vec2(10.0, 22.0), cr.max - vec2(10.0, 8.0));
             super::grid::request_thumb(app, *id, (256.0 * ppp.min(2.0) / 2.0) as usize * 2, 8);
@@ -2643,7 +2643,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                 if let Some(st) = app.session.catalog.stack_of(*id) {
                     let text =
                         if st.collapsed { st.photos.len().to_string() } else { format!("{}/{}", st.position(*id).unwrap_or(0) + 1, st.photos.len()) };
-                    let g = p.layout_no_wrap(text, t.semibold(9.5), Color32::WHITE);
+                    let g = p.layout_no_wrap(text, t.micro_strong(), Color32::WHITE);
                     let br = Rect::from_min_size(fr.min + vec2(3.0, 3.0), vec2(g.size().x + 22.0, 15.0));
                     p.rect_filled(br, 7.5, Color32::from_black_alpha(170));
                     crate::icons::paint(p, Rect::from_min_size(br.min + vec2(4.0, 2.0), vec2(11.0, 11.0)), crate::icons::Icon::Stack, Color32::WHITE);

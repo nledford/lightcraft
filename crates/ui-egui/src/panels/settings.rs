@@ -621,7 +621,7 @@ pub(crate) fn found_line(ui: &mut egui::Ui, t: &Tokens, line: String, found: &[s
     // (legible on the fill a hovered or focused row has, and so on a plain one, and on the fill
     // behind what was found: the line is in one colour)
     let dim = t.legible(t.legible(t.legible(t.text_dim, t.hover, 4.5), t.chrome, 4.5), fill, 4.5);
-    let format = egui::TextFormat { font_id: t.font(11.0), color: dim, ..Default::default() };
+    let format = egui::TextFormat { font_id: t.caption(), color: dim, ..Default::default() };
     let job = egui::text::LayoutJob::single_section(line, format);
     let (at, galley, response) = egui::Label::new(job).selectable(false).truncate().layout_in_ui(ui);
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, ui.is_enabled(), galley.text()));
@@ -811,7 +811,7 @@ pub(super) fn heading(ui: &mut egui::Ui, t: &Tokens, text: &str) {
     // (`heading:{its English name}`, whatever the language: where a section starts, for scripts
     // and tests that look for one. Callers pass the name translated or not.)
     let behind = ui.painter().add(egui::Shape::Noop);
-    let r = ui.label(RichText::new(crate::i18n::tr(text)).font(t.semibold(12.5)).color(t.text));
+    let r = ui.label(RichText::new(crate::i18n::tr(text)).font(t.body_strong()).color(t.text));
     let name = crate::i18n::source_of(text);
     register(ui.ctx(), format!("heading:{name}"), r.rect);
     // (chosen from what the filter found: the section is brought to the top of the page, and its
@@ -860,7 +860,7 @@ pub(super) fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnc
 
 pub(super) fn hint(ui: &mut egui::Ui, t: &Tokens, text: &str) {
     // (an explanation is small text: the dim colour where it reads, else as near it as reads)
-    ui.label(RichText::new(crate::i18n::tr(text)).size(11.0).color(t.legible(t.text_dim, t.chrome, 4.5)));
+    ui.label(RichText::new(crate::i18n::tr(text)).font(t.caption()).color(t.legible(t.text_dim, t.chrome, 4.5)));
 }
 
 /// A checkbox addressable as `check:{id}`; true when toggled.
@@ -1284,7 +1284,7 @@ fn performance_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     // One line, the whole text on hover: the reason can be a long driver message (no adapter
     // among the backends …), and the GPU state is process-wide, so it may change between frames;
     // a hint that wrapped would move every control below it under the pointer.
-    ui.add(egui::Label::new(RichText::new(crate::i18n::tr(&status)).size(11.0).color(t.text_dim)).truncate()).on_hover_text(&status);
+    ui.add(egui::Label::new(RichText::new(crate::i18n::tr(&status)).font(t.caption()).color(t.text_dim)).truncate()).on_hover_text(&status);
     row(ui, t, crate::i18n::tr("Preview size"), |ui| {
         let opts: Vec<(u32, String)> =
             PREVIEW_LIMITS.iter().map(|e| (*e, if *e == 0 { crate::i18n::tr("Automatic").to_string() } else { format!("{e} px") })).collect();
@@ -1547,13 +1547,13 @@ fn display_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
     });
     if let Some(e) = &app.display_error {
-        ui.label(RichText::new(e).size(11.0).color(t.legible(t.reject, t.chrome, 4.5)));
+        ui.label(RichText::new(e).font(t.caption()).color(t.legible(t.reject, t.chrome, 4.5)));
     }
     if let Some(d) = &current {
         let info = d.describe();
         if !screen {
             row(ui, t, crate::i18n::tr("File"), |ui| {
-                path_label(ui, "settingsDisplayFile", &d.path, egui::FontId::proportional(11.0), t.legible(t.text_dim, t.chrome, 4.5));
+                path_label(ui, "settingsDisplayFile", &d.path, t.caption(), t.legible(t.text_dim, t.chrome, 4.5));
             });
         }
         row(ui, t, crate::i18n::tr("Type"), |ui| {
@@ -1567,7 +1567,7 @@ fn display_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             let p = &info["primaries"];
             let xy = |(k, l): (&str, &str)| format!("{l} {:.3}, {:.3}", p[k][0].as_f64().unwrap_or(0.0), p[k][1].as_f64().unwrap_or(0.0));
             let text = [("red", "R"), ("green", "G"), ("blue", "B")].map(xy).join("   ");
-            ui.label(RichText::new(text).size(11.0).color(t.legible(t.text_dim, t.chrome, 4.5)));
+            ui.label(RichText::new(text).font(t.caption()).color(t.legible(t.text_dim, t.chrome, 4.5)));
         });
     }
     hint(
@@ -1795,7 +1795,7 @@ fn theme_card<V: PartialEq + Copy>(
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(crate::i18n::tr(title)).font(t.semibold(12.0)).color(t.text));
                     if active {
-                        ui.label(RichText::new(crate::i18n::tr("In Use")).size(11.0).color(t.legible(t.accent, t.inset, 4.5)));
+                        ui.label(RichText::new(crate::i18n::tr("In Use")).font(t.caption()).color(t.legible(t.accent, t.inset, 4.5)));
                     }
                 });
                 let shown = options.iter().find(|(v, _)| v == value).or(options.first()).map(|(_, k)| *k).unwrap_or_default();

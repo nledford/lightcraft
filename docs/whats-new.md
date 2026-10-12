@@ -623,6 +623,20 @@
   profile's file) is shortened to its last folders ("…/Pictures/Library") on one line; rest the pointer on it for
   the whole path.
 
+### Text sizes
+- Text is set in seven sizes, each with a job: 10 pt for a badge on a thumbnail, 11 for an explanation or the
+  caption over a field, 12 for a count or a chip, 13 for controls, rows and values, 14 for the header of a section,
+  15 for the name of a panel or a window, 18 for the title over the photos. There were seventeen, from 8.5 to 20 pt
+  and often half a point apart: a slider's name was 12.5 pt beside a checkbox's 13, a caption 11 pt in Settings and
+  11.5 in Info.
+- A size between two went to the one its job has: a slider's name and value 12.5 to 13 pt, a count 12.5 to 12,
+  an explanation or the caption over a field 11.5 to 11, a row of the sidebar and the search box 13.5 to 13, a
+  window's title 16 to 15 (the size of a panel's name), the title over the photos 17 to 18.
+- The smallest text is 10 pt: the format on a filmstrip cell was 8.5, the count on the filter button 9.5.
+- For those who write code: name the size (`t.caption()`, `t.body_strong()`, … in `theme.rs`); a number asked of
+  the theme (`t.font(12.5)`) is drawn at the nearest size, and `cargo xtask type`, part of `ci`, refuses a size
+  given past it (`.size(11.5)`).
+
 ### Switching libraries
 - File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).
 - File ▸ Open Recent Library lists the last 8 libraries; ones that are gone (moved, drive disconnected) are greyed
