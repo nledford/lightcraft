@@ -95,9 +95,24 @@ fn picker(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, current: &str, a
 
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
-    // one row when there is room, else the metadata pickers and actions go to a second row
-    let two_rows = ui.available_width() < WIDE;
-    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), if two_rows { 2.0 * HEIGHT - 8.0 } else { HEIGHT }), Sense::hover());
+    // How wide the three parts of the bar were when last drawn (rating, flag and label; type and
+    // edited; the metadata pickers and the buttons): their words are longer in some languages,
+    // and what a row holds follows what fits, not a width that suits English.
+    let widths_id = egui::Id::new("filterbar:widths");
+    let seen: [f32; 3] = ui.data(|d| d.get_temp(widths_id)).unwrap_or([0.0; 3]);
+    let room = ui.available_width() - 32.0;
+    // One row when there is room, else the metadata pickers and actions go to a second row. Type
+    // and edited go down with them when they would run off the first, and stand on a row of
+    // their own between the two when they fit on neither.
+    let two_rows = ui.available_width() < WIDE || seen.iter().sum::<f32>() > room;
+    let (second_row, third_row) = match (two_rows, seen[0] + seen[1] <= room, seen[1] + seen[2] <= room) {
+        (false, _, _) => (0, 0),
+        (true, true, _) => (0, 1),
+        (true, false, true) => (1, 1),
+        (true, false, false) => (1, 2),
+    };
+    let rows = third_row as f32 + 1.0;
+    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width(), rows * (HEIGHT - 8.0) + 8.0), Sense::hover());
     ui.painter().rect_filled(bar, 0.0, t.chrome);
     ui.painter().line_segment([bar.left_bottom(), bar.right_bottom()], Stroke::new(1.0, t.divider));
     register(ui.ctx(), "filterbar", bar);
@@ -108,9 +123,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         c.spacing_mut().item_spacing.x = 4.0;
         c
     };
-    let mut row1 = row(ui, 0.0);
-    let mut row2 = row(ui, 1.0);
-    let ui = &mut row1;
+    let mut rows = [row(ui, 0.0), row(ui, 1.0), row(ui, 2.0)];
+    let [ui, ..] = &mut rows;
 
     // rating: operator + stars
     caption(ui, "Rating");
@@ -198,8 +212,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         }
     }
     ui.add_space(14.0);
+    let first_w = ui.min_rect().width();
 
     // kind + edited
+    let Some(ui) = rows.get_mut(second_row) else { return };
+    let before = ui.min_rect().width();
     let kind_label = match f.kind {
         None => "All types",
         Some(MediaKind::Image) => "Photos",
@@ -251,8 +268,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             .collect(),
     );
 
+    let second_w = ui.min_rect().width() - before;
+
     // metadata pickers
-    let ui: &mut egui::Ui = if two_rows { &mut row2 } else { &mut row1 };
+    let Some(ui) = rows.get_mut(third_row) else { return };
+    let before = ui.min_rect().width();
     let values = app.caches.filter_values(&app.session.catalog);
     let (cameras, lenses, keywords) = (values.cameras.clone(), values.lenses.clone(), values.keywords.clone());
     for (id, key, all_label, current, values) in [
@@ -284,6 +304,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // filter presets: apply one, save the current filter, delete
     let presets = crate::widgets::dropdown(ui, "filterPresets", crate::i18n::tr("Presets"), t.label(), t.text);
     register(ui.ctx(), "button:filterPresets", presets.rect);
+    let now = [first_w, second_w, ui.min_rect().width() - before];
+    if now.iter().zip(seen).any(|(now, seen)| (now - seen).abs() > 0.5) {
+        ui.data_mut(|d| d.insert_temp(widths_id, now));
+        ui.ctx().request_repaint();
+    }
     egui::Popup::menu(&presets).show(|ui| {
         let names: Vec<String> = app.session.filter_presets.iter().map(|f| f.name.clone()).collect();
         for n in &names {

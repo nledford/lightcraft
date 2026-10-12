@@ -683,6 +683,16 @@
 - A long file name on the filmstrip or in the Import grid is shortened in the middle to the room it has, so the
   number of the frame stays ("IMG_20…_153012" where it was "IMG_20240712_…").
 
+### Longer words keep to their place
+- Edit: Reset goes to a row of its own under Auto, B&W and HDR when it has no room beside them. In German
+  ("Zurücksetzen") it lay over HDR.
+- A row of choices (the crop overlays, Upright, the vignette styles, the two tabs of Versions) puts fewer to a row
+  when the longest name would not fit its share of the width: "Mit Hilfslinien" ran out of a third of the panel,
+  "Goldfarben" out of a quarter.
+- The filter bar puts on each row what fits there, by what its words measure: Type and Edited go down to the second
+  row, or to one of their own, where they ran off the edge of the grid ("Bearbeitet oder nicht" in German with both
+  side panels open). In English it is as it was.
+
 ### Switching libraries
 - File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).
 - File ▸ Open Recent Library lists the last 8 libraries; ones that are gone (moved, drive disconnected) are greyed
