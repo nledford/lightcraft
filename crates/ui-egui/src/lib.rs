@@ -60,6 +60,8 @@ mod tests_backup_folder;
 #[cfg(test)]
 mod tests_backup_schedule;
 #[cfg(test)]
+mod tests_backup_status;
+#[cfg(test)]
 mod tests_before_after;
 #[cfg(test)]
 mod tests_browse_active;
