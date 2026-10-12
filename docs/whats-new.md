@@ -63,7 +63,8 @@
   while one is made, or that a chosen folder is not there (a drive not connected). The tick and the time are read
   from the folder, not remembered: a backup moved away or deleted since is no longer ticked ("No backup of this
   library is in this folder"), and a folder that holds one says when it was made after the folder was changed and
-  changed back. The words are the size and colour of any row's, so they read
+  changed back. The folder is looked at when Settings is opened, when the folder or the library changes and when a
+  backup starts or ends, not all the while: after connecting a drive, open Settings again. The words are the size and colour of any row's, so they read
   in every theme and are not told by a colour alone. Back Up Now is not on offer while a backup or a restore is
   under way. A folder for backups on the same mounted volume, drive letter or share as the library is pointed out under the
   folder, since a backup there is lost with the library if that drive fails: for the usual folder as a note, for one
