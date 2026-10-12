@@ -157,3 +157,39 @@ fn a_value_on_the_card_of_info_begins_after_its_label() {
         assert!(begins.iter().all(|x| (x - begins[0]).abs() < 1.0), "{language}: {begins:?}");
     }
 }
+
+#[test]
+fn the_filter_bar_comes_to_rest_at_every_width() {
+    for language in ["app.language.english", "app.language.german", "app.language.french"] {
+        // Given the grid and the filter bar in a language, and what the bar's three parts measure
+        let mut h = demo(language);
+        run(&mut h, "view.photoGrid", json!({}));
+        set(&mut h, json!({"leftPanel": true, "right": "info", "thumbSize": 200, "filterBar": true}));
+        let parts: [f32; 3] = h.view.ctx.data(|d| d.get_temp(egui::Id::new("filterbar:widths"))).expect("the bar has measured its parts");
+        assert!(parts.iter().all(|w| *w > 40.0), "{language}: {parts:?}");
+        let gap = 4.0;
+        // When the window is as wide as leaves the bar a point or two more or less than each of
+        // the widths at which what a row holds changes
+        for edge in [parts[0] + parts[1] + parts[2] + 2.0 * gap, parts[0] + parts[1] + gap, parts[1] + parts[2] + gap] {
+            for tenth in -40..=40 {
+                let room = edge + tenth as f32 / 10.0;
+                h.size.x += room - (rect(&h, "filterbar").width() - 32.0);
+                let mut heights = Vec::new();
+                for _ in 0..12 {
+                    h.step();
+                    heights.push(rect(&h, "filterbar").height());
+                }
+                assert!(((rect(&h, "filterbar").width() - 32.0) - room).abs() < 0.05, "{language}: the bar has the room asked for");
+                // Then within a few frames the bar is one height and stays it: it used to change
+                // every frame in a band four points wide, and the grid under it jumped
+                let rest: Vec<f32> = heights.iter().skip(6).copied().collect();
+                assert!(rest.iter().all(|height| *height == rest[0]), "{language}: at {room} pt of room the bar is {heights:?} high frame by frame");
+                // And nothing in it runs out of it
+                let bar = rect(&h, "filterbar");
+                for (id, control) in widgets(&h, "dropdown:filter-") {
+                    assert!(control.right() <= bar.right() + 0.5, "{language}: at {room} pt {id} {control:?} runs out of {bar:?}");
+                }
+            }
+        }
+    }
+}

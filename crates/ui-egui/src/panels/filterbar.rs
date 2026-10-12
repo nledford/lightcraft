@@ -14,6 +14,8 @@ use crate::widgets::register;
 pub const HEIGHT: f32 = 40.0;
 /// Bar width (points) below which the controls take two rows.
 const WIDE: f32 = 1240.0;
+/// Between two controls of a row.
+const GAP: f32 = 4.0;
 
 /// Colour-label swatches (UI colours, our own choice).
 pub use crate::theme::label_color;
@@ -104,8 +106,14 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // One row when there is room, else the metadata pickers and actions go to a second row. Type
     // and edited go down with them when they would run off the first, and stand on a row of
     // their own between the two when they fit on neither.
-    let two_rows = ui.available_width() < WIDE || seen.iter().sum::<f32>() > room;
-    let (second_row, third_row) = match (two_rows, seen[0] + seen[1] <= room, seen[1] + seen[2] <= room) {
+    // (Each part is measured from where it begins, so it measures the same on whichever row it
+    // stands, and parts that share a row have a gap between them: what fits is then a matter of
+    // the widths alone, and the bar comes to rest. Measured with the gap before it, a part was
+    // four points wider when it followed another, and in that band the bar changed its mind
+    // every frame.)
+    let [first, second, third] = seen;
+    let two_rows = ui.available_width() < WIDE || first + GAP + second + GAP + third > room;
+    let (second_row, third_row) = match (two_rows, first + GAP + second <= room, second + GAP + third <= room) {
         (false, _, _) => (0, 0),
         (true, true, _) => (0, 1),
         (true, false, true) => (1, 1),
@@ -120,11 +128,12 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let row = |ui: &mut egui::Ui, i: f32| {
         let r = Rect::from_min_size(bar.min + vec2(16.0, 4.0 + i * (HEIGHT - 8.0)), vec2(bar.width() - 32.0, HEIGHT - 8.0));
         let mut c = ui.new_child(egui::UiBuilder::new().max_rect(r).layout(egui::Layout::left_to_right(egui::Align::Center)));
-        c.spacing_mut().item_spacing.x = 4.0;
+        c.spacing_mut().item_spacing.x = GAP;
         c
     };
     let mut rows = [row(ui, 0.0), row(ui, 1.0), row(ui, 2.0)];
     let [ui, ..] = &mut rows;
+    let began = ui.cursor().left();
 
     // rating: operator + stars
     caption(ui, "Rating");
@@ -212,11 +221,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         }
     }
     ui.add_space(14.0);
-    let first_w = ui.min_rect().width();
+    let first_w = ui.min_rect().right() - began;
 
     // kind + edited
     let Some(ui) = rows.get_mut(second_row) else { return };
-    let before = ui.min_rect().width();
+    let began = ui.cursor().left();
     let kind_label = match f.kind {
         None => "All types",
         Some(MediaKind::Image) => "Photos",
@@ -268,11 +277,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             .collect(),
     );
 
-    let second_w = ui.min_rect().width() - before;
+    let second_w = ui.min_rect().right() - began;
 
     // metadata pickers
     let Some(ui) = rows.get_mut(third_row) else { return };
-    let before = ui.min_rect().width();
+    let began = ui.cursor().left();
     let values = app.caches.filter_values(&app.session.catalog);
     let (cameras, lenses, keywords) = (values.cameras.clone(), values.lenses.clone(), values.keywords.clone());
     for (id, key, all_label, current, values) in [
@@ -304,8 +313,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // filter presets: apply one, save the current filter, delete
     let presets = crate::widgets::dropdown(ui, "filterPresets", crate::i18n::tr("Presets"), t.label(), t.text);
     register(ui.ctx(), "button:filterPresets", presets.rect);
-    let now = [first_w, second_w, ui.min_rect().width() - before];
-    if now.iter().zip(seen).any(|(now, seen)| (now - seen).abs() > 0.5) {
+    let now = [first_w, second_w, ui.min_rect().right() - began];
+    // (a number that is none would never equal itself: it is not kept, nor asked about again)
+    if now.iter().all(|w| w.is_finite()) && now.iter().zip(seen).any(|(now, seen)| (now - seen).abs() > 0.5) {
         ui.data_mut(|d| d.insert_temp(widths_id, now));
         ui.ctx().request_repaint();
     }

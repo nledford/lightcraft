@@ -691,7 +691,8 @@
   "Goldfarben" out of a quarter.
 - The filter bar puts on each row what fits there, by what its words measure: Type and Edited go down to the second
   row, or to one of their own, where they ran off the edge of the grid ("Bearbeitet oder nicht" in German with both
-  side panels open). In English it is as it was.
+  side panels open), and the bar grows by a row. In English it is as it was down to a grid about 720 pt
+  wide, and takes a third row below that, where its second ran off the edge.
 
 ### Switching libraries
 - File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).
