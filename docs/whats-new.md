@@ -659,11 +659,14 @@
   near-black text on its black shade.
 - A rated, flagged or edited thumbnail or filmstrip cell has a small shade under its marks, only as wide as they
   are, whether or not the pointer is on it (the marks lay on the bare photo and went out on a bright one). The band
-  along the lower edge of a photo under the pointer or a chosen one is as it was. In the photo grid, on a thumbnail
-  narrower than its marks they end where the photo ends.
+  along the lower edge of a photo under the pointer or a chosen one is as it was; the dark bar across a marked
+  filmstrip cell is gone, its marks being on their shades. In the photo grid, on a thumbnail narrower than its marks
+  they end where the photo ends.
 - The flag of a rejected photo is a lighter red over a picture, which stands out from its shade in every theme, and
   a rejected thumbnail is dimmed under its marks, not over them.
 - "Before", over a photo shown as it was before its edits, is on a shade too.
+- Left as they were: the virtual-copy tag, "Preview" and a stack's count, which were white on dark pills of their
+  own already.
 
 ### Switching libraries
 - File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).

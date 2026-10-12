@@ -311,7 +311,7 @@ fn the_marks_of_a_narrow_thumbnail_stay_on_the_thumbnail() {
 }
 
 #[test]
-fn a_chosen_photo_keeps_the_band_along_its_lower_edge() {
+fn a_photo_chosen_or_under_the_pointer_keeps_the_band_along_its_lower_edge() {
     for kind in ThemeKind::ALL {
         // Given the grid in a theme, and a photo with no rating, flag, label or edit
         let mut h = demo(kind);
@@ -344,6 +344,15 @@ fn a_chosen_photo_keeps_the_band_along_its_lower_edge() {
         // photo: in the light themes its outline alone is 1.1 to 2.1:1 against the grid
         run(&mut h, "library.select", json!({"ids": []}));
         assert!(!band(&h), "{kind:?}: a photo that is not chosen has no band");
+        // When the pointer is on it, it has the band (nothing else says the pointer is there)
+        let cell = h.app.widgets.iter().find(|(w, _)| *w == format!("thumb:{plain}")).map(|(_, r)| *r).expect("its thumbnail");
+        h.request("ui.move", json!({"x": cell.center().x, "y": cell.center().y}), T);
+        for _ in 0..3 {
+            h.step();
+        }
+        assert!(band(&h), "{kind:?}: the photo under the pointer has its band");
+        rest(&mut h);
+        assert!(!band(&h), "{kind:?}: the band goes when the pointer does");
         run(&mut h, "library.select", json!({"ids": [plain]}));
         assert!(band(&h), "{kind:?}: the chosen photo has its band");
     }
