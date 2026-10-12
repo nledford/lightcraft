@@ -1136,6 +1136,17 @@ pub(crate) fn named(r: egui::Response, name: &str) -> egui::Response {
     r
 }
 
+/// `text` written over a picture, its top left corner at `at`: in the ink for pictures on a
+/// shade of its own (`Tokens::on_photo`, `Tokens::photo_shade`), so that it reads on any photo
+/// in any theme. Returns the shade's rectangle.
+pub(crate) fn on_photo_label(painter: &egui::Painter, at: egui::Pos2, text: &str, font: egui::FontId) -> Rect {
+    let galley = painter.layout_no_wrap(text.to_string(), font, Tokens::on_photo());
+    let shade = Rect::from_min_size(at, galley.size() + vec2(16.0, 8.0));
+    painter.rect_filled(shade, 4.0, Tokens::photo_shade());
+    painter.galley(shade.min + vec2(8.0, 4.0), galley, Tokens::on_photo());
+    shade
+}
+
 /// `text` laid out on one line, cut short with … when it is wider than `max` (the galley's
 /// `elided` says whether it was): for text painted into a fixed box (a tile, a row before its
 /// buttons), which a plain `Painter::text` would draw past.

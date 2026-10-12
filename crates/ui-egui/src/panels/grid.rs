@@ -710,22 +710,39 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
     }
     if show_badges {
         let bar = badge_bar;
+        // A picture has no theme: its marks are in one light ink on a shade, not in the theme's
+        // star and label colours (dark in the light themes). The shade is the whole bar under the
+        // pointer or on a selected photo, else only as wide as the marks, so that a rated photo
+        // keeps its lower edge.
+        let ink = Tokens::on_photo();
+        let (marks_w, flag_w) = (photo.rating as f32 * 13.0, if photo.flag == Flag::None { 0.0 } else { 18.0 });
+        let right_w = if photo.is_edited() { 20.0 } else { 0.0 } + if photo.label.is_some() { 20.0 } else { 0.0 };
         if (resp.hovered() || selected) && (square || photo.label.is_none()) {
-            p.rect_filled(bar, 0.0, Color32::from_black_alpha(120));
+            p.rect_filled(bar, 0.0, Tokens::photo_shade());
+        } else {
+            let shade = |from: f32, to: f32| {
+                p.rect_filled(Rect::from_min_max(pos2(from, bar.top() + 3.0), pos2(to, bar.bottom() - 3.0)), 4.0, Tokens::photo_shade())
+            };
+            if marks_w + flag_w > 0.0 {
+                shade(bar.left() + 3.0, (bar.left() + 9.0 + marks_w + flag_w).min(bar.right()));
+            }
+            if right_w > 0.0 {
+                shade((bar.right() - right_w - 6.0).max(bar.left()), bar.right() - 3.0);
+            }
         }
         let mut x = bar.left() + 6.0;
         for i in 0..photo.rating {
-            paint(p, Rect::from_min_size(pos2(x + i as f32 * 13.0, bar.center().y - 6.0), vec2(12.0, 12.0)), Icon::StarFilled, t.star);
+            paint(p, Rect::from_min_size(pos2(x + i as f32 * 13.0, bar.center().y - 6.0), vec2(12.0, 12.0)), Icon::StarFilled, ink);
         }
         x += photo.rating as f32 * 13.0 + 4.0;
         match photo.flag {
-            Flag::Pick => paint(p, Rect::from_min_size(pos2(x, bar.center().y - 7.0), vec2(14.0, 14.0)), Icon::FlagPick, t.pick),
+            Flag::Pick => paint(p, Rect::from_min_size(pos2(x, bar.center().y - 7.0), vec2(14.0, 14.0)), Icon::FlagPick, ink),
             Flag::Reject => paint(p, Rect::from_min_size(pos2(x, bar.center().y - 7.0), vec2(14.0, 14.0)), Icon::FlagReject, t.reject),
             Flag::None => {}
         }
         let mut right = bar.right();
         if photo.is_edited() {
-            paint(p, Rect::from_min_size(pos2(right - 20.0, bar.center().y - 7.0), vec2(14.0, 14.0)), Icon::Sliders, t.text_label);
+            paint(p, Rect::from_min_size(pos2(right - 20.0, bar.center().y - 7.0), vec2(14.0, 14.0)), Icon::Sliders, ink);
             right -= 20.0;
         }
         if let Some(l) = photo.label {

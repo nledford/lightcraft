@@ -652,6 +652,16 @@
   cannot be used.
 - Left as it was: a count of nothing in the sidebar ("0") is fainter than the other counts on purpose.
 
+### Marks and words over a picture
+- What is written or marked over a photo is in one light ink on a dark shade of its own, the same in every theme: a
+  picture has no theme. In Silver and Paper the stars, the pick flag and the "edited" mark on a thumbnail or a
+  filmstrip cell were the theme's dark greys on a dark bar, and next to invisible; the toast wrote the theme's
+  near-black text on its black shade.
+- A rated or flagged thumbnail has a small shade under its marks whether or not the pointer is on it (the marks lay
+  on the bare photo and went out on a bright one); the whole bar still shows under the pointer and on a selected
+  photo.
+- "Before", over a photo shown as it was before its edits, is on a shade too.
+
 ### Switching libraries
 - File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).
 - File ▸ Open Recent Library lists the last 8 libraries; ones that are gone (moved, drive disconnected) are greyed
