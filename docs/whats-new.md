@@ -559,6 +559,12 @@
   cache. Display is now **Monitor** and Interface is **Appearance**, so the monitor's colour profile and how
   LightCraft looks are not mistaken for each other. Agents: `app.settings` takes `library` and `files` as tabs;
   every tab id from before still opens its tab (`display` and `interface` are Monitor and Appearance).
+- Settings has a filter above its tabs. Type a word, or part of one, and the sections that have it are listed with
+  the tab each is on, whichever tab was open: the names of tabs and sections, labels, buttons and explanations
+  are all looked through, and every word typed has to be there. Click a section (or press Return for the first,
+  or ↓ to go down to them) and its tab opens at it. Esc empties the filter; a second Esc closes Settings. The
+  choices of a closed list and tooltips are not looked through. Scripts: `field:settingsFilter`, and
+  `settingsFound:<tab>:<section>` for each section found.
 - Each section of Settings can be found by scripts as `heading:<its English name>` in `ui.widgets`, whatever the
   interface language.
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own

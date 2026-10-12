@@ -145,7 +145,8 @@ fn a_tab_reached_with_the_keyboard_shows_the_focus() {
         let ring = |h: &Headless| ring(&h.paint(), import, t.text);
         // Given no tab has the focus, there is no ring round Library
         assert!(ring(&h) < 8, "{kind:?}: no ring before ({})", ring(&h));
-        // When Tab is pressed twice (General, then Library)
+        // When Tab is pressed three times (the filter, General, then Library)
+        key(&mut h, "Tab");
         key(&mut h, "Tab");
         key(&mut h, "Tab");
         // Then a ring in the text colour runs round Library
@@ -163,6 +164,8 @@ fn the_arrow_keys_move_along_the_tabs_and_space_opens_one() {
     show(&mut h, "general");
     let ring = |h: &Headless, id: &str| ring(&h.paint(), tab(h, id), t.text);
     // Given the focus on the first tab
+    // (the filter comes first, then the tabs)
+    key(&mut h, "Tab");
     key(&mut h, "Tab");
     assert!(ring(&h, "general") > 60, "General has the focus");
     // When → is pressed twice
