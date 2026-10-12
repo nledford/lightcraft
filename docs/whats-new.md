@@ -698,7 +698,7 @@
 ### Small things in how the interface writes
 - Text marked for emphasis is in the full text colour; it was the label colour, the same as the text around it.
 - Edit: the profile and the white balance are written at the size of any control's value (13 pt). They were 15
-  and 14, larger than the headers of the sections they stand in.
+  and 14 pt, larger than and as large as the 14 pt headers of the sections they stand in.
 - The format on the card of Info, in capitals, has a little room between its letters.
 - What an empty view says (no photo selected, nothing to compare, no reference photo) is wrapped inside the view
   and centred; a long sentence ran out of a narrow one.

@@ -63,6 +63,23 @@ fn emphasis_is_the_colour_of_what_is_written_in_every_theme() {
         assert_eq!(visuals.strong_text_color(), t.text, "{kind:?}");
         assert_ne!(visuals.strong_text_color(), visuals.text_color(), "{kind:?}: strong is told from plain");
         assert_eq!(visuals.weak_text_color(), t.text_dim, "{kind:?}");
+        // And a label marked strong is drawn in it (the theme's one colour for all text does not
+        // take it back)
+        let mut output = ctx.run_ui(Default::default(), |ui| {
+            ui.label(egui::RichText::new("marked").strong());
+            ui.label("plain");
+        });
+        let colour = |said: &str| {
+            output.shapes.iter().find_map(|clipped| match &clipped.shape {
+                egui::Shape::Text(text) if text.galley.job.text == said => {
+                    let own = text.galley.job.sections.first().map(|s| s.format.color).filter(|c| *c != egui::Color32::PLACEHOLDER);
+                    Some(text.override_text_color.or(own).unwrap_or(text.fallback_color))
+                }
+                _ => None,
+            })
+        };
+        assert_eq!((colour("marked"), colour("plain")), (Some(t.text), Some(t.text_label)), "{kind:?}");
+        output.textures_delta.clear();
     }
 }
 
