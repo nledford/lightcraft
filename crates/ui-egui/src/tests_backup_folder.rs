@@ -90,6 +90,11 @@ fn the_backup_folder_is_chosen_and_put_back_in_settings() {
     assert!(prefs.contains("elsewhere"), "{prefs}");
     let made = h.app.session.execute("library.backup", &json!({})).unwrap();
     assert!(Path::new(made["report"]["dir"].as_str().unwrap()).starts_with(&elsewhere), "{made}");
+    // (the line that says where the backups stand has changed, and may take another height:
+    // the button is clicked where it is drawn now)
+    for _ in 0..4 {
+        h.step();
+    }
 
     let r = click(&mut h, "button:settingsBackupReset");
     assert_eq!(r["ok"], true, "{r}");
