@@ -220,6 +220,47 @@ fn a_photo_being_edited_can_be_read_in_every_theme() {
 }
 
 #[test]
+fn the_names_over_the_filmstrip_can_be_read_on_any_cell_in_every_theme() {
+    /// The filmstrip's cells that are wholly on screen, by photo.
+    fn cells(h: &Headless) -> Vec<(u64, Rect)> {
+        let screen = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 900.0));
+        let cell = |(w, r): &(String, Rect)| Some((w.strip_prefix("film:")?.parse().ok()?, *r));
+        h.app.widgets.iter().filter_map(cell).filter(|(_, r)| screen.contains_rect(*r)).collect()
+    }
+    let mut bad = Vec::new();
+    for kind in ThemeKind::ALL {
+        // Given a photo opened by itself in a theme, and on the filmstrip under it two photos
+        // with a colour label, which tints their cells, and one with none
+        let mut h = demo(kind);
+        run(&mut h, "library.select", json!({"ids": [1]}));
+        run(&mut h, "view.detail", json!({}));
+        set(&mut h, json!({"leftPanel": false, "right": "info"}));
+        let others: Vec<u64> = cells(&h).iter().map(|(id, _)| *id).filter(|id| *id != 1).take(3).collect();
+        let [yellow, red, plain] = others[..] else { panic!("{kind:?}: three other photos are on the filmstrip") };
+        run(&mut h, "photo.label", json!({"ids": [yellow], "label": "yellow"}));
+        run(&mut h, "photo.label", json!({"ids": [red], "label": "red"}));
+        assert!(h.painted_text().iter().any(|t| t == "JPEG"), "{kind:?}: the cells say their format");
+        // Then at rest the names stand out from their cells
+        assert_readable(&h, kind, "filmstrip at rest", &mut bad);
+        for id in [yellow, red, plain] {
+            // When the pointer is on a cell that is not the chosen one (its fill is see-through)
+            let cell = cells(&h).iter().find(|(c, _)| *c == id).map(|(_, r)| *r);
+            let Some(cell) = cell else { panic!("{kind:?}: photo {id} is on the filmstrip") };
+            h.request("ui.move", json!({"x": cell.center().x, "y": cell.top() + 10.0}), T);
+            for _ in 0..3 {
+                h.step();
+            }
+            // Then its name and format stand out from the cell as it is painted
+            assert_readable(&h, kind, &format!("filmstrip, pointer on photo {id}"), &mut bad);
+        }
+        // And when a labelled photo is the chosen one
+        run(&mut h, "library.select", json!({"ids": [red]}));
+        assert_readable(&h, kind, "filmstrip, a labelled photo chosen", &mut bad);
+    }
+    report(bad);
+}
+
+#[test]
 fn settings_and_the_dialogs_can_be_read_in_every_theme() {
     let mut bad = Vec::new();
     for kind in ThemeKind::ALL {

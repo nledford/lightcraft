@@ -2619,9 +2619,9 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             let fill = crate::theme::label_background(base, label, selected);
             p.rect_filled(cr, 0.0, fill);
             // (a selected cell is lighter than the canvas the dim text is made for, or darker, and
-            // a colour label tints any cell; under the pointer the fill is see-through and near
-            // enough the canvas)
-            let dim = if fill.is_opaque() { t.legible(t.text_dim, fill, 4.5) } else { t.text_dim };
+            // a colour label tints any cell; under the pointer the fill is see-through, and what
+            // the text is on is that fill over the strip)
+            let dim = t.legible(t.text_dim, t.canvas.blend(fill), 4.5);
             let names = app.ui.settings.film_names;
             if let Some(ph) = app.session.catalog.photo(*id).filter(|_| names) {
                 let name = ph.file_name.rsplit_once('.').map(|(n, _)| n).unwrap_or(&ph.file_name);
