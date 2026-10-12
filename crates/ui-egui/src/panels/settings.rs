@@ -188,7 +188,7 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
 #[derive(Clone)]
 struct BackupLook {
     pass: u64,
-    of: (String, String, Option<String>, bool),
+    of: (String, Option<String>, String, Option<String>, bool),
     shares_the_drive: Option<bool>,
     there: bool,
     holds_a_backup: bool,
@@ -213,7 +213,9 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let look_id = egui::Id::new("backup-folder-look");
     let pass = ui.ctx().cumulative_pass_nr();
     let library = app.session.library.as_ref().map(|l| l.dir.display().to_string()).unwrap_or_default();
-    let of = (library, folder.clone(), app.session.last_backup.clone(), running);
+    // (the library's id too: a restore puts another library where this one was, and a backup is
+    // of the open library by its id)
+    let of = (library, app.session.library_id.clone(), folder.clone(), app.session.last_backup.clone(), running);
     let kept: Option<BackupLook> = ui.data(|d| d.get_temp(look_id));
     let mut look = match kept.filter(|k| k.pass.checked_add(1) == Some(pass) && k.of == of) {
         Some(kept) => kept,
@@ -262,10 +264,9 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             crate::i18n::tr("This folder is not there now. If it is on a drive that is not connected, connect it before backing up.").to_string(),
         )
     } else if look.holds_a_backup {
-        // (the session's clock is UTC, as the backups' names say; a backup from before backups
-        // said when they were made is told by the session's memory of it, or by its name)
-        let when = look.newest.clone().or_else(|| app.session.last_backup.as_deref().map(|at| format!("{} UTC", crate::i18n::display_time(at))));
-        (Some(true), when.map_or_else(|| last.to_string(), |when| format!("{last}: {when}")))
+        // (when the newest one says it was made, by the session's clock, which is UTC; a backup
+        // from before backups said so is told by its name)
+        (Some(true), look.newest.as_ref().map_or_else(|| last.to_string(), |when| format!("{last}: {when}")))
     } else if unset {
         (Some(false), crate::i18n::tr("No backup of this library is in this folder, and nothing is set to make one.").to_string())
     } else if app.session.last_backup.is_some() {

@@ -1,5 +1,5 @@
 //! Settings ▸ General ▸ Backups says where the library stands and lets a backup be made from
-//! there: Back Up Now beside Last backup, a caution when the folder holds no backup of the library
+//! there: a line that says it comes first, with a sign and Back Up Now beside it, a caution when the folder holds no backup of the library
 //! and nothing is set to make one, a note or caution when the backups' folder is on the library's
 //! own drive, and a caution when a folder that was chosen is not there.
 //!
@@ -406,6 +406,9 @@ fn a_folder_that_holds_a_backup_says_when_it_was_made_though_the_session_forgot(
     // Then the row says when the backup in the folder was made, ticked: not "Not yet"
     assert!(has(&h, OK) && !has(&h, CAUTION));
     assert!(says(&h, "Last backup") && says(&h, "UTC") && !says(&h, "Not yet"), "{:?}", h.painted_text());
+    // (the time the backup itself says, in the words of a time: its folder's name is not shown)
+    let line = h.painted_text().into_iter().find(|t| t.starts_with("Last backup")).unwrap();
+    assert!(line.contains("2026") && !line.contains("12.00.00"), "the backup's time is shown, not its name: {line}");
 }
 
 #[test]
