@@ -99,6 +99,15 @@ fn a_word_people_type_for_a_section_finds_it_though_the_section_does_not_say_it(
     assert_eq!(found(&h), ["general:Culling"]);
     filter(&mut h, "trash gpu");
     assert!(found(&h).is_empty());
+    // And the start of such a word finds it, as part of any word does: the section stays found
+    // while the word is typed
+    filter(&mut h, "tras");
+    assert_eq!(found(&h), ["general:Culling"]);
+    // And a section that says the word comes before one that is only given it
+    filter(&mut h, "metadata");
+    let found = found(&h);
+    let place = |id: &str| found.iter().position(|f| f == id).unwrap_or_else(|| panic!("{id} in {found:?}"));
+    assert!(place("import:Metadata") < place("files:XMP sidecars"), "{found:?}");
 }
 
 #[test]
@@ -111,6 +120,19 @@ fn either_spelling_of_a_word_finds_it() {
     assert!(british.contains(&"display:Monitor profile".to_string()), "{british:?}");
     filter(&mut h, "colors");
     assert_eq!(found(&h), british, "color finds what colour finds");
+    // And the word is told apart in the line under the result, in the spelling the line has
+    let t = crate::theme::Tokens::get(&h.view.ctx);
+    let lines: Vec<_> = galleys(&h, "colours").into_iter().collect();
+    assert_eq!(lines.len(), 1);
+    let at = lines[0].job.text.find("colours").unwrap();
+    let colour =
+        |byte: usize| lines[0].job.sections.iter().find(|s| (s.byte_range.start.0..s.byte_range.end.0).contains(&byte)).unwrap().format.color;
+    assert_eq!((colour(at), colour(at + 6)), (t.text, t.text), "\"colours\" is told apart for \"colors\"");
+    // And on the way to either spelling, letter by letter, the section stays found
+    for typed in ["col", "colo", "colou", "colour", "color"] {
+        filter(&mut h, typed);
+        assert!(found(&h).contains(&"display:Monitor profile".to_string()), "{typed}: {:?}", found(&h));
+    }
 }
 
 #[test]
@@ -154,8 +176,8 @@ fn the_line_under_a_result_shows_the_word_it_was_found_by_and_tells_it_apart() {
     assert!(text.starts_with('…'), "{text}");
     assert!(text.find("wide-gamut").unwrap() < 60, "the word is near the start of what is shown: {text}");
     // And the word is in sight: the line is cut after it, not before
-    let room = h.app.widgets.iter().find(|(w, _)| w == "settings:pageRoom").map(|(_, r)| *r).unwrap();
-    assert!(!line.elided || line.rect.width() <= room.width());
+    let laid_out: String = line.rows.iter().flat_map(|row| row.glyphs.iter().map(|glyph| glyph.chr)).collect();
+    assert!(laid_out.contains("wide-gamut"), "what is drawn of the line has the word: {laid_out}");
     // And the word is drawn apart from the words around it: in the text colour, the rest dimmer
     let t = Tokens::get(&h.view.ctx);
     let at = text.find("wide-gamut").unwrap();
@@ -215,6 +237,31 @@ fn the_names_of_folders_are_not_looked_through() {
 }
 
 #[test]
+fn what_stands_where_a_folder_would_is_still_found_when_it_is_no_folder() {
+    // Given the demo, whose library is in memory: Library ▸ Location says so where a folder would stand
+    let mut h = demo([1200.0, 1000.0]);
+    show(&mut h, "library");
+    assert!(h.painted_text().iter().any(|text| text.contains("nothing is saved")));
+    filter(&mut h, "nothing is saved");
+    assert_eq!(found(&h), ["library:Library"]);
+}
+
+#[test]
+fn what_is_typed_into_a_box_of_settings_is_not_looked_through() {
+    let mut h = demo([1200.0, 1000.0]);
+    // Given an editor of the person's own, in a folder with a word of its own
+    h.app.ui.settings.external_editor = "/opt/zebraedit/bin/zed".into();
+    show(&mut h, "files");
+    assert!(h.painted_text().iter().any(|text| text.contains("zebraedit")));
+    // Then that folder is not a word a section is found by
+    filter(&mut h, "zebraedit");
+    assert!(found(&h).is_empty(), "{:?}", found(&h));
+    // And "bin" finds Culling (where photos are thrown away), not the editor's folder
+    filter(&mut h, "bin");
+    assert_eq!(found(&h), ["general:Culling"]);
+}
+
+#[test]
 fn the_filter_is_ready_to_type_in_when_settings_opens() {
     let mut h = demo([1200.0, 1000.0]);
     // When Settings is opened and something is typed, without a click
@@ -247,7 +294,32 @@ fn the_section_landed_on_is_marked_for_a_moment() {
     // Then the heading of the section chosen is marked, and no other
     assert!(has(&h, "settingsLanded:Detail"), "{:?}", h.app.widgets.iter().map(|(w, _)| w).filter(|w| w.contains("Landed")).collect::<Vec<_>>());
     assert!(!has(&h, "settingsLanded:Grid") && !has(&h, "settingsLanded:Appearance"));
+    // And leaving the tab and coming back to it shows no mark: it was for arriving
+    click(&mut h, "button:settingsTab-general");
+    click(&mut h, "button:settingsTab-interface");
+    assert!(!has(&h, "settingsLanded:Detail"), "a tab opened by its own button marks nothing");
+    // And nor does leaving by a command, or closing Settings and opening it again
+    filter(&mut h, "info overlay");
+    click(&mut h, "settingsFound:interface:Detail");
+    steps(&mut h);
+    assert!(has(&h, "settingsLanded:Detail"));
+    show(&mut h, "general");
+    show(&mut h, "interface");
+    assert!(!has(&h, "settingsLanded:Detail"), "a tab opened by a command marks nothing");
+    filter(&mut h, "info overlay");
+    click(&mut h, "settingsFound:interface:Detail");
+    steps(&mut h);
+    assert!(has(&h, "settingsLanded:Detail"));
+    h.app.ui.dialog = None;
+    steps(&mut h);
+    h.app.ui.dialog = Some(Dialog::Settings { tab: "interface".into() });
+    steps(&mut h);
+    assert!(!has(&h, "settingsLanded:Detail"), "Settings opened again marks nothing");
     // And the mark goes by itself
+    filter(&mut h, "info overlay");
+    click(&mut h, "settingsFound:interface:Detail");
+    steps(&mut h);
+    assert!(has(&h, "settingsLanded:Detail"));
     for _ in 0..240 {
         h.step();
     }
@@ -258,11 +330,24 @@ fn the_section_landed_on_is_marked_for_a_moment() {
 }
 
 #[test]
-fn every_section_given_other_words_is_a_section_of_settings() {
-    let sources = [include_str!("panels/settings.rs"), include_str!("panels/faces.rs"), include_str!("panels/denoise.rs")].join("\n");
+fn every_word_given_to_a_section_finds_that_section() {
+    // Given a library on disk (Library ▸ Smart previews is only there for one)
+    let dir = TempFolder(std::env::temp_dir().join(format!("lc-ui-filteralso-{}", std::process::id())));
+    let _ = std::fs::remove_dir_all(&dir.0);
+    std::fs::create_dir_all(&dir.0).unwrap();
+    let mut session = lightcraft_engine::Session::new().with_fs();
+    session.open_library(dir.0.join("library"), false).unwrap();
+    let mut h = Headless::new(LightcraftApp::new(session, Services::default()), [1200.0, 1000.0], 1.0);
+    h.app.ui.dialog = Some(Dialog::Settings { tab: "general".into() });
+    steps(&mut h);
     for (tab, section, words) in crate::panels::settings::ALSO {
-        assert!(crate::panels::settings::TABS.iter().any(|(id, _)| id == tab), "{tab} is a tab");
-        assert!(section.is_empty() || sources.contains(&format!("\"{section}\"")), "{tab} ▸ {section} is a heading");
-        assert!(!words.trim().is_empty() && *words == words.to_lowercase(), "{tab} ▸ {section}: lower case words");
+        for word in words.split_whitespace() {
+            // Then each word finds the section it is given to: the section is drawn on that tab
+            // under that name, and the word is in the spelling the filter compares in
+            filter(&mut h, word);
+            assert!(found(&h).contains(&format!("{tab}:{section}")), "\"{word}\" finds {tab} ▸ {section}: {:?}", found(&h));
+            // And is not a part of a word half of Settings says, which would bury the section
+            assert!(found(&h).len() <= 6, "\"{word}\" finds too much to be of use: {:?}", found(&h));
+        }
     }
 }

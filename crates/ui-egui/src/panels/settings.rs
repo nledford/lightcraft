@@ -107,6 +107,13 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     }
     let mut filter = kept.filter(|_| !opened).unwrap_or_default();
     filter.pass = pass;
+    // (the mark is for arriving at a section from the filter: a tab left, however, and come back
+    // to shows none)
+    let arriving = ui.data(|d| d.get_temp::<(&'static str, String)>(egui::Id::new(GOTO))).is_some_and(|(to, _)| to == shown);
+    if filter.tab != shown && !arriving {
+        ui.data_mut(|d| d.remove::<(String, f64)>(egui::Id::new(LANDED)));
+    }
+    filter.tab.clone_from(&shown);
     let had_text = !filter.text.is_empty();
     let typed = crate::text_field::TextField::singleline("field:settingsFilter", &mut filter.text)
         .hint(crate::i18n::tr("Filter settings"))
@@ -153,7 +160,6 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
                 *tab = id.to_string();
                 // (a tab opened is its page asked for: the filter gives way)
                 filter.text.clear();
-                ui.data_mut(|d| d.remove::<(String, f64)>(egui::Id::new(LANDED)));
                 ui.ctx().request_repaint();
             }
         }
@@ -165,7 +171,7 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     }
     ui.add_space(1.0);
     // With something typed, the page gives way to the sections found, of whatever tab.
-    let words = fold(filter.text.trim());
+    let words = filter.text.trim().to_lowercase();
     let now = ui.input(|i| i.time);
     let found = (!words.is_empty()).then(|| filter.found(app, &words, now));
     let mut goto = None;
@@ -250,7 +256,7 @@ pub const ALSO: &[(&str, &str, &str)] = &[
     ("library", "Smart previews", "proxy proxies offline"),
     ("import", "Raw defaults", "preset develop"),
     ("import", "Metadata", "iptc author credit"),
-    ("import", "Auto Import", "watch tether hot"),
+    ("import", "Auto Import", "watch tether"),
     ("files", "XMP sidecars", "metadata"),
     ("files", "External Editing", "editor photoshop color space bit depth"),
     ("performance", "Rendering", "graphics card speed resolution"),
@@ -277,12 +283,33 @@ fn fold(text: &str) -> String {
     folded
 }
 
-/// A text a section draws: as drawn, as the filter compares it ([`fold`]), and whether it is in
-/// the small type of an explanation.
+/// A text as the filter compares it: in lower case, and in one spelling ([`fold`]).
+#[derive(Clone)]
+struct Compared {
+    lower: String,
+    folded: String,
+}
+
+impl Compared {
+    fn of(text: &str) -> Self {
+        let lower = text.to_lowercase();
+        Self { folded: fold(&lower), lower }
+    }
+
+    /// Whether the text has `word` (in lower case): as typed, or in the other spelling of it. As
+    /// typed counts too, so that a word is found all the way while it is typed ("colou" is on
+    /// the way to "colour", and is in no text once that is spelt "color").
+    fn has(&self, word: &str) -> bool {
+        self.lower.contains(word) || self.folded.contains(&fold(word))
+    }
+}
+
+/// A text a section draws: as drawn, as the filter compares it, and whether it is in the small
+/// type of an explanation.
 #[derive(Clone)]
 struct Drawn {
     text: String,
-    folded: String,
+    compared: Compared,
     small: bool,
 }
 
@@ -301,11 +328,13 @@ struct Section {
 struct Filter {
     pass: u64,
     text: String,
+    /// The tab that was open on the frame before.
+    tab: String,
     sections: Option<(String, std::sync::Arc<Vec<Section>>)>,
 }
 
 impl Filter {
-    /// The sections that have every word of `words` ([`fold`]ed), the best match first
+    /// The sections that have every word of `words` (in lower case), the best match first
     /// ([`Section::rank`]) and those that match alike in the order of the tabs.
     fn found(&mut self, app: &mut LightcraftApp, words: &str, now: f64) -> Vec<Section> {
         let of = format!("{}|{}", app.ui.language.code(), app.session.library.as_ref().map(|l| l.dir.display().to_string()).unwrap_or_default());
@@ -330,21 +359,21 @@ impl Section {
         TABS.iter().find(|(id, _)| *id == self.tab).map_or("", |(id, label)| crate::i18n::tr(tab_label(id, label)))
     }
 
-    /// How well the section matches `words` ([`fold`]ed), less being better, or `None` when one
+    /// How well the section matches `words` (in lower case), less being better, or `None` when one
     /// of them is nowhere in it. Each word counts by the best place it is found in: 0 in the
     /// name of the section or its tab, 1 in a label, choice or button, 2 in an explanation or
     /// among the words people type for the section ([`ALSO`], from the start of one).
     fn rank(&self, words: &str) -> Option<u32> {
-        let names = fold(&format!("{} {}", self.tab_name(), crate::i18n::tr(&self.name)));
+        let names = Compared::of(&format!("{} {}", self.tab_name(), crate::i18n::tr(&self.name)));
         let also = || ALSO.iter().filter(|(tab, name, _)| *tab == self.tab && *name == self.name).flat_map(|(_, _, also)| also.split_whitespace());
         words
             .split_whitespace()
             .map(|word| {
-                if names.contains(word) {
+                if names.has(word) {
                     Some(0)
-                } else if self.texts.iter().any(|drawn| !drawn.small && drawn.folded.contains(word)) {
+                } else if self.texts.iter().any(|drawn| !drawn.small && drawn.compared.has(word)) {
                     Some(1)
-                } else if self.texts.iter().any(|drawn| drawn.folded.contains(word)) || also().any(|also| also.starts_with(word)) {
+                } else if self.texts.iter().any(|drawn| drawn.compared.has(word)) || also().any(|also| also.starts_with(&fold(word))) {
                     Some(2)
                 } else {
                     None
@@ -360,16 +389,20 @@ impl Section {
     }
 }
 
-/// Where in `text` a word of `words` ([`fold`]ed) stands, as ranges of bytes of `text`, in the
-/// order they stand in and none inside another: in either case and either spelling.
+/// Where in `text` a word of `words` (in lower case) stands, as ranges of bytes of `text`, in
+/// the order they stand in and none inside another: in either case and either spelling.
 fn places(text: &str, words: &str) -> Vec<std::ops::Range<usize>> {
     // each char of the text in lower case, with where it starts (a char that is several in lower
     // case counts by its first: the ranges are of `text`, which `to_lowercase` would not keep)
     let chars: Vec<(usize, char)> = text.char_indices().map(|(at, c)| (at, c.to_lowercase().next().unwrap_or(c))).collect();
     let mut found: Vec<std::ops::Range<usize>> = Vec::new();
     for word in words.split_whitespace() {
-        let other = SPELLINGS.iter().find(|(one, _)| word.contains(one)).map(|(one, other)| word.replace(one, other));
-        for spelt in std::iter::once(word.to_string()).chain(other) {
+        // (as typed, in the one spelling, and in the other)
+        let folded = fold(word);
+        let other = SPELLINGS.iter().find(|(one, _)| folded.contains(one)).map(|(one, other)| folded.replace(one, other));
+        let mut spellings = vec![word.to_string()];
+        spellings.extend(std::iter::once(folded).chain(other).filter(|spelt| spelt != word));
+        for spelt in spellings {
             let spelt: Vec<char> = spelt.chars().collect();
             if spelt.is_empty() {
                 continue;
@@ -455,9 +488,11 @@ fn sections(app: &mut LightcraftApp, now: f64) -> Vec<Section> {
         let registry = crate::widgets::take_registry(&scratch);
         let mut headings: Vec<(f32, String)> =
             registry.iter().filter_map(|(id, r)| Some((r.top(), id.strip_prefix("heading:")?.to_string()))).collect();
-        // (where a folder or file is shown, [`path_label`]: where a library or a cache happens
-        // to be is not what a setting is called, and is not looked through)
-        let paths: Vec<egui::Rect> = registry.iter().filter(|(id, _)| id.starts_with("path:")).map(|(_, r)| r.expand(1.0)).collect();
+        // (where a folder or file is shown, [`path_label`], and what is in a text box: where a
+        // library, a cache or an editor happens to be, or the name someone typed, is not what a
+        // setting is called, and is not looked through)
+        let paths: Vec<egui::Rect> =
+            registry.iter().filter(|(id, _)| id.starts_with("path:") || id.starts_with("field:")).map(|(_, r)| r.expand(1.0)).collect();
         headings.sort_by(|a, b| a.0.total_cmp(&b.0));
         let mut drawn = Vec::new();
         output.shapes.iter().for_each(|clipped| texts(&clipped.shape, &mut drawn));
@@ -473,7 +508,7 @@ fn sections(app: &mut LightcraftApp, now: f64) -> Vec<Section> {
                 && !text.trim().is_empty()
                 && !paths.iter().any(|path| path.contains(at))
             {
-                section.texts.push(Drawn { folded: fold(&text), text, small });
+                section.texts.push(Drawn { compared: Compared::of(&text), text, small });
             }
         }
         all.extend(of_tab.into_iter().filter(|section| !section.texts.is_empty()));
@@ -507,7 +542,7 @@ fn results(ui: &mut egui::Ui, found: &[Section], words: &str, open_first: bool, 
                 let with = section
                     .texts
                     .iter()
-                    .filter(|drawn| drawn.text != heading && words.split_whitespace().any(|word| drawn.folded.contains(word)))
+                    .filter(|drawn| drawn.text != heading && words.split_whitespace().any(|word| drawn.compared.has(word)))
                     .take(2);
                 for drawn in with {
                     // (legible on the fill a hovered or focused row has, and so on a plain one)
@@ -580,8 +615,11 @@ fn path_label(ui: &mut egui::Ui, id: &str, path: &str, font: egui::FontId, color
     // (`truncate` is the last resort, for a room narrower than "…")
     let r = ui.add(egui::Label::new(RichText::new(&shown).font(font).color(color)).truncate().show_tooltip_when_elided(false));
     register(ui.ctx(), format!("text:{id}"), r.rect);
-    // (what the filter leaves out of what it looks through)
-    register(ui.ctx(), format!("path:{id}"), r.rect);
+    // (what the filter leaves out of what it looks through; not what stands here in words when
+    // there is no folder to show)
+    if path.contains(['/', '\\']) {
+        register(ui.ctx(), format!("path:{id}"), r.rect);
+    }
     if shown != path {
         r.on_hover_text(path);
     }
