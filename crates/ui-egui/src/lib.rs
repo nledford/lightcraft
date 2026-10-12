@@ -193,6 +193,8 @@ mod tests_type_fit;
 #[cfg(test)]
 mod tests_type_on_photo;
 #[cfg(test)]
+mod tests_type_polish;
+#[cfg(test)]
 mod tests_type_readout;
 #[cfg(test)]
 mod tests_type_scale;
