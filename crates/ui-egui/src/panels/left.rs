@@ -9,6 +9,7 @@ use crate::LightcraftApp;
 use crate::icons::{Icon, paint};
 use crate::sidebar::SidebarSection;
 use crate::theme::Tokens;
+use crate::tree_state::{Branch, TreeState};
 use crate::widgets::{icon_button, register};
 
 mod albums;
@@ -23,6 +24,7 @@ pub use albums::{album_drag_feedback, auto_scroll_speed};
 use albums::{albums_rows, drag_auto_scroll};
 pub(crate) use dates::browse_all_photos;
 use dates::date_rows;
+pub(crate) use folders::follow_shown;
 pub(crate) use folders::{folder_row_of, move_photos, moved_text};
 use folders::{folder_rows, reveal_chosen};
 use keywords::keyword_rows;
@@ -30,7 +32,7 @@ pub(crate) use local::{fs_cached, fs_cached_running, same_folder};
 use local::{local_now, local_rows};
 #[cfg(test)]
 pub(crate) use rows::{INDENT_STEP, MIN_INDENT_STEP};
-use rows::{LIBFOLDER_REVEALED, Row, SCROLL_TO_ROW, set_tree_open};
+use rows::{LIBFOLDER_REVEALED, Row, SCROLL_TO_ROW};
 pub(crate) use rows::{content_width, indent_step, step_for};
 pub(crate) use sections::PlacedSection;
 pub use sections::section_drag_feedback;
@@ -43,6 +45,8 @@ use sections::{SECTION_GAP, missing_count, pinned_header, section, section_drag,
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.chrome).stroke(egui::Stroke::new(1.0, t.divider));
+    // (a library opened since the frame began is known before its rows are shown)
+    follow_shown(app, ui.ctx());
     frame.show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         // the title offers the sections' menu too: where hidden sections come back from
@@ -129,7 +133,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                         above.push('|');
                     }
                     above.push_str(name);
-                    set_tree_open(ui, egui::Id::unique(("kw-open", above.to_lowercase())), true);
+                    app.ui.sidebar_trees.show(&Branch::keyword(&above));
                 }
                 // …and the sidebar scrolls to it
                 ui.data_mut(|d| d.insert_temp(egui::Id::unique(SCROLL_TO_ROW), format!("keyword:{path}").to_lowercase()));
