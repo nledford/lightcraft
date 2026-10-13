@@ -580,6 +580,60 @@ fn sections(app: &mut LightcraftApp, now: f64) -> Vec<Section> {
     all
 }
 
+/// Where the chars at `found` (ranges of bytes of the galley's text) are drawn, from the
+/// galley's corner: a rectangle for each stretch of them in each row.
+fn marks(galley: &egui::Galley, found: &[std::ops::Range<usize>]) -> Vec<egui::Rect> {
+    let hit: Vec<bool> = galley.text().char_indices().map(|(at, _)| found.iter().any(|range| range.contains(&at))).collect();
+    let mut rects = Vec::new();
+    let mut at = 0;
+    for row in &galley.rows {
+        let mut open: Option<egui::Rect> = None;
+        // (glyphs stay in the order of the chars, one for each, whichever way the text runs: a word
+        // written from right to left has its glyphs placed from the right, not listed from it)
+        for (place, glyph) in (at..).zip(row.glyphs.iter()) {
+            if hit.get(place).copied().unwrap_or(false) {
+                let left = row.pos.x + glyph.pos.x;
+                let rect = egui::Rect::from_x_y_ranges(left..=left + glyph.advance_width, row.min_y()..=row.max_y());
+                open = Some(open.map_or(rect, |open| open.union(rect)));
+            } else if glyph.advance_width > 0.0 {
+                rects.extend(open.take());
+            }
+        }
+        rects.extend(open);
+        at += row.glyphs.len() + usize::from(row.ends_with_newline);
+    }
+    rects
+}
+
+/// The line under a result, with the chars at `found` (ranges of bytes of it) told apart by a
+/// fill behind them and a line under them (the line for whoever cannot tell the fill's colour from
+/// the row's). The line of text is one piece in one format: a piece is shaped by itself, so
+/// letters found inside a word, in a font or a colour of their own, would cut the word in three
+/// (no kerning across the cuts, and in Arabic the letters either side of them left unjoined).
+pub(crate) fn found_line(ui: &mut egui::Ui, t: &Tokens, line: String, found: &[std::ops::Range<usize>]) {
+    let fill = t.chrome.lerp_to_gamma(t.accent, 0.3);
+    // (legible on the fill a hovered or focused row has, and so on a plain one, and on the fill
+    // behind what was found: the line is in one colour)
+    let dim = t.legible(t.legible(t.legible(t.text_dim, t.hover, 4.5), t.chrome, 4.5), fill, 4.5);
+    let format = egui::TextFormat { font_id: t.font(11.0), color: dim, ..Default::default() };
+    let job = egui::text::LayoutJob::single_section(line, format);
+    let (at, galley, response) = egui::Label::new(job).selectable(false).truncate().layout_in_ui(ui);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, ui.is_enabled(), galley.text()));
+    if ui.is_rect_visible(response.rect) {
+        // (the text colour, which stands furthest from every surface: on the fill and on a plain, hovered or focused row)
+        let under = egui::Stroke::new(1.0, t.text);
+        for rect in marks(&galley, found) {
+            let rect = rect.translate(at.to_vec2()).expand2(egui::vec2(1.0, 0.0));
+            ui.painter().rect_filled(rect, egui::CornerRadius::same(2), fill);
+            ui.painter().hline(rect.x_range(), rect.bottom() - 1.0, under);
+        }
+        if galley.elided {
+            response.on_hover_text(galley.text().to_string());
+        }
+        ui.painter().add(egui::epaint::TextShape::new(at, galley, dim));
+    }
+}
+
 /// The sections found, each a row to choose (`settingsFound:{tab}:{section}`): its tab and
 /// heading, and under them the first texts of it that have a word of `words` ([`snippet`]). Gives the section
 /// chosen, by a click, by Return or Space with the focus on it, or (`open_first`) by Return in
@@ -609,21 +663,8 @@ fn results(ui: &mut egui::Ui, found: &[Section], words: &str, open_first: bool, 
                     .filter(|drawn| drawn.text != heading && words.split_whitespace().any(|word| drawn.compared.has(word)))
                     .take(2);
                 for drawn in with {
-                    let dim = t.text_dim;
-                    // The word found is in sight and told apart: the line starts shortly before
-                    // it, and it is in the text colour and a heavier weight among dimmer words.
                     let (line, found) = snippet(&drawn.text, words);
-                    let plain = egui::TextFormat { font_id: egui::FontId::proportional(11.0), color: dim, ..Default::default() };
-                    let strong = egui::TextFormat { font_id: t.semibold(11.0), color: t.text, ..Default::default() };
-                    let mut job = egui::text::LayoutJob::default();
-                    let mut at = 0;
-                    for range in found {
-                        job.append(line.get(at..range.start).unwrap_or(""), 0.0, plain.clone());
-                        job.append(line.get(range.clone()).unwrap_or(""), 0.0, strong.clone());
-                        at = range.end;
-                    }
-                    job.append(line.get(at..).unwrap_or(""), 0.0, plain);
-                    ui.add(egui::Label::new(job).selectable(false).truncate());
+                    found_line(ui, &t, line, &found);
                 }
                 ui.add_space(3.0);
             })

@@ -15,9 +15,11 @@
   section does not say itself find it ("trash" for Culling, "scheme" for Appearance; in English). A section or tab
   named for the word comes first, then one with it in a label, choice or button, then one that mentions it in an
   explanation, so Return opens the best match and not the first tab that has the word. The line under a result
-  starts shortly before the word it was found by, which is drawn stronger. The folders shown in Settings (the
-  library's, a cache's) and its text boxes (what is typed into one, or what an empty one says) are not looked
-  through. The heading of the section opened is marked for a moment. Scripts: `settingsLanded:<section>` while it is.
+  starts shortly before the word it was found by, and the letters found stand on a fill with a line under them
+  (the line of text is one piece, so a word keeps its kerning when the letters found are in its middle). The
+  folders shown in Settings (the library's, a cache's) and its text boxes (what is typed into one, or what an empty
+  one says) are not looked through. The heading of the section opened is marked for a moment. Scripts:
+  `settingsLanded:<section>` while it is.
 
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
