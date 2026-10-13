@@ -524,6 +524,16 @@ fn ui_commands_3(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Val
             app.ui.navigator = !app.ui.navigator;
             Ok(json!({"navigator": app.ui.navigator}))
         }
+        "view.tasks" => {
+            // the list of running tasks under the top bar's bell: `show` opens or closes it, without it the list toggles
+            let show = p.get("show").and_then(Value::as_bool).unwrap_or(!app.activity_open);
+            if let Some(why) = crate::panels::activity::blocked(app).filter(|_| show) {
+                return Some(Err(format!("view.tasks: the list of tasks can't be shown now: {why}")));
+            }
+            app.activity_set = Some(show);
+            ctx.request_repaint();
+            Ok(json!({"tasks": show}))
+        }
         _ => return None,
     };
     Some(r)
