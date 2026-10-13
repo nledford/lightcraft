@@ -178,6 +178,8 @@ mod tests_titlebar;
 #[cfg(test)]
 mod tests_tool_overlay;
 #[cfg(test)]
+mod tests_tree_branch;
+#[cfg(test)]
 mod tests_tree_state;
 #[cfg(test)]
 mod tests_unsaved;

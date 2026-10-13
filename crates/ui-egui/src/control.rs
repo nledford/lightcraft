@@ -360,11 +360,15 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
                     if let Some(sidebar) = sidebar {
                         u.sidebar = sidebar;
                     }
-                    if let Some(trees) = trees {
-                        u.sidebar_trees = trees;
+                    // (rows open for the session are not in what was written and read again; a
+                    // list that is given holds as it is given)
+                    match trees {
+                        Some(trees) => {
+                            u.sidebar_trees = trees;
+                            u.sidebar_trees.carry_session_under(&app.ui.sidebar_trees);
+                        }
+                        None => u.sidebar_trees.carry_session(&app.ui.sidebar_trees),
                     }
-                    // (rows open for the session are not in what was written and read again)
-                    u.sidebar_trees.carry_shown(&app.ui.sidebar_trees);
                     // `collapsedSidebar`, as scripts from before `sidebar` set it: the folded sections
                     if let Some(ids) = p.get("collapsedSidebar").and_then(Value::as_array) {
                         use crate::sidebar::SidebarSection;
