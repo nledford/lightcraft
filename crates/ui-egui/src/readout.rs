@@ -124,19 +124,20 @@ pub(crate) fn value(painter: &egui::Painter, right_center: egui::Pos2, text: &st
 
 /// `text` shortened in the middle to fit `max` (as `width` measures it): the start and the end
 /// stay, the end a character longer when they cannot be equal ("IMG_2024…153012"), for the end
-/// of a file name is the number of the frame. Cuts fall on characters; what cannot fit at all
-/// is "…".
+/// of a file name is the number of the frame. Cuts fall between letters as a reader sees them (a
+/// letter keeps its combining marks: an accent written apart, an Arabic vowel sign); what cannot
+/// fit at all is "…".
 pub(crate) fn elide_middle(text: &str, max: f32, width: impl Fn(&str) -> f32) -> String {
     if width(text) <= max {
         return text.to_string();
     }
-    let chars: Vec<char> = text.chars().collect();
+    let chars: Vec<&str> = unicode_segmentation::UnicodeSegmentation::graphemes(text, true).collect();
     let kept = |keep: usize| {
         let tail = keep.div_ceil(2);
         let head = keep - tail;
-        let mut out: String = chars.iter().take(head).collect();
+        let mut out: String = chars.iter().take(head).copied().collect();
         out.push('…');
-        out.extend(chars.iter().skip(chars.len().saturating_sub(tail)));
+        out.extend(chars.iter().skip(chars.len().saturating_sub(tail)).copied());
         out
     };
     // the most characters that fit (fewer never measure wider than more, near enough: the
@@ -260,5 +261,29 @@ mod tests {
         };
         assert_eq!(elide_middle(&long, 9.0, counting).chars().count(), 9);
         assert!(measured.get() < 40, "{} measurements", measured.get());
+    }
+
+    /// Scenario: a name written with combining marks (an accented name as macOS stores it, a vowelled
+    /// Arabic one) is cut between letters, never between a letter and its mark: no mark is left on the "…".
+    #[test]
+    fn a_cut_never_parts_a_letter_from_its_mark() {
+        // (a letter with its mark is a unit wide here, as it is drawn)
+        let width = |s: &str| s.chars().filter(|c| !('\u{300}'..='\u{36f}').contains(c) && !('\u{64b}'..='\u{652}').contains(c)).count() as f32;
+        // Given "été" eight times over, each é an e and a combining acute
+        let accented = "e\u{301}te\u{301}".repeat(8);
+        // and a vowelled Arabic word, each letter with its haraka
+        let vowelled = "\u{643}\u{64e}\u{62a}\u{64e}\u{628}\u{64e}".repeat(6);
+        for name in [accented.as_str(), vowelled.as_str()] {
+            for max in 2..12 {
+                // When it is shortened to any width
+                let short = elide_middle(name, max as f32, width);
+                // Then what follows the "…" starts with a letter, and both parts are parts of the name
+                let (head, tail) = short.split_once('…').expect("shortened");
+                let first = tail.chars().next();
+                assert!(first.is_none_or(|c| width(&c.to_string()) > 0.0), "{max}: a mark on the ellipsis in {short:?}");
+                assert!(name.starts_with(head) && name.ends_with(tail), "{max}: {short:?}");
+                assert!(width(&short) <= max as f32, "{max}: {short:?}");
+            }
+        }
     }
 }

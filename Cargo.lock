@@ -3522,6 +3522,7 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+ "unicode-segmentation",
  "web-time",
 ]
 
