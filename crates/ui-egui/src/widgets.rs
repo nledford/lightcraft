@@ -202,12 +202,29 @@ pub struct SliderOut {
 }
 
 /// What a value typed into a slider asks for (issue #322): a number such as `0.5`, `+12`, `-1,5`
-/// (comma or point) or `5600 K`, on the control's steps and clamped to its range. `None` when it
-/// isn't a finite number, so the slider keeps its value.
+/// (comma or point), `5600 K` or `5°`, on the control's steps and clamped to its range. The digits may
+/// be the Arabic-Indic or Persian ones (`١٫٥`, `۲۰٪`), as an Arabic or Persian keyboard gives
+/// them. `None` when it isn't a finite number, so the slider keeps its value.
 pub fn typed_value(spec: &ControlSpec, text: &str) -> Option<f64> {
-    // (a minus as the value is shown with, or the hyphen of a keyboard)
-    let t = text.trim().replace(',', ".").replace(crate::readout::MINUS, "-");
-    let t = t.trim_end_matches(|c: char| c == '%' || c == 'K' || c == 'k' || c.is_whitespace());
+    let t: String = text
+        .chars()
+        // (the marks a keyboard or a paste puts around a number to say which way it reads: the
+        // direction marks, and the embeddings and isolates an app wraps a number in)
+        .filter(|c| !matches!(c, '\u{200e}' | '\u{200f}' | '\u{61c}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'))
+        .map(|c| match c {
+            // (Arabic-Indic digits, and their Persian forms)
+            '\u{660}'..='\u{669}' => char::from_digit(c as u32 - 0x660, 10).unwrap_or(c),
+            '\u{6f0}'..='\u{6f9}' => char::from_digit(c as u32 - 0x6f0, 10).unwrap_or(c),
+            // (a decimal comma, the Arabic comma, or the Arabic decimal sign)
+            ',' | '\u{60c}' | '\u{66b}' => '.',
+            '\u{66a}' => '%',
+            // (a minus as the value is shown with, or the hyphen of a keyboard)
+            crate::readout::MINUS => '-',
+            c => c,
+        })
+        .collect();
+    let t = t.trim();
+    let t = t.trim_end_matches(|c: char| c == '%' || c == '°' || c == 'K' || c == 'k' || c.is_whitespace());
     let v: f64 = t.parse().ok().filter(|v: &f64| v.is_finite())?;
     let step = spec.step.max(1e-9);
     Some(((v / step).round() * step).clamp(spec.min, spec.max))

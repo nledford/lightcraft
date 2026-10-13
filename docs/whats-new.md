@@ -675,6 +675,8 @@
   three different orders.
 - A negative value has a minus (−1.25), not a hyphen; either can be typed, and the field a value opens in
   for typing has the hyphen, so that what is copied from it pastes anywhere.
+- A value can be typed in the digits an Arabic or Persian keyboard gives (١٫٥, ۲۰٪), with the Arabic decimal
+  sign, comma or percent sign; they used to be no number, and the slider kept its value.
 - A slider's value stands in a column of figures: it begins and ends where any other value of as many figures does,
   and no longer shifts while it is dragged. The counts on the rows of the left sidebar's lists (My Photos, Albums,
   Folders) are set in the same figures.

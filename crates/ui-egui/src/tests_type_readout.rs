@@ -120,6 +120,42 @@ fn a_negative_value_has_a_minus_and_is_typed_with_either_sign() {
     assert_eq!(crate::widgets::typed_value(exposure, "−"), None);
 }
 
+/// Scenario: a value is typed with the digits an Arabic or Persian keyboard gives.
+#[test]
+fn a_value_is_typed_in_arabic_or_persian_digits() {
+    // Given the exposure, contrast and temperature controls
+    let exposure = lightcraft_develop::controls::find("light.exposure").expect("the exposure control");
+    let contrast = lightcraft_develop::controls::find("light.contrast").expect("the contrast control");
+    let temp = lightcraft_develop::controls::find("wb.temp").expect("the temperature control");
+    // When a value is typed in Arabic-Indic digits, with the Arabic decimal sign or a point
+    // Then it is the number those digits write
+    assert_eq!(crate::widgets::typed_value(exposure, "١٫٢٥"), Some(1.25));
+    assert_eq!(crate::widgets::typed_value(exposure, "١.٢٥"), Some(1.25));
+    assert_eq!(crate::widgets::typed_value(exposure, "-٠٫٥"), Some(-0.5));
+    assert_eq!(crate::widgets::typed_value(exposure, "−٠٫٥"), Some(-0.5), "with the minus a value is shown with");
+    // And with the Arabic percent sign, or a unit, after it
+    assert_eq!(crate::widgets::typed_value(contrast, "٢٠٪"), Some(20.0));
+    assert_eq!(crate::widgets::typed_value(temp, "٥٦٠٠ K"), Some(5600.0));
+    // And in the Persian forms of the digits, or the two kinds together
+    assert_eq!(crate::widgets::typed_value(exposure, "۱٫۲۵"), Some(1.25));
+    assert_eq!(crate::widgets::typed_value(contrast, "۲0"), Some(20.0));
+    // And with the direction marks a keyboard or a paste can put around a number
+    assert_eq!(crate::widgets::typed_value(contrast, "\u{200f}٢٠\u{200e}"), Some(20.0));
+    assert_eq!(crate::widgets::typed_value(contrast, "\u{61c}-٢٠"), Some(-20.0));
+    // (a number pasted from an app that wraps it in an isolate or an embedding)
+    assert_eq!(crate::widgets::typed_value(contrast, "\u{2068}٢٠\u{2069}"), Some(20.0));
+    assert_eq!(crate::widgets::typed_value(contrast, "\u{202a}20\u{202c}"), Some(20.0));
+    // And with the Arabic comma for the decimal sign, as a comma is one
+    assert_eq!(crate::widgets::typed_value(exposure, "١،٥"), Some(1.5));
+    // And an angle with its degree sign, whatever follows the sign
+    assert_eq!(crate::widgets::typed_value(contrast, "٥°\u{200e}"), Some(5.0));
+    assert_eq!(crate::widgets::typed_value(contrast, "5 °"), Some(5.0));
+    // But what is not a number stays one: the slider keeps its value
+    for bad in ["٫", "١٫٢٫٣", "٪", "١٬٢٠٠", "٢٠ك"] {
+        assert_eq!(crate::widgets::typed_value(contrast, bad), None, "{bad:?}");
+    }
+}
+
 #[test]
 fn the_values_of_sliders_stand_in_one_column() {
     // Given a photo being edited
