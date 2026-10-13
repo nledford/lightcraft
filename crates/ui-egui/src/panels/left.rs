@@ -9,7 +9,7 @@ use crate::LightcraftApp;
 use crate::icons::{Icon, paint};
 use crate::sidebar::SidebarSection;
 use crate::theme::Tokens;
-use crate::tree_state::{Branch, TreeState};
+use crate::tree_state::{Branch, Said, TreeState};
 use crate::widgets::{icon_button, register};
 
 mod albums;
@@ -126,14 +126,16 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             // the keyword just made from Keywords' header: the section and the keywords above it open
             if let Some(path) = app.ui.reveal_keyword.take() {
                 app.ui.sidebar.reveal(SidebarSection::Keywords);
-                let mut above = String::new();
+                let (mut above, mut said) = (String::new(), None);
                 let mut names = path.split('|').peekable();
                 while let Some(name) = names.next().filter(|_| names.peek().is_some()) {
                     if !above.is_empty() {
                         above.push('|');
                     }
                     above.push_str(name);
-                    app.ui.sidebar_trees.show(&Branch::keyword(&above));
+                    let branch = Branch::keyword(&above);
+                    app.ui.sidebar_trees.show(&branch, said);
+                    said = app.ui.sidebar_trees.inside(&branch, said);
                 }
                 // …and the sidebar scrolls to it
                 ui.data_mut(|d| d.insert_temp(egui::Id::unique(SCROLL_TO_ROW), format!("keyword:{path}").to_lowercase()));
@@ -169,12 +171,12 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                         let tree = app.caches.folder_tree(&app.session.catalog);
                         section(app, ui, s, tree.len(), |app, ui| {
                             reveal_chosen(app, ui, &tree, reveal_folder.is_some());
-                            folder_rows(app, ui, &tree, 0.0);
+                            folder_rows(app, ui, &tree, 0.0, None);
                         })
                     }
                     SidebarSection::Keywords => {
                         let tree = app.caches.keyword_tree(&app.session.catalog);
-                        section(app, ui, s, tree.len(), |app, ui| keyword_rows(app, ui, &tree, 0.0))
+                        section(app, ui, s, tree.len(), |app, ui| keyword_rows(app, ui, &tree, 0.0, None))
                     }
                 };
                 placed.push(at);

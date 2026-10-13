@@ -246,10 +246,26 @@ fn disclosure_chevron(ui: &mut egui::Ui, row: &egui::Response, indent: f32, open
     tr
 }
 
+/// What a click on a triangle with Option (Alt) held does to the rows inside its row.
+#[derive(Clone, Copy, PartialEq)]
+pub(super) enum Inside {
+    /// Nothing is said of them: they have no rows inside them, and so no state (a month's
+    /// days, keywords and folders that hold none).
+    Alone,
+    /// They open and fold with it.
+    OpensAndFolds,
+    /// They fold with it; opened, it opens alone (Local: opening every folder inside would read
+    /// them all from the disk, down to the last).
+    Folds,
+}
+
 /// The triangle of a tree row that has rows inside it (Albums' folders, Local, By Date, Folders,
 /// Keywords): a click flips `open` and keeps it for `row` in `trees`, which is kept with the
-/// settings ([`TreeState`]): the tree opens as it was left. Returns the triangle's response (it
-/// sits on the row and takes its clicks, so a row's context menu is attached to it too).
+/// settings ([`TreeState`]): the tree opens as it was left. With Option (Alt) held, the click
+/// opens or folds all the rows inside it as well, however many ([`TreeState::set_with_inside`];
+/// `inside`: whether they open with it too). Returns the triangle's response (it sits on the row
+/// and takes its clicks, so a row's context menu is attached to it too).
+#[allow(clippy::too_many_arguments)]
 pub(super) fn tree_toggle(
     ui: &mut egui::Ui,
     trees: &mut TreeState,
@@ -258,11 +274,21 @@ pub(super) fn tree_toggle(
     row: &Branch,
     open: &mut bool,
     widget: String,
+    inside: Inside,
 ) -> egui::Response {
     let tri = disclosure_chevron(ui, on, indent, *open, row.id().with("triangle"), widget);
+    let with_what_is_inside = tri.clicked() && ui.input(|i| i.modifiers.alt);
     if tri.clicked() {
         *open = !*open;
-        trees.set(row, *open);
+        if with_what_is_inside && (inside == Inside::OpensAndFolds || (inside == Inside::Folds && !*open)) {
+            trees.set_with_inside(row, *open);
+        } else {
+            trees.set(row, *open);
+            if with_what_is_inside && inside == Inside::Alone {
+                // (what was said of the rows inside it when it had some with rows of their own)
+                trees.forget_inside(row);
+            }
+        }
     }
     let label = if *open { crate::i18n::tr("Collapse") } else { crate::i18n::tr("Expand") };
     tri.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));

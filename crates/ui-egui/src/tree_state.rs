@@ -7,14 +7,17 @@
 //! how it starts: how a row starts can change (a folder of the library that gets a second folder
 //! inside it), and what was said of it should not. Rows that open by themselves to show where
 //! the grid is (the folders above the one that is shown) are open for the session, as they
-//! always were, and are not kept; the one exception is such a row that was folded by hand: the
-//! next time one of them is opened to show where the grid is, `show` opens it for good and keeps
-//! it as open. The settings hold what somebody decided, not every folder that was ever browsed.
-//! The library's thousands of other rows are not kept either. A row that is
+//! always were, and are not kept; the one exception is such a row that was folded, by hand or with
+//! the rows above it: the next time one of them is opened to show where the grid is, `show` opens
+//! it for good and keeps it as open. The settings hold what somebody decided, not every folder that was ever browsed.
+//! The library's thousands of other rows are not kept either. A click with
+//! Option held says of a row and of all the rows inside it that they are open, or folded, and
+//! is kept as two things said, however many rows there are: of the row, and of what is inside
+//! it (`in:<row>`). A row is as the last thing said of it, or of a row above it, has it. A row that is
 //! gone (an album deleted, a folder renamed) is never asked about again; so that such rows don't
 //! pile up for ever, the rows changed longest ago go when there are more than [`MAX_ROWS`].
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +27,13 @@ pub const MAX_ROWS: usize = 2000;
 
 /// How a row's name in the settings begins: the tree it is a row of.
 const TREES: [&str; 5] = ["album:", "date:", "folder:", "keyword:", "local:"];
+
+/// Before a row's name: what is said of all the rows inside it (`in:album:12`).
+const INSIDE: &str = "in:";
+
+/// Something said of a row, or of all the rows inside one: open (or folded), and when (a
+/// count, larger is later).
+pub type Said = (bool, u64);
 
 /// A row of a tree that can be opened: what it is called in the settings, and how it starts.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -72,21 +82,41 @@ impl Branch {
 /// The rows that were opened or folded by hand (row → open), and those open for this session.
 #[derive(Clone, Debug, Default)]
 pub struct TreeState {
-    /// (open, when it was changed: a count, larger is later)
-    rows: HashMap<String, (bool, u64)>,
+    /// What was said of a row, and of the rows inside one ([`INSIDE`]).
+    rows: HashMap<String, Said>,
     changes: u64,
-    /// Rows opened to show where the grid is, for this session (never one of `rows`).
-    shown: HashSet<String>,
+    /// How many of `rows` are things said of the rows inside a row ([`INSIDE`]): most often
+    /// none, and then nothing is looked up for them.
+    whole: usize,
+    /// Rows opened to show where the grid is, for this session, and when (never one of `rows`).
+    shown: HashMap<String, u64>,
 }
 
 impl TreeState {
-    /// Whether `row` is open: as it was left, else opened to show where the grid is, else as it
-    /// starts.
+    /// Whether `row` is open, for a row with no row above it (or to ask what was said of the
+    /// row alone): as it was left, else opened to show where the grid is, else as it starts.
     pub fn is_open(&self, row: &Branch) -> bool {
-        match self.rows.get(&row.key) {
-            Some((open, _)) => *open,
-            None => self.shown.contains(&row.key) || row.starts_open,
+        self.is_open_under(row, None)
+    }
+
+    /// Whether `row` is open, given what was last said of all the rows inside the rows `above`
+    /// it ([`TreeState::inside`]): as the last of those things has it (said of the row by hand,
+    /// said of the rows it lies in, opened to show where the grid is), else as it starts.
+    pub fn is_open_under(&self, row: &Branch, above: Option<Said>) -> bool {
+        let shown = self.shown.get(&row.key).map(|when| (true, *when));
+        let last = [self.rows.get(&row.key).copied(), shown, above].into_iter().flatten().max_by_key(|(_, when)| *when);
+        last.map_or(row.starts_open, |(open, _)| open)
+    }
+
+    /// What holds for all the rows inside `row`, if anything was said of them: the later of what
+    /// was said of the rows inside `row` itself and `above`, which holds for `row` from the rows
+    /// above it.
+    pub fn inside(&self, row: &Branch, above: Option<Said>) -> Option<Said> {
+        if self.whole == 0 {
+            return above;
         }
+        let own = self.rows.get(&format!("{INSIDE}{}", row.key)).copied();
+        [own, above].into_iter().flatten().max_by_key(|(_, when)| *when)
     }
 
     /// `row` is open (or folded) from now on: somebody opened or folded it.
@@ -95,32 +125,83 @@ impl TreeState {
         self.keep(row.key.clone(), open);
     }
 
-    /// Opens `row` to show where the grid is, or something just made: for this session. A row
-    /// that was left folded is opened for good (it is open now, and can be folded again).
-    pub fn show(&mut self, row: &Branch) {
-        match self.rows.get(&row.key) {
+    /// `row` and all the rows inside it, however many and however deep, are open (or folded)
+    /// from now on: somebody opened or folded the whole of it. Two things are kept, of the row
+    /// and of what is inside it; what is said of a row inside it later holds for that row.
+    pub fn set_with_inside(&mut self, row: &Branch, open: bool) {
+        // (what is inside first: should the two ever make room one after the other, the row
+        // stays as it was left the longer, and what is inside it goes back to how it starts)
+        self.keep(format!("{INSIDE}{}", row.key), open);
+        self.set(row, open);
+    }
+
+    /// Nothing is said of the rows inside `row` any more: they have no rows inside them now.
+    pub fn forget_inside(&mut self, row: &Branch) {
+        if self.whole > 0 && self.rows.remove(&format!("{INSIDE}{}", row.key)).is_some() {
+            self.whole = self.whole.saturating_sub(1);
+        }
+    }
+
+    /// Opens `row` to show where the grid is, or something just made. A row of which nothing
+    /// was said is open for this session. One that was said to be folded, itself or with the
+    /// rows `above` it ([`TreeState::inside`]), is opened for good: it is open now, can be
+    /// folded again, and is open when the app starts again on what it shows. A row said to be
+    /// open already is left as it is.
+    pub fn show(&mut self, row: &Branch, above: Option<Said>) {
+        let shown = self.shown.get(&row.key).map(|when| (true, *when));
+        let last = [self.rows.get(&row.key).copied(), shown, above].into_iter().flatten().max_by_key(|(_, when)| *when);
+        match last {
             Some((true, _)) => {}
-            Some((false, _)) => self.keep(row.key.clone(), true),
+            Some((false, _)) => {
+                self.shown.remove(&row.key);
+                self.keep(row.key.clone(), true);
+            }
+            // (though it may start open: how a row starts can change, and it was opened)
             None => {
-                self.shown.insert(row.key.clone());
+                self.changes = self.changes.saturating_add(1);
+                self.shown.insert(row.key.clone(), self.changes);
             }
         }
     }
 
-    /// Opens `row` for this session unless it was left some way already. For showing where the
-    /// grid is when that is no choice of now but what the library opened with (as the app
-    /// starts, or by Open Library): the trees are then as they were left, and a row that was
-    /// folded stays folded.
-    pub fn show_unless_left(&mut self, row: &Branch) {
-        if !self.rows.contains_key(&row.key) && !self.shown.contains(&row.key) {
-            self.shown.insert(row.key.clone());
+    /// Opens `row` for this session unless it was left some way already, by what was said of it
+    /// or of the rows `above` it. For showing where the grid is when that is no choice of now
+    /// but what the library opened with (as the app starts, or by Open Library): the trees are
+    /// then as they were left, and a row that was folded stays folded.
+    pub fn show_unless_left(&mut self, row: &Branch, above: Option<Said>) {
+        if above.is_none() && !self.rows.contains_key(&row.key) && !self.shown.contains_key(&row.key) {
+            self.changes = self.changes.saturating_add(1);
+            self.shown.insert(row.key.clone(), self.changes);
         }
     }
 
-    /// Keeps the rows that `before` had open for the session: for settings that were written
-    /// and read again while the app runs (`ui.set`), which hold only what is kept.
-    pub fn carry_shown(&mut self, before: &TreeState) {
-        self.shown = before.shown.iter().filter(|key| !self.rows.contains_key(*key)).cloned().collect();
+    /// Keeps what `before` held of this session, for settings that were written and read
+    /// again while the app runs with the same rows (`ui.set` of something else): the rows it had
+    /// open for the session, and when each thing was said, which what is written does not hold.
+    pub fn carry_session(&mut self, before: &TreeState) {
+        // (a row said as before keeps its time; the others are said now, in their order)
+        let mut order: Vec<(u64, String)> = self.rows.iter().map(|(key, (_, when))| (*when, key.clone())).collect();
+        order.sort_unstable();
+        let mut now = before.changes;
+        for (_, key) in order {
+            let Some(row) = self.rows.get_mut(&key) else { continue };
+            row.1 = match before.rows.get(&key) {
+                Some((open, when)) if *open == row.0 => *when,
+                _ => {
+                    now = now.saturating_add(1);
+                    now
+                }
+            };
+        }
+        self.changes = now;
+        self.shown = before.shown.iter().filter(|(key, _)| !self.rows.contains_key(*key)).map(|(key, when)| (key.clone(), *when)).collect();
+    }
+
+    /// Keeps the rows `before` had open for the session under rows that a script has just set
+    /// (`ui.set` with `sidebarTrees`): the list holds as it was given, in its order, and what
+    /// was open for the session comes before all of it.
+    pub fn carry_session_under(&mut self, before: &TreeState) {
+        self.shown = before.shown.keys().filter(|key| !self.rows.contains_key(*key)).map(|key| (key.clone(), 0)).collect();
     }
 
     fn keep(&mut self, key: String, open: bool) {
@@ -129,9 +210,13 @@ impl TreeState {
             // the row changed longest ago makes room
             if let Some(oldest) = self.rows.iter().min_by_key(|(key, (_, when))| (*when, key.as_str())).map(|(key, _)| key.clone()) {
                 self.rows.remove(&oldest);
+                self.whole = self.whole.saturating_sub(usize::from(oldest.starts_with(INSIDE)));
             }
         }
-        self.rows.insert(key, (open, self.changes));
+        let whole = key.starts_with(INSIDE);
+        if self.rows.insert(key, (open, self.changes)).is_none() && whole {
+            self.whole = self.whole.saturating_add(1);
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -176,7 +261,7 @@ impl TreeState {
         for (i, entry) in entries.iter().enumerate() {
             match TreeState::row_of(entry) {
                 // (a settings file may hold the rows of a tree this version does not have)
-                Some((key, _)) if strict && !TREES.iter().any(|tree| key.starts_with(tree)) => {
+                Some((key, _)) if strict && !TREES.iter().any(|tree| key.strip_prefix(INSIDE).unwrap_or(key).starts_with(tree)) => {
                     return Err(format!("{what} (entry {i} is a row of no tree: {})", TREES.join(" ")));
                 }
                 Some(row) => rows.push(row),
@@ -279,13 +364,13 @@ mod tests {
         trees.set(&open, true);
         let kept = serde_json::to_string(&trees).unwrap();
         for row in [&folded, &open, &untouched] {
-            trees.show_unless_left(row);
+            trees.show_unless_left(row, None);
         }
         assert!(!trees.is_open(&folded) && trees.is_open(&open) && trees.is_open(&untouched));
         assert_eq!(serde_json::to_string(&trees).unwrap(), kept);
         // (a folder of albums, which starts open, folded by hand: the same)
         trees.set(&Branch::album(3), false);
-        trees.show_unless_left(&Branch::album(3));
+        trees.show_unless_left(&Branch::album(3), None);
         assert!(!trees.is_open(&Branch::album(3)));
     }
 
@@ -298,13 +383,13 @@ mod tests {
         let mut trees = TreeState::default();
         let (above, folded) = (Branch::folder("/pics", false), Branch::folder("/pics/trip", false));
         trees.set(&folded, false);
-        trees.show(&above);
-        trees.show(&folded);
+        trees.show(&above, None);
+        trees.show(&folded, None);
         assert!(trees.is_open(&above) && trees.is_open(&folded));
         assert_eq!(serde_json::to_string(&trees).unwrap(), r#"[["folder:/pics/trip",true]]"#, "only the row that had been folded is kept");
         // shown again: nothing changes, nor does the file
-        trees.show(&above);
-        trees.show(&folded);
+        trees.show(&above, None);
+        trees.show(&folded, None);
         assert_eq!(serde_json::to_string(&trees).unwrap(), r#"[["folder:/pics/trip",true]]"#);
         // the way a row starts changes (a second folder appears inside it): it is still open
         assert!(trees.is_open(&Branch::folder("/pics", true)) && trees.is_open(&Branch::folder("/pics", false)));
@@ -313,16 +398,16 @@ mod tests {
         // folded by hand after it was opened to show the grid
         trees.set(&above, false);
         assert!(!trees.is_open(&above));
-        trees.show_unless_left(&above);
+        trees.show_unless_left(&above, None);
         assert!(!trees.is_open(&above));
         assert_eq!(trees.len(), 2);
         // settings written and read again while the app runs keep what is open for the session
         let mut trees = TreeState::default();
-        trees.show(&above);
+        trees.show(&above, None);
         trees.set(&folded, false);
         let mut reread: TreeState = serde_json::from_str(&serde_json::to_string(&trees).unwrap()).unwrap();
         assert!(!reread.is_open(&above));
-        reread.carry_shown(&trees);
+        reread.carry_session(&trees);
         assert!(reread.is_open(&above) && !reread.is_open(&folded) && reread == trees);
     }
 
