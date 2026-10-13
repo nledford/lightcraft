@@ -532,6 +532,104 @@ fn sections(app: &mut LightcraftApp, now: f64) -> Vec<Section> {
     all
 }
 
+/// Whether `c` is of a script written from right to left (Hebrew, Arabic and those beside them).
+fn right_to_left(c: char) -> bool {
+    matches!(u32::from(c), 0x0590..=0x08FF | 0xFB1D..=0xFDFF | 0xFE70..=0xFEFF)
+}
+
+/// Whether `c` is part of a word written from right to left: its letters and marks, and the joiner
+/// and non-joiner between them (Persian writes a non-joiner inside a word), which are shaped with it.
+fn in_word_from_the_right(c: char) -> bool {
+    right_to_left(c) || matches!(c, '\u{200c}' | '\u{200d}')
+}
+
+/// Which char of `chars` each of a row's `glyphs` draws, the row's first being of the char `at`
+/// (left at the next row's first). Text written from left to right has a glyph for each char, in
+/// their order. A word written from right to left has its glyphs from its last char to its
+/// first, a mark before the letter it is on, and after them glyphs of no width that are of no
+/// char in particular: there each glyph is placed by the char it says it draws.
+///
+/// Two things this takes for granted, true of the faces there are today: text from left to right
+/// has one glyph a char (a face that draws one char as two glyphs would move the later marks of
+/// its row), and two words from right to left in different scripts have something between them
+/// (with nothing between them the second is left unmarked).
+fn chars_drawn(glyphs: &[egui::epaint::text::Glyph], chars: &[char], at: &mut usize) -> Vec<Option<usize>> {
+    let mut drawn = Vec::with_capacity(glyphs.len());
+    while let Some(glyph) = glyphs.get(drawn.len()) {
+        if !right_to_left(glyph.chr) {
+            drawn.push(Some(*at));
+            *at = at.saturating_add(1);
+            continue;
+        }
+        let word = chars.get(*at..).map_or(0, |rest| rest.iter().take_while(|c| in_word_from_the_right(**c)).count());
+        // (the chars of the word no glyph has been found for yet end before `left`; a mark has no
+        // width, and the next glyph may be the letter it is on)
+        let (mut left, mut marked) = (*at + word, false);
+        while let Some(glyph) = glyphs.get(drawn.len()).filter(|glyph| in_word_from_the_right(glyph.chr)) {
+            let before = if marked { left + 1 } else { left }.min(*at + word);
+            let place = chars.get(*at..before).and_then(|rest| rest.iter().rposition(|c| *c == glyph.chr)).map(|place| *at + place);
+            if let Some(place) = place {
+                (left, marked) = (place, glyph.advance_width <= 0.0);
+            }
+            drawn.push(place);
+        }
+        *at += word;
+    }
+    drawn
+}
+
+/// Where the chars at `found` (ranges of bytes of the galley's text) are drawn, from the
+/// galley's corner: a rectangle for each stretch of them in each row.
+fn marks(galley: &egui::Galley, found: &[std::ops::Range<usize>]) -> Vec<egui::Rect> {
+    let (chars, hit): (Vec<char>, Vec<bool>) = galley.text().char_indices().map(|(at, c)| (c, found.iter().any(|range| range.contains(&at)))).unzip();
+    let mut rects = Vec::new();
+    let mut at = 0;
+    for row in &galley.rows {
+        let mut open: Option<egui::Rect> = None;
+        for (glyph, drawn) in row.glyphs.iter().zip(chars_drawn(&row.glyphs, &chars, &mut at)) {
+            if drawn.and_then(|place| hit.get(place)).copied().unwrap_or(false) {
+                let left = row.pos.x + glyph.pos.x;
+                let rect = egui::Rect::from_x_y_ranges(left..=left + glyph.advance_width, row.min_y()..=row.max_y());
+                open = Some(open.map_or(rect, |open| open.union(rect)));
+            } else if glyph.advance_width > 0.0 {
+                rects.extend(open.take());
+            }
+        }
+        rects.extend(open);
+        at += usize::from(row.ends_with_newline);
+    }
+    rects
+}
+
+/// The line under a result, with the chars at `found` (ranges of bytes of it) told apart by a
+/// fill behind them and a line under them (the line for whoever cannot tell the fill's colour from
+/// the row's). The line of text is one piece in one format: a piece is shaped by itself, so
+/// letters found inside a word, in a font or a colour of their own, would cut the word in three
+/// (no kerning across the cuts, and in Arabic the letters either side of them left unjoined).
+pub(crate) fn found_line(ui: &mut egui::Ui, t: &Tokens, line: String, found: &[std::ops::Range<usize>]) {
+    let fill = t.chrome.lerp_to_gamma(t.accent, 0.3);
+    // (legible on the fill a hovered or focused row has, and so on a plain one, and on the fill
+    // behind what was found: the line is in one colour)
+    let dim = t.legible(t.legible(t.legible(t.text_dim, t.hover, 4.5), t.chrome, 4.5), fill, 4.5);
+    let format = egui::TextFormat { font_id: t.font(11.0), color: dim, ..Default::default() };
+    let job = egui::text::LayoutJob::single_section(line, format);
+    let (at, galley, response) = egui::Label::new(job).selectable(false).truncate().layout_in_ui(ui);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, ui.is_enabled(), galley.text()));
+    if ui.is_rect_visible(response.rect) {
+        // (a line that stands on the fill and on a plain, hovered or focused row)
+        let under = egui::Stroke::new(1.0, t.legible(t.legible(t.legible(t.text, t.hover, 3.0), t.chrome, 3.0), fill, 3.0));
+        for rect in marks(&galley, found) {
+            let rect = rect.translate(at.to_vec2()).expand2(egui::vec2(1.0, 0.0));
+            ui.painter().rect_filled(rect, egui::CornerRadius::same(2), fill);
+            ui.painter().hline(rect.x_range(), rect.bottom() - 1.0, under);
+        }
+        if galley.elided {
+            response.on_hover_text(galley.text().to_string());
+        }
+        ui.painter().add(egui::epaint::TextShape::new(at, galley, dim));
+    }
+}
+
 /// The sections found, each a row to choose (`settingsFound:{tab}:{section}`): its tab and
 /// heading, and under them the first texts of it that have a word of `words` ([`snippet`]). Gives the section
 /// chosen, by a click, by Return or Space with the focus on it, or (`open_first`) by Return in
@@ -561,22 +659,8 @@ fn results(ui: &mut egui::Ui, found: &[Section], words: &str, open_first: bool, 
                     .filter(|drawn| drawn.text != heading && words.split_whitespace().any(|word| drawn.compared.has(word)))
                     .take(2);
                 for drawn in with {
-                    // (legible on the fill a hovered or focused row has, and so on a plain one)
-                    let dim = t.legible(t.legible(t.text_dim, t.hover, 4.5), t.chrome, 4.5);
-                    // The word found is in sight and told apart: the line starts shortly before
-                    // it, and it is in the text colour and a heavier weight among dimmer words.
                     let (line, found) = snippet(&drawn.text, words);
-                    let plain = egui::TextFormat { font_id: egui::FontId::proportional(11.0), color: dim, ..Default::default() };
-                    let strong = egui::TextFormat { font_id: t.semibold(11.0), color: t.text, ..Default::default() };
-                    let mut job = egui::text::LayoutJob::default();
-                    let mut at = 0;
-                    for range in found {
-                        job.append(line.get(at..range.start).unwrap_or(""), 0.0, plain.clone());
-                        job.append(line.get(range.clone()).unwrap_or(""), 0.0, strong.clone());
-                        at = range.end;
-                    }
-                    job.append(line.get(at..).unwrap_or(""), 0.0, plain);
-                    ui.add(egui::Label::new(job).selectable(false).truncate());
+                    found_line(ui, &t, line, &found);
                 }
                 ui.add_space(3.0);
             })
