@@ -241,9 +241,28 @@ fn op_variants_are_versioned() {
     // (formats 9 and 10 added no op: 9 added fields, 10 changed how records are stored, `crate::stored`)
     let newest = since(&Op::SetHistoryCursor { id: PhotoId(1), cursor: None });
     // the newest format in this build that adds an op is the newest op's, and says so
-    let adds_an_op = FORMATS.iter().rev().find(|f| f.here && f.adds.contains("`Op::")).expect("a format adds an op");
+    let adds_an_op = crate::journal::newest_op_format(FORMATS).expect("a format adds an op");
     assert_eq!(adds_an_op.version, newest, "the newest op's format is the newest row of FORMATS that adds one: {adds_an_op:?}");
     assert!(adds_an_op.adds.contains("Op::SetHistoryCursor"), "{adds_an_op:?}");
+}
+
+/// A format that only adds a field may name the op that carries it ("`Op::SetContent`'s `preview_checked`", as #974
+/// does): which formats add an op is each row's own flag ([`crate::journal::Format::adds_op`]), never its wording.
+#[test]
+fn a_format_that_only_adds_a_field_may_name_an_op() {
+    use crate::journal::{Format, newest_op_format};
+    let row = |version, adds, adds_op| Format { version, written_by: "a build", adds, adds_op, here: true };
+    let formats = [row(1, "", false), row(2, "`Op::SetBrowsed`", true), row(3, "`Op::SetContent`'s `preview_checked`", false)];
+    assert_eq!(newest_op_format(&formats).map(|f| f.version), Some(2), "format 3 adds a field, whatever it names");
+}
+
+/// Given the list of catalog formats, then each row that says it adds an op names the op it adds: the flag and the
+/// words don't part.
+#[test]
+fn a_format_that_adds_an_op_names_it() {
+    for f in FORMATS.iter().filter(|f| f.adds_op) {
+        assert!(f.adds.contains("`Op::"), "format {} adds an op: its row names it ({:?})", f.version, f.adds);
+    }
 }
 
 /// Given the list of catalog formats, then each number is there once, in order and without a
