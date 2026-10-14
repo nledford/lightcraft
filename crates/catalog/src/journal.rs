@@ -57,7 +57,9 @@
 //! - **Add a row to [`FORMATS`]** in the change that adds an [`Op`] variant or a serialized field
 //!   to the catalog, a photo, an album, a stack or develop settings that an older build would
 //!   misread or silently drop. New fields must deserialize from older data (`#[serde(default)]`),
-//!   so newer builds keep reading every older format.
+//!   so newer builds keep reading every older format. The row says whether it adds an op
+//!   ([`NEW_OP`]) or only fields ([`FIELDS`]); a row's description is free to name an op either
+//!   way (a field an op carries), since nothing reads its words.
 //! - **A number means one format, and is final only on `main`.** Two changes written at the same
 //!   time both take the next number; the one that lands second takes the number after it (and
 //!   renames its fixture). A number that is spoken for but not in this build yet can have its
@@ -103,27 +105,40 @@ pub struct Format {
     pub written_by: &'static str,
     /// What it adds to the format before it.
     pub adds: &'static str,
+    /// It adds an [`Op`] variant ([`NEW_OP`]), not only fields ([`FIELDS`]): the newest of these is the newest op's
+    /// format (the guard test `op_variants_are_versioned` holds that against the ops themselves).
+    pub adds_op: bool,
     /// This build reads and writes what the format adds. `false`: the number is spoken for by a
     /// change that is not in this build yet (see the module docs → *Format versions*).
     pub here: bool,
 }
 
-const fn format(version: u32, written_by: &'static str, adds: &'static str) -> Format {
-    Format { version, written_by, adds, here: true }
+/// A row of [`FORMATS`] that adds an [`Op`] variant ([`Format::adds_op`]).
+pub const NEW_OP: bool = true;
+/// A row of [`FORMATS`] that adds fields, or a way of storing records, but no op.
+pub const FIELDS: bool = false;
+
+const fn format(version: u32, written_by: &'static str, adds_op: bool, adds: &'static str) -> Format {
+    Format { version, written_by, adds, adds_op, here: true }
+}
+
+/// The newest format in `formats` that this build has and that adds an op, by each row's flag.
+pub fn newest_op_format(formats: &[Format]) -> Option<&Format> {
+    formats.iter().rev().find(|f| f.here && f.adds_op)
 }
 
 /// Every catalog format, oldest first. (Before them: early builds wrote a log without a snapshot.)
 pub const FORMATS: &[Format] = &[
-    format(1, "up to v0.2.0", ""),
-    format(2, "after v0.2.0", "`Op::SetBrowsed`, `Catalog.browsed`, `Photo.local_baseline`"),
-    format(3, "albums by hand", "`Op::SetAlbumOrder`, `Album.order`"),
-    format(4, "Reload reads lens data", "`Op::SetEmbeddedLens`"),
-    format(5, "the keyword list", "`Op::SetKeyword`, `Catalog.keyword_list`"),
-    format(6, "folder labels", "`Op::SetFolderRecord`, `Catalog.folder_records`"),
-    format(7, "Kelvin white balance (#730)", "`Op::SetAsShotWb`, `WhiteBalance.scale`"),
-    format(8, "the History cursor", "`Op::SetHistoryCursor`, `Photo.history_cursor`"),
-    format(9, "preview-only recheck (#974)", "`Photo.preview_checked`, `Op::SetContent`'s `preview_checked`"),
-    format(10, "compact records", "the stored form (`crate::stored`): unset fields and default develop settings are left out"),
+    format(1, "up to v0.2.0", FIELDS, ""),
+    format(2, "after v0.2.0", NEW_OP, "`Op::SetBrowsed`, `Catalog.browsed`, `Photo.local_baseline`"),
+    format(3, "albums by hand", NEW_OP, "`Op::SetAlbumOrder`, `Album.order`"),
+    format(4, "Reload reads lens data", NEW_OP, "`Op::SetEmbeddedLens`"),
+    format(5, "the keyword list", NEW_OP, "`Op::SetKeyword`, `Catalog.keyword_list`"),
+    format(6, "folder labels", NEW_OP, "`Op::SetFolderRecord`, `Catalog.folder_records`"),
+    format(7, "Kelvin white balance (#730)", NEW_OP, "`Op::SetAsShotWb`, `WhiteBalance.scale`"),
+    format(8, "the History cursor", NEW_OP, "`Op::SetHistoryCursor`, `Photo.history_cursor`"),
+    format(9, "preview-only recheck (#974)", FIELDS, "`Photo.preview_checked`, `Op::SetContent`'s `preview_checked`"),
+    format(10, "compact records", FIELDS, "the stored form (`crate::stored`): unset fields and default develop settings are left out"),
 ];
 
 /// The catalog format this build writes (and the newest it reads): the newest of [`FORMATS`].
