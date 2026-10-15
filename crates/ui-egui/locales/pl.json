@@ -2269,5 +2269,11 @@
   "SDR Shadows": "Cienie SDR",
   "SDR Whites": "Biele SDR",
   "SDR Clarity": "Przejrzystość SDR",
-  "Face Models on the GPU": "Modele twarzy przetwarzane na GPU"
+  "Face Models on the GPU": "Modele twarzy przetwarzane na GPU",
+  "Continue in Background": "Kontynuuj w tle",
+  "Folder not found": "Nie znaleziono folderu",
+  "Dismiss": "Odrzuć",
+  "Review…": "Przejrzyj…",
+  "Open Synchronize Folder with what the scan found": "Otwórz Synchronizuj folder z tym, co znalazło przeszukiwanie",
+  "You can go on working: a notice at the top left says when the scan is done.": "Możesz dalej pracować: komunikat w lewym górnym rogu powie, kiedy przeszukiwanie się skończy."
 }
