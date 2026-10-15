@@ -1869,7 +1869,6 @@
   "Skipped: files that can't be read": "Pominięto: pliki, których nie można odczytać",
   "This folder isn't there: it was moved or renamed, or its disk isn't connected.": "Ten folder nie istnieje: przeniesiono go, zmieniono nazwę albo odłączono dysk.",
   "Relink photos whose file was renamed or moved": "Połącz ponownie zdjęcia, których pliki przeniesiono lub przemianowano",
-  "A folder is already being synchronized": "Trwa już synchronizacja folderu",
   "Synchronizing…": "Synchronizowanie…",
   "Relinked": "Połączono ponownie",
   "Removed": "Usunięto",
@@ -1878,8 +1877,6 @@
   "Stopped": "Zatrzymano",
   "Stopped by an error (see the log)": "Zatrzymano z powodu błędu (zobacz dziennik)",
   "Not saved": "Nie zapisano",
-  "A folder is being synchronized": "Trwa synchronizacja folderu",
-  "Wait for the import to finish": "Poczekaj na zakończenie importu",
   "Quit while tasks are running?": "Zakończyć, gdy trwają zadania?",
   "Exporting contact sheet": "Eksportowanie arkusza stykowego",
   "Reading folder": "Odczytywanie folderu",
@@ -2282,5 +2279,6 @@
   "Remove from Queue": "Usuń z kolejki",
   "Retry": "Ponów",
   "Queued: it starts when the task ahead of it ends": "W kolejce: rozpocznie się po zakończeniu poprzedniego zadania",
-  "1 task waiting in line won't run.": "1 zadanie oczekujące w kolejce nie zostanie uruchomione."
+  "1 task waiting in line won't run.": "1 zadanie oczekujące w kolejce nie zostanie uruchomione.",
+  "Another library was opened: nothing was done": "Otwarto inną bibliotekę: nic nie zrobiono"
 }

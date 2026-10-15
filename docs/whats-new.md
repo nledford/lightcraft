@@ -2,6 +2,15 @@
 
 ## 2026-10-21
 
+### Imports and Synchronize Folder wait for each other
+- An import confirmed (or photos dropped on the window) while a Synchronize Folder runs, or a Synchronize Folder
+  confirmed while an import runs, now waits in line and starts by itself when the other ends. Before, it was refused
+  ("Wait for the import to finish", "A folder is being synchronized").
+- A waiting import checks for duplicates against the library as it is when its turn comes, so nothing is added twice.
+- A waiting Synchronize Folder looks at its folder again when its turn comes. It removes or relinks only the photos
+  its dialog showed: one that went missing while it waited is left alone, and the message at the end says so.
+- An import or Synchronize Folder that did not go well has Retry in its row under the bell.
+
 ### A second preview build waits for the first
 - File ▸ Previews stays available while a build runs. Build Previews or Build / Discard Smart Previews chosen
   meanwhile now waits in line and starts by itself when the builds ahead of it end, with the photos that were chosen

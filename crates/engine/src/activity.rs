@@ -50,6 +50,9 @@ pub const MAX_WAITING: usize = 100;
 pub enum Lane {
     /// Build Previews and Build / Discard Smart Previews: one preview build at a time (`Session::preview_build`).
     Previews,
+    /// Imports and Synchronize Folder: each plans its work against the library as it is when it starts, so two side by
+    /// side could add the same file twice. Run by the app (the requests' commands are the app's, `app:…`).
+    Library,
 }
 
 impl Lane {
@@ -57,6 +60,7 @@ impl Lane {
     pub fn of(kind: &str) -> Option<Lane> {
         match kind {
             "previews" | "smartPreviews" => Some(Lane::Previews),
+            "import" | "sync" => Some(Lane::Library),
             _ => None,
         }
     }
@@ -298,7 +302,7 @@ impl Unit {
 #[serde(rename_all = "camelCase")]
 pub struct TaskInfo {
     pub id: u64,
-    /// A stable id: `import`, `export`, `scan`, `previews`, `smartPreviews`, `lightroom`, `merge`, `download`,
+    /// A stable id: `import`, `export`, `scan`, `sync`, `previews`, `smartPreviews`, `lightroom`, `merge`, `download`,
     /// `faces`, `denoise`, `findMissing`, `applePhotos`, `cache`, `focus`.
     pub kind: &'static str,
     /// English; the frontend translates it.
@@ -571,10 +575,27 @@ impl Activity {
     /// Take the first waiting task whose lane is free out of the line, to be started now. The next task of its
     /// kind started ([`Activity::start`]) keeps its id, until [`Activity::started`] says the attempt is over.
     pub fn take_ready(&self) -> Option<Waiting> {
+        self.take_ready_if(|_| true)
+    }
+
+    /// [`Activity::take_ready`] among the tasks whose request `runs` can run: each frontend starts what it knows how to
+    /// (the engine its commands, the app its own). Only the first in each lane's line is looked at: one the caller
+    /// can't run holds its lane, as it would if it had started.
+    pub fn take_ready_if(&self, runs: impl Fn(&Request) -> bool) -> Option<Waiting> {
         let mut waiting = lock(&self.inner.waiting);
-        let busy: Vec<Lane> = lock(&self.inner.tasks).iter().filter_map(|e| Lane::of(e.kind)).collect();
-        let at = waiting.iter().position(|w| !busy.contains(&w.lane))?;
-        let w = waiting.remove(at);
+        let mut held: Vec<Lane> = lock(&self.inner.tasks).iter().filter_map(|e| Lane::of(e.kind)).collect();
+        let mut at = None;
+        for (i, w) in waiting.iter().enumerate() {
+            if held.contains(&w.lane) {
+                continue;
+            }
+            if runs(&w.request) {
+                at = Some(i);
+                break;
+            }
+            held.push(w.lane);
+        }
+        let w = waiting.remove(at?);
         *lock(&self.inner.reserved) = Some((w.kind, w.id));
         Some(w)
     }
@@ -1185,5 +1206,25 @@ mod tests {
             a.enqueue("previews", "Building previews", request(&[1])).unwrap();
         }
         assert!(a.enqueue("previews", "Building previews", request(&[1])).is_err());
+    }
+
+    /// The engine starts only the requests it can run; one it can't (an app import) holds its lane for the app, and a
+    /// later one in that lane never jumps it. Other lanes go on.
+    #[test]
+    fn each_frontend_starts_only_what_it_can_run_and_no_task_jumps_its_line() {
+        let a = Activity::default();
+        let app = |p: u64| Request { command: "app:import".into(), params: serde_json::json!({ "n": p }) };
+        let engine = |p: u64| Request { command: "library.import".into(), params: serde_json::json!({ "n": p }) };
+        let (first, _) = a.enqueue("import", "Importing", app(1)).unwrap();
+        let (second, _) = a.enqueue("import", "Importing", engine(2)).unwrap();
+        let (previews, _) = a.enqueue("previews", "Building previews", request(&[1])).unwrap();
+        let engine_runs = |r: &Request| !r.command.starts_with("app:");
+        assert_eq!(a.take_ready_if(engine_runs).map(|w| w.id), Some(previews), "the preview lane isn't held up");
+        a.started();
+        assert!(a.take_ready_if(engine_runs).is_none(), "the second import waits behind the first, which the app runs");
+        assert_eq!(a.take_ready_if(|r| r.command.starts_with("app:")).map(|w| w.id), Some(first));
+        a.started();
+        assert_eq!(a.take_ready_if(engine_runs).map(|w| w.id), Some(second));
+        assert_eq!(Lane::of("sync"), Some(Lane::Library));
     }
 }

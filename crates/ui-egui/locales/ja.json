@@ -1923,7 +1923,6 @@
   "Skipped: files that can't be read": "スキップ: 読み込めないファイル",
   "This folder isn't there: it was moved or renamed, or its disk isn't connected.": "このフォルダが見つかりません。移動または名前の変更がされたか、ディスクが接続されていません。",
   "Relink photos whose file was renamed or moved": "ファイル名の変更や移動があった写真をリンクし直す",
-  "A folder is already being synchronized": "すでにフォルダを同期中です",
   "Synchronizing…": "同期中…",
   "Relinked": "リンクし直し",
   "Removed": "除去",
@@ -1932,8 +1931,6 @@
   "Stopped": "停止しました",
   "Stopped by an error (see the log)": "エラーで停止しました（ログを参照）",
   "Not saved": "保存されていません",
-  "A folder is being synchronized": "フォルダを同期中です",
-  "Wait for the import to finish": "読み込みが終わるまでお待ちください",
   "Appearance": "外観",
   "Appearance Mode": "外観モード",
   "Sync with System": "システムと同期",
@@ -2355,5 +2352,6 @@
   "Remove from Queue": "キューから削除",
   "Retry": "再試行",
   "Queued: it starts when the task ahead of it ends": "キューに追加: 前のタスクが終わると開始します",
-  "1 task waiting in line won't run.": "待機中の 1 件は実行されません。"
+  "1 task waiting in line won't run.": "待機中の 1 件は実行されません。",
+  "Another library was opened: nothing was done": "別のライブラリが開かれました: 何も行われていません"
 }

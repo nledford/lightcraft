@@ -316,5 +316,6 @@
   "{n} waiting": "{n} čeká",
   "Starts after {n} more": "Začne po {n} dalších",
   "Queued: it starts after {n} more": "Ve frontě: začne po {n} dalších",
-  "{n} tasks waiting in line won't run.": "Úlohy čekající ve frontě ({n}) se nespustí."
+  "{n} tasks waiting in line won't run.": "Úlohy čekající ve frontě ({n}) se nespustí.",
+  "{n} more missing, left alone: synchronize again to review them": "{n} dalších chybí, ponecháno beze změny: pro kontrolu synchronizujte znovu"
 }

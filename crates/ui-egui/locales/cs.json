@@ -16,8 +16,6 @@
   "=  exactly": "=  přesně",
   "A blank template keeps the original names.": "Prázdná šablona zachová původní názvy.",
   "A filter is hiding this view's photos: change it, or clear it (View → Clear Filters)": "Fotografie v tomto zobrazení skrývá filtr: změňte jej nebo jej zrušte (Zobrazení → Zrušit filtry)",
-  "A folder is already being synchronized": "Již probíhá synchronizace složky",
-  "A folder is being synchronized": "Probíhá synchronizace složky",
   "A keyword set needs a name": "Sada klíčových slov musí mít název",
   "A one-time download of about": "Jednorázové stažení přibližně",
   "A pen's pressure sets the size and flow of the brush": "Přítlak pera určuje velikost a tok štětce",
@@ -2035,7 +2033,6 @@
   "Visualize range": "Zobrazit rozsah",
   "Vivid": "Živé",
   "Vivid Pop": "Živé zvýraznění",
-  "Wait for the import to finish": "Počkejte na dokončení importu",
   "Waiting to start…": "Čekání na spuštění…",
   "Warm Film": "Teplý film",
   "Warm Glow": "Teplá záře",
@@ -2407,5 +2404,6 @@
   "Remove from Queue": "Odebrat z fronty",
   "Retry": "Zkusit znovu",
   "Queued: it starts when the task ahead of it ends": "Ve frontě: začne, až skončí úloha před ní",
-  "1 task waiting in line won't run.": "1 úloha čekající ve frontě se nespustí."
+  "1 task waiting in line won't run.": "1 úloha čekající ve frontě se nespustí.",
+  "Another library was opened: nothing was done": "Byla otevřena jiná knihovna: nic se neprovedlo"
 }

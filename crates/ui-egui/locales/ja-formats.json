@@ -316,5 +316,6 @@
   "{n} waiting": "待機中 {n} 件",
   "Starts after {n} more": "あと {n} 件の後に開始",
   "Queued: it starts after {n} more": "キューに追加: あと {n} 件の後に開始します",
-  "{n} tasks waiting in line won't run.": "待機中の {n} 件は実行されません。"
+  "{n} tasks waiting in line won't run.": "待機中の {n} 件は実行されません。",
+  "{n} more missing, left alone: synchronize again to review them": "ほかに {n} 件が見つからず、そのままにしました: 確認するにはもう一度同期してください"
 }

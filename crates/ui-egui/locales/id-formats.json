@@ -316,5 +316,6 @@
   "{n} waiting": "{n} menunggu",
   "Starts after {n} more": "Dimulai setelah {n} lagi",
   "Queued: it starts after {n} more": "Dalam antrean: dimulai setelah {n} lagi",
-  "{n} tasks waiting in line won't run.": "{n} tugas yang menunggu dalam antrean tidak akan dijalankan."
+  "{n} tasks waiting in line won't run.": "{n} tugas yang menunggu dalam antrean tidak akan dijalankan.",
+  "{n} more missing, left alone: synchronize again to review them": "{n} lagi hilang dan dibiarkan: sinkronkan lagi untuk memeriksanya"
 }

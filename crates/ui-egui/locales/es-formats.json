@@ -316,5 +316,6 @@
   "{n} waiting": "{n} en espera",
   "Starts after {n} more": "Empieza tras {n} más",
   "Queued: it starts after {n} more": "En cola: empieza tras {n} más",
-  "{n} tasks waiting in line won't run.": "{n} tareas en cola no se ejecutarán."
+  "{n} tasks waiting in line won't run.": "{n} tareas en cola no se ejecutarán.",
+  "{n} more missing, left alone: synchronize again to review them": "Faltan {n} más, sin tocar: sincroniza de nuevo para revisarlas"
 }

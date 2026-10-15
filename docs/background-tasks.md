@@ -26,9 +26,22 @@ row are `activity.finished` / `activity.dismiss` and `activityFinished`.
 
 ## Waiting in line
 
-Some jobs must not run side by side: they share a **lane** (`activity::Lane`). Today that is the preview lane: Build
-Previews and Build / Discard Smart Previews in the background, one preview build at a time. One asked for while its
-lane is busy waits in line instead of being refused (the File ▸ Previews items, `queue: true` for agents): its row is
+Some jobs must not run side by side: they share a **lane** (`activity::Lane`). There are two so far:
+
+- **The preview lane:** Build Previews and Build / Discard Smart Previews in the background, one preview build at a
+  time (the File ▸ Previews items, `queue: true` for agents).
+- **The library lane:** imports (the import review's Import, files dropped on the window) and Synchronize Folder.
+  Each plans its work against the library as it is when it starts, so two side by side could add the same file. An
+  import that waited checks for duplicates against the library as it is when its turn comes; a Synchronize Folder
+  scans its folder again, then removes or relinks only the photos its dialog showed: one that went missing while it
+  waited was never shown, so it is left alone and the end says so ("1 more missing, left alone: synchronize again to
+  review them"). The dialog's own scan ("Looking for changes", kind `scan`) only reads and holds up nothing. These
+  requests are the app's (`app:import`, `app:synchronize`): the app starts them (`LightcraftApp::start_waiting`,
+  every frame), the engine leaves them alone (`Activity::take_ready_if`). Auto Import waits until nothing runs, rescans
+  or waits in this lane. A waiting Synchronize that is still scanning when another library is opened stops without
+  doing anything.
+
+One asked for while its lane is busy waits in line instead of being refused: its row is
 listed under "Waiting", below the running tasks, saying when it starts ("Starts next", "Starts after 2 more"), with
 ✕ to take it out of the line; the line beside the bell counts them ("Building previews · 40 % · 2 waiting"), and a
 toast says it was queued. It keeps what it was asked, with everything that depends on the moment written out (the

@@ -1921,7 +1921,6 @@
   "Skipped: files that can't be read": "Ignorados: arquivos que não podem ser lidos",
   "This folder isn't there: it was moved or renamed, or its disk isn't connected.": "Esta pasta não está lá: foi movida ou renomeada, ou o disco dela não está conectado.",
   "Relink photos whose file was renamed or moved": "Vincular de novo fotos cujo arquivo foi renomeado ou movido",
-  "A folder is already being synchronized": "Uma pasta já está sendo sincronizada",
   "Synchronizing…": "Sincronizando…",
   "Relinked": "Revinculadas",
   "Removed": "Removidas",
@@ -1930,8 +1929,6 @@
   "Stopped": "Interrompido",
   "Stopped by an error (see the log)": "Interrompido por um erro (veja o log)",
   "Not saved": "Não salvo",
-  "A folder is being synchronized": "Uma pasta está sendo sincronizada",
-  "Wait for the import to finish": "Aguarde a importação terminar",
   "Appearance": "Aparência",
   "Appearance Mode": "Modo de aparência",
   "Sync with System": "Sincronizar com o sistema",
@@ -2201,5 +2198,6 @@
   "Remove from Queue": "Remover da fila",
   "Retry": "Tentar novamente",
   "Queued: it starts when the task ahead of it ends": "Na fila: começa quando a tarefa anterior terminar",
-  "1 task waiting in line won't run.": "1 tarefa na fila não será executada."
+  "1 task waiting in line won't run.": "1 tarefa na fila não será executada.",
+  "Another library was opened: nothing was done": "Outra biblioteca foi aberta: nada foi feito"
 }

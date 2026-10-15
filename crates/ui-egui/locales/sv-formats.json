@@ -316,5 +316,6 @@
   "{n} waiting": "{n} väntar",
   "Starts after {n} more": "Startar efter {n} till",
   "Queued: it starts after {n} more": "I kö: startar efter {n} till",
-  "{n} tasks waiting in line won't run.": "{n} uppgifter som väntar i kön kommer inte att köras."
+  "{n} tasks waiting in line won't run.": "{n} uppgifter som väntar i kön kommer inte att köras.",
+  "{n} more missing, left alone: synchronize again to review them": "{n} fler saknas och lämnades orörda: synkronisera igen för att granska dem"
 }

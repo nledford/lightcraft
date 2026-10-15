@@ -316,5 +316,6 @@
   "{n} waiting": "{n} ელოდება",
   "Starts after {n} more": "დაიწყება კიდევ {n}-ის შემდეგ",
   "Queued: it starts after {n} more": "რიგშია: დაიწყება კიდევ {n}-ის შემდეგ",
-  "{n} tasks waiting in line won't run.": "რიგში მყოფი {n} ამოცანა არ გაეშვება."
+  "{n} tasks waiting in line won't run.": "რიგში მყოფი {n} ამოცანა არ გაეშვება.",
+  "{n} more missing, left alone: synchronize again to review them": "კიდევ {n} აკლია და ხელუხლებლად დარჩა: გადასახედად ხელახლა მოახდინეთ სინქრონიზაცია"
 }

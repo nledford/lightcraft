@@ -444,6 +444,8 @@ pub struct LightcraftApp {
     pub sync_owns_changes: bool,
     /// A Synchronize Folder at work in the background.
     pub sync_run: Option<sync::SyncRun>,
+    /// A Synchronize Folder that waited in line, scanning its folder again before it runs.
+    pub sync_queued: Option<sync::SyncRescan>,
     /// A Lightroom catalog inspect/import in progress.
     pub lightroom: Option<lightroom_import::LightroomTask>,
     /// Last terminal Lightroom result, exposed by the command's status/wait response.
@@ -551,6 +553,7 @@ impl LightcraftApp {
             sync: None,
             sync_owns_changes: false,
             sync_run: None,
+            sync_queued: None,
             lightroom: None,
             lightroom_last: None,
             lightroom_result: None,
@@ -708,20 +711,50 @@ impl LightcraftApp {
             }
             // (`place` tells a task put in line from the older `queued` counts of AI Denoise and Read Focus Points)
             Ok(v) if v.get("queued").and_then(Value::as_u64).is_some() && v.get("place").and_then(Value::as_u64).is_some() => {
-                // a task asked for while one of its lane runs waits in line: say so, or nothing seems to happen
-                let place = v.get("place").and_then(Value::as_u64).unwrap_or(1);
-                // (counted as its row counts: the waiting tasks ahead of it, after the running one)
-                let text = if place <= 1 {
-                    i18n::tr("Queued: it starts when the task ahead of it ends").to_string()
-                } else {
-                    i18n::tr_format!("Queued: it starts after {n} more", n = place - 1)
-                };
-                let now = self.tasks.repaint.as_ref().map(|ctx| ctx.input(|i| i.time)).unwrap_or(self.last_time);
-                self.ui.toast = Some((text, now + TOAST_SECONDS, None));
+                self.queued_toast(v.get("place").and_then(Value::as_u64).unwrap_or(1));
             }
             Ok(_) => {}
         }
         r
+    }
+
+    /// Say that a task waits in line at `place` of its lane: without it, asking for it seems to do nothing.
+    pub(crate) fn queued_toast(&mut self, place: u64) {
+        // (counted as its row counts: the waiting tasks ahead of it, after the running one)
+        let text = if place <= 1 {
+            i18n::tr("Queued: it starts when the task ahead of it ends").to_string()
+        } else {
+            i18n::tr_format!("Queued: it starts after {n} more", n = place - 1)
+        };
+        let now = self.tasks.repaint.as_ref().map(|ctx| ctx.input(|i| i.time)).unwrap_or(self.last_time);
+        self.ui.toast = Some((text, now + TOAST_SECONDS, None));
+    }
+
+    /// Start the tasks waiting in line whose lane is free: the engine's ([`lightcraft_engine::Session::start_waiting`])
+    /// and the app's own (`app:import`, `app:synchronize`), each the way it was asked. One that can't start leaves a
+    /// row saying why, which can be retried; the next in line goes on.
+    fn start_waiting(&mut self, ctx: &egui::Context) {
+        self.session.start_waiting();
+        // The app's own wait while its slots are taken, row or no row yet: an import set this frame (Auto Import, its
+        // row comes at the next tick), a synchronize, or a Local folder being read (it becomes an import when read).
+        let held = self.import.is_some() || self.sync_run.is_some() || self.sync_queued.is_some() || self.scan.as_ref().is_some_and(|t| t.browse);
+        if held {
+            return;
+        }
+        // (bounded: each turn takes one task out of a line that is at most this long)
+        for _ in 0..lightcraft_engine::activity::MAX_WAITING {
+            let Some(w) = self.session.activity.take_ready_if(|r| r.command.starts_with("app:")) else { break };
+            let r = match w.request.command.as_str() {
+                import::IMPORT_REQUEST => import::start_request(self, ctx, &w.request),
+                sync::SYNC_REQUEST => sync::start_request(self, ctx, &w.request),
+                other => Err(format!("unknown request {other}")),
+            };
+            self.session.activity.started();
+            if let Err(e) = r {
+                log::warn!("{}: a task that waited could not start: {e}", w.request.command);
+                self.session.activity.could_not_start(w, &e);
+            }
+        }
     }
 
     /// The remembered ratio belongs to the tool until the user starts editing the crop.
@@ -1163,14 +1196,15 @@ impl LightcraftApp {
         merge::poll(self, ctx);
         import::poll_scan(self, ctx);
         sync::poll(self, ctx);
+        sync::poll_rescan(self, ctx);
         sync::poll_run(self, ctx);
         import::tick(self, ctx);
         lightroom_import::tick(self, ctx);
         recheck::tick(self);
         tasks::poll(self, ctx);
         self.preview_build_status(ctx);
-        // a task waiting in line whose lane freed while nothing was asked starts now (commands start them too)
-        self.session.start_waiting();
+        // a task waiting in line whose lane freed while nothing was asked starts now (commands start the engine's too)
+        self.start_waiting(ctx);
         self.save_status(ctx);
         self.slideshow_tick(ctx);
         panels::faces::pump(self, ctx);
@@ -1191,12 +1225,8 @@ impl LightcraftApp {
         if let Some(folder) = self.session.import_defaults.auto_folder.clone() {
             const LABEL: &str = "Auto Import";
             let now = ctx.input(|i| i.time);
-            if now - self.ui.auto_import_at >= 3.0
-                && self.import.is_none()
-                && self.sync_run.is_none()
-                && self.lightroom.is_none()
-                && !self.tasks.is_running(LABEL)
-            {
+            // (it waits for the whole library lane: what runs, rescans or waits there goes first)
+            if now - self.ui.auto_import_at >= 3.0 && !import::library_busy(self) && self.lightroom.is_none() && !self.tasks.is_running(LABEL) {
                 self.ui.auto_import_at = now;
                 let watched = folder.clone();
                 let work = move || lightcraft_engine::cmd::library::list_auto_import_folder(&folder);
@@ -1207,7 +1237,7 @@ impl LightcraftApp {
                     };
                     let p = serde_json::json!({"listing": listing, "start": false});
                     let Ok(r) = app.session.execute("library.autoImportScan", &p) else { return };
-                    let Some(mut params) = r.get("import").cloned().filter(|_| app.import.is_none()) else { return };
+                    let Some(mut params) = r.get("import").cloned().filter(|_| !import::library_busy(app)) else { return };
                     let paths: Vec<String> =
                         params["paths"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
                     if let Some(o) = params.as_object_mut() {

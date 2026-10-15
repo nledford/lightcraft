@@ -316,5 +316,6 @@
   "{n} waiting": "Ожидают: {n}",
   "Starts after {n} more": "Начнётся после ещё {n}",
   "Queued: it starts after {n} more": "В очереди: начнётся после ещё {n}",
-  "{n} tasks waiting in line won't run.": "Задачи в очереди ({n}) не будут запущены."
+  "{n} tasks waiting in line won't run.": "Задачи в очереди ({n}) не будут запущены.",
+  "{n} more missing, left alone: synchronize again to review them": "Не хватает ещё {n}, оставлены как есть: синхронизируйте снова, чтобы их просмотреть"
 }
