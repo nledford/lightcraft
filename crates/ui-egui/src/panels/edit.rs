@@ -384,7 +384,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             }
             if lp && !has_lens {
                 ui.label(
-                    egui::RichText::new(crate::i18n::tr("No lens data embedded in this file.")).font(t.caption()).color(Tokens::get(ui.ctx()).text_dim),
+                    egui::RichText::new(crate::i18n::tr("No lens data embedded in this file."))
+                        .font(t.caption())
+                        .color(Tokens::get(ui.ctx()).text_dim),
                 );
             }
         });
