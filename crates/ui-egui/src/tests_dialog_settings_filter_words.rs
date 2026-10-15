@@ -222,9 +222,9 @@ fn a_section_named_for_the_word_comes_before_one_that_mentions_it() {
 fn sections_that_match_alike_stay_in_the_order_of_the_tabs() {
     let mut h = demo([1200.0, 1000.0]);
     show(&mut h, "general");
-    // "never" is a choice in Library ▸ Local folders and in Appearance ▸ Grid, a name of neither
+    // "never" is a choice in Library ▸ Local folders and in Appearance ▸ Grid, a name of neither (and in Slideshow ▸ Playback and ▸ Titles)
     filter(&mut h, "never");
-    assert_eq!(found(&h), ["library:Local folders", "interface:Grid"]);
+    assert_eq!(found(&h), ["library:Local folders", "interface:Grid", "slideshow:Playback", "slideshow:Titles"]);
 }
 
 #[test]

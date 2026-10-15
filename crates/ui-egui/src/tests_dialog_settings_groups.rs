@@ -44,7 +44,7 @@ fn headings(h: &Headless) -> Vec<String> {
 
 #[test]
 fn the_tabs_are_named_and_ordered_for_what_they_hold() {
-    let names: Vec<(&str, &str)> = TABS.iter().take(9).map(|(id, label)| (*id, crate::panels::settings::tab_label(id, label))).collect();
+    let names: Vec<(&str, &str)> = TABS.iter().take(10).map(|(id, label)| (*id, crate::panels::settings::tab_label(id, label))).collect();
     assert_eq!(
         names,
         [
@@ -55,6 +55,7 @@ fn the_tabs_are_named_and_ordered_for_what_they_hold() {
             ("performance", "Performance"),
             ("display", "Monitor"),
             ("interface", "Appearance"),
+            ("slideshow", "Slideshow"),
             ("faces", "Faces"),
             ("denoise", "AI Denoise"),
         ]
@@ -73,19 +74,21 @@ fn each_section_is_under_the_tab_a_person_would_look_in() {
     assert_eq!(under("general"), ["Startup", "Culling"]);
     // Library is the library itself: where it is, and what leaves it by itself
     assert_eq!(under("library"), ["Library", "Local folders"]);
-    // Import is what happens to photos as they come in
-    assert_eq!(under("import"), ["Raw defaults", "Other images (JPEG, PNG, TIFF, HEIC…)", "Metadata", "Auto Import"]);
+    // Import is what happens to photos as they come in, from a camera or card or a watched folder too
+    assert_eq!(under("import"), ["Raw defaults", "Other images (JPEG, PNG, TIFF, HEIC…)", "Metadata", "Cameras and Cards", "Auto Import"]);
     // Files is what is written beside the photo files and what they are opened in
     assert_eq!(under("files"), ["XMP sidecars", "External Editing"]);
     // Performance is speed and the cache that buys it
     assert_eq!(under("performance"), ["Rendering", "Thumbnail cache"]);
     assert_eq!(under("display"), ["Monitor profile"]);
-    assert_eq!(under("interface"), ["Appearance", "Filmstrip", "Grid", "Detail"]);
+    assert_eq!(under("interface"), ["Appearance", "Filmstrip", "Grid", "Keywords", "Detail"]);
+    // Slideshow is what the slideshow looks like and how it plays, next to how LightCraft looks
+    assert_eq!(under("slideshow"), ["Preview", "Templates", "Playback", "Layout", "Options", "Backdrop", "Overlays", "Titles", "Export"]);
     // Faces and AI Denoise are as they were (here without a way to download models)
     assert_eq!(under("faces"), ["Face recognition"]);
     assert_eq!(under("denoise"), ["AI Denoise"]);
     // And every tab there is was looked at
-    assert_eq!(TABS.len(), 9, "a new tab needs its sections listed here");
+    assert_eq!(TABS.len(), 10, "a new tab needs its sections listed here");
 }
 
 #[test]
@@ -104,7 +107,7 @@ fn what_is_saved_with_a_library_in_memory_says_it_will_not_last() {
 fn every_tab_id_from_before_still_opens_its_tab() {
     let mut h = demo();
     // Given the ids agents, the docs and the rest of the app have used so far, and the two new ones
-    for id in ["general", "import", "performance", "display", "interface", "faces", "denoise", "library", "files"] {
+    for id in ["general", "import", "performance", "display", "interface", "slideshow", "faces", "denoise", "library", "files"] {
         show(&mut h, id);
         assert_eq!(h.app.ui.dialog, Some(Dialog::Settings { tab: id.into() }), "{id}");
     }
@@ -157,7 +160,7 @@ fn the_tab_bar_shows_the_names_people_read() {
     let mut h = demo();
     show(&mut h, "general");
     let texts = h.painted_text();
-    for name in ["General", "Library", "Import", "Files", "Performance", "Monitor", "Appearance", "Faces", "AI Denoise"] {
+    for name in ["General", "Library", "Import", "Files", "Performance", "Monitor", "Appearance", "Slideshow", "Faces", "AI Denoise"] {
         assert!(texts.iter().any(|text| text == name), "the tab bar has {name}");
     }
     assert!(!texts.iter().any(|text| text == "Display" || text == "Interface"), "and not the names from before");

@@ -263,6 +263,7 @@ pub const ALSO: &[(&str, &str, &str)] = &[
     ("library", "Smart previews", "proxy proxies offline"),
     ("import", "Raw defaults", "preset develop"),
     ("import", "Metadata", "iptc author credit"),
+    ("import", "Cameras and Cards", "memory card sd camera connected device"),
     ("import", "Auto Import", "watch tether"),
     ("files", "XMP sidecars", "metadata"),
     ("files", "External Editing", "editor photoshop color space bit depth"),
@@ -270,6 +271,7 @@ pub const ALSO: &[(&str, &str, &str)] = &[
     ("performance", "Thumbnail cache", "disk space storage previews"),
     ("display", "Monitor profile", "screen color management calibration calibrate"),
     ("interface", "Appearance", "theme color scheme skin"),
+    ("slideshow", "Playback", "presentation autoplay crossfade"),
     ("faces", "Face recognition", "people person"),
     ("denoise", "AI Denoise", "noise reduction"),
 ];
@@ -1631,44 +1633,29 @@ fn duration_slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, key: &s
     }
 }
 
-/// Width of the Slideshow tab's settings column (the slide preview is beside it).
-const SLIDESHOW_COLUMN_W: f32 = 480.0;
-
+/// The Slideshow tab: the slide preview, then the settings, in one column the width of the page
+/// (the page scrolls; a column beside the preview would be wider than the window).
 fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
-    // the settings scroll on the left, the composed slide stays in view on the right
-    let top_down = egui::Layout::top_down(egui::Align::Min);
-    // as tall as the window allows (the dialog's title, tabs and Close button take ~260 pt)
-    let tall = (ui.ctx().content_rect().height() - 260.0).clamp(300.0, 760.0);
-    ui.horizontal_top(|ui| {
-        ui.allocate_ui_with_layout(egui::vec2(SLIDESHOW_COLUMN_W, tall), top_down, |ui| {
-            ui.set_width(SLIDESHOW_COLUMN_W);
-            egui::ScrollArea::vertical().id_salt("settingsSlideshowScroll").max_height(tall).auto_shrink([false, true]).show(ui, |ui| {
-                super::slide_templates::section(app, ui, t);
-                ui.add_space(6.0);
-                playback_section(app, ui, t);
-                ui.add_space(6.0);
-                super::slide_layout::sections(app, ui, t);
-                ui.add_space(6.0);
-                super::slide_overlays::sections(app, ui, t);
-                ui.add_space(6.0);
-                super::slide_titles::sections(app, ui, t);
-                ui.add_space(6.0);
-                export_section(app, ui, t);
-            });
-        });
-        ui.add_space(12.0);
-        ui.allocate_ui_with_layout(egui::vec2(super::slide_layout::PREVIEW_W, tall), top_down, |ui| {
-            ui.set_width(super::slide_layout::PREVIEW_W);
-            super::slide_layout::preview(app, ui, t)
-        });
-    });
+    super::slide_layout::preview(app, ui, t);
+    ui.add_space(6.0);
+    super::slide_templates::section(app, ui, t);
+    ui.add_space(6.0);
+    playback_section(app, ui, t);
+    ui.add_space(6.0);
+    super::slide_layout::sections(app, ui, t);
+    ui.add_space(6.0);
+    super::slide_overlays::sections(app, ui, t);
+    ui.add_space(6.0);
+    super::slide_titles::sections(app, ui, t);
+    ui.add_space(6.0);
+    export_section(app, ui, t);
 }
 
 /// Export: PDF, JPEG sequence or video of the slideshow (View ▸ Export Slideshow…).
 fn export_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, crate::i18n::tr("Export"));
     let running = app.session.slideshow_export.as_ref().is_some_and(|r| r.running());
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         for (id, label, format) in [
             ("slideshowExportPdf", "Export PDF…", "pdf"),
             ("slideshowExportJpeg", "Export JPEG…", "jpeg"),
