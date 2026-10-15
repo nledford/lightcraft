@@ -1906,7 +1906,6 @@
   "Skipped: files that can't be read": "Ignorés : fichiers illisibles",
   "This folder isn't there: it was moved or renamed, or its disk isn't connected.": "Ce dossier est introuvable : il a été déplacé ou renommé, ou son disque n'est pas connecté.",
   "Relink photos whose file was renamed or moved": "Relier les photos dont le fichier a été renommé ou déplacé",
-  "A folder is already being synchronized": "Un dossier est déjà en cours de synchronisation",
   "Synchronizing…": "Synchronisation…",
   "Relinked": "Reliées",
   "Removed": "Retirées",
@@ -2390,5 +2389,7 @@
   "Checking recent libraries": "Vérification des bibliothèques récentes",
   "The photos are imported once a library is open": "Les photos seront importées dès qu'une bibliothèque sera ouverte",
   "Open a library first, then drop the presets again": "Ouvrez d'abord une bibliothèque, puis déposez à nouveau les préréglages",
-  "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :"
+  "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :",
+  "Queued: it starts when the task ahead of it ends": "En file : démarre à la fin de la tâche précédente",
+  "Another library was opened: nothing was done": "Une autre bibliothèque a été ouverte : rien n’a été fait"
 }

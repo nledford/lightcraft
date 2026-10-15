@@ -105,6 +105,7 @@ impl LightcraftApp {
             sync: None,
             sync_owns_changes: false,
             sync_run: None,
+            sync_queued: None,
             lightroom: None,
             lightroom_last: None,
             lightroom_result: None,
@@ -286,6 +287,49 @@ impl LightcraftApp {
         r
     }
 
+    /// Say that a task waits in line at `place` of its lane: without it, asking for it seems to do nothing.
+    pub(crate) fn queued_toast(&mut self, place: u64) {
+        // (counted as its row counts: the waiting tasks ahead of it, after the running one)
+        let text = if place <= 1 {
+            i18n::tr("Queued: it starts when the task ahead of it ends").to_string()
+        } else {
+            i18n::tr_format!("Queued: it starts after {n} more", n = place - 1)
+        };
+        let now = self.tick_now();
+        self.ui.toast = Some((text, now + TOAST_SECONDS, None));
+    }
+
+    /// Start the tasks waiting in line whose lane is free: the engine's ([`lightcraft_engine::Session::start_waiting`])
+    /// and the app's own (`app:import`, `app:synchronize`), each the way it was asked. One that can't start says why
+    /// in a toast; the next in line goes on.
+    fn start_waiting(&mut self, ctx: &egui::Context) {
+        self.session.start_waiting();
+        // The app's own wait while its slots are taken, row or no row yet: an import set this frame (Auto Import, its
+        // row comes at the next tick), a synchronize, or a Local folder being read (it becomes an import when read).
+        let held = self.lightroom.is_some()
+            || self.import.is_some()
+            || self.sync_run.is_some()
+            || self.sync_queued.is_some()
+            || self.scan.as_ref().is_some_and(|t| t.browse);
+        if held {
+            return;
+        }
+        // (bounded: each turn takes one task out of a line that is at most this long)
+        for _ in 0..lightcraft_engine::activity::MAX_WAITING {
+            let Some(w) = self.session.activity.take_ready_if(|r| r.command.starts_with("app:")) else { break };
+            let r = match w.request.command.as_str() {
+                import::IMPORT_REQUEST => import::start_request(self, ctx, &w.request),
+                sync::SYNC_REQUEST => sync::start_request(self, ctx, &w.request),
+                other => Err(format!("unknown request {other}")),
+            };
+            self.session.activity.started();
+            if let Err(e) = r {
+                log::warn!("{}: a task that waited could not start: {e}", w.request.command);
+                self.toast_error(ctx, e);
+            }
+        }
+    }
+
     /// The remembered ratio belongs to the tool until the user starts editing the crop.
     pub(crate) fn crop_tool_aspect(&self) -> Option<(u32, u32)> {
         let photo = self.session.active()?;
@@ -364,7 +408,7 @@ impl LightcraftApp {
     /// A task waiting in line whose lane freed while nothing was asked starts now (commands start them too); then the
     /// run in progress is looked at, so that one started here is polled for its end from this frame on.
     pub(crate) fn tick_preview_builds(&mut self, ctx: &egui::Context) {
-        self.session.start_waiting();
+        self.start_waiting(ctx);
         self.preview_build_status(ctx);
     }
 

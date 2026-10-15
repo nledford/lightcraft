@@ -605,6 +605,8 @@ impl Session {
     /// Start the tasks waiting in line whose lane is free ([`crate::activity`]), each by running the command it was
     /// asked with. One that can't start is logged and the next in line goes on. Every frontend gets this after each
     /// command; the app also calls it every frame, for a lane that frees while nothing is asked.
+    /// Requests that aren't engine commands (the app's own, `app:…`: an import, a Synchronize Folder) are left to the
+    /// app, which starts them the same way.
     pub fn start_waiting(&mut self) {
         if self.depth > 0 || self.starting_waiting {
             return;
@@ -612,7 +614,7 @@ impl Session {
         self.starting_waiting = true;
         // (bounded: each turn takes one task out of a line that is at most this long)
         for _ in 0..activity::MAX_WAITING {
-            let Some(w) = self.activity.take_ready() else { break };
+            let Some(w) = self.activity.take_ready_if(|r| find_command(&r.command).is_some()) else { break };
             let r = self.dispatch(&w.request.command, &w.request.params, false);
             self.activity.started();
             if let Err(e) = r {
