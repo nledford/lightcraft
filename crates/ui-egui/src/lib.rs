@@ -79,6 +79,7 @@ mod tests_date_picker;
 mod tests_dialog_fit;
 #[cfg(test)]
 mod tests_dialog_primary;
+#[cfg(test)]
 mod tests_dialog_settings;
 #[cfg(test)]
 mod tests_dialog_settings_contrast;
