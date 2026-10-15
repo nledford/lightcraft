@@ -2347,5 +2347,11 @@
   "Checking the GPU…": "Перевірка ГП…",
   "CPU": "ЦП",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Модель облич використовує ГП, лише якщо перевірка показала, що він дає ті самі результати швидше.",
-  "Checking the GPU for faces": "Перевірка ГП для облич"
+  "Checking the GPU for faces": "Перевірка ГП для облич",
+  "Waiting": "Очікує",
+  "Starts next": "Почнеться наступною",
+  "Remove from Queue": "Прибрати з черги",
+  "Retry": "Повторити",
+  "Queued: it starts when the task ahead of it ends": "У черзі: почнеться, коли завершиться попереднє завдання",
+  "1 task waiting in line won't run.": "1 завдання в черзі не буде запущено."
 }

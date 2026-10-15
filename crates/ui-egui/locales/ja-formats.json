@@ -312,5 +312,9 @@
   "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "{what}合成を{mp}で追加しました：フルサイズ（{full}）にはこのコンピューターのメモリが足りません",
   "Listing folders — folders: {folders}, files: {files}": "フォルダーを一覧中 — フォルダー：{folders}、ファイル：{files}",
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what}合成を{mp}で追加しました。パノラマの最大サイズです（フルサイズ：{full}）",
-  "+{n} more": "ほか{n}件"
+  "+{n} more": "ほか{n}件",
+  "{n} waiting": "待機中 {n} 件",
+  "Starts after {n} more": "あと {n} 件の後に開始",
+  "Queued: it starts after {n} more": "キューに追加: あと {n} 件の後に開始します",
+  "{n} tasks waiting in line won't run.": "待機中の {n} 件は実行されません。"
 }

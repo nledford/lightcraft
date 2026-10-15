@@ -1,7 +1,9 @@
 //! Build previews ahead of time: each photo's grid thumbnail and its loupe view (standard size,
 //! or 1:1), rendered into the memory + disk preview cache so browsing and the loupe are instant.
 //! Runs on a background thread (the app keeps working; progress / cancel by command, and a row in
-//! the activity stack, issue #345), or inline with `wait` (CLI, MCP, tests).
+//! the activity stack, issue #345), or inline with `wait` (CLI, MCP, tests). One build runs at a
+//! time; with `queue` another one asked for meanwhile waits in line for it (the preview lane, see
+//! [`crate::activity::Lane`]), with the photos chosen when it was asked.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -9,7 +11,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use serde_json::{Value, json};
 
 use super::{CommandSpec, always, bad, cmd, str_param};
-use crate::activity::{Cancel, Ending, Outcome, TaskGuard};
+use crate::activity::{Cancel, Ending, Lane, Outcome, Request, TaskGuard};
 use crate::media::{RenderJob, THUMB_SIZES};
 use crate::{Result, Session};
 
@@ -89,16 +91,51 @@ pub(crate) fn jobs_for(s: &mut Session, id: lightcraft_catalog::PhotoId, edge: O
     if e >= thumb { view.into_iter().chain(grid).collect() } else { grid.into_iter().chain(view).collect() }
 }
 
-/// The build's row in the activity stack (`what` as in [`PreviewBuild::what`]).
-fn task_for(s: &Session, state: &PreviewBuild) -> TaskGuard {
-    let (kind, label) = match state.what {
+/// The row in the activity stack of a build of `what` (as in [`PreviewBuild::what`]): its kind and its label.
+fn row_of(what: &str) -> (&'static str, &'static str) {
+    match what {
         "" => ("previews", "Building previews"),
         "smart previews" => ("smartPreviews", "Building smart previews"),
         _ => ("smartPreviews", "Discarding smart previews"),
-    };
+    }
+}
+
+/// The build's row in the activity stack, which keeps what it was asked (to ask for it again).
+fn task_for(s: &Session, state: &PreviewBuild, request: Request) -> TaskGuard {
+    let (kind, label) = row_of(state.what);
     let task = s.activity.start(kind, label, Cancel::Flag(state.cancel.clone()));
     task.progress(0, state.total as u64);
+    task.set_request(request);
     task
+}
+
+/// What a build of `ids` was asked, as it runs later (in line, or asked for again): the photos written out (the
+/// selection or the view may have changed by then), in the background (nothing waits for it then).
+fn request_for(command: &str, p: &Value, ids: &[lightcraft_catalog::PhotoId]) -> Request {
+    let mut params = p.as_object().cloned().unwrap_or_default();
+    for key in ["id", "queue", "wait"] {
+        params.remove(key);
+    }
+    params.insert("ids".into(), ids.iter().map(|id| id.0).collect());
+    Request { command: command.into(), params: Value::Object(params) }
+}
+
+/// A build running (or one waiting in line, when `queue`): `queue` puts this one in line behind it → `{queued: id,
+/// place}`; without it the build is refused, as one at a time always was. `None`: the build can start now.
+fn wait_in_line(s: &Session, c: &str, p: &Value, what: &str, request: Request) -> Option<Result<Value>> {
+    let queue = p.get("queue").and_then(Value::as_bool).unwrap_or(false);
+    let running = s.preview_build.as_ref().is_some_and(|b| !b.finished.load(Ordering::Acquire));
+    if !running && !(queue && s.activity.lane_waiting(Lane::Previews)) {
+        return None;
+    }
+    if !queue {
+        return Some(Err(bad(c, "a preview build is already running (with queue: true this one waits for it)")));
+    }
+    if p.get("wait").and_then(Value::as_bool) == Some(true) {
+        return Some(Err(bad(c, "a build that waits in line can't also be waited for: leave out wait")));
+    }
+    let (kind, label) = row_of(what);
+    Some(s.activity.enqueue(kind, label, request).map(|(id, place)| json!({"queued": id, "place": place})).map_err(|e| bad(c, e)))
 }
 
 /// Render one photo's jobs in order. The source the first job decodes serves the ones after it
@@ -172,15 +209,16 @@ fn build(s: &mut Session, p: &Value) -> Result<Value> {
         "full" | "1:1" => None,
         other => return Err(bad(C, format!("unknown size `{other}` (standard|full)"))),
     };
-    if s.preview_build.as_ref().is_some_and(|b| !b.finished.load(Ordering::Acquire)) {
-        return Err(bad(C, "a preview build is already running"));
-    }
     // explicit ids, else the selection, else everything in view
     let ids = if p.get("ids").is_some() || p.get("id").is_some() || !s.selection.ids.is_empty() { s.targets(p)? } else { s.visible_cloned() };
+    let request = request_for(C, p, &ids);
+    if let Some(queued) = wait_in_line(s, C, p, "", request.clone()) {
+        return queued;
+    }
     let jobs: Vec<Vec<RenderJob>> = ids.iter().map(|id| jobs_for(s, *id, edge)).filter(|j| !j.is_empty()).collect();
     let state = Arc::new(PreviewBuild { total: jobs.len(), ..Default::default() });
     s.preview_build = Some(state.clone());
-    let task = task_for(s, &state);
+    let task = task_for(s, &state, request);
     let lanes = lanes(jobs.len(), edge.is_none());
     let wait = p.get("wait").and_then(Value::as_bool).unwrap_or(false) || cfg!(target_arch = "wasm32");
     if wait {
@@ -358,10 +396,15 @@ fn smart(s: &mut Session, p: &Value) -> Result<Value> {
     let dir = s.media.smart_dir.clone().ok_or_else(|| bad(C, "smart previews need a library on disk"))?;
     let discard = p.get("discard").and_then(Value::as_bool).unwrap_or(false);
     let background = p.get("background").and_then(Value::as_bool).unwrap_or(false);
-    if background && s.preview_build.as_ref().is_some_and(|b| !b.finished.load(Ordering::Acquire)) {
-        return Err(bad(C, "a preview build is already running"));
-    }
     let ids = if p.get("ids").is_some() || !s.selection.ids.is_empty() { s.targets(p)? } else { s.visible_cloned() };
+    let what = if discard { "discarding smart previews" } else { "smart previews" };
+    // (in the foreground the call itself waits: nothing runs beside it)
+    let request = background.then(|| request_for(C, p, &ids));
+    if let Some(r) = &request
+        && let Some(queued) = wait_in_line(s, C, p, what, r.clone())
+    {
+        return queued;
+    }
     let mut jobs: Vec<SmartJob> = Vec::new();
     for id in ids {
         let Some(ph) = s.catalog.photo(id).cloned() else { continue };
@@ -373,11 +416,10 @@ fn smart(s: &mut Session, p: &Value) -> Result<Value> {
         jobs.push((id, path, source, preview_fitted_look(&ph)));
     }
     let custom = s.smart_previews_dir.is_some();
-    if background {
-        let what = if discard { "discarding smart previews" } else { "smart previews" };
+    if let Some(request) = request {
         let state = Arc::new(PreviewBuild { total: jobs.len(), what, ..Default::default() });
         s.preview_build = Some(state.clone());
-        let task = task_for(s, &state);
+        let task = task_for(s, &state, request);
         let st = state.clone();
         std::thread::Builder::new()
             .name("lc-smart-previews".into())
@@ -527,7 +569,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Build Smart Previews",
             [],
             None,
-            "{ids?, discard?: bool, background?: bool} — build (or discard) the smart previews of the selected photos (else all in view): compact proxies in the library that keep photos editable and exportable (at proxy size) while their originals are offline; a damaged proxy (cut short) is rebuilt → {built, repaired, removed, failed}; with background (the app's menu) the files are read and written on a worker thread → {total, done, failed, repaired, running, what} like library.buildPreviews (progress: library.previewProgress, stop: library.cancelPreviews)",
+            "{ids?, discard?: bool, background?: bool, queue?: bool} — build (or discard) the smart previews of the selected photos (else all in view): compact proxies in the library that keep photos editable and exportable (at proxy size) while their originals are offline; a damaged proxy (cut short) is rebuilt → {built, repaired, removed, failed}; with background (the app's menu) the files are read and written on a worker thread → {total, done, failed, repaired, running, what} like library.buildPreviews (progress: library.previewProgress, stop: library.cancelPreviews). A background one while a preview build runs is refused, or with queue waits in line for it, as library.buildPreviews does → {queued, place}",
             always,
             smart
         ),
@@ -554,7 +596,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Build Previews",
             [],
             None,
-            "{size?: standard (2048 px, or `edge`) | full (1:1), ids?, wait?: bool} — render the grid thumbnail and loupe view of the selected photos (else all in view) into the preview cache, in the background unless `wait` → {total, done, failed, running}",
+            "{size?: standard (2048 px, or `edge`) | full (1:1), ids?, wait?: bool, queue?: bool} — render the grid thumbnail and loupe view of the selected photos (else all in view) into the preview cache, in the background unless `wait` → {total, done, failed, running}. One build runs at a time (this, or Build / Discard Smart Previews in the background): while one runs another is refused, or with queue waits in line for it and starts by itself when the builds ahead of it end → {queued: its activity id, place: 1 = next}. It builds the photos chosen when it was asked; activity.list shows it waiting, activity.cancel takes it out of the line. Not with wait while one runs",
             always,
             build
         ),

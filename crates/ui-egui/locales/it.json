@@ -2353,5 +2353,11 @@
   "Use Defaults": "Usa predefiniti",
   "Dimensions": "Dimensioni",
   "Camera & Lens": "Fotocamera e obiettivo",
-  "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2."
+  "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2.",
+  "Waiting": "In attesa",
+  "Starts next": "Parte subito dopo",
+  "Remove from Queue": "Rimuovi dalla coda",
+  "Retry": "Riprova",
+  "Queued: it starts when the task ahead of it ends": "In coda: parte quando finisce l'attività precedente",
+  "1 task waiting in line won't run.": "1 attività in coda non verrà eseguita."
 }

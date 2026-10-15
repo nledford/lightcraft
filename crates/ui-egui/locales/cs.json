@@ -2401,5 +2401,11 @@
   "End Slideshow": "Ukončit prezentaci",
   "Save Current Settings as New Effect Preset…": "Uložit aktuální nastavení jako nové přednastavení efektu…",
   "Manage Effect Presets…": "Spravovat přednastavení efektů…",
-  "Export Effect Presets…": "Exportovat přednastavení efektů…"
+  "Export Effect Presets…": "Exportovat přednastavení efektů…",
+  "Waiting": "Čeká",
+  "Starts next": "Začne jako další",
+  "Remove from Queue": "Odebrat z fronty",
+  "Retry": "Zkusit znovu",
+  "Queued: it starts when the task ahead of it ends": "Ve frontě: začne, až skončí úloha před ní",
+  "1 task waiting in line won't run.": "1 úloha čekající ve frontě se nespustí."
 }

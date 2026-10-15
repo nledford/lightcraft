@@ -2726,5 +2726,11 @@
   "≥  at least": "≥  არანაკლებ",
   "⌘-drag to straighten, ⇧G Guided Upright, a grid while transforming.": "⌘-გადათრევა გასასწორებლად, ⇧G მართვადი Upright, ბადე გარდაქმნისას.",
   "日本語": "日本語",
-  "繁體中文（台灣）": "繁體中文（台灣）"
+  "繁體中文（台灣）": "繁體中文（台灣）",
+  "Waiting": "ელოდება",
+  "Starts next": "შემდეგი დაიწყება",
+  "Remove from Queue": "რიგიდან ამოღება",
+  "Retry": "ხელახლა ცდა",
+  "Queued: it starts when the task ahead of it ends": "რიგშია: დაიწყება, როცა წინა ამოცანა დასრულდება",
+  "1 task waiting in line won't run.": "რიგში მყოფი 1 ამოცანა არ გაეშვება."
 }

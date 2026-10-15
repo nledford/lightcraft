@@ -312,5 +312,9 @@
   "Move {n} photo{} to “{}”": "Przenieś do „{1}” — zdjęcia: {n}{0:.0}",
   "Move {n} photo{} to “{}”?": "Przenieść do „{1}” — zdjęcia: {n}{0:.0}?",
   "Listing folders — folders: {folders}, files: {files}": "Przeglądanie folderów — foldery: {folders}, pliki: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Przeniesiono do „{1}” — zdjęcia: {n}{0:.0}. Edytuj → Cofnij przywróci je."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Przeniesiono do „{1}” — zdjęcia: {n}{0:.0}. Edytuj → Cofnij przywróci je.",
+  "{n} waiting": "Oczekujące: {n}",
+  "Starts after {n} more": "Rozpocznie się po {n} kolejnych",
+  "Queued: it starts after {n} more": "W kolejce: rozpocznie się po {n} kolejnych",
+  "{n} tasks waiting in line won't run.": "Oczekujące w kolejce zadania ({n}) nie zostaną uruchomione."
 }

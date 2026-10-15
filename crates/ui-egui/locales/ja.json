@@ -2349,5 +2349,11 @@
   "Checking the GPU…": "GPU を確認中…",
   "CPU": "CPU",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "顔モデルが GPU を使うのは、同じ結果をより速く出せると確認できた場合だけです。",
-  "Checking the GPU for faces": "顔用の GPU を確認中"
+  "Checking the GPU for faces": "顔用の GPU を確認中",
+  "Waiting": "待機中",
+  "Starts next": "次に開始",
+  "Remove from Queue": "キューから削除",
+  "Retry": "再試行",
+  "Queued: it starts when the task ahead of it ends": "キューに追加: 前のタスクが終わると開始します",
+  "1 task waiting in line won't run.": "待機中の 1 件は実行されません。"
 }

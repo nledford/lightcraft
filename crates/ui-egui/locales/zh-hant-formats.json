@@ -312,5 +312,9 @@
   "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "已新增{what}合併照片（{mp}）：完整尺寸（{full}）所需的記憶體超過這台電腦的記憶體",
   "Listing folders — folders: {folders}, files: {files}": "正在列出資料夾 — 資料夾：{folders}，檔案：{files}",
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "已新增{what}合併照片（{mp}），這是全景圖的最大尺寸（完整尺寸：{full}）",
-  "+{n} more": "還有 {n} 項"
+  "+{n} more": "還有 {n} 項",
+  "{n} waiting": "{n} 個等待中",
+  "Starts after {n} more": "再過 {n} 個後開始",
+  "Queued: it starts after {n} more": "已加入佇列：再過 {n} 個後開始",
+  "{n} tasks waiting in line won't run.": "佇列中等待的 {n} 個工作不會執行。"
 }

@@ -2276,5 +2276,11 @@
   "SDR Shadows": "Cienie SDR",
   "SDR Whites": "Biele SDR",
   "SDR Clarity": "Przejrzystość SDR",
-  "Face Models on the GPU": "Modele twarzy przetwarzane na GPU"
+  "Face Models on the GPU": "Modele twarzy przetwarzane na GPU",
+  "Waiting": "Oczekujące",
+  "Starts next": "Rozpocznie się jako następne",
+  "Remove from Queue": "Usuń z kolejki",
+  "Retry": "Ponów",
+  "Queued: it starts when the task ahead of it ends": "W kolejce: rozpocznie się po zakończeniu poprzedniego zadania",
+  "1 task waiting in line won't run.": "1 zadanie oczekujące w kolejce nie zostanie uruchomione."
 }

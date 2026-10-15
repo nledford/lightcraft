@@ -78,6 +78,9 @@ fn info(label: &str, done: u64, total: u64) -> TaskInfo {
         cancellable: true,
         cancelling: false,
         age_ms: 600,
+        waiting: false,
+        place: 0,
+        lane: None,
     }
 }
 
@@ -172,12 +175,16 @@ fn count_text_by_unit() {
 
 #[test]
 fn the_line_beside_the_bell_names_one_task_or_counts_several() {
-    assert_eq!(readout_text(&[]), "");
-    assert_eq!(readout_text(&[info("Exporting", 10, 25)]), "Exporting · 40 %");
-    assert_eq!(readout_text(&[info("Finding faces", 0, 0)]), "Finding faces", "nothing to say about how far while that isn't known");
+    assert_eq!(readout_text(&[], 0), "");
+    assert_eq!(readout_text(&[info("Exporting", 10, 25)], 0), "Exporting · 40 %");
+    assert_eq!(readout_text(&[info("Finding faces", 0, 0)], 0), "Finding faces", "nothing to say about how far while that isn't known");
     let stopping = TaskInfo { cancelling: true, ..info("Exporting", 10, 25) };
-    assert_eq!(readout_text(&[stopping]), "Exporting · Stopping…");
-    assert_eq!(readout_text(&[info("Exporting", 1, 2), info("Importing", 0, 0), info("Merging", 3, 4)]), "3 tasks");
+    assert_eq!(readout_text(&[stopping], 0), "Exporting · Stopping…");
+    assert_eq!(readout_text(&[info("Exporting", 1, 2), info("Importing", 0, 0), info("Merging", 3, 4)], 0), "3 tasks");
+    // those waiting in line are counted after what runs, and alone in the moment before the next one starts
+    assert_eq!(readout_text(&[info("Building previews", 1, 4)], 2), "Building previews · 25 % · 2 waiting");
+    assert_eq!(readout_text(&[info("Finding faces", 0, 0)], 1), "Finding faces · 1 waiting");
+    assert_eq!(readout_text(&[], 1), "1 waiting");
 }
 
 #[test]
@@ -1151,4 +1158,100 @@ fn a_scan_that_met_unreadable_files_leaves_a_row_with_problems() {
         }
         let _ = std::fs::remove_dir_all(dir);
     }
+}
+
+/// The menu item of `command` whose params have `size`, anywhere in the menu tree (`ui.menu.tree`).
+fn menu_item(tree: &serde_json::Value, command: &str, size: &str) -> Option<serde_json::Value> {
+    match tree {
+        serde_json::Value::Array(nodes) => nodes.iter().find_map(|n| menu_item(n, command, size)),
+        serde_json::Value::Object(node) => {
+            let found = node.get("id").and_then(|v| v.as_str()) == Some(command) && node.get("params").is_some_and(|p| p["size"] == size);
+            if found { Some(tree.clone()) } else { node.values().find_map(|v| menu_item(v, command, size)) }
+        }
+        _ => None,
+    }
+}
+
+/// Given a preview build running, then Build Standard-Sized Previews is still offered. When it is chosen, then it
+/// waits in line: a toast says so, and the list shows it under the running build, starting next. When its ✕ is
+/// clicked, then it leaves the line, and the running build goes on.
+#[test]
+fn a_second_preview_build_waits_in_line_and_can_be_taken_out_of_it() {
+    let mut h = demo();
+    let build = std::sync::Arc::new(lightcraft_engine::cmd::previews::PreviewBuild::default());
+    h.app.session.preview_build = Some(build.clone());
+    let running = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
+    let tree = h.request("ui.menu.tree", json!({}), T)["result"].clone();
+    let item = menu_item(&tree, "library.buildPreviews", "standard").expect("Build Standard-Sized Previews in the menus");
+    assert_eq!(item["enabled"], true, "not greyed out while a build runs: {item}");
+    let r = h.request("ui.menu.invoke", json!({"id": "library.buildPreviews", "params": item["params"]}), T);
+    let id = r["result"]["queued"].as_u64().unwrap_or_else(|| panic!("it waits in line: {r}"));
+    assert!(h.app.ui.toast.as_ref().is_some_and(|(text, ..)| text.starts_with("Queued")), "{:?}", h.app.ui.toast);
+    open_list(&mut h);
+    let (waiting, ahead) = (rect(&h, &format!("activity:row:{id}")), rect(&h, &format!("activity:row:{}", running.id())));
+    assert!(waiting.top() > ahead.bottom(), "the waiting build is listed under the running one");
+    click(&mut h, &format!("activity:cancel:{id}"));
+    assert!(h.app.session.activity.waiting().is_empty(), "✕ took it out of the line");
+    assert!(!running.is_cancelled(), "and left the running build alone");
+    build.finished.store(true, std::sync::atomic::Ordering::Release);
+    drop(running);
+}
+
+/// Given a preview build that did not go well, then its row offers Retry. When Retry is clicked, then the row goes and
+/// the build runs again, for the same photos.
+#[test]
+fn a_build_that_did_not_go_well_offers_retry() {
+    let mut h = demo();
+    let photo = h.app.session.catalog.photos().next().map(|p| p.id.0).unwrap();
+    let g = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
+    let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({"ids": [photo], "edge": 256}) };
+    g.set_request(request);
+    let failed = g.id();
+    g.finish(Outcome::failed("The disk is full"));
+    open_list(&mut h);
+    click(&mut h, &format!("activity:retry:{failed}"));
+    assert!(h.app.session.activity.finished().iter().all(|f| f.id != failed), "the row was taken up by the retry");
+    let progress = h.app.session.execute("library.previewProgress", &json!({})).unwrap();
+    assert_eq!(progress["total"], 1, "a build of that one photo started: {progress}");
+    assert!(h.step_until(T, |h| h.app.session.activity.list().is_empty()));
+}
+
+/// Given a preview build running and another waiting for it, when Quit is chosen, then the question says that one
+/// runs and one won't run; Quit Anyway stops the one and empties the line.
+#[test]
+fn quitting_says_how_many_tasks_waiting_in_line_would_not_run() {
+    let mut h = demo();
+    let build = std::sync::Arc::new(lightcraft_engine::cmd::previews::PreviewBuild::default());
+    h.app.session.preview_build = Some(build.clone());
+    let running = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
+    let r = h.app.run("library.buildPreviews", json!({"edge": 256, "queue": true}));
+    assert!(r.as_ref().is_ok_and(|v| v["place"] == 1), "{r:?}");
+    assert!(!crate::panels::notices::may_close(&mut h.app));
+    let Some(crate::QuitPrompt::Tasks(text)) = h.app.quit_prompt.clone() else { panic!("{:?}", h.app.quit_prompt) };
+    assert_eq!(text, "1 task is still running: Building previews. Quitting stops it. 1 task waiting in line won't run.");
+    // (what Quit Anyway does)
+    h.app.session.activity.cancel_all();
+    assert!(running.is_cancelled() && h.app.session.activity.waiting().is_empty());
+    build.finished.store(true, std::sync::atomic::Ordering::Release);
+    drop(running);
+}
+
+/// Given a preview build seen running, when the next one in line takes its place before a frame saw it end, then
+/// its end is still announced.
+#[test]
+fn the_end_of_a_build_replaced_by_the_next_in_line_is_still_announced() {
+    use lightcraft_engine::cmd::previews::PreviewBuild;
+    use std::sync::Arc;
+    use std::sync::atomic::Ordering;
+    let mut h = demo();
+    let first = Arc::new(PreviewBuild { total: 3, ..Default::default() });
+    first.done.store(3, Ordering::Relaxed);
+    h.app.session.preview_build = Some(first.clone());
+    h.step();
+    // it ends, and the next one starts, between two frames
+    first.finished.store(true, Ordering::Release);
+    h.app.session.preview_build = Some(Arc::new(PreviewBuild { total: 5, ..Default::default() }));
+    h.app.ui.toast = None;
+    h.step();
+    assert!(h.app.ui.toast.as_ref().is_some_and(|(text, ..)| text == "Previews ready for 3 photos"), "{:?}", h.app.ui.toast);
 }

@@ -312,5 +312,9 @@
   "Move {n} photo{} to “{}”?": "Déplacer {n} photo{} vers « {} » ?",
   "Listing folders — folders: {folders}, files: {files}": "Liste des dossiers — dossiers : {folders}, fichiers : {files}",
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n} photo{} déplacée(s) vers « {} ». Modifier → Annuler les remet en place.",
-  "+{n} more": "+{n} autres"
+  "+{n} more": "+{n} autres",
+  "{n} waiting": "{n} en attente",
+  "Starts after {n} more": "Démarre après {n} autres",
+  "Queued: it starts after {n} more": "En file : démarre après {n} autres",
+  "{n} tasks waiting in line won't run.": "{n} tâches en file d’attente ne seront pas lancées."
 }

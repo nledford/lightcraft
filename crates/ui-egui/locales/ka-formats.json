@@ -312,5 +312,9 @@
   "Move {n} photo{} to “{}”": "Move {n} photo{} to “{}”",
   "Move {n} photo{} to “{}”?": "Move {n} photo{} to “{}”?",
   "Listing folders — folders: {folders}, files: {files}": "საქაღალდეების ჩამოთვლა — საქაღალდეები: {folders}, ფაილები: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Moved {n} photo{} to “{}”. Edit → Undo moves them back."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Moved {n} photo{} to “{}”. Edit → Undo moves them back.",
+  "{n} waiting": "{n} ელოდება",
+  "Starts after {n} more": "დაიწყება კიდევ {n}-ის შემდეგ",
+  "Queued: it starts after {n} more": "რიგშია: დაიწყება კიდევ {n}-ის შემდეგ",
+  "{n} tasks waiting in line won't run.": "რიგში მყოფი {n} ამოცანა არ გაეშვება."
 }

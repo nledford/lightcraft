@@ -3429,5 +3429,11 @@
   "favourites across restarts (issue #328).": "über Neustarts hinweg Favoriten (Issue #328).",
   "Optional remote SAM 3: keep the native editor local and run Object, Describe, and detail": "Optionales entferntes SAM 3: Der native Editor bleibt lokal, und Objekt-, Beschreibungs- und Detail-",
   "inference on a Mac through SSH. Saved masks still render and export offline.": "Inferenz laufen über SSH auf einem Mac. Gespeicherte Masken werden weiterhin offline gerendert und exportiert.",
-  "See [remote Metal inference](ai-masks.md#remote-metal-inference).": "Siehe [remote Metal inference](ai-masks.md#remote-metal-inference)."
+  "See [remote Metal inference](ai-masks.md#remote-metal-inference).": "Siehe [remote Metal inference](ai-masks.md#remote-metal-inference).",
+  "Waiting": "Wartet",
+  "Starts next": "Startet als Nächstes",
+  "Remove from Queue": "Aus der Warteschlange entfernen",
+  "Retry": "Erneut versuchen",
+  "Queued: it starts when the task ahead of it ends": "In der Warteschlange: startet, wenn die Aufgabe davor endet",
+  "1 task waiting in line won't run.": "1 Aufgabe in der Warteschlange wird nicht ausgeführt."
 }

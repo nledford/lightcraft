@@ -312,5 +312,9 @@
   "Move {n} photo{} to “{}”": "Přesunout do „{1}“ fotografie: {n}{0:.0}",
   "Move {n} photo{} to “{}”?": "Přesunout do „{1}“ fotografie: {n}{0:.0}?",
   "Listing folders — folders: {folders}, files: {files}": "Procházení složek – složky: {folders}, soubory: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Do „{1}“ přesunuto fotografií: {n}{0:.0}. Úpravy → Zpět je vrátí."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Do „{1}“ přesunuto fotografií: {n}{0:.0}. Úpravy → Zpět je vrátí.",
+  "{n} waiting": "{n} čeká",
+  "Starts after {n} more": "Začne po {n} dalších",
+  "Queued: it starts after {n} more": "Ve frontě: začne po {n} dalších",
+  "{n} tasks waiting in line won't run.": "Úlohy čekající ve frontě ({n}) se nespustí."
 }
