@@ -237,18 +237,37 @@ fn a_waiting_review_never_replaces_a_running_import() {
     h.step();
     let Some(review) = h.app.ui.dialog.clone() else { panic!("the review opens once the dialog is closed") };
     assert!(matches!(review, Dialog::Import { .. }));
-    // an import that started anyway (a Local folder browse, say) is the one that runs
+    // an import that started anyway (a Local folder browse, say) is the one that runs: the review's OK waits behind it
     h.app.import = Some(crate::import::ImportTask::new(vec![dir.path("more")], json!({"mode": "add"}), 0, false));
-    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &review).is_err(), "the review's OK is refused");
+    let r = crate::panels::dialogs::confirm_dialog(&mut h.app, &review);
+    assert!(r.as_ref().is_ok_and(|v| v["queued"].as_u64().is_some()), "the review's OK waits in line: {r:?}");
     assert_eq!(h.app.import.as_ref().map(|t| t.total), Some(1), "the running import stays");
-    assert!(h.step_until(SETTLE, |h| h.app.import.is_none()), "it runs to the end");
-    assert_eq!(photos(&h), 1, "only the running import's photo arrives");
+    assert!(h.step_until(SETTLE, |h| h.app.import.is_none() && h.app.session.activity.list().is_empty()), "both run to the end");
+    assert_eq!(photos(&h), 3, "the running import's photo arrives, then the review's two");
 }
 
-/// A drop while an import runs would open a review whose OK replaces the running import: it is
+/// Given an import that runs, when photos are dropped directly on the window, then they are not refused: they wait in
+/// line behind it and are imported when it ends.
+#[test]
+fn a_direct_drop_while_an_import_runs_waits_in_line() {
+    let dir = Scratch::new("running-waits");
+    let mut h = app(&dir);
+    h.app.ui.settings.import_dropped_directly = true;
+    write_png(&dir.path("more/c.png"), 3);
+    // (held by a row of the lane, so that it can't finish between the frames of the drop)
+    let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
+    drop_files(&mut h, &[dir.path("trip")], false);
+    assert_eq!(h.app.session.activity.waiting().iter().map(|t| t.kind).collect::<Vec<_>>(), vec!["import"]);
+    assert!(h.app.ui.toast.as_ref().is_some_and(|t| t.0.starts_with("Queued")), "{:?}", h.app.ui.toast);
+    drop(hold);
+    assert!(h.step_until(SETTLE, |h| h.app.import.is_none() && h.app.session.activity.list().is_empty()), "both run to the end");
+    assert_eq!(photos(&h), 2, "the dropped folder's two photos");
+}
+
+/// A drop while a scan runs would open a review whose OK replaces the import the scan starts: it is
 /// refused instead, and the card says so.
 #[test]
-fn a_drop_while_an_import_runs_is_refused() {
+fn a_drop_while_a_scan_runs_is_refused() {
     let dir = Scratch::new("running");
     let mut h = app(&dir);
     write_png(&dir.path("more/c.png"), 3);
@@ -266,9 +285,9 @@ fn a_drop_while_an_import_runs_is_refused() {
     assert_eq!(photos(&h), 0);
 }
 
-/// An import that is running stays the one that runs: a direct drop doesn't start a second.
+/// A scan that is running stays the one that runs: a direct drop doesn't start a second import beside it.
 #[test]
-fn a_direct_drop_while_an_import_runs_is_refused_too() {
+fn a_direct_drop_while_a_scan_runs_is_refused_too() {
     let dir = Scratch::new("running-direct");
     let mut h = app(&dir);
     h.app.ui.settings.import_dropped_directly = true;

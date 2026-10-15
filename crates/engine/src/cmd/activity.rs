@@ -11,7 +11,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Background Tasks",
             [],
             None,
-            "{} → {tasks: [{id, kind, label, done, total, unit: count|bytes|percent, detail, cancellable, cancelling, ageMs, waiting, place, lane}]} — the long-running tasks in flight (imports, exports, preview builds, downloads, the face scan…), oldest first, then those waiting in line for a task of their lane (waiting: true, place: 1 = next in its lane, lane: previews; done and total 0); total 0 = not known yet",
+            "{} → {tasks: [{id, kind, label, done, total, unit: count|bytes|percent, detail, cancellable, cancelling, ageMs, waiting, place, lane}]} — the long-running tasks in flight (imports, exports, preview builds, downloads, the face scan…), oldest first, then those waiting in line for their lane (waiting: true, place 1 = next in its lane, lane: previews or library (imports and Synchronize Folder, which the app starts); they start by themselves when the tasks ahead end, keeping their id), in the order they were asked for; total 0 = not known yet",
             always,
             |s, _| Ok(json!({"tasks": s.activity.list()}))
         ),

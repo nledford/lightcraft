@@ -2026,7 +2026,6 @@
   "Skipped: files that can't be read": "Saltati: file che non si possono leggere",
   "This folder isn't there: it was moved or renamed, or its disk isn't connected.": "Questa cartella non c'è: è stata spostata o rinominata, oppure il suo disco non è collegato.",
   "Relink photos whose file was renamed or moved": "Ricollega le foto il cui file è stato rinominato o spostato",
-  "A folder is already being synchronized": "Una cartella è già in sincronizzazione",
   "Synchronizing…": "Sincronizzazione in corso…",
   "Relinked": "Ricollegate",
   "Removed": "Rimosse",
@@ -2361,5 +2360,7 @@
   "Import dropped files without review": "Importa i file rilasciati senza revisione",
   "An import is running": "Un'importazione è in corso",
   "An import is running. Drop photos when it has finished": "Un'importazione è in corso. Trascina le foto quando è finita",
-  "Finish Lightroom catalog import before adding photos": "Termina l'importazione del catalogo Lightroom prima di aggiungere foto"
+  "Finish Lightroom catalog import before adding photos": "Termina l'importazione del catalogo Lightroom prima di aggiungere foto",
+  "Queued: it starts when the task ahead of it ends": "In coda: parte quando finisce l'attività precedente",
+  "Another library was opened: nothing was done": "È stata aperta un'altra libreria: non è stato fatto nulla"
 }
