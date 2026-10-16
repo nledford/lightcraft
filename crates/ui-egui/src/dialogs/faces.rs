@@ -671,13 +671,22 @@ pub fn name_editor(
                     Some(s) => format!("{name}   {:.0}%", (s * 100.0).max(0.0)),
                     None => name.clone(),
                 };
-                let b = crate::button::Button::new(&label).ghost().small().min_width(220.0).widget(format!("faceName:pick:{name}")).show(ui);
+                let b = crate::button::Button::new(&label)
+                    .verbatim()
+                    .ghost()
+                    .small()
+                    .align_start()
+                    .min_width(220.0)
+                    .widget(format!("faceName:pick:{name}"))
+                    .show(ui);
                 if b.clicked() {
                     outcome = Editor::Submit(name);
                 }
             }
             if let Some(label) = setup.short() {
-                let b = crate::button::Button::new(label).ghost().small().widget("faces:setup").show(ui);
+                // a link, as before: accent text without a frame
+                let b = ui.add(egui::Link::new(RichText::new(crate::i18n::tr(label)).font(t.font(12.0)).color(t.accent)));
+                register(ui, "faces:setup", b.rect);
                 if b.clicked() {
                     outcome = Editor::Setup;
                 }

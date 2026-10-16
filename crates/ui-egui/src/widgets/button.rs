@@ -187,6 +187,9 @@ pub struct Button<'a> {
     trailing: bool,
     mono: bool,
     truncate: bool,
+    verbatim: bool,
+    align_start: bool,
+    bold: bool,
     name: Option<&'a str>,
     kind: Kind,
     size: Size,
@@ -208,6 +211,9 @@ impl<'a> Button<'a> {
             trailing: false,
             mono: false,
             truncate: false,
+            verbatim: false,
+            align_start: false,
+            bold: false,
             name: None,
             kind: Kind::default(),
             size: Size::default(),
@@ -321,6 +327,30 @@ impl<'a> Button<'a> {
         self
     }
 
+    /// The text is data (an album's, a person's or a keyword's name), shown as it is and never
+    /// looked up in the translations.
+    pub fn verbatim(mut self) -> Self {
+        self.verbatim = true;
+        self
+    }
+
+    /// The content starts at the left edge (after the padding) instead of being centred; a
+    /// trailing icon is pinned to the right edge. For a button as wide as a field or a list row.
+    pub fn align_start(mut self) -> Self {
+        self.align_start = true;
+        self
+    }
+
+    /// The text in the semibold face, whatever the kind.
+    pub fn bold(mut self) -> Self {
+        self.bold = true;
+        self
+    }
+
+    fn words(&self, text: &str) -> String {
+        if self.verbatim { text.to_string() } else { crate::i18n::tr(text).to_string() }
+    }
+
     /// With [`Button::max_width`]: a longer text is cut with "…" on one line instead of wrapping.
     pub fn truncate(mut self) -> Self {
         self.truncate = true;
@@ -330,6 +360,9 @@ impl<'a> Button<'a> {
     fn font(&self, t: &Tokens) -> egui::FontId {
         if self.mono {
             return egui::FontId::monospace(self.size.text());
+        }
+        if self.bold {
+            return t.semibold(self.size.text());
         }
         // the loud kinds speak a little bolder
         match self.kind {
@@ -341,7 +374,7 @@ impl<'a> Button<'a> {
     fn galley(&self, ui: &Ui) -> Option<std::sync::Arc<egui::Galley>> {
         let t = Tokens::get(ui.ctx());
         let text = self.text.filter(|s| !s.is_empty())?;
-        let (text, font) = (crate::i18n::tr(text).to_string(), self.font(&t));
+        let (text, font) = (self.words(text), self.font(&t));
         Some(match self.max_width {
             Some(max) => {
                 let icon = if self.icon.is_some() { self.size.icon() + self.size.gap() } else { 0.0 };
@@ -409,7 +442,7 @@ impl<'a> Button<'a> {
                 Sense::click()
             },
         );
-        let words = crate::i18n::tr(self.name.or(self.text).unwrap_or_default()).to_string();
+        let words = self.words(self.name.or(self.text).unwrap_or_default());
         resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, words.clone()));
         if self.busy {
             ui.ctx().accesskit_node_builder(resp.id, |node| node.set_busy());
@@ -455,7 +488,7 @@ impl<'a> Button<'a> {
             (None, true) => slot,
             (None, false) => 0.0,
         };
-        let mut x = rect.center().x - content_w / 2.0;
+        let mut x = if self.align_start { rect.left() + self.size.padding() } else { rect.center().x - content_w / 2.0 };
         // the icon (or busy spinner) slot: before the text, or after it for a trailing icon
         let draw_slot = |x: &mut f32| {
             if has_slot {
@@ -480,6 +513,9 @@ impl<'a> Button<'a> {
             p.galley_with_override_text_color(at, g, lk.content);
         }
         if self.trailing {
+            if self.align_start {
+                x = rect.right() - self.size.padding() - icon_s;
+            }
             draw_slot(&mut x);
         }
         // the tooltip, or an icon's name, also while disabled (what the button would do). egui

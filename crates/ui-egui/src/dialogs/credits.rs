@@ -291,9 +291,9 @@ pub fn contributors_ui(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 fn table(app: &mut LightcraftApp, ui: &mut egui::Ui, list: &[&Contributor], v: &mut View) {
     egui::Grid::new("credits_table").striped(true).num_columns(SortKey::ALL.len()).show(ui, |ui| {
         for k in SortKey::ALL {
-            let mut header = crate::button::Button::new(k.label().1).ghost().small().tooltip(k.label().0);
+            let mut header = crate::button::Button::new(k.label().1).ghost().small().bold().tooltip(k.label().0);
             if v.key == k {
-                header = header.icon(if v.ascending { crate::icons::Icon::ChevronUp } else { crate::icons::Icon::ChevronDown });
+                header = header.trailing_icon(if v.ascending { crate::icons::Icon::ChevronUp } else { crate::icons::Icon::ChevronDown });
             }
             if header.show(ui).clicked() {
                 if v.key == k {

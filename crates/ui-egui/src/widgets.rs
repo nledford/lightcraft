@@ -31,25 +31,6 @@ fn list_style(style: &mut egui::Style) {
     style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
 }
 
-/// A native button with a vector arrow beside its text; egui reserves the icon's space.
-pub fn arrow_button<'a>(ui: &mut Ui, text: impl egui::IntoAtoms<'a>, icon: Icon, leading: bool) -> Response {
-    // 0.37 atoms take a local `IdSalt` (not a root `Id`); the button reports the custom atom's
-    // rect under the same salt.
-    let id = egui::IdSalt::new(("lc-arrow", ui.next_auto_id()));
-    let mut atoms = text.into_atoms();
-    let arrow = egui::Atom::custom(id, vec2(16.0, 16.0));
-    if leading {
-        atoms.push_left(arrow);
-    } else {
-        atoms.push_right(arrow);
-    }
-    let r = egui::Button::new(atoms).atom_ui(ui);
-    if let Some(rect) = r.rect(id) {
-        paint(ui.painter(), rect, icon, ui.style().interact(&r.response).fg_stroke.color);
-    }
-    r.response
-}
-
 /// Keep egui's submenu interaction and layout, using our vector chevron instead of a font glyph.
 pub fn menu_button<'a, R>(ui: &mut Ui, atoms: impl egui::IntoAtoms<'a>, contents: impl FnOnce(&mut Ui) -> R) -> egui::InnerResponse<Option<R>> {
     if !egui::containers::menu::is_in_menu(ui) {
@@ -1122,6 +1103,7 @@ mod access_tests {
             let out = ctx.run_ui(egui::RawInput::default(), |ui| {
                 let _ = slider(ui, spec, 0.5, true, None);
                 let _ = crate::button::Button::new("Auto").small().widget("button:auto").show(ui);
+                let _ = text_button(ui, "bw", "B&W", true);
                 let _ = icon_button(ui, "trash", Icon::Trash, vec2(24.0, 24.0), false, true, "Delete mask");
             });
             let mut out = out;
@@ -1146,6 +1128,7 @@ mod access_tests {
         assert!(ranges.contains(&(Some(spec.min), Some(spec.max))), "the slider's range: {ranges:?}");
         assert!(has("Button", "Auto"), "{found:?}");
         assert!(has("Button", "Delete mask"), "{found:?}");
+        assert!(has("Button", "B&W"), "{found:?}");
     }
 }
 

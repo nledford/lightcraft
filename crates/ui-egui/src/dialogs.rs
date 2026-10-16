@@ -845,7 +845,7 @@ fn label_names_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, dlg:
         ui.spacing_mut().item_spacing.x = 4.0;
         for set in sets["sets"].as_array().into_iter().flatten() {
             let name = set["name"].as_str().unwrap_or_default();
-            if crate::button::Button::new(name).small().widget(format!("button:labelSet-{name}")).show(ui).clicked() {
+            if crate::button::Button::new(name).verbatim().small().widget(format!("button:labelSet-{name}")).show(ui).clicked() {
                 *names = set["names"].as_array().into_iter().flatten().map(|n| n.as_str().unwrap_or_default().to_string()).collect();
             }
         }
@@ -1015,7 +1015,7 @@ fn merge_keywords_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, c
         .collect();
     ui.horizontal_wrapped(|ui| {
         for k in options {
-            if ui.add(egui::Button::new(egui::RichText::new(&k).color(t.text_label)).corner_radius(10.0)).clicked() {
+            if crate::button::Button::new(&k).verbatim().small().show(ui).clicked() {
                 *into = k;
             }
         }
