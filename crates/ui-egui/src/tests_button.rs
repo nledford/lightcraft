@@ -102,6 +102,35 @@ fn a_trailing_icon_is_painted_after_the_text_and_monospace_changes_the_face() {
 }
 
 #[test]
+fn verbatim_text_is_not_translated_and_align_start_pins_the_content() {
+    crate::i18n::set_language(crate::i18n::Locale::De);
+    // "Cancel" is a UI string (translated); as data, an album that happens to be called so is not
+    let (names, _) = frames(Vec::new(), |ui| {
+        Button::new("Cancel").show(ui);
+        Button::new("Cancel").verbatim().id_salt("v").show(ui);
+    });
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    let labels: Vec<&str> = names.iter().map(|(_, n)| n.as_str()).collect();
+    assert!(labels.contains(&"Cancel"), "verbatim keeps the text: {labels:?}");
+    assert!(labels.iter().any(|l| *l != "Cancel" && !l.is_empty()), "the other is translated: {labels:?}");
+
+    // a wide button: centred text starts well right of the left edge; aligned to the start it doesn't
+    let text_x = |start: bool| {
+        let ctx = egui::Context::default();
+        crate::theme::install_fonts(&ctx);
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 100.0))), ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let b = Button::new("Album").small();
+            let b = if start { b.align_start() } else { b };
+            b.show_at(ui, Rect::from_min_size(Pos2::ZERO, vec2(300.0, 24.0)));
+        });
+        out.textures_delta.clear();
+        out.shapes.iter().filter_map(|s| if let egui::epaint::Shape::Text(t) = &s.shape { Some(t.pos.x) } else { None }).fold(f32::MAX, f32::min)
+    };
+    assert!(text_x(true) < 20.0 && text_x(false) > 100.0, "{} vs {}", text_x(true), text_x(false));
+}
+
+#[test]
 fn a_screen_reader_hears_every_button_by_its_name() {
     let (found, _) = frames(Vec::new(), |ui| {
         Button::new("Import Photos…").primary().show(ui);

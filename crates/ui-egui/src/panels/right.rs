@@ -1113,9 +1113,10 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 for (i, k) in suggestions.into_iter().enumerate() {
                     let whole = k.replace('|', " › ");
                     let name = names.get(i).unwrap_or(&whole);
-                    let r = ui.add(egui::Button::new(egui::RichText::new(format!("+ {name}")).color(t.text_label)).corner_radius(10.0));
-                    let r = if grouped { r.on_hover_text(&whole) } else { r };
-                    register(ui.ctx(), format!("kwSuggest:{k}"), r.rect);
+                    let label = format!("+ {name}");
+                    let r = crate::button::Button::new(&label).verbatim().small().widget(format!("kwSuggest:{k}"));
+                    let r = if grouped { r.tooltip(&whole) } else { r };
+                    let r = r.show(ui);
                     if r.clicked() {
                         let _ = app.run("photo.setMeta", json!({"addKeywords": [k]}));
                     }
