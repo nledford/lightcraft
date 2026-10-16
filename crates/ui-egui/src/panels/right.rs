@@ -547,7 +547,7 @@ pub(crate) fn tool_overlay_options(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             .on_hover_text(crate::i18n::tr("When pins show on the photo (Shift+H cycles)"));
         egui::Popup::menu(&r).show(|ui| {
             for m in ToolOverlay::ALL {
-                let item = MenuItem::new(crate::i18n::tr(m.label())).checked(m == current).widget(format!("toolOverlay:{}", m.name())).show(ui);
+                let item = MenuItem::new(crate::i18n::tr(m.label())).selected(m == current).widget(format!("toolOverlay:{}", m.name())).show(ui);
                 if item.clicked() {
                     let _ = app.run("view.toolOverlay", json!({"mode": m.name()}));
                 }
@@ -895,7 +895,7 @@ fn copyright_status(app: &mut LightcraftApp, ui: &mut egui::Ui, current: lightcr
     ui.label(egui::RichText::new(crate::i18n::tr("Copyright Status")).size(11.5).color(t.text_dim));
     let r = crate::widgets::combo_box("info-copyright-status").selected_text(crate::i18n::tr(current.label())).show_ui(ui, |ui| {
         for st in lightcraft_catalog::CopyrightStatus::ALL {
-            if MenuItem::new(crate::i18n::tr(st.label())).checked(st == current).show(ui).clicked() && st != current {
+            if MenuItem::new(crate::i18n::tr(st.label())).selected(st == current).show(ui).clicked() && st != current {
                 let _ = app.run("photo.setMeta", json!({"copyrightStatus": st.id()}));
             }
         }
@@ -1169,7 +1169,7 @@ fn keyword_set(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 for set in sets["sets"].as_array().into_iter().flatten() {
                     let name = set["name"].as_str().unwrap_or_default();
                     if MenuItem::new(crate::i18n::builtin_label(name, name == lightcraft_engine::cmd::keywords::RECENT))
-                        .checked(name == current)
+                        .selected(name == current)
                         .show(ui)
                         .clicked()
                     {

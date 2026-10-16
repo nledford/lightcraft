@@ -249,7 +249,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                         if m == WbMode::Custom {
                             continue;
                         }
-                        if MenuItem::new(m.label()).checked(d.wb.mode == m).show(ui).clicked() {
+                        if MenuItem::new(m.label()).selected(d.wb.mode == m).show(ui).clicked() {
                             let mode = serde_json::to_value(m).unwrap_or_default();
                             let _ = app.run("develop.wb", json!({"mode": mode}));
                         }
@@ -445,7 +445,7 @@ fn profile_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings)
     let mut pick: (Option<String>, Option<String>) = (None, None);
     let item = |ui: &mut egui::Ui, key: &str, id: &str, name: &str, pick: &mut (Option<String>, Option<String>)| {
         let label = crate::i18n::profile_label(id, name);
-        let r = MenuItem::new(label).checked(id == cur).widget(format!("profileMenu:{key}:{id}")).show(ui);
+        let r = MenuItem::new(label).selected(id == cur).widget(format!("profileMenu:{key}:{id}")).show(ui);
         if r.clicked() {
             pick.0 = Some(id.to_string());
         }
@@ -814,14 +814,14 @@ fn soft_proofing(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             let mut pick = false;
             crate::widgets::combo_box("proof-space").width(170.0).selected_text(shown).show_ui(ui, |ui| {
                 for s in OutputSpace::ALL {
-                    if MenuItem::new(s.label()).checked(device.is_none() && cur == s).show(ui).clicked() {
+                    if MenuItem::new(s.label()).selected(device.is_none() && cur == s).show(ui).clicked() {
                         let _ = app.run("view.softProof", json!({"space": s}));
                     }
                 }
                 if let Some(n) = &device {
-                    let _ = MenuItem::new(n).checked(true).enabled(false).show(ui);
+                    let _ = MenuItem::new(n).selected(true).inert().show(ui);
                 }
-                if app.services.pick_display_profile.is_some() && MenuItem::new(crate::i18n::tr("Other…")).checked(false).show(ui).clicked() {
+                if app.services.pick_display_profile.is_some() && MenuItem::new(crate::i18n::tr("Other…")).selected(false).show(ui).clicked() {
                     pick = true;
                 }
             });
@@ -1174,7 +1174,7 @@ fn curve_footer(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings)
                     }
                     let label = crate::i18n::builtin_label(&p.name, p.builtin);
                     let r =
-                        MenuItem::new(label).checked(current.as_deref() == Some(p.name.as_str())).widget(format!("curvePreset:{}", p.name)).show(ui);
+                        MenuItem::new(label).selected(current.as_deref() == Some(p.name.as_str())).widget(format!("curvePreset:{}", p.name)).show(ui);
                     if r.clicked() {
                         let _ = app.run("curve.applyPreset", json!({"name": p.name}));
                         ui.close();
