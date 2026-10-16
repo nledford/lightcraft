@@ -1432,9 +1432,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::DeleteEffects { .. } => "Delete",
                     Dialog::SaveEffect { .. } | Dialog::NewAlbum { .. } | Dialog::NewSmartAlbum { .. } | Dialog::SmartRules { id: None, .. } | Dialog::CreatePreset { .. } => "Create",
                     Dialog::SmartRules { .. } | Dialog::LabelNames { .. } => "Save",
+                    Dialog::RenameKeyword { from, to } if app.session.catalog.has_keyword(to) && !lightcraft_catalog::keywords::same(from, to) => "Merge Keywords",
                     Dialog::RenameAlbum { .. } | Dialog::Rename { .. } | Dialog::RenameKeyword { .. } => "Rename",
-                    Dialog::AutoStack { .. } => "Stack",
-                    Dialog::CaptureTime { .. } => "Change",
+                    Dialog::AutoStack { .. } => "Create Stacks",
+                    Dialog::CaptureTime { .. } => "Change Time",
                     Dialog::Cull { .. } => "Cull",
                     Dialog::CopySettings { .. } => "Copy",
                     Dialog::PasteSettings { .. } => "Paste",
@@ -1456,9 +1457,17 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::SamModel { .. } => "Download",
                     Dialog::RenamePerson { from, to, .. } if person_rename_plan(&app.session.catalog, from, to).needs_merge => "Merge",
                     Dialog::RenamePerson { .. } => "Rename",
-                    _ if informational => "Close",
-                    // only a one-field prompt opened with a command that has no verb here
-                    _ => "OK",
+                    // the dialogs that only show something, or a model file that can't be used
+                    Dialog::About
+                    | Dialog::Shortcuts
+                    | Dialog::Settings { .. }
+                    | Dialog::SystemInfo { .. }
+                    | Dialog::AllMetadata { .. }
+                    | Dialog::WhatsNew
+                    | Dialog::ManageEffects { .. }
+                    | Dialog::ViewOptions
+                    | Dialog::LightroomResult { .. }
+                    | Dialog::FaceModel { .. } => "Close",
                 };
                 // installing waits for the licence to be accepted
                 // (and Synchronize waits for the scan)
