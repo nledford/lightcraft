@@ -135,6 +135,27 @@ fn a_disabled_check_and_radio_ignore_clicks_and_keys() {
 }
 
 #[test]
+fn a_disabled_check_and_radio_say_why_on_hover() {
+    let rig = Rig::new();
+    rig.ctx.all_styles_mut(|s| s.interaction.tooltip_delay = 0.0);
+    let (mut on, mut choice) = (false, 0);
+    let draw = |ui: &mut egui::Ui, on: &mut bool, choice: &mut i32| {
+        let c = Check::new("d", on, "Off").enabled(false).tooltip("Needs a model").show(ui);
+        let r = crate::check::Radio::new("e", choice, 1, "Radio").enabled(false).tooltip("Not now").show(ui);
+        (c, r)
+    };
+    let ((c, r), _) = rig.frame(Vec::new(), |ui| draw(ui, &mut on, &mut choice));
+    for target in [c.rect.center(), r.rect.center()] {
+        let hover = vec![egui::Event::PointerMoved(target)];
+        for _ in 0..3 {
+            rig.frame(hover.clone(), |ui| draw(ui, &mut on, &mut choice));
+        }
+        let ((c, r), _) = rig.frame(Vec::new(), |ui| draw(ui, &mut on, &mut choice));
+        assert!(c.is_tooltip_open() || r.is_tooltip_open(), "the reason shows on hover at {target:?}");
+    }
+}
+
+#[test]
 fn screen_readers_hear_a_checkbox_and_a_radio_with_their_state() {
     let rig = Rig::new();
     let mut choice = 3;
