@@ -851,8 +851,7 @@ fn soft_proofing(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 let _ = app.run("view.softProof", json!({"paperInk": paper}));
             }
         }
-        let r = ui.button(crate::i18n::tr("Create Proof Copy"));
-        register(ui.ctx(), "button:createProofCopy", r.rect);
+        let r = crate::button::Button::new("Create Proof Copy").widget("button:createProofCopy").show(ui);
         if r.clicked() {
             let target = app.ui.proof_profile.as_ref().map_or_else(|| app.ui.proof.space.label().to_string(), |(_, n)| n.clone());
             let name = crate::i18n::tr_format!("Proof Copy ({})", target);
@@ -1777,18 +1776,9 @@ fn quick_develop(app: &mut LightcraftApp, ui: &mut egui::Ui, n: usize) {
                     ("▶", Icon::ChevronRight, small),
                     ("▶▶", Icon::ChevronDoubleRight, big),
                 ] {
-                    let r = crate::widgets::arrow_button(ui, "", icon, false);
-                    r.widget_info(|| {
-                        egui::WidgetInfo::labeled(
-                            egui::WidgetType::Button,
-                            ui.is_enabled(),
-                            crate::i18n::tr_format!("{label} {d:+} on every selected photo", d = d, label = crate::i18n::tr(label)),
-                        )
-                    });
-                    crate::widgets::register(ui.ctx(), format!("button:quick-{ctl}-{txt}"), r.rect);
-                    if r.on_hover_text(crate::i18n::tr_format!("{label} {d:+} on every selected photo", d = d, label = crate::i18n::tr(label)))
-                        .clicked()
-                    {
+                    let name = crate::i18n::tr_format!("{label} {d:+} on every selected photo", d = d, label = crate::i18n::tr(label));
+                    let r = crate::button::Button::icon_only(icon, &name).ghost().small().widget(format!("button:quick-{ctl}-{txt}")).show(ui);
+                    if r.clicked() {
                         let _ = app.run("develop.quickAdjust", json!({"control": ctl, "delta": d}));
                     }
                 }
