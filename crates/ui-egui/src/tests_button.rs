@@ -67,7 +67,38 @@ fn a_long_text_wraps_inside_its_max_width_and_grows_taller() {
     });
     assert!(free.x > 120.0, "one line is wider than the cap");
     assert!(capped.x <= 120.0 && capped.y > free.y, "capped: {capped:?}, free: {free:?}");
+    let (_, cut) = frames(Vec::new(), |ui| Button::new(label).small().max_width(120.0).truncate().desired_size(ui));
+    assert!(cut.x <= 120.0 && cut.y == Size::Small.height(), "truncated: one line, {cut:?}");
     assert_eq!(short.y, Size::Small.height(), "a text that fits keeps its size's height");
+}
+
+#[test]
+fn a_trailing_icon_is_painted_after_the_text_and_monospace_changes_the_face() {
+    let text_start = |trailing: bool| {
+        let ctx = egui::Context::default();
+        crate::theme::install_fonts(&ctx);
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 100.0))), ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let b = Button::new("Back");
+            let b = if trailing { b.trailing_icon(Icon::ChevronRight) } else { b.icon(Icon::ChevronRight) };
+            b.show(ui);
+        });
+        out.textures_delta.clear();
+        let mut text_x = f32::MAX;
+        for s in &out.shapes {
+            if let egui::epaint::Shape::Text(t) = &s.shape {
+                text_x = text_x.min(t.pos.x);
+            }
+        }
+        text_x
+    };
+    let leading = text_start(false);
+    let trailing = text_start(true);
+    assert!(leading > trailing, "an icon before the text pushes it right; one after does not ({leading} vs {trailing})");
+
+    let (_, (plain, mono)) =
+        frames(Vec::new(), |ui| (Button::new("{date}").desired_size(ui).x, Button::new("{date}").monospace().desired_size(ui).x));
+    assert_ne!(plain, mono, "another face has other widths");
 }
 
 #[test]
