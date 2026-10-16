@@ -391,7 +391,7 @@ fn work_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, list: &V
         let mut choice = current;
         crate::widgets::combo_box("denoise-cache-limit").selected_text(tr_format!("{size} GB", size = current)).show_ui(ui, |ui| {
             for gb in CACHE_LIMITS {
-                if MenuItem::new(&tr_format!("{size} GB", size = gb)).checked(choice == gb).show(ui).clicked() {
+                if MenuItem::new(&tr_format!("{size} GB", size = gb)).selected(choice == gb).show(ui).clicked() {
                     choice = gb;
                 }
             }

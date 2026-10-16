@@ -245,7 +245,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     for kind in group {
                         let current = app.ui.settings.theme(app.system_theme(ui.ctx())) == *kind;
                         let r = MenuItem::new(crate::i18n::tr(kind.label()))
-                            .checked(current)
+                            .selected(current)
                             .widget(format!("menu:themeFavorite-{}", kind.id()))
                             .show(ui);
                         if r.clicked() {

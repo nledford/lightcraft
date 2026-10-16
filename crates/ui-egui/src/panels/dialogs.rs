@@ -774,10 +774,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     ui.label(crate::i18n::tr_format!("{n} selected photos · {pages} pages", n = n, pages = n.div_ceil(options.columns * options.rows)));
                     field(ui, "Paper", |ui| {
                         crate::widgets::combo_box("contactSheetPaper").selected_text(&options.paper).show_ui(ui, |ui| {
-                            if MenuItem::new("A4").checked(options.paper == "a4").show(ui).clicked() {
+                            if MenuItem::new("A4").selected(options.paper == "a4").show(ui).clicked() {
                                 options.paper = "a4".into();
                             }
-                            if MenuItem::new(crate::i18n::tr("Letter")).checked(options.paper == "letter").show(ui).clicked() {
+                            if MenuItem::new(crate::i18n::tr("Letter")).selected(options.paper == "letter").show(ui).clicked() {
                                 options.paper = "letter".into();
                             }
                         });
@@ -2208,7 +2208,7 @@ fn export_size(ui: &mut egui::Ui, full: &mut bool, r: &mut lightcraft_engine::ex
             let before = r.mode;
             let c = crate::widgets::combo_box("exportResizeMode").width(150.0).selected_text(crate::i18n::tr(cur)).show_ui(ui, |ui| {
                 for (m, l) in MODES {
-                    if MenuItem::new(crate::i18n::tr(l)).checked(r.mode == m).show(ui).clicked() {
+                    if MenuItem::new(crate::i18n::tr(l)).selected(r.mode == m).show(ui).clicked() {
                         r.mode = m;
                     }
                 }
