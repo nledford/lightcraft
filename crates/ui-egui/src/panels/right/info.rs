@@ -1,4 +1,4 @@
-use super::{Icon, LightcraftApp, PhotoId, Sense, Tokens, divider, header, json, padded, register, text_button, vec2};
+use super::{Button, Icon, LightcraftApp, PhotoId, Sense, Tokens, divider, header, json, padded, register, text_button, vec2};
 
 pub(super) fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     let Some(p) = app.session.catalog.photo(id).cloned() else { return };

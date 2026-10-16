@@ -56,6 +56,21 @@ fn the_three_sizes_and_an_icon_alone() {
 }
 
 #[test]
+fn a_long_text_wraps_inside_its_max_width_and_grows_taller() {
+    let label = "Add 1234 photos to My Photos right now, please";
+    let (_, (free, capped, short)) = frames(Vec::new(), |ui| {
+        (
+            Button::new(label).small().desired_size(ui),
+            Button::new(label).small().max_width(120.0).desired_size(ui),
+            Button::new("OK").small().max_width(120.0).desired_size(ui),
+        )
+    });
+    assert!(free.x > 120.0, "one line is wider than the cap");
+    assert!(capped.x <= 120.0 && capped.y > free.y, "capped: {capped:?}, free: {free:?}");
+    assert_eq!(short.y, Size::Small.height(), "a text that fits keeps its size's height");
+}
+
+#[test]
 fn a_screen_reader_hears_every_button_by_its_name() {
     let (found, _) = frames(Vec::new(), |ui| {
         Button::new("Import Photos…").primary().show(ui);

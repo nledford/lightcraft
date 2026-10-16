@@ -1,6 +1,8 @@
 use super::curve::set_tat;
 use super::sliders::{control, sub_title};
-use super::{BAND_COLORS, Color32, DevelopSettings, Icon, LightcraftApp, Sense, Stroke, Tokens, hex, json, paint, register, text_button, vec2};
+use super::{
+    BAND_COLORS, Button, Color32, DevelopSettings, Icon, LightcraftApp, Sense, Stroke, Tokens, hex, json, paint, register, text_button, vec2,
+};
 
 // ------------------------------------------------------------------------------ colour mixer
 

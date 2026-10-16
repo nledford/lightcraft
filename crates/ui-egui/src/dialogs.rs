@@ -652,7 +652,7 @@ fn system_info_body(ui: &mut egui::Ui, t: &Tokens, dlg: &mut Dialog) {
             ui.end_row();
         }
     });
-    if ui.button(crate::i18n::tr("Copy to Clipboard")).clicked() {
+    if crate::button::Button::new("Copy to Clipboard").show(ui).clicked() {
         let text: String = rows.iter().map(|(k, v)| format!("{k}: {v}\n")).collect();
         ui.ctx().copy_text(text);
     }

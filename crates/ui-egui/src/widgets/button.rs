@@ -192,6 +192,7 @@ pub struct Button<'a> {
     widget: Option<String>,
     tooltip: Option<&'a str>,
     min_width: f32,
+    max_width: Option<f32>,
     id_salt: Option<egui::Id>,
 }
 
@@ -209,6 +210,7 @@ impl<'a> Button<'a> {
             widget: None,
             tooltip: None,
             min_width: 0.0,
+            max_width: None,
             id_salt: None,
         }
     }
@@ -293,6 +295,13 @@ impl<'a> Button<'a> {
         self
     }
 
+    /// At most this wide: a longer text wraps onto more lines, and the button grows taller to hold
+    /// them (a translated label in a narrow pane never runs past its edge).
+    pub fn max_width(mut self, width: f32) -> Self {
+        self.max_width = Some(width);
+        self
+    }
+
     fn font(&self, t: &Tokens) -> egui::FontId {
         // the loud kinds speak a little bolder
         match self.kind {
@@ -303,20 +312,32 @@ impl<'a> Button<'a> {
 
     fn galley(&self, ui: &Ui) -> Option<std::sync::Arc<egui::Galley>> {
         let t = Tokens::get(ui.ctx());
-        self.text.filter(|s| !s.is_empty()).map(|s| ui.painter().layout_no_wrap(crate::i18n::tr(s).to_string(), self.font(&t), Color32::WHITE))
+        let text = self.text.filter(|s| !s.is_empty())?;
+        let (text, font) = (crate::i18n::tr(text).to_string(), self.font(&t));
+        Some(match self.max_width {
+            Some(max) => {
+                let icon = if self.icon.is_some() { self.size.icon() + self.size.gap() } else { 0.0 };
+                let wrap = (max - self.size.padding() * 2.0 - icon).max(1.0);
+                ui.painter().layout(text, font, Color32::WHITE, wrap)
+            }
+            None => ui.painter().layout_no_wrap(text, font, Color32::WHITE),
+        })
     }
 
     /// How big it is drawn.
     pub fn desired_size(&self, ui: &Ui) -> Vec2 {
-        let h = self.size.height();
-        let text_w = self.galley(ui).map_or(0.0, |g| g.size().x);
+        let galley = self.galley(ui);
+        // a wrapped text makes it taller than its size
+        let h = galley.as_ref().map_or(0.0, |g| g.size().y + 8.0).max(self.size.height());
+        let text_w = galley.map_or(0.0, |g| g.size().x);
         let w = match (self.icon.is_some(), text_w > 0.0) {
             // an icon alone: a square
             (true, false) => h,
             (true, true) => self.size.padding() * 2.0 + self.size.icon() + self.size.gap() + text_w,
             (false, _) => self.size.padding() * 2.0 + text_w,
         };
-        vec2(w.max(self.min_width), h)
+        let w = w.max(self.min_width);
+        vec2(self.max_width.map_or(w, |m| w.min(m)), h)
     }
 
     /// Show it where the layout puts it.
