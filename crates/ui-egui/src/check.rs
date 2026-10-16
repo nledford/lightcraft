@@ -260,8 +260,10 @@ fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
     p.galley_with_override_text_color(pos2(rect.min.x + BOX + GAP, rect.center().y - galley.size().y / 2.0), galley, text_color);
 
     let activated = resp.clicked();
+    // (a check turned off on its own sits in an enabled ui: egui still calls the response enabled,
+    // and it is the plain hover text that shows the reason)
     let resp = match tooltip {
-        Some(tip) if resp.enabled() && enabled => resp.on_hover_text(crate::i18n::tr(tip)),
+        Some(tip) if resp.enabled() => resp.on_hover_text(crate::i18n::tr(tip)),
         Some(tip) => resp.on_disabled_hover_text(crate::i18n::tr(tip)),
         None => resp,
     };
