@@ -184,6 +184,9 @@ pub fn look(t: &Tokens, kind: Kind, state: State) -> Look {
 pub struct Button<'a> {
     text: Option<&'a str>,
     icon: Option<Icon>,
+    trailing: bool,
+    mono: bool,
+    truncate: bool,
     name: Option<&'a str>,
     kind: Kind,
     size: Size,
@@ -202,6 +205,9 @@ impl<'a> Button<'a> {
         Button {
             text: Some(text),
             icon: None,
+            trailing: false,
+            mono: false,
+            truncate: false,
             name: None,
             kind: Kind::default(),
             size: Size::default(),
@@ -223,6 +229,19 @@ impl<'a> Button<'a> {
     /// An icon before the text.
     pub fn icon(mut self, icon: Icon) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// An icon after the text (a chevron saying the button goes somewhere).
+    pub fn trailing_icon(mut self, icon: Icon) -> Self {
+        self.icon = Some(icon);
+        self.trailing = true;
+        self
+    }
+
+    /// The text in the monospace face: for a button that stands for data (a `{date}` token).
+    pub fn monospace(mut self) -> Self {
+        self.mono = true;
         self
     }
 
@@ -302,7 +321,16 @@ impl<'a> Button<'a> {
         self
     }
 
+    /// With [`Button::max_width`]: a longer text is cut with "…" on one line instead of wrapping.
+    pub fn truncate(mut self) -> Self {
+        self.truncate = true;
+        self
+    }
+
     fn font(&self, t: &Tokens) -> egui::FontId {
+        if self.mono {
+            return egui::FontId::monospace(self.size.text());
+        }
         // the loud kinds speak a little bolder
         match self.kind {
             Kind::Primary | Kind::Danger => t.semibold(self.size.text()),
@@ -318,7 +346,14 @@ impl<'a> Button<'a> {
             Some(max) => {
                 let icon = if self.icon.is_some() { self.size.icon() + self.size.gap() } else { 0.0 };
                 let wrap = (max - self.size.padding() * 2.0 - icon).max(1.0);
-                ui.painter().layout(text, font, Color32::WHITE, wrap)
+                if self.truncate {
+                    let mut job = egui::text::LayoutJob::simple(text, font, Color32::WHITE, wrap);
+                    job.wrap.max_rows = 1;
+                    job.wrap.break_anywhere = true;
+                    ui.painter().layout_job(job)
+                } else {
+                    ui.painter().layout(text, font, Color32::WHITE, wrap)
+                }
             }
             None => ui.painter().layout_no_wrap(text, font, Color32::WHITE),
         })
@@ -421,21 +456,31 @@ impl<'a> Button<'a> {
             (None, false) => 0.0,
         };
         let mut x = rect.center().x - content_w / 2.0;
-        if has_slot {
-            let slot_rect = Rect::from_center_size(pos2(x + slot / 2.0, rect.center().y), vec2(slot, slot));
-            if self.busy {
-                if ui.is_rect_visible(rect) {
-                    crate::progress::paint_spinner(p, slot_rect, lk.content, ui.input(|i| i.time));
-                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+        // the icon (or busy spinner) slot: before the text, or after it for a trailing icon
+        let draw_slot = |x: &mut f32| {
+            if has_slot {
+                let slot_rect = Rect::from_center_size(pos2(*x + slot / 2.0, rect.center().y), vec2(slot, slot));
+                if self.busy {
+                    if ui.is_rect_visible(rect) {
+                        crate::progress::paint_spinner(p, slot_rect, lk.content, ui.input(|i| i.time));
+                        ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+                    }
+                } else if let Some(icon) = self.icon {
+                    paint(p, slot_rect, icon, lk.content);
                 }
-            } else if let Some(icon) = self.icon {
-                paint(p, slot_rect, icon, lk.content);
+                *x += slot + gap;
             }
-            x += slot + gap;
+        };
+        if !self.trailing {
+            draw_slot(&mut x);
         }
         if let Some(g) = galley {
             let at = pos2(x, rect.center().y - g.size().y / 2.0);
+            x += g.size().x + self.size.gap();
             p.galley_with_override_text_color(at, g, lk.content);
+        }
+        if self.trailing {
+            draw_slot(&mut x);
         }
         // the tooltip, or an icon's name, also while disabled (what the button would do). egui
         // calls a response disabled only in a disabled ui: a button turned off on its own still

@@ -449,9 +449,11 @@ fn curve_footer(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings)
                 }
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let r = text_button(ui, "curveReset", crate::i18n::tr("Reset"), false).on_hover_text(crate::i18n::tr(
-                    "Reset all curves: point curves (all channels) and parametric (double-click a channel to reset only that one)",
-                ));
+                let r = Button::new("Reset")
+                    .small()
+                    .widget("button:curveReset")
+                    .tooltip("Reset all curves: point curves (all channels) and parametric (double-click a channel to reset only that one)")
+                    .show(ui);
                 if r.clicked() {
                     let _ = app.run("curve.reset", json!({"channel": "all"}));
                 }

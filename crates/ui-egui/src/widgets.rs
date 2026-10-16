@@ -230,7 +230,7 @@ pub fn preview_only_notice(ui: &mut Ui, key: &str, reason: &str) -> bool {
             ui.add_space(2.0);
             ui.label(egui::RichText::new(preview_only_explanation(reason)).size(11.5).color(t.text_label));
             ui.add_space(6.0);
-            reload = text_button(ui, &format!("reloadPreviewOnly:{key}"), "Reload from Disk", false).clicked();
+            reload = crate::button::Button::new("Reload from Disk").small().widget(format!("button:reloadPreviewOnly:{key}")).show(ui).clicked();
         })
         .response;
     let r = r.on_hover_text(crate::i18n::tr_format!("Decoder: {reason}", reason = reason));
@@ -886,9 +886,10 @@ pub fn flyout_row(ui: &mut Ui, id: &str, title: &str, icon: Icon, open: bool) ->
     resp
 }
 
-/// A small bordered text button (Auto, B&W, HDR…).
+/// A small bordered text button with an active state: the toggle and choice vocabulary (Auto, B&W,
+/// HDR, a segmented choice, a tab). An action that just does something is a [`crate::button::Button`].
 pub fn text_button(ui: &mut Ui, id: &str, label: &str, active: bool) -> Response {
-    let label = if id.starts_with("labelSet-") { label } else { crate::i18n::tr(label) };
+    let label = crate::i18n::tr(label);
     let t = Tokens::get(ui.ctx());
     let font = t.semibold(11.5);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
@@ -1120,7 +1121,7 @@ mod access_tests {
         for _ in 0..3 {
             let out = ctx.run_ui(egui::RawInput::default(), |ui| {
                 let _ = slider(ui, spec, 0.5, true, None);
-                let _ = text_button(ui, "auto", "Auto", false);
+                let _ = crate::button::Button::new("Auto").small().widget("button:auto").show(ui);
                 let _ = icon_button(ui, "trash", Icon::Trash, vec2(24.0, 24.0), false, true, "Delete mask");
             });
             let mut out = out;

@@ -671,15 +671,13 @@ pub fn name_editor(
                     Some(s) => format!("{name}   {:.0}%", (s * 100.0).max(0.0)),
                     None => name.clone(),
                 };
-                let b = ui.add(egui::Button::new(RichText::new(label).color(t.text_label)).frame(false).min_size(egui::vec2(220.0, 0.0)));
-                register(ui, format!("faceName:pick:{name}"), b.rect);
+                let b = crate::button::Button::new(&label).ghost().small().min_width(220.0).widget(format!("faceName:pick:{name}")).show(ui);
                 if b.clicked() {
                     outcome = Editor::Submit(name);
                 }
             }
             if let Some(label) = setup.short() {
-                let b = ui.add(egui::Button::new(RichText::new(label).font(t.font(12.0)).color(t.accent)).frame(false));
-                register(ui, "faces:setup", b.rect);
+                let b = crate::button::Button::new(label).ghost().small().widget("faces:setup").show(ui);
                 if b.clicked() {
                     outcome = Editor::Setup;
                 }

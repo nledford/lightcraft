@@ -74,7 +74,7 @@ pub(crate) fn tag_help(ui: &mut egui::Ui, key: &str, text: &mut String, edit_id:
                     } else {
                         crate::i18n::tr_format!("Insert at the cursor (also written {})", tok.aliases.join(", "))
                     };
-                    let r = crate::button::Button::new(tok.tag).small().tooltip(&tip).widget(format!("button:{key}Tag-{i}")).show(ui);
+                    let r = crate::button::Button::new(tok.tag).small().monospace().tooltip(&tip).widget(format!("button:{key}Tag-{i}")).show(ui);
                     if r.clicked() {
                         insert_at_cursor(ui.ctx(), edit_id, text, tok.tag);
                     }

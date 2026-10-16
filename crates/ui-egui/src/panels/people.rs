@@ -71,7 +71,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if let Some(last) = app.ui.last_person.clone().filter(|n| people.iter().any(|p| &p.name == n)) {
         let label = fit(ui.painter(), &last, t.font(13.0), 224.0);
         let button = crate::button::Button::new(&label)
-            .icon(crate::icons::Icon::ChevronRight)
+            .trailing_icon(crate::icons::Icon::ChevronRight)
             .small()
             .tooltip(crate::i18n::tr("Back to this person"))
             .widget("people:last");
