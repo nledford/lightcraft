@@ -521,11 +521,14 @@ pub fn manage_body(
             for e in list {
                 let sel = selected.contains(&e.name);
                 ui.horizontal(|ui| {
-                    let star = crate::button::Button::icon_only(if e.favorite { Icon::StarFilled } else { Icon::Star }, "Favorite")
-                        .ghost()
-                        .small()
-                        .widget(format!("effectStar:{}", e.name))
-                        .show(ui);
+                    let star = crate::button::Button::icon_only(if e.favorite { Icon::StarFilled } else { Icon::Star }, "Favorite").ghost().small();
+                    // registered only when on screen (a long list scrolls)
+                    let star = if ui.is_rect_visible(egui::Rect::from_min_size(ui.cursor().min, star.desired_size(ui))) {
+                        star.widget(format!("effectStar:{}", e.name))
+                    } else {
+                        star
+                    };
+                    let star = star.show(ui);
                     if star.clicked() {
                         toggle_star = Some((e.name.clone(), !e.favorite));
                     }

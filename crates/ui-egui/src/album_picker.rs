@@ -208,6 +208,9 @@ impl<'a> AlbumPicker<'a> {
         let text = chosen.map_or_else(|| empty_text.unwrap_or_else(|| crate::i18n::tr("Choose an album…").to_string()), |c| path_label(entries, c));
         // the name, and a drop-down chevron after it
         let mut button = crate::button::Button::new(&text)
+            .verbatim()
+            .small()
+            .align_start()
             .trailing_icon(Icon::ChevronDown)
             .min_width(width)
             .max_width(width)

@@ -160,7 +160,7 @@ pub fn naming_bar(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             ui.horizontal(|ui| {
                 ui.add_space(super::people::PAD - 4.0);
                 for p in matching {
-                    let b = Button::new(p.as_str()).ghost().small().widget(format!("unnamed:pick:{p}")).show(ui);
+                    let b = Button::new(p.as_str()).verbatim().ghost().small().widget(format!("unnamed:pick:{p}")).show(ui);
                     if b.clicked() {
                         submit = Some(p.clone());
                     }
