@@ -1080,13 +1080,8 @@ pub fn refuse_drop(app: &mut LightcraftApp, ctx: &egui::Context, hint: String, w
 
 pub fn drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
     let Some(ids) = &app.ui.dragging_photos else { return };
-    let (released, down, pos, esc) =
-        ctx.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.pointer.latest_pos(), i.key_pressed(egui::Key::Escape)));
-    if released || !down || esc {
-        if esc {
-            // the drag's Esc, not also a dialog's or a view's
-            crate::widgets::take_escape(ctx);
-        }
+    let (released, down, pos) = ctx.input(|i| (i.pointer.any_released(), i.pointer.any_down(), i.pointer.latest_pos()));
+    if released || !down {
         app.ui.dragging_photos = None;
         return;
     }

@@ -1565,6 +1565,29 @@ impl LightcraftApp {
         }
     }
 
+    /// Ends drags that must not go on, before any panel or dialog sees the frame: Esc gives up a
+    /// drag and is taken, so a dialog open over it doesn't also close; and a drag outlives its
+    /// button in no layout (full screen and the slideshow don't run the panels that end it).
+    /// The frame a button is released in is left to the drop targets.
+    fn end_drags(&mut self, ctx: &egui::Context) {
+        if !self.ui.drag_active() {
+            return;
+        }
+        let (esc, down, released) = ctx.input(|i| (i.key_pressed(egui::Key::Escape), i.pointer.any_down(), i.pointer.any_released()));
+        if !esc && (down || released) {
+            return;
+        }
+        if esc {
+            widgets::take_escape(ctx);
+        }
+        if self.ui.dragging_album.take().is_some() {
+            panels::left::forget_hover(self, ctx);
+        }
+        self.ui.dragging_photos = None;
+        self.ui.dragging_section = None;
+        self.ui.dragging_keyword = None;
+    }
+
     /// Lay out the whole window.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         i18n::set_language(self.ui.language);
@@ -1583,6 +1606,7 @@ impl LightcraftApp {
         self.hover_preview = None;
         self.ai_mask_detail(&ctx);
         self.place_names_outcome(&ctx);
+        self.end_drags(&ctx);
         if self.ui.fullscreen {
             // full-screen preview: the photo alone on black
             egui::CentralPanel::default()

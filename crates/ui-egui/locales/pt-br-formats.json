@@ -307,6 +307,6 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Para onde vai o catálogo do Lightroom “{catalog}”?",
   "Merge into the open library “{library}” ({count} photo{})": "Mesclar na biblioteca aberta “{library}” ({count} foto{})",
   "Add {n} photo{} to “{}”": "Adicionar {n} foto{0} a “{1}”",
-  "{n} already there": "{n} já estavam lá",
+  "{n} already there": "já no álbum: {n}",
   "Add “{keyword}” to {n} photo{}": "Adicionar “{keyword}” a {n} foto{}"
 }
