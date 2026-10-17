@@ -2188,5 +2188,10 @@
   "Color Overlay on B&W": "Sobreposição de cor em P&B",
   "Image on Black": "Imagem sobre preto",
   "Image on White": "Imagem sobre branco",
-  "White on Black": "Branco sobre preto"
+  "White on Black": "Branco sobre preto",
+  "Stack — click to expand (S)": "Pilha — clique para expandir (S)",
+  "Stack — click to collapse (S)": "Pilha — clique para recolher (S)",
+  "Virtual copy": "Cópia virtual",
+  "Right-click ▸ Locate Missing File… to find it again.": "Clique com o botão direito → Localizar arquivo ausente… para encontrá-lo de novo.",
+  "Right-click ▸ Reload from Disk to try again.": "Clique com o botão direito → Recarregar do disco para tentar de novo."
 }
