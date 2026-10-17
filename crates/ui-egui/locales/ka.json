@@ -2734,5 +2734,10 @@
   "Import dropped files without review": "ჩაგდებული ფაილების იმპორტი გადახედვის გარეშე",
   "An import is running": "იმპორტი მიმდინარეობს",
   "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება",
-  "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი"
+  "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი",
+  "Stack — click to expand (S)": "დასტა — დააწკაპუნეთ გასაშლელად (S)",
+  "Stack — click to collapse (S)": "დასტა — დააწკაპუნეთ ჩასაკეცად (S)",
+  "Virtual copy": "ვირტუალური ასლი",
+  "Right-click ▸ Locate Missing File… to find it again.": "მარჯვენა დაწკაპუნება → დაკარგული ფაილის მოძებნა… ფაილის ხელახლა საპოვნელად.",
+  "Right-click ▸ Reload from Disk to try again.": "მარჯვენა დაწკაპუნება → დისკიდან ხელახლა ჩატვირთვა, ხელახლა საცდელად."
 }

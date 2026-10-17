@@ -2200,5 +2200,10 @@
   "Import dropped files without review": "不经检查直接导入拖入的文件",
   "An import is running": "正在导入",
   "An import is running. Drop photos when it has finished": "正在导入。导入完成后再拖放照片",
-  "Finish Lightroom catalog import before adding photos": "添加照片前，请先完成 Lightroom 目录的导入"
+  "Finish Lightroom catalog import before adding photos": "添加照片前，请先完成 Lightroom 目录的导入",
+  "Stack — click to expand (S)": "堆叠 — 单击展开 (S)",
+  "Stack — click to collapse (S)": "堆叠 — 单击折叠 (S)",
+  "Virtual copy": "虚拟副本",
+  "Right-click ▸ Locate Missing File… to find it again.": "右键单击 → 定位缺失的文件…，即可重新找到它。",
+  "Right-click ▸ Reload from Disk to try again.": "右键单击 → 从磁盘重新读取，即可重试。"
 }

@@ -3440,5 +3440,10 @@
   "Import dropped files without review": "Abgelegte Dateien ohne Prüfung importieren",
   "An import is running": "Ein Import läuft",
   "An import is running. Drop photos when it has finished": "Ein Import läuft. Lege die Fotos ab, wenn er fertig ist",
-  "Finish Lightroom catalog import before adding photos": "Schließe den Import des Lightroom-Katalogs ab, bevor du Fotos hinzufügst"
+  "Finish Lightroom catalog import before adding photos": "Schließe den Import des Lightroom-Katalogs ab, bevor du Fotos hinzufügst",
+  "Stack — click to expand (S)": "Stapel — Klicken zum Aufklappen (S)",
+  "Stack — click to collapse (S)": "Stapel — Klicken zum Zuklappen (S)",
+  "Virtual copy": "Virtuelle Kopie",
+  "Right-click ▸ Locate Missing File… to find it again.": "Rechtsklick → Fehlende Datei suchen…, um sie wiederzufinden.",
+  "Right-click ▸ Reload from Disk to try again.": "Rechtsklick → Vom Datenträger neu laden, um es erneut zu versuchen."
 }
