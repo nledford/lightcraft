@@ -172,7 +172,6 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "@Slideshow",
             "---",
             "@Appearance",
-            "view.viewOptions",
         ],
     ),
     (
@@ -280,7 +279,7 @@ const LAYOUT: &[(&str, &[&str])] = &[
 /// items [`expanded`] builds. A submenu without a row here lists those first, then its entries.
 const SUBMENUS: &[(&str, &str, &[&str])] = &[
     ("View", "Sort", &["*", "---", "library.refresh", "library.holdView"]),
-    ("View", "Loupe Overlay", &["view.infoOverlay", "view.focusPoint", "view.faceBoxes", "---", "*"]),
+    ("View", "Loupe Overlay", &["view.infoOverlay", "view.viewOptions", "view.focusPoint", "view.zoomToFocus", "view.faceBoxes", "---", "*"]),
     (
         "View",
         "Before/After",
@@ -505,7 +504,14 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
                     None,
                 ),
                 MenuNode::Separator,
-                item("library.clearPreviews", Value::Null, "Discard Preview Cache", None, true, None),
+                item(
+                    "library.clearPreviews",
+                    Value::Null,
+                    "Discard Preview Cache",
+                    crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "library.clearPreviews"),
+                    true,
+                    None,
+                ),
             ]
         }
         "Set Rating" => (0..=5u8)
@@ -639,14 +645,29 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
                 .into_iter()
                 .map(|m| item("view.maskOverlayMode", json!({"mode": m.name()}), m.label(), None, true, Some(m == mode)))
                 .collect();
-            v.push(item("view.maskOverlayMode", Value::Null, "Cycle Mask Overlay Mode", None, true, None));
+            let keymap = &app.ui.settings.keymap;
+            v.push(item(
+                "view.maskOverlayMode",
+                Value::Null,
+                "Cycle Mask Overlay Mode",
+                crate::shortcuts::shortcut_of(keymap, "view.maskOverlayMode"),
+                true,
+                None,
+            ));
             v.push(MenuNode::Separator);
             let colors = crate::panels::masking::OVERLAY_COLORS.into_iter().zip(crate::panels::masking::OVERLAY_COLOR_NAMES);
             v.extend(colors.map(|(c, name)| {
                 let hex = format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
                 item("view.maskOverlayColor", json!({"color": hex}), name, None, true, Some(app.ui.mask_overlay_color == c))
             }));
-            v.push(item("view.maskOverlayColor", Value::Null, "Cycle Mask Overlay Color", None, true, None));
+            v.push(item(
+                "view.maskOverlayColor",
+                Value::Null,
+                "Cycle Mask Overlay Color",
+                crate::shortcuts::shortcut_of(keymap, "view.maskOverlayColor"),
+                true,
+                None,
+            ));
             v
         }
         "Tool Overlay" => {
@@ -1780,20 +1801,19 @@ mod tests {
     }
 
     /// Given every command that names a menu, Then the layout gives it a place: a slot in its
-    /// menu, or a submenu the layout places. Nothing lands in an unsorted group at the end.
+    /// menu's [`LAYOUT`] row (one-level path), or a submenu that [`LAYOUT`] or [`SUBMENUS`] places
+    /// (two-level path). Nothing lands in an unsorted group at the end.
     #[test]
     fn every_menu_command_has_a_place_in_the_layout() {
         let placed = |e: &crate::menus::MenuEntry| -> bool {
             let Some(title) = e.menu.first() else { return true };
-            let slots: Vec<&str> = LAYOUT
-                .iter()
-                .filter(|(t, _)| t == title)
-                .flat_map(|(_, l)| l.iter().copied())
-                .chain(SUBMENUS.iter().filter(|(t, _, _)| t == title).flat_map(|(_, _, l)| l.iter().copied()))
-                .collect();
+            let top = LAYOUT.iter().filter(|(t, _)| t == title).flat_map(|(_, l)| l.iter().copied());
             match e.menu.get(1) {
-                None => slots.contains(&e.id.as_str()),
-                Some(sub) => slots.contains(&format!("@{sub}").as_str()),
+                None => top.clone().any(|s| s == e.id),
+                Some(sub) => {
+                    let nested = SUBMENUS.iter().filter(|(t, _, _)| t == title).flat_map(|(_, _, l)| l.iter().copied());
+                    top.chain(nested).any(|s| s.strip_prefix('@') == Some(sub.as_str()))
+                }
             }
         };
         let unplaced: Vec<String> = crate::menus::menu_entries(&app())
@@ -1804,9 +1824,10 @@ mod tests {
         assert!(unplaced.is_empty(), "commands without a place in LAYOUT: {unplaced:#?}");
     }
 
-    /// Given any view, When a menu is opened, Then no command shows up twice in it (with the same
-    /// parameters), under the same label or another one. The one repeat on purpose: Custom… ends
-    /// File ▸ Export with Preset with the Export dialog.
+    /// Given the grid, the loupe or Compare with library photos selected, When a menu is opened,
+    /// Then no command shows up twice in it (with the same parameters), under the same label or
+    /// another one. The one repeat on purpose: Custom… ends File ▸ Export with Preset with the
+    /// Export dialog.
     #[test]
     fn no_menu_offers_the_same_command_twice() {
         const ON_PURPOSE: &[(&str, &str)] = &[("dialog.export", "Custom…")];
