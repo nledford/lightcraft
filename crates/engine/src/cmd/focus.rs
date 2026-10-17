@@ -31,7 +31,7 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!(
             "photo.readFocusPoints",
             "Read Focus Points",
-            ["Photo"],
+            ["Photo", "Metadata"],
             None,
             "{ids?, wait?: false} → {queued, running, last?: {total, done, found, none, unavailable, bytesRead, seconds, cancelled}} — read the camera's focus point for photos imported before it was read (Sony α1 and A7S III raws and JPEGs), from the few KB of each file that hold it, on a background job with a row in the activity stack. Without `ids`, every photo in the library not looked at yet; with `ids`, those photos, looked at again. Photos that have a point keep it. No undo step and no sidecar write. `wait: true` returns when all are read (scripts)",
             super::always,

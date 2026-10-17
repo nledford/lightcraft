@@ -4580,7 +4580,7 @@ mod tests {
         }
     }
 
-    /// ⌘J opens View ▸ View Options; its menus choose Info 1's and Info 2's lines, Use Defaults puts
+    /// ⌘J opens View ▸ Loupe Overlay ▸ View Options…; its menus choose Info 1's and Info 2's lines, Use Defaults puts
     /// them back, and `view.viewOptions` sets them for an agent (refusing a line it doesn't know).
     #[test]
     fn view_options_choose_the_info_overlay_lines() {
