@@ -1405,7 +1405,7 @@
   "Short Edge": "Kurze Kante",
   "Show": "Anzeigen",
   "Show All": "Alle einblenden",
-  "Clipping": "Beschnitt",
+  "Clipping": "Tonwertbeschneidung",
   "Show Deghost Overlay": "Geisterbildüberlagerung anzeigen",
   "Show Hidden Local Locations": "Ausgeblendete lokale Orte anzeigen",
   "Show Luminance Map": "Luminanzkarte anzeigen",
