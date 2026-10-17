@@ -12,8 +12,8 @@
   instead (Edit Smart Album…, an album inside the folder, the Keyword List).
 - A keyword dragged over itself or over a keyword inside it shows the not-allowed cursor and says "Can't go inside
   itself".
-- Esc gives up a drag of photos, as it already did for albums, sidebar sections and keywords, and does nothing else
-  while the drag lasts (it no longer also leaves full screen or lights back on).
+- Esc gives up a drag of photos, as it already did for albums, sidebar sections and keywords: that press ends the drag and does nothing else
+  (it does not also close a dialog, leave full screen or light back on). A drag started before entering full screen or a slideshow now ends with the mouse button, so Esc works there again.
 
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
