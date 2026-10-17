@@ -38,7 +38,7 @@ fn library() -> Session {
         match PhotoId(i) {
             RATED => p.rating = 4,
             PICKED => {
-                p.rating = 3;
+                p.rating = 5;
                 p.flag = Flag::Pick;
                 p.label = Some(ColorLabel::Red);
             }
@@ -131,4 +131,20 @@ fn auto_shows_the_edited_mark_with_the_stars() {
     assert_eq!(marks(&h, EDITED), Vec::<&str>::new());
     hover(&mut h, EDITED);
     assert_eq!(marks(&h, EDITED), ["edited"]);
+}
+
+fn rect(h: &Headless, id: String) -> egui::Rect {
+    h.app.widgets.iter().find(|(w, _)| *w == id).map(|(_, r)| *r).unwrap_or_else(|| panic!("no widget {id}"))
+}
+
+#[test]
+fn auto_puts_the_flag_at_the_left_when_the_stars_are_hidden() {
+    let mut h = grid(GridBadges::Auto);
+    let cell = rect(&h, format!("thumb:{}", PICKED.0));
+    let flag = rect(&h, format!("badge:flag:{}", PICKED.0));
+    assert!(flag.left() - cell.left() < 12.0, "no gap for stars that aren't drawn: flag {flag:?} in {cell:?}");
+    hover(&mut h, PICKED);
+    let flag = rect(&h, format!("badge:flag:{}", PICKED.0));
+    let stars = rect(&h, format!("badge:stars:{}", PICKED.0));
+    assert!(flag.left() >= stars.right(), "the flag follows the stars: {flag:?} after {stars:?}");
 }

@@ -714,8 +714,9 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
             }
             register(ui.ctx(), format!("badge:stars:{}", id.0), star);
         }
-        // The flag keeps its place whether or not the stars are showing, so hovering doesn't move it.
-        let x = bar.left() + 6.0 + stars_w + 4.0;
+        // With the stars hidden the flag takes the place where they would start; when they show it
+        // follows them.
+        let x = bar.left() + 6.0 + if show_extras { stars_w + 4.0 } else { 0.0 };
         if show_marks {
             let flag = Rect::from_min_size(pos2(x, bar.center().y - 7.0), vec2(14.0, 14.0));
             match photo.flag {
