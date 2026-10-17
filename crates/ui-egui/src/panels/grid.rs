@@ -704,8 +704,9 @@ fn cell(
         marks: show_badges,
         hot: resp.hovered() || selected,
         failure,
+        surround: square,
     };
-    crate::thumb::overlay(app, ui, &overlay);
+    let badge = crate::thumb::overlay(app, ui, &overlay);
     // interaction
     if let Some(k) = app.ui.keyword_painter.clone() {
         // painting: a click toggles the keyword on this photo
@@ -742,6 +743,10 @@ fn cell(
         app.ui.dragging_photos = Some(app.session.selection.ids.iter().map(|p| p.0).collect());
     }
     resp.context_menu(|ui| context_menu(app, ui, id));
+    // (the stack badge covers part of the cell: it opens the same menu)
+    if let Some(badge) = badge {
+        badge.context_menu(|ui| context_menu(app, ui, id));
+    }
 }
 
 /// The header of a Local folder view: the path as a breadcrumb (each part opens that folder),
