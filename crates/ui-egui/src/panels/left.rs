@@ -1272,6 +1272,13 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
             if album_drag_over(app, ui, &resp, a, has_children.then_some(&mut open), indent) {
                 set_tree_open(ui, open_id, true);
             }
+            refuse_photos(
+                app,
+                ui,
+                &resp,
+                crate::i18n::tr("Can't add to an album folder"),
+                crate::i18n::tr("An album folder holds albums, not photos: drop on an album inside it"),
+            );
             // what this frame draws; a click shows from the next one
             let draw_open = open;
             let mut toggled = false;
@@ -1310,7 +1317,15 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
                 app.ui.dragging_album = Some(a.id.0);
             }
             album_drag_over(app, ui, &resp, a, None, indent);
-            if !a.is_smart() {
+            if a.is_smart() {
+                refuse_photos(
+                    app,
+                    ui,
+                    &resp,
+                    crate::i18n::tr("Can't add to a smart album"),
+                    crate::i18n::tr("A smart album's rules choose its photos: change them with Edit Smart Album…"),
+                );
+            } else {
                 drop_target(app, ui, &resp, a);
             }
             if let Some(rules) = &a.smart {
@@ -1593,8 +1608,19 @@ pub fn album_drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
     });
 }
 
-/// An album row while photos are dragged from the grid: highlighted under the pointer; a
-/// release there adds them.
+/// A row that can't hold photos, while photos are dragged from the grid: the not-allowed cursor
+/// and a label saying so (`hint`); a release there says why (`why`) and changes nothing.
+fn refuse_photos(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, hint: &str, why: &str) {
+    if app.ui.dragging_photos.is_none() || !pointer_over_row(ui, resp.rect) {
+        return;
+    }
+    let released = ui.input(|i| i.pointer.any_released());
+    super::grid::refuse_drop(app, ui.ctx(), hint.to_string(), why, released);
+}
+
+/// An album row while photos are dragged from the grid: highlighted under the pointer, the dragged
+/// label saying how many photos a release there adds (the ones the album doesn't hold yet). When it
+/// holds them all it says so, and a release does nothing.
 fn drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, a: &Album) {
     let Some(ids) = app.ui.dragging_photos.clone() else { return };
     // only where the row can be seen: not scrolled out of the sidebar or beneath the pinned header
@@ -1607,13 +1633,22 @@ fn drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response
     // light up, and a release says why
     let photos: Vec<lightcraft_catalog::PhotoId> = ids.iter().map(|id| lightcraft_catalog::PhotoId(*id)).collect();
     if super::grid::local_only(app, &photos) {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+        super::grid::refuse_drop(app, ui.ctx(), super::grid::albums_hint(), &super::grid::albums_hint(), released);
+        return;
+    }
+    // of the library photos dragged, the album holds some already
+    let library = ids.iter().filter(|id| app.session.catalog.photo(lightcraft_catalog::PhotoId(**id)).is_some_and(|p| !p.local)).count();
+    let dragged: std::collections::HashSet<u64> = ids.iter().copied().collect();
+    let there = a.photos.iter().filter(|p| dragged.contains(&p.0)).count().min(library);
+    let fresh = library.saturating_sub(there);
+    if fresh == 0 {
+        super::grid::drag_hint(ui.ctx(), crate::i18n::tr_format!("Already in “{}”", a.name));
         if released {
-            app.toast(ui.ctx(), super::grid::albums_hint());
             app.ui.dragging_photos = None;
         }
         return;
     }
+    super::grid::drag_hint(ui.ctx(), crate::i18n::tr_format!("Add {n} photo{} to “{}”", if fresh == 1 { "" } else { "s" }, a.name, n = fresh));
     let t = Tokens::get(ui.ctx());
     ui.painter().rect_stroke(resp.rect.shrink2(vec2(8.0, 1.0)), 4.0, egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
     if released {
@@ -1622,6 +1657,10 @@ fn drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response
                 let n = r.get("added").and_then(serde_json::Value::as_u64).unwrap_or(0);
                 let skipped = r.get("skipped").and_then(serde_json::Value::as_u64).unwrap_or(0);
                 let mut msg = crate::i18n::tr_format!("Added {n} photo{} to “{}”", if n == 1 { "" } else { "s" }, a.name, n = n);
+                if there > 0 {
+                    msg.push_str(" · ");
+                    msg.push_str(&crate::i18n::tr_format!("{n} already there", n = there));
+                }
                 if skipped > 0 {
                     msg.push_str(" · ");
                     msg.push_str(&crate::i18n::tr_format!(
@@ -2216,6 +2255,13 @@ fn keyword_rows(app: &mut LightcraftApp, ui: &mut egui::Ui, nodes: &[KeywordNode
 fn keyword_row(app: &mut LightcraftApp, ui: &mut egui::Ui, n: &KeywordNode, id: &str, indent: f32, open_id: Option<egui::Id>, open: &mut bool) {
     let sel = app.session.filter.keyword.as_deref().is_some_and(|k| k.eq_ignore_ascii_case(&n.path));
     let resp = row(app, ui, id, Icon::Tag, &n.name, Some(n.count), sel, indent);
+    refuse_photos(
+        app,
+        ui,
+        &resp,
+        crate::i18n::tr("Add keywords in the Keyword List"),
+        crate::i18n::tr("Give photos a keyword in the Keyword List (Window ▸ Keywords, K): drop them on it there"),
+    );
     if let Some(k) = open_id {
         tree_toggle(ui, &resp, indent, k, open, format!("keywordToggle:{}", n.path));
     }
