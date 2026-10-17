@@ -1,5 +1,15 @@
 # What's new in LightCraft
 
+## 2026-10-17
+
+### Menu names that say what they are
+- Switches in the menus are named for what they show, with the check mark saying whether it is on: Filmstrip ✓,
+  Focus Point ✓, Clipping ✓, Photo Counts ✓, Mask Overlay ✓ instead of Show Focus Point ✓. No two commands share a
+  name any more: View ▸ Detail is now Detail View (the Edit section Detail keeps its name), Window ▸ Edit is Edit
+  Panel, and Compare Before and After is Before/After Side by Side, next to Split and Top/Bottom.
+- The preview cache command has one name, Discard Preview Cache, in File ▸ Previews and in the toast that confirms
+  it. Keyboard shortcuts are unchanged.
+
 ## 2026-10-14
 
 ### Lightroom radial masks on the right side
