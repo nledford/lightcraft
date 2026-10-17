@@ -1,5 +1,18 @@
 # What's new in LightCraft
 
+## 2026-10-17
+
+### Menus that fit the screen
+- The View menu now fits on a laptop screen. It was 62 rows long and scrolled. Its overlays, before/after and slideshow
+  items sit in submenus: Loupe Overlay, Before/After, Mask Overlay (every overlay mode and colour, with the current one
+  checked), Crop Overlay and Slideshow.
+- The panel toggles (My Photos Panel, Sidebar Sections, Show Photo Counts, Filmstrip, Histogram, Navigator) moved to
+  the Window menu. Photo ▸ Metadata gathers the metadata commands, including Metadata Preset, Save Metadata to File
+  and Detect Faces.
+- No command is listed twice any more (Clear Preview Cache and Discard Preview Cache, Choose and Show Layout Image),
+  and every command has a fixed place instead of sitting in a pile at the end of its menu.
+- Keyboard shortcuts are unchanged.
+
 ## 2026-10-14
 
 ### Lightroom radial masks on the right side
