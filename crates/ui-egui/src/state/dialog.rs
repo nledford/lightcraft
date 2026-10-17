@@ -341,7 +341,7 @@ pub enum Dialog {
     },
     About,
     Shortcuts,
-    /// View ▸ View Options (⌘J): the info overlay and the lines of Info 1 and Info 2. Changes apply
+    /// View ▸ Loupe Overlay ▸ View Options… (⌘J): the info overlay and the lines of Info 1 and Info 2. Changes apply
     /// as they are made.
     ViewOptions,
 }
