@@ -21,10 +21,11 @@ const PICKED: PhotoId = PhotoId(2);
 const REJECTED: PhotoId = PhotoId(3);
 const EDITED: PhotoId = PhotoId(4);
 const PLAIN: PhotoId = PhotoId(5);
+const UNRATED_PICK: PhotoId = PhotoId(6);
 
 fn library() -> Session {
     let mut s = Session::new();
-    for i in 1..=5u64 {
+    for i in 1..=6u64 {
         let name = format!("IMG_{i:03}.jpg");
         let mut p = Photo::new(
             PhotoId(i),
@@ -47,6 +48,7 @@ fn library() -> Session {
                 p.label = Some(ColorLabel::Blue);
             }
             EDITED => Arc::make_mut(&mut p.develop).light.exposure = 1.0,
+            UNRATED_PICK => p.flag = Flag::Pick,
             _ => {}
         }
         s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
@@ -147,4 +149,12 @@ fn auto_puts_the_flag_at_the_left_when_the_stars_are_hidden() {
     let flag = rect(&h, format!("badge:flag:{}", PICKED.0));
     let stars = rect(&h, format!("badge:stars:{}", PICKED.0));
     assert!(flag.left() >= stars.right(), "the flag follows the stars: {flag:?} after {stars:?}");
+}
+
+#[test]
+fn an_unrated_photos_flag_does_not_move_on_hover() {
+    let mut h = grid(GridBadges::Auto);
+    let before = rect(&h, format!("badge:flag:{}", UNRATED_PICK.0));
+    hover(&mut h, UNRATED_PICK);
+    assert_eq!(rect(&h, format!("badge:flag:{}", UNRATED_PICK.0)), before);
 }
