@@ -158,14 +158,15 @@
   the albums themselves. The counts are the same as before, including for albums that loop through each other.
 
 ### Menus that fit the screen
-- The View menu now fits on a laptop screen. It was 62 rows long and scrolled. Its overlays, before/after and slideshow
-  items sit in submenus: Loupe Overlay, Before/After, Mask Overlay (every overlay mode and colour, with the current one
-  checked), Crop Overlay and Slideshow.
-- The panel toggles (My Photos Panel, Right Panel, Sidebar Sections, Show Photo Counts, Filmstrip, Histogram, Navigator) moved to
+- The View menu is down from 63 rows to 36, so it opens without scrolling on a laptop's menu bar. Its overlays,
+  before/after and slideshow items sit in submenus: Loupe Overlay, Before/After, Mask Overlay (every overlay mode and
+  colour, with the current one checked), Crop Overlay and Slideshow.
+- The panel toggles (My Photos Panel, Right Panel, Sidebar Sections, Photo Counts, Filmstrip, Histogram, Navigator) moved to
   the Window menu. Photo ▸ Metadata gathers the metadata commands, including Metadata Preset, Save Metadata to File
   and Detect Faces.
-- No command is listed twice any more (Clear Preview Cache and Discard Preview Cache, Choose and Show Layout Image),
-  and every command has a fixed place instead of sitting in a pile at the end of its menu.
+- File no longer lists Discard Preview Cache twice (it is one command), View no longer lists
+  Choose and Layout Image twice, and every command has a fixed place instead of sitting in a pile at the end of
+  its menu.
 - Keyboard shortcuts are unchanged.
 
 ### Sharper resampling in HDR and panorama merges

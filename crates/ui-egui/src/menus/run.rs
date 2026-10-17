@@ -652,7 +652,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         }
         "view.zoomToggle" => {
             // the same ratio a click on the photo zooms to; zooming in centres on the camera's focus
-            // point when the photo has one (View ▸ Zoom to Focus Point)
+            // point when the photo has one (View ▸ Loupe Overlay ▸ Zoom to Focus Point)
             let zoom_in = app.ui.zoom == Zoom::Fit;
             app.ui.zoom = if zoom_in { Zoom::Percent(app.ui.click_zoom as f32) } else { Zoom::Fit };
             app.ui.zoom_anim = true;

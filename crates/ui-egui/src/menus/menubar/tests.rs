@@ -784,20 +784,19 @@ fn apps_in_every_view() -> Vec<LightcraftApp> {
 }
 
 /// Given every command that names a menu, Then the layout gives it a place: a slot in its
-/// menu, or a submenu the layout places. Nothing lands in an unsorted group at the end.
+/// menu's [`LAYOUT`] row (one-level path), or a submenu that [`LAYOUT`] or [`SUBMENUS`] places
+/// (two-level path). Nothing lands in an unsorted group at the end.
 #[test]
 fn every_menu_command_has_a_place_in_the_layout() {
     let placed = |e: &crate::menus::MenuEntry| -> bool {
         let Some(title) = e.menu.first() else { return true };
-        let slots: Vec<&str> = LAYOUT
-            .iter()
-            .filter(|(t, _)| t == title)
-            .flat_map(|(_, l)| l.iter().copied())
-            .chain(SUBMENUS.iter().filter(|(t, _, _)| t == title).flat_map(|(_, _, l)| l.iter().copied()))
-            .collect();
+        let top = LAYOUT.iter().filter(|(t, _)| t == title).flat_map(|(_, l)| l.iter().copied());
         match e.menu.get(1) {
-            None => slots.contains(&e.id.as_str()),
-            Some(sub) => slots.contains(&format!("@{sub}").as_str()),
+            None => top.clone().any(|s| s == e.id),
+            Some(sub) => {
+                let nested = SUBMENUS.iter().filter(|(t, _, _)| t == title).flat_map(|(_, _, l)| l.iter().copied());
+                top.chain(nested).any(|s| s.strip_prefix('@') == Some(sub.as_str()))
+            }
         }
     };
     let unplaced: Vec<String> = crate::menus::menu_entries(&app())
@@ -808,9 +807,10 @@ fn every_menu_command_has_a_place_in_the_layout() {
     assert!(unplaced.is_empty(), "commands without a place in LAYOUT: {unplaced:#?}");
 }
 
-/// Given any view, When a menu is opened, Then no command shows up twice in it (with the same
-/// parameters), under the same label or another one. The one repeat on purpose: Custom… ends
-/// File ▸ Export with Preset with the Export dialog.
+/// Given the grid, the loupe or Compare with library photos selected, When a menu is opened,
+/// Then no command shows up twice in it (with the same parameters), under the same label or
+/// another one. The one repeat on purpose: Custom… ends File ▸ Export with Preset with the
+/// Export dialog.
 #[test]
 fn no_menu_offers_the_same_command_twice() {
     const ON_PURPOSE: &[(&str, &str)] = &[("dialog.export", "Custom…")];

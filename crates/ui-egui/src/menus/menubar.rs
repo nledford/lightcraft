@@ -234,7 +234,6 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "@Slideshow",
             "---",
             "@Appearance",
-            "view.viewOptions",
         ],
     ),
     (
@@ -344,7 +343,7 @@ const LAYOUT: &[(&str, &[&str])] = &[
 /// items [`expanded`] builds. A submenu without a row here lists those first, then its entries.
 const SUBMENUS: &[(&str, &str, &[&str])] = &[
     ("View", "Sort", &["*", "---", "library.refresh", "library.holdView"]),
-    ("View", "Loupe Overlay", &["view.infoOverlay", "view.focusPoint", "view.faceBoxes", "---", "*"]),
+    ("View", "Loupe Overlay", &["view.infoOverlay", "view.viewOptions", "view.focusPoint", "view.zoomToFocus", "view.faceBoxes", "---", "*"]),
     (
         "View",
         "Before/After",
@@ -570,7 +569,14 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
                     None,
                 ),
                 MenuNode::Separator,
-                item("library.clearPreviews", Value::Null, "Discard Preview Cache", None, true, None),
+                item(
+                    "library.clearPreviews",
+                    Value::Null,
+                    "Discard Preview Cache",
+                    crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "library.clearPreviews"),
+                    true,
+                    None,
+                ),
             ]
         }
         "Set Rating" => (0..=5u8)
@@ -704,14 +710,29 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
                 .into_iter()
                 .map(|m| item("view.maskOverlayMode", json!({"mode": m.name()}), m.label(), None, true, Some(m == mode)))
                 .collect();
-            v.push(item("view.maskOverlayMode", Value::Null, "Cycle Mask Overlay Mode", None, true, None));
+            let keymap = &app.ui.settings.keymap;
+            v.push(item(
+                "view.maskOverlayMode",
+                Value::Null,
+                "Cycle Mask Overlay Mode",
+                crate::shortcuts::shortcut_of(keymap, "view.maskOverlayMode"),
+                true,
+                None,
+            ));
             v.push(MenuNode::Separator);
             let colors = crate::panels::masking::OVERLAY_COLORS.into_iter().zip(crate::panels::masking::OVERLAY_COLOR_NAMES);
             v.extend(colors.map(|(c, name)| {
                 let hex = format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
                 item("view.maskOverlayColor", json!({"color": hex}), name, None, true, Some(app.ui.mask_overlay_color == c))
             }));
-            v.push(item("view.maskOverlayColor", Value::Null, "Cycle Mask Overlay Color", None, true, None));
+            v.push(item(
+                "view.maskOverlayColor",
+                Value::Null,
+                "Cycle Mask Overlay Color",
+                crate::shortcuts::shortcut_of(keymap, "view.maskOverlayColor"),
+                true,
+                None,
+            ));
             v
         }
         "Tool Overlay" => {

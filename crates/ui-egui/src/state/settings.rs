@@ -183,7 +183,7 @@ pub struct AppSettings {
     pub keyword_chips: KeywordChips,
     /// View ▸ Loupe Overlay ▸ Focus Point: draw the box the camera focused on (`view.focusPoint`).
     pub focus_point: bool,
-    /// View ▸ Zoom to Focus Point: Toggle Zoom (Z) centres the zoomed view on the camera's focus point
+    /// View ▸ Loupe Overlay ▸ Zoom to Focus Point: Toggle Zoom (Z) centres the zoomed view on the camera's focus point
     /// when the photo has one (`view.zoomToFocus`).
     pub zoom_to_focus: bool,
     /// View ▸ Loupe Overlay ▸ View Options…: the lines the loupe's info overlay shows in Info 1 and Info 2.

@@ -134,7 +134,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.lightsOut", "Lights Out", Some("Shift+L"), "View"),
     ("view.enterFullScreen", "Enter Full Screen", Some("Cmd+Shift+F"), "View"),
     ("view.infoOverlay", "Cycle Info Overlay", Some("Cmd+I"), "View>Loupe Overlay"),
-    ("view.viewOptions", "View Options…", Some("Cmd+J"), "View"),
+    ("view.viewOptions", "View Options…", Some("Cmd+J"), "View>Loupe Overlay"),
     ("view.chooseLayoutImage", "Choose Layout Image…", None, "View"),
     ("view.layoutImage", "Layout Image", Some("Cmd+Alt+O"), "View"),
     ("view.layoutImageOpacity", "Layout Image Opacity", None, ""),
