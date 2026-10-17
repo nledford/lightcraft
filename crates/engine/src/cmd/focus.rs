@@ -1,4 +1,4 @@
-//! Focus points for photos already in the library: `photo.readFocusPoints` (Photo ▸ Read Focus Points) and the
+//! Focus points for photos already in the library: `photo.readFocusPoints` (Photo ▸ Metadata ▸ Read Focus Points) and the
 //! per-frame `focus.pump` that keeps the background job going. The job itself is `crate::focus_scan`.
 
 use serde_json::Value;

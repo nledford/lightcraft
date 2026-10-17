@@ -1146,7 +1146,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Photo > Detect Faces without the detector offers the download: the terms first, nothing fetched before they are
+    /// Photo > Metadata > Detect Faces without the detector offers the download: the terms first, nothing fetched before they are
     /// accepted, and the model's row in Settings has its Download button.
     #[test]
     fn detect_faces_without_the_detector_offers_the_download_and_fetches_nothing_before_acceptance() {
