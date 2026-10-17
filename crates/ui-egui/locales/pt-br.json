@@ -2202,5 +2202,13 @@
   "Import dropped files without review": "Importar arquivos soltos sem revisão",
   "An import is running": "Uma importação está em andamento",
   "An import is running. Drop photos when it has finished": "Uma importação está em andamento. Solte as fotos quando ela terminar",
-  "Finish Lightroom catalog import before adding photos": "Conclua a importação do catálogo do Lightroom antes de adicionar fotos"
+  "Finish Lightroom catalog import before adding photos": "Conclua a importação do catálogo do Lightroom antes de adicionar fotos",
+  "Can't add to an album folder": "Não é possível adicionar a uma pasta de álbuns",
+  "An album folder holds albums, not photos: drop on an album inside it": "Uma pasta de álbuns contém álbuns, não fotos: solte em um álbum dentro dela",
+  "Can't add to a smart album": "Não é possível adicionar a um álbum inteligente",
+  "A smart album's rules choose its photos: change them with Edit Smart Album…": "As regras de um álbum inteligente escolhem suas fotos: altere-as com Editar álbum inteligente…",
+  "Add keywords in the Keyword List": "Adicione palavras-chave na Lista de palavras-chave",
+  "Give photos a keyword in the Keyword List (Window ▸ Keywords, K): drop them on it there": "Para dar uma palavra-chave às fotos, use a Lista de palavras-chave (Janela → Palavras-chave, K): solte-as lá sobre ela",
+  "Already on these photos": "Já estão nestas fotos",
+  "Can't go inside itself": "Não pode ficar dentro de si mesma"
 }
