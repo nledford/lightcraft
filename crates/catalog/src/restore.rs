@@ -746,9 +746,17 @@ pub fn remove_replaced(library: &Path, name: &str, also: &[&str]) -> Result<(), 
         backup::sync_dir(&folder);
         going
     };
+    // (how many files it holds, to tell after a failed removal whether any went)
+    let held = backup::held(&going).map(|names| names.len()).ok();
     if let Err(e) = std::fs::remove_dir_all(&going) {
-        // nothing of it went (a folder that may be renamed but not emptied): it has its name back
-        let whole = going != dir && there(&going.join(SNAPSHOT)) && std::fs::rename(&going, &dir).is_ok();
+        // Nothing of it went (a folder that may be renamed but not emptied): it has its name
+        // back. A removal that got part-way is no library that looks whole: what is left stays
+        // `<name>.partial`, and is said to be.
+        let whole = going != dir
+            && there(&going.join(SNAPSHOT))
+            && held.is_some()
+            && backup::held(&going).map(|names| names.len()).ok() == held
+            && std::fs::rename(&going, &dir).is_ok();
         let left = if whole { "it is as it was".to_string() } else { format!("what is left of it is in {}", going.display()) };
         return Err(refused(format!("can't remove {}: {e}; {left}", dir.display())));
     }
