@@ -1425,8 +1425,8 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::SlideshowExport { .. } => "Export…",
                     Dialog::Print => "Print to PDF…",
                     Dialog::Merge { .. } => "Merge",
-                    Dialog::DenoiseModel { info, .. } if info["download"].is_string() => "Accept & Download",
-                    Dialog::DenoiseModel { .. } => "Install",
+                    Dialog::DenoiseModel { info, .. } if !informational && info["download"].is_string() => "Accept & Download",
+                    Dialog::DenoiseModel { .. } if !informational => "Install",
                     Dialog::FaceModel { info, .. } if !informational && info["download"].is_string() => "Download",
                     Dialog::FaceModel { .. } if !informational => "Install",
                     Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::DeleteEffects { .. } => "Delete",
@@ -1467,6 +1467,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     | Dialog::ManageEffects { .. }
                     | Dialog::ViewOptions
                     | Dialog::LightroomResult { .. }
+                    | Dialog::DenoiseModel { .. }
                     | Dialog::FaceModel { .. } => "Close",
                 };
                 // installing waits for the licence to be accepted
