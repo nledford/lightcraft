@@ -495,7 +495,7 @@
 - Saving follows what changed, not the size of the library: the catalog is compacted while you work when the log of
   changes is long (2000 records or 16 MB) and has grown to a quarter of what a compaction would rewrite (`catalog.snap`,
   the segments holding changed photos, and a sixteenth of the catalog for looking through it), or when it reaches
-  256 MB; on quit, any log is compacted where that rewrites up to 64 MB, a long one above that. It used to be
+  256 MB; on quit, a log is compacted when the rewrite is up to 64 MB or, above that, when the log is long (2000 records or 16 MB). It used to be
   rewritten every 2000 changes. Importing 100,000
   photos rewrote it 50 times (9.4 GB written); it is now 15 times (0.25 GB). Quitting no longer rewrites a large
   catalog for a handful of changes.

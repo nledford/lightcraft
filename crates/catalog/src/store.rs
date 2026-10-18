@@ -102,12 +102,29 @@ impl FsStore {
     fn folder_of(&self, name: &str) -> PathBuf {
         self.path(name).parent().map_or_else(|| self.dir.clone(), Path::to_path_buf)
     }
-    fn sync_folder(folder: &Path) {
-        // Makes the rename durable on POSIX; opening a directory fails on Windows (where
-        // `rename` is already journaled by NTFS), so errors are ignored.
-        if let Ok(d) = std::fs::File::open(folder) {
-            let _ = d.sync_all();
+    /// Make the folder's entries durable. Where a folder can't be opened to be synced (Windows,
+    /// where `rename` is journaled by NTFS anyway) nothing is asked of it; on POSIX a failure is
+    /// the caller's to know.
+    fn sync_folder_checked(folder: &Path) -> io::Result<()> {
+        #[cfg(windows)]
+        {
+            let _ = folder;
+            Ok(())
         }
+        #[cfg(not(windows))]
+        {
+            match std::fs::File::open(folder) {
+                Ok(d) => d.sync_all(),
+                // (no such folder: nothing in it to make durable)
+                Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(e),
+            }
+        }
+    }
+    /// [`Self::sync_folder_checked`] where a failure changes nothing for the caller (the file is
+    /// written and renamed already; the entry's durability is best effort there).
+    fn sync_folder(folder: &Path) {
+        let _ = Self::sync_folder_checked(folder);
     }
     fn sync_dir(&self) {
         Self::sync_folder(&self.dir);
@@ -180,9 +197,10 @@ impl Store for FsStore {
         // (as `sync_dir`: where a folder can't be opened, renames are journaled anyway). The
         // files written with `write_new_with` are the segments, in their folder; the library
         // folder too, for that folder itself when it is new.
-        Self::sync_folder(&self.dir.join(crate::segments::SEGMENT_DIR));
-        self.sync_dir();
-        Ok(())
+        // A failure is the snapshot's: `catalog.snap` must not name segments whose entries may
+        // not survive a crash.
+        Self::sync_folder_checked(&self.dir.join(crate::segments::SEGMENT_DIR))?;
+        Self::sync_folder_checked(&self.dir)
     }
 
     fn write_new_with(&mut self, name: &str, fill: &mut dyn FnMut(&mut dyn io::Write) -> io::Result<()>) -> io::Result<u64> {
