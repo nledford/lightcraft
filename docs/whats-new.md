@@ -655,7 +655,7 @@
   photos rewrote it 50 times (9.4 GB written); it is now 15 times (0.25 GB). Quitting no longer rewrites a large
   catalog for a handful of changes.
 - Libraries are upgraded when first opened (catalog format 10) and can't be opened by earlier versions afterwards.
-  The library as it was is kept beside it (`catalog.snap.v6-…`, `catalog.log.v6-…`): to go back, see
+  The library as it was is kept beside it (`catalog.snap.v<format>-<seq>`, `catalog.log.v<format>-<seq>`): to go back, see
   `docs/catalog-persistence.md`.
   Numbers and the measurements behind them: `docs/catalog-persistence.md`.
 
