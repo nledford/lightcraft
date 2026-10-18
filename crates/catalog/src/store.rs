@@ -162,8 +162,9 @@ fn ignore_unsyncable(e: io::Error) -> io::Result<()> {
 #[cfg(not(windows))]
 fn unsyncable(e: &io::Error) -> bool {
     use io::ErrorKind::{InvalidInput, NotFound, Unsupported};
-    // (EBADF 9, EINVAL 22, ENOTSUP/EOPNOTSUPP 95 on Linux and 45 on the BSDs and macOS)
-    matches!(e.kind(), InvalidInput | Unsupported | NotFound) || matches!(e.raw_os_error(), Some(9 | 22 | 45 | 95))
+    // (EBADF 9, EINVAL 22, ENOTSUP/EOPNOTSUPP 95 on Linux and 45 on the BSDs and macOS, where
+    // the kernel's own EOPNOTSUPP, which a POSIX build is given, is 102)
+    matches!(e.kind(), InvalidInput | Unsupported | NotFound) || matches!(e.raw_os_error(), Some(9 | 22 | 45 | 95 | 102))
 }
 
 /// A new staging file at `tmp`: whatever is already there (a leftover from a crashed save, or a link) is removed first
@@ -455,7 +456,7 @@ mod tests_sync_errors {
     /// real I/O error (EIO, ENOSPC) does.
     #[test]
     fn only_real_io_errors_fail_a_folder_sync() {
-        for code in [9, 22, 45, 95] {
+        for code in [9, 22, 45, 95, 102] {
             assert!(unsyncable(&Error::from_raw_os_error(code)), "{code}");
         }
         assert!(unsyncable(&Error::from(ErrorKind::Unsupported)) && unsyncable(&Error::from(ErrorKind::InvalidInput)));
