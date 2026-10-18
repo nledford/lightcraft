@@ -615,6 +615,36 @@ fn run(args: &[String]) -> Result<(), String> {
     let mut failed = 0usize;
     let (mut restoring, mut backing_up) = (false, false);
     for s in &steps {
+        // A background job that ended is the last one the library knows: a later one of the same
+        // kind replaces it, and with it how it ended. So how an earlier one ended is said, and
+        // counted, before another is started.
+        let (earlier, status) = match s.id.as_str() {
+            "library.backup" => (backing_up, "library.backupStatus"),
+            "library.restore" => (restoring, "library.restoreStatus"),
+            _ => (false, ""),
+        };
+        if headless && earlier {
+            let step = Step { id: status.to_string(), params: json!({}) };
+            let t = std::time::Instant::now();
+            if let Ok(r) = run_step(backend.as_mut(), &step)
+                && r["running"] == json!(false)
+            {
+                // (said here: it is not asked about again at the end, unless another is started)
+                if s.id == "library.backup" {
+                    backing_up = false;
+                } else {
+                    restoring = false;
+                }
+                if !r["error"].is_null() {
+                    failed += 1;
+                    let ms = (t.elapsed().as_secs_f64() * 1e4).round() / 10.0;
+                    writeln!(out, "{}", json!({"command": status, "ok": false, "result": r, "ms": ms})).map_err(|e| e.to_string())?;
+                    if !keep_going {
+                        break;
+                    }
+                }
+            }
+        }
         let t = std::time::Instant::now();
         let line = match run_step(backend.as_mut(), s) {
             Ok(r) => {
