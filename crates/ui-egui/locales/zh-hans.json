@@ -2189,7 +2189,7 @@
   "This build has nowhere to keep face models, so the model list is not available. (The desktop app has.)": "此版本无法存放人脸模型，因此模型列表不可用。（桌面版可以存放。）",
   "Continue in Background": "在后台继续",
   "Folder not found": "未找到文件夹",
-  "Dismiss": "忽略",
+  "Dismiss": "移除",
   "Review…": "查看…",
   "Open Synchronize Folder with what the scan found": "用扫描结果打开“同步文件夹”",
   "You can go on working: a notice at the top left says when the scan is done.": "你可以继续工作：扫描完成时左上角会出现通知。"
