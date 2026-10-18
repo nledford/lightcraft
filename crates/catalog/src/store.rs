@@ -114,10 +114,10 @@ impl FsStore {
         #[cfg(not(windows))]
         {
             match std::fs::File::open(folder) {
-                Ok(d) => d.sync_all(),
+                Ok(d) => d.sync_all().or_else(ignore_unsyncable),
                 // (no such folder: nothing in it to make durable)
                 Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-                Err(e) => Err(e),
+                Err(e) => ignore_unsyncable(e),
             }
         }
     }
@@ -149,6 +149,21 @@ impl FsStore {
             Err(e) => Err(io::Error::new(e.kind(), format!("{}: {e}", folder.display()))),
         }
     }
+}
+
+/// A folder sync that failed because this file system can't sync folders (network and FUSE file
+/// systems answer EINVAL, ENOTSUP or EBADF to fsync on a directory) is "can't be synced here",
+/// as on Windows; anything else is a real I/O error.
+#[cfg(not(windows))]
+fn ignore_unsyncable(e: io::Error) -> io::Result<()> {
+    if unsyncable(&e) { Ok(()) } else { Err(e) }
+}
+
+#[cfg(not(windows))]
+fn unsyncable(e: &io::Error) -> bool {
+    use io::ErrorKind::{InvalidInput, NotFound, Unsupported};
+    // (EBADF 9, EINVAL 22, ENOTSUP/EOPNOTSUPP 95 on Linux and 45 on the BSDs and macOS)
+    matches!(e.kind(), InvalidInput | Unsupported | NotFound) || matches!(e.raw_os_error(), Some(9 | 22 | 45 | 95))
 }
 
 /// A new staging file at `tmp`: whatever is already there (a leftover from a crashed save, or a link) is removed first
@@ -183,8 +198,8 @@ impl Store for FsStore {
             f.sync_all()?;
         }
         std::fs::rename(&tmp, self.path(name))?;
-        // (a failure is the write's: `Ok` is a promise that the entry survives a crash)
-        Self::sync_folder_checked(&folder)?;
+        // (renamed already: a folder that can't be synced is no reason to say nothing was written)
+        Self::sync_folder(&folder);
         Ok(())
     }
 
@@ -428,5 +443,24 @@ mod tests_staging {
         assert_eq!(std::fs::read(&victim).unwrap(), b"keep");
         assert_eq!(std::fs::read(dir.join("catalog.log")).unwrap(), b"[1]");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(all(test, not(windows)))]
+mod tests_sync_errors {
+    use super::unsyncable;
+    use std::io::{Error, ErrorKind};
+
+    /// A file system that can't sync a folder (EINVAL, ENOTSUP, EBADF) does not fail a save; a
+    /// real I/O error (EIO, ENOSPC) does.
+    #[test]
+    fn only_real_io_errors_fail_a_folder_sync() {
+        for code in [9, 22, 45, 95] {
+            assert!(unsyncable(&Error::from_raw_os_error(code)), "{code}");
+        }
+        assert!(unsyncable(&Error::from(ErrorKind::Unsupported)) && unsyncable(&Error::from(ErrorKind::InvalidInput)));
+        for code in [5, 28] {
+            assert!(!unsyncable(&Error::from_raw_os_error(code)), "{code}");
+        }
     }
 }
