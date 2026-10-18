@@ -183,13 +183,14 @@ impl Store for FsStore {
             f.sync_all()?;
         }
         std::fs::rename(&tmp, self.path(name))?;
-        Self::sync_folder(&folder);
+        // (a failure is the write's: `Ok` is a promise that the entry survives a crash)
+        Self::sync_folder_checked(&folder)?;
         Ok(())
     }
 
     fn write_atomic_with(&mut self, name: &str, fill: &mut dyn FnMut(&mut dyn io::Write) -> io::Result<()>) -> io::Result<u64> {
         let n = self.write_new_with(name, fill)?;
-        Self::sync_folder(&self.folder_of(name));
+        Self::sync_folder_checked(&self.folder_of(name))?;
         Ok(n)
     }
 
