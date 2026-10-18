@@ -314,7 +314,9 @@ the library was not restored. While it waits its row reads "copied", and can sti
   it before it returns, which is what a script needs: a program that ends when the command returns takes a restore
   in the background with it, having changed nothing. A headless `lightcraft-cli run` does not: it waits for a
   restore or a backup that one of its commands started in the background, and prints how it ended as one more line
-  (`library.restoreStatus` / `library.backupStatus`); one that failed makes the call fail.
+  (`library.restoreStatus` / `library.backupStatus`); one that failed makes the call fail. A failed one that another
+  of the same kind replaced as the library's last is said before that one is started, with the same line, so it is
+  not forgotten.
   `library.restoreStatus` reports a restore in the background and, asked until `running` is false, sees it through
   where no frame loop does.
 
