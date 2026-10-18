@@ -920,12 +920,31 @@ fn a_split_that_does_not_read_back_keeps_the_one_file() {
     assert!(!j.wants_snapshot() && !j.wants_snapshot_on_close());
     j.snapshot_in_background(&loaded).unwrap();
     assert_eq!(store.files.get(SNAPSHOT).unwrap(), snapshot);
-    drop(j);
     *store.garble.lock().unwrap() = false;
     let (_, again, r) = Journal::open(Box::new(store.clone())).unwrap();
     assert_eq!(r.upgraded_from, Some(10));
     assert_same(&again, &loaded);
     assert_eq!(segment_files(&store.files), listed(&store.files));
+}
+
+/// Given a library whose upgrade was put off, when it is compacted by hand, then it is upgraded
+/// and the files it was are kept (no upgrade without a way back), and it is no longer put off.
+#[test]
+fn a_compaction_by_hand_of_a_library_put_off_keeps_the_old_files() {
+    let old = include_str!("fixtures/v10-catalog.snap.json");
+    let log = include_str!("fixtures/v10-catalog.log.jsonl");
+    let store = Garbling::default();
+    store.files.set(SNAPSHOT, old.as_bytes().to_vec());
+    store.files.set(LOG, log.as_bytes().to_vec());
+    *store.garble.lock().unwrap() = true;
+    let (mut j, loaded, r) = Journal::open(Box::new(store.clone())).unwrap();
+    assert_eq!(r.upgraded_from, None);
+    *store.garble.lock().unwrap() = false;
+    let seq = j.seq();
+    j.snapshot(&loaded).unwrap();
+    assert_eq!(store.files.get(&format!("{SNAPSHOT}.v10-{seq}")).as_deref(), Some(old.as_bytes()));
+    assert_eq!(store.files.get(&format!("{LOG}.v10-{seq}")).as_deref(), Some(log.as_bytes()));
+    assert!(j.wants_snapshot_on_close() || j.log_records() == 0);
 }
 
 /// A store without segments (the browser's): the photos stay in `catalog.snap`, and the
