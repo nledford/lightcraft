@@ -641,17 +641,18 @@ fn run(args: &[String]) -> Result<(), String> {
                 restoring = false;
             }
             let ms = (t.elapsed().as_secs_f64() * 1e4).round() / 10.0;
-            let failure = match ended {
-                Ok(r) if !r["error"].is_null() => Some(json!({"command": status, "ok": false, "result": r, "ms": ms})),
-                Ok(_) => None,
-                Err(e) => Some(json!({"command": status, "ok": false, "error": e})),
-            };
-            if let Some(line) = failure {
-                failed += 1;
-                writeln!(out, "{line}").map_err(|e| e.to_string())?;
-                if !keep_going {
-                    break;
+            let (line, ok) = match ended {
+                Ok(r) => {
+                    let ok = r["error"].is_null();
+                    (json!({"command": status, "ok": ok, "result": r, "ms": ms}), ok)
                 }
+                Err(e) => (json!({"command": status, "ok": false, "error": e}), false),
+            };
+            // (a line for each job, as for the last one at the end; only a failure fails the call)
+            failed += usize::from(!ok);
+            writeln!(out, "{line}").map_err(|e| e.to_string())?;
+            if !ok && !keep_going {
+                break;
             }
         }
         let t = std::time::Instant::now();
