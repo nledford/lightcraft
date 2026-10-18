@@ -157,6 +157,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         // (a last batch that reached a threshold was snapshotted already: not again)
         if log_left > 0 {
             j.snapshot(&cat)?;
+            written += j.stats().last_snapshot.bytes;
         }
         let import_ms = ms(t);
         let first = j.stats().last_snapshot;
