@@ -341,7 +341,7 @@ pub struct Journal {
     /// The library is in an older format still: its upgrade was put off (its files could not be
     /// kept, or the new snapshot not written) and is tried at the next open. No compaction writes
     /// the new format meanwhile: that would be an upgrade with no way back kept.
-    upgrade_deferred: bool,
+    upgrade_deferred: Option<u32>,
     /// `seq` of the last durable op.
     seq: u64,
     snapshot_seq: u64,
@@ -725,7 +725,7 @@ impl Journal {
         let snapshot_bytes = head_bytes + listed.iter().map(|s| s.bytes).sum::<u64>();
         let mut j = Journal {
             store,
-            upgrade_deferred: false,
+            upgrade_deferred: None,
             seq: snapshot_seq,
             snapshot_seq,
             snapshot_bytes,
@@ -871,7 +871,7 @@ impl Journal {
                 report.upgraded_from = Some(from);
                 report.kept = kept;
             } else {
-                j.upgrade_deferred = true;
+                j.upgrade_deferred = Some(from);
             }
         }
         if report.other_defaults && !rewritten {
@@ -1035,6 +1035,21 @@ impl Journal {
         if let Err(e) = self.wait() {
             log::warn!("catalog: background snapshot failed ({e}); writing one now");
         }
+        // A library whose upgrade was put off still has its old files: keep them before the new
+        // format replaces them. If they can't be kept the library stays as it is.
+        let mut kept_now = Vec::new();
+        if let Some(from) = self.upgrade_deferred {
+            let snap = self.store.read(SNAPSHOT).map_err(io)?;
+            let log = self.store.read(LOG).map_err(io)?.unwrap_or_default();
+            match self.keep_replaced(from, snap.as_deref(), &log) {
+                Ok(kept) => kept_now = kept,
+                Err(e) if unlogged == 0 => {
+                    return Err(CatalogError::Io(format!("the upgrade was put off (the files of format v{from} can't be kept): {e}")));
+                }
+                // (changes that are in no log would be lost: saved all the same)
+                Err(e) => log::warn!("catalog: can't keep the format v{from} files: {e}"),
+            }
+        }
         let t0 = web_time::Instant::now();
         let seq = self.seq.checked_add(unlogged).ok_or_else(|| CatalogError::Corrupt(format!("{SNAPSHOT}: op counter overflow")))?;
         let job =
@@ -1044,11 +1059,13 @@ impl Journal {
             Err(e) => {
                 // nothing lost (the log is whole); don't retry on every append
                 self.stats.failed_snapshots += 1;
+                self.forget_kept(&kept_now);
                 self.retry_at_records = self.log_records.saturating_add(self.policy.max_records);
                 return Err(io(e));
             }
         };
         // the snapshot is durable: it holds every op up to `seq`
+        self.upgrade_deferred = None;
         let mut timing = saved.timing;
         // what is on disk now: as before, but for the stretches this snapshot wrote
         let mut on_disk = std::mem::take(&mut self.baseline);
@@ -1080,7 +1097,7 @@ impl Journal {
     /// `catalog` must reflect every appended op. Appends go on meanwhile; [`Journal::poll`]
     /// finishes the compaction. No-op while a snapshot is already in flight.
     pub fn snapshot_in_background(&mut self, catalog: &Catalog) -> Result<()> {
-        if self.pending.is_some() || self.upgrade_deferred {
+        if self.pending.is_some() || self.upgrade_deferred.is_some() {
             return Ok(());
         }
         let t0 = web_time::Instant::now();
@@ -1280,7 +1297,7 @@ impl Journal {
     /// The log is long enough to be worth compacting.
     pub fn wants_snapshot(&self) -> bool {
         self.pending.is_none()
-            && !self.upgrade_deferred
+            && self.upgrade_deferred.is_none()
             && self.log_records >= self.retry_at_records
             && self.policy.due(self.log_records, self.log_bytes, self.rewrite_bytes())
     }
@@ -1292,7 +1309,7 @@ impl Journal {
     /// way: what isn't compacted stays in the log and is replayed on open.
     pub fn wants_snapshot_on_close(&self) -> bool {
         self.log_records > 0
-            && !self.upgrade_deferred
+            && self.upgrade_deferred.is_none()
             && (self.rewrite_bytes() <= self.policy.close_bytes || self.policy.long(self.log_records, self.log_bytes))
     }
 
