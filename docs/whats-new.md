@@ -31,6 +31,9 @@
   `library.backupPreferences` (the folder a library's backups go to), `library.checkBackup` (reads a backup against
   the list of files it was made with, and names one that was edited or damaged since).
 - What restores replaced (the Replaced folder in the library) no longer piles up for a library that keeps its
+  backups for a time: those folders go with the old backups, by the same rule, and the newest three stay (a folder
+  named `… (not opened)`, which holds a backup that did not open and not what the library was, goes by its age and
+  is not one of the three). One you renamed, put something into or opened as a library is left alone.
   backups for a time: those folders go with the old backups, by the same rule, and the newest three stay. One you
   renamed, put something into or opened as a library is left alone.
 - Old backups can go by themselves: Settings ▸ General ▸ Backups ▸ **Keep backups** (Forever, which is the usual, or
