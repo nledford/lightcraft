@@ -59,8 +59,10 @@
   answers them with `lastBackup`.
 - Settings ▸ General ▸ Backups says where the library stands. **Back Up Now**, beside Last backup, makes a backup
   from there ("Backing up…" shows meanwhile, and the button is not on offer while a backup or a restore is under
-  way). A folder for backups on the library's own drive is pointed out, since a backup there is lost with the
-  library if that drive fails: for the usual folder as a note, for one you chose as a caution. A chosen folder that
+  way). A folder for backups on the same mounted volume, drive letter or share as the library is pointed out, since a
+  backup there is lost with the library if that drive fails: for the usual folder as a note, for one you chose as a
+  caution. Separate volumes on one physical disk are not told apart: for protection against a disk failing, use
+  another physical disk. A chosen folder that
   is not there (a drive not connected) says that. And a folder that holds no backup of this library, with nothing
   set to make one, says so. Agents: nothing new, `library.backup` as before.
 - Settings ▸ General ▸ Backups shows the folder the library's backups go to, and sets it: Choose Folder… for one of
