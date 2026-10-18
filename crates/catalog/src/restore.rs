@@ -671,7 +671,7 @@ pub struct Replaced {
 
 /// The names a restore moves to a folder of `Replaced`.
 fn set_aside_by_a_restore(name: &str, also: &[&str]) -> bool {
-    name == SNAPSHOT || name == LOG || segments::valid_name(name) || also.contains(&name)
+    name == SNAPSHOT || name == LOG || segments::valid_name(name) || also.contains(&name) || backup::os_metadata(name)
 }
 
 /// What a folder holds ([`backup::held`]) that a restore did not put there, if anything: the

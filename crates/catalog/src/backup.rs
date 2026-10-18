@@ -285,7 +285,7 @@ fn previous(dest: &Path) -> Option<(PathBuf, BTreeMap<String, Segment>)> {
 
 /// A file an operating system writes into a folder that somebody looked at (Finder, Explorer): not
 /// the backup's, and no change to it, so it does not make a sound backup fail its check.
-fn os_metadata(name: &str) -> bool {
+pub(crate) fn os_metadata(name: &str) -> bool {
     let name = name.rsplit('/').next().unwrap_or(name);
     matches!(name, ".DS_Store" | "Thumbs.db" | "desktop.ini") || name.starts_with("._")
 }
