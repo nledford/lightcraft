@@ -271,7 +271,8 @@ first.
   nothing is made in its folder.
 - **What the library was is kept.** The files a restore replaces, with every change made up to that moment, are moved
   to `Replaced/<the time (UTC)>` in the library folder. That is a library folder itself: open it, or restore from a
-  backup of it, to go back. Nothing removes these folders yet; delete the ones you no longer want. The files an
+  backup of it, to go back. A library that keeps its backups for a time removes these folders with its old backups
+  (see above); in any other, delete the ones you no longer want. The files an
   earlier upgrade kept (`catalog.snap.v…`, `catalog.log.v…`) are not part of this: they stay where they are, and are
   still the library as the older version left it, not the one restored.
 - **All or nothing.** The backup is first copied into `restore.partial` in the library folder while the library is
