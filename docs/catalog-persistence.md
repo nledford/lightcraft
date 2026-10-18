@@ -153,7 +153,8 @@ the other).
 A backup on the same disk as the library guards against a damaged catalog or a mistake, not against losing the disk:
 set the library's backup folder to another drive for that.
 
-One million photos (414 MB of catalog, 123 segments; Apple M1 Max): the first backup took 1.0 s; one after 1000
+One million photos (414 MB of catalog, 123 segments of up to 8,192 photos, as measured before segments were cut
+to 4,096 photos and about 2 MB, so a backup now copies less after the same edits; Apple M1 Max): the first backup took 1.0 s; one after 1000
 edits in one place copied 3.4 MB and shared 122 files, in about 0.15 s (most of it reading the files it shares);
 checking a backup took 64 ms. Three backups together took 398 MB on disk, where the library takes 395 MB.
 
