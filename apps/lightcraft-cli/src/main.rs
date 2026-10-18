@@ -659,7 +659,8 @@ fn run(args: &[String]) -> Result<(), String> {
         let line = match run_step(backend.as_mut(), s) {
             Ok(r) => {
                 // (started in the background: it is seen through below)
-                let goes_on = r["running"] == json!(true);
+                // (also one that was over before the call returned: how it ended is still to be said)
+                let goes_on = r["running"] == json!(true) || s.params["background"] == json!(true);
                 restoring |= goes_on && s.id == "library.restore";
                 backing_up |= goes_on && s.id == "library.backup";
                 json!({"command": s.id, "ok": true, "result": r, "ms": (t.elapsed().as_secs_f64() * 1e4).round() / 10.0})
