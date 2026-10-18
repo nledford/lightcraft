@@ -950,6 +950,15 @@ fn a_compaction_by_hand_of_a_library_put_off_keeps_the_old_files() {
     j.snapshot(&loaded).unwrap();
     assert_eq!(store.files.get(&format!("{SNAPSHOT}.v10-{seq}")).as_deref(), Some(old.as_bytes()));
     assert_eq!(store.files.get(&format!("{LOG}.v10-{seq}")).as_deref(), Some(log.as_bytes()));
+    // the upgrade has happened: it is no longer put off, so a change is compacted on close
+    let mut loaded = loaded;
+    run(&mut j, &mut loaded, vec![Op::SetRating { id: PhotoId(8), rating: 3 }]);
+    assert!(j.wants_snapshot_on_close(), "still put off after the compaction by hand");
+    drop(j);
+    // and it opens as the new format, with nothing to upgrade again
+    let (_, again, r) = Journal::open(Box::new(store.clone())).unwrap();
+    assert_eq!(r.upgraded_from, None);
+    assert_same(&again, &loaded);
 }
 
 /// Given a library whose upgrade was put off, when it has changes and is closed, then closing does
