@@ -848,18 +848,22 @@ fn cell(
         p.rect_filled(br, 2.0, Color32::from_gray(26));
         p.galley(br.min + vec2(4.0, 1.5), g, t.text_label);
     }
-    let show_badges = match app.ui.settings.grid_badges {
-        crate::state::GridBadges::Auto => resp.hovered() || selected || photo.rating > 0 || photo.flag != Flag::None || photo.label.is_some(),
-        crate::state::GridBadges::Always => true,
-        crate::state::GridBadges::Never => false,
+    // Stars on hover: the decision marks (flag, colour label) always show; the stars and the edited
+    // mark only while the photo is hovered or selected, so a mostly rated library stays clean.
+    let engaged = resp.hovered() || selected;
+    let (show_marks, show_extras) = match app.ui.settings.grid_badges {
+        crate::state::GridBadges::Auto => (true, engaged),
+        crate::state::GridBadges::Always => (true, true),
+        crate::state::GridBadges::Never => (false, false),
     };
     let overlay = crate::thumb::Thumb {
         surface: crate::thumb::Surface::Grid,
         photo: &photo,
         rect: photo_rect,
         stack,
-        marks: show_badges,
-        hot: resp.hovered() || selected,
+        marks: show_marks,
+        extras: show_extras,
+        hot: engaged,
         failure,
         surround: square,
     };
