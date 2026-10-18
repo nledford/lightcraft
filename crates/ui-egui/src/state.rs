@@ -635,7 +635,9 @@ pub struct UiState {
     /// The Build Previews run last announced (its identity, finished?).
     #[serde(skip)]
     pub preview_build_seen: Option<(usize, bool)>,
-    /// The library backup whose end was announced (see `backup_status`).
+    /// The library backup whose end was announced (see `backup_status`): an address, only good
+    /// for this run.
+    #[serde(skip)]
     pub backup_seen: Option<usize>,
     /// Saving the library is failing (announced with a toast; the top bar shows a warning until
     /// a later save succeeds).
@@ -1510,4 +1512,20 @@ fn deserialize_favorite_themes<'de, D: serde::Deserializer<'de>>(d: D) -> Result
         }
     }
     Ok(values)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The backup whose end was announced is an address in this run: a settings file never keeps
+    /// it (it could silence the next run's first backup announcement).
+    #[test]
+    fn the_announced_backup_is_not_saved() {
+        let ui = UiState { backup_seen: Some(0x1234), ..UiState::default() };
+        let saved = serde_json::to_string(&ui).unwrap();
+        assert!(!saved.contains("backupSeen") && !saved.contains("backup_seen"), "{saved}");
+        let read: UiState = serde_json::from_str(&saved).unwrap();
+        assert_eq!(read.backup_seen, None);
+    }
 }

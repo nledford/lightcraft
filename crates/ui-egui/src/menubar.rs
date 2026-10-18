@@ -839,10 +839,23 @@ pub fn menu_bar(app: &LightcraftApp) -> Vec<(String, Vec<MenuNode>)> {
     bar
 }
 
+/// What a menu item asks for that the command's own default does not: from a menu a backup runs
+/// while the library stays in use (its row is in the activity stack, and a toast says how it
+/// ended). Only here: the engine's own default, which a script or the control channel gets, is to
+/// return when the backup is made.
+pub(crate) fn menu_defaults(id: &str, params: &mut Value) {
+    if id == "library.backup"
+        && let Some(p) = params.as_object_mut()
+    {
+        p.entry("background").or_insert(Value::Bool(true));
+    }
+}
+
 /// Run a menu item. Rating, flag and label items behave like their keys (the active photo only in
 /// Compare/Survey; Auto Advance moves on).
 pub fn run_item(app: &mut LightcraftApp, id: &str, params: Value) -> Result<Value, String> {
     let mut params = if params.is_null() { json!({}) } else { params };
+    menu_defaults(id, &mut params);
     let culling_cmd = matches!(
         id,
         "photo.rate"
@@ -1161,6 +1174,31 @@ mod tests {
         let r = run_item(&mut on_disk, "library.backup", json!({"background": false})).unwrap();
         assert!(r["error"].is_null() && std::path::Path::new(r["report"]["dir"].as_str().unwrap()).starts_with(dir.join("Backups")), "{r}");
         drop(on_disk);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A backup from a menu runs in the background unless it says otherwise; one asked for by a
+    /// script or the control channel (not through a menu) is the engine's own: it returns when
+    /// the backup is made.
+    #[test]
+    fn only_a_menu_backup_defaults_to_the_background() {
+        let mut p = json!({});
+        menu_defaults("library.backup", &mut p);
+        assert_eq!(p, json!({"background": true}));
+        let mut p = json!({"background": false});
+        menu_defaults("library.backup", &mut p);
+        assert_eq!(p, json!({"background": false}));
+        let mut p = json!({});
+        menu_defaults("library.restore", &mut p);
+        assert_eq!(p, json!({}));
+        let dir = std::env::temp_dir().join(format!("lc-menubar-script-backup-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut session = lightcraft_engine::Session::new();
+        session.open_library(&dir, true).unwrap();
+        let mut app = LightcraftApp::new(session, crate::Services::default());
+        let r = app.run("library.backup", json!({})).unwrap();
+        assert!(r["running"] == json!(false) && r["report"]["dir"].is_string(), "{r}");
+        drop(app);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
