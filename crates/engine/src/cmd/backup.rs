@@ -995,7 +995,7 @@ fn preferences(s: &mut Session, p: &Value) -> Result<Value> {
                 (!usual).then_some(dir)
             }
         };
-        if s.backup_dir != before {
+        if s.backup_dir != before.0 {
             // (when the library was last backed up is when it was backed up *there*)
             s.last_backup = None;
             s.backup_tried = None;
