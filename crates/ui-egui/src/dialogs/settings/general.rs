@@ -236,7 +236,7 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         let r = ui.add_enabled(refused.is_none(), egui::Button::new(crate::i18n::tr("Back Up Now")));
         register(ui, "button:settingsBackupNow", r.rect);
         if r.clicked() {
-            result = Some(app.run("library.backup", json!({})));
+            result = Some(app.run("library.backup", json!({"background": true})));
         }
         if running {
             hint(ui, t, "Backing up…");
