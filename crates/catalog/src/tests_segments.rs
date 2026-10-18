@@ -950,7 +950,27 @@ fn a_compaction_by_hand_of_a_library_put_off_keeps_the_old_files() {
     j.snapshot(&loaded).unwrap();
     assert_eq!(store.files.get(&format!("{SNAPSHOT}.v10-{seq}")).as_deref(), Some(old.as_bytes()));
     assert_eq!(store.files.get(&format!("{LOG}.v10-{seq}")).as_deref(), Some(log.as_bytes()));
-    assert!(j.wants_snapshot_on_close() || j.log_records() == 0);
+}
+
+/// Given a library whose upgrade was put off, when it has changes and is closed, then closing does
+/// not compact it into the new format (nothing would be kept to go back to), and it opens again
+/// as it was, its changes replayed from the log.
+#[test]
+fn closing_a_library_put_off_does_not_upgrade_it() {
+    let old = include_str!("fixtures/v10-catalog.snap.json");
+    let log = include_str!("fixtures/v10-catalog.log.jsonl");
+    let store = Garbling::default();
+    store.files.set(SNAPSHOT, old.as_bytes().to_vec());
+    store.files.set(LOG, log.as_bytes().to_vec());
+    *store.garble.lock().unwrap() = true;
+    let (mut j, mut loaded, r) = Journal::open(Box::new(store.clone())).unwrap();
+    assert_eq!(r.upgraded_from, None);
+    run(&mut j, &mut loaded, vec![Op::SetRating { id: PhotoId(8), rating: 3 }]);
+    assert!(!j.wants_snapshot_on_close());
+    drop(j);
+    let (_, again, r) = Journal::open(Box::new(store.clone())).unwrap();
+    assert_eq!(r.upgraded_from, None);
+    assert_same(&again, &loaded);
 }
 
 /// Given a library put off whose compaction commits the new snapshot but then reports a failure

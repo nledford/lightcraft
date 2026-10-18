@@ -160,7 +160,6 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             written += j.stats().last_snapshot.bytes;
         }
         let import_ms = ms(t);
-        written += j.stats().last_snapshot.bytes;
         let size = j.snapshot_bytes();
         println!(
             "== {n} photos ({} local): snapshot {:.1} MB ({:.0} B per photo)",
