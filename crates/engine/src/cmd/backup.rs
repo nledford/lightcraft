@@ -232,12 +232,11 @@ fn forget_id(library: &Path) {
     if prefs.as_object_mut().and_then(|p| p.remove("libraryId")).is_none() {
         return;
     }
-    let fresh = path.with_extension("json.tmp");
+    // (temp file, fsync, rename, folder fsync: a crash leaves the old or the new file whole)
     let written = serde_json::to_vec_pretty(&prefs)
         .map_err(|e| e.to_string())
-        .and_then(|bytes| std::fs::write(&fresh, bytes).and_then(|()| std::fs::rename(&fresh, &path)).map_err(|e| e.to_string()));
+        .and_then(|bytes| lightcraft_catalog::safe_file::write_atomic(&path, &bytes).map_err(|e| e.to_string()));
     if let Err(e) = written {
-        let _ = std::fs::remove_file(&fresh);
         log::warn!("library: {}: {e}", path.display());
     }
 }
