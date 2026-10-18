@@ -250,8 +250,8 @@ impl LightcraftApp {
                 let now = self.tick_now();
                 // (Auto Sync On / Off says a state: the new one takes the old one's place)
                 match id {
-                    "develop.autoSync" => self.ui.push_toast_on("autoSync", message, now + TOAST_SECONDS, None),
-                    _ => self.ui.push_toast(message, now + TOAST_SECONDS, None),
+                    "develop.autoSync" => self.ui.push_toast_on(now, "autoSync", message, now + TOAST_SECONDS, None),
+                    _ => self.ui.push_toast(now, message, now + TOAST_SECONDS, None),
                 }
             }
         }
@@ -266,7 +266,7 @@ impl LightcraftApp {
                 None => i18n::tr("Color label cleared").into(),
             };
             let now = self.tick_now();
-            self.ui.push_toast_on("label", text, now + TOAST_SECONDS, label);
+            self.ui.push_toast_on(now, "label", text, now + TOAST_SECONDS, label);
         }
         match &r {
             Err(e) => {
@@ -402,6 +402,7 @@ impl LightcraftApp {
                 self.ui.unsaved_seen = true;
                 let t = self.tick_now();
                 self.ui.push_toast_on(
+                    t,
                     "save",
                     crate::i18n::tr_format!(
                         "{n} change{} saved in memory but not written to disk: {e} — LightCraft will retry",
@@ -443,13 +444,13 @@ impl LightcraftApp {
     /// about that topic ([`state::UiState::push_toast_on`]).
     pub fn toast_on(&mut self, _ctx: &egui::Context, topic: &'static str, text: impl Into<String>) {
         let t = self.tick_now();
-        self.ui.push_toast_on(topic, text, t + TOAST_SECONDS, None);
+        self.ui.push_toast_on(t, topic, text, t + TOAST_SECONDS, None);
     }
 
     /// A toast that stays `secs` seconds (messages that say where to look or what to do next).
     pub fn toast_for(&mut self, _ctx: &egui::Context, text: impl Into<String>, secs: f64) {
         let t = self.tick_now();
-        self.ui.push_toast(text, t + secs, None);
+        self.ui.push_toast(t, text, t + secs, None);
     }
 
     /// Reverse geocoding: say how a place-names download ended (a failure stays readable, with what to do).
@@ -536,7 +537,7 @@ impl LightcraftApp {
     /// A toast for an error the user has to read and act on (stays 6 s).
     pub fn toast_error(&mut self, _ctx: &egui::Context, text: impl Into<String>) {
         let t = self.tick_now();
-        self.ui.push_toast(text, t + 6.0, None);
+        self.ui.push_toast(t, text, t + 6.0, None);
     }
 
     /// The process is about to end (settings and library are saved by then): make sure nothing is
