@@ -888,13 +888,25 @@ fn a_folder_of_replaced_with_anything_else_in_it_is_told_and_left() {
 fn a_removal_of_replaced_that_got_part_way_leaves_no_folder_that_looks_whole() {
     use std::os::unix::fs::PermissionsExt;
     let dir = temp("replaced-part-way");
+    // (a process that may remove from any folder, as root in a container, can't be refused: nothing to look at)
+    let probe = dir.join("probe");
+    std::fs::create_dir_all(&probe).unwrap();
+    std::fs::write(probe.join("x"), b"x").unwrap();
+    std::fs::set_permissions(&probe, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let refused = std::fs::remove_file(probe.join("x")).is_err();
+    std::fs::set_permissions(&probe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    if !refused {
+        let _ = std::fs::remove_dir_all(&dir);
+        return;
+    }
+    let _ = std::fs::remove_dir_all(&probe);
     let (made, _, _) = backed_up_and_changed(&dir);
     let replaced = dir.join(REPLACED);
     let mode = |path: &Path, mode: u32| {
         let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode));
     };
-    // (the order a folder is read in is the file system's: several folders, so that the one that
-    // is read segments last, and the one that is read segments first, are both tried)
+    // (which file a removal stops at is the file system's order, so each of several folders is
+    // looked at as it comes out: whichever it was, the folder is whole under its name or it is `.partial`)
     for k in 0..8 {
         let name = format!("again-{k}");
         restored(&made.dir, &dir, &name);
