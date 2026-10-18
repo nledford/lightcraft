@@ -502,8 +502,9 @@
   1.7 s where it was 6.1 s for 3.5 million. A damaged segment is named when the library is opened, and nothing is
   modified.
 - Libraries are upgraded when first opened (catalog format 11) and can't be opened by earlier versions afterwards. The
-  photos are split into segments only once the segments written read back the same. Copy or back up the whole library
-  folder: `catalog.snap` alone no longer holds the photos.
+  photos of a library in a folder on disk are split into segments only once the segments written read back the same.
+  Copy or back up the whole library folder: `catalog.snap` alone no longer holds the photos. (The browser build keeps
+  its photos in `catalog.snap`.)
   The library as it was is kept beside it (`catalog.snap.v<format>-<seq>`, `catalog.log.v<format>-<seq>`): to go back, see
   `docs/catalog-persistence.md`.
   Numbers and the measurements behind them: `docs/catalog-persistence.md`.
