@@ -684,6 +684,12 @@ fn a_backup_that_holds_something_else_is_not_removed() {
     std::fs::write(with_folder.dir.join("exports").join("a.jpg"), b"x").unwrap();
     std::fs::create_dir_all(dest.join("2026-03-10 09.00.00.partial")).unwrap();
 
+    // what Finder wrote into a folder that was looked at is no reason to keep a backup
+    let browsed = back_up_at(&lib, "one", &dest, "2026-04-10T09:00:00");
+    std::fs::write(browsed.dir.join(".DS_Store"), b"os").unwrap();
+    backup::remove(&browsed.dir).unwrap();
+    assert!(!browsed.dir.exists());
+
     let e = backup::remove(&with_notes.dir).unwrap_err().to_string();
     assert!(e.contains("notes.txt") && e.contains("nothing was removed"), "{e}");
     let e = backup::remove(&with_folder.dir).unwrap_err().to_string();
