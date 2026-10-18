@@ -20,8 +20,9 @@
   modified.
 - File ▸ Back Up Library backs up the catalog (not the photos) to a folder named after the time (UTC) in Backups in
   the library folder, while you go on working, and says where it went when it is done. A backup opens as a library of
-  its own. Each one shares with the one before it the files that didn't change, so a backup of a large library after a
-  day's work copies a few megabytes, and removing an older backup takes nothing from a newer one. Agents:
+  its own. Each one shares with the one before it the files that didn't change (hard links, where the folder can hold them: on
+  another volume than the last backup's, or a file system without links, they are copied), so a backup of a large
+  library after a day's work copies a few megabytes where it can share, and removing an older backup takes nothing from a newer one. Agents:
   `library.backup` (`dir`; returns when the backup is made, or at once with `background`), `library.backupStatus`,
   `library.backupPreferences` (the folder a library's backups go to), `library.checkBackup` (reads a backup against
   the list of files it was made with, and names one that was edited or damaged since).
