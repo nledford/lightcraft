@@ -627,22 +627,30 @@ fn run(args: &[String]) -> Result<(), String> {
         if headless && earlier {
             let step = Step { id: status.to_string(), params: json!({}) };
             let t = std::time::Instant::now();
-            if let Ok(r) = run_step(backend.as_mut(), &step)
-                && r["running"] == json!(false)
-            {
-                // (said here: it is not asked about again at the end, unless another is started)
-                if s.id == "library.backup" {
-                    backing_up = false;
-                } else {
-                    restoring = false;
+            // (another of its kind is refused while it runs: it is seen through first, as at the end)
+            let ended = loop {
+                match run_step(backend.as_mut(), &step) {
+                    Ok(r) if r["running"] == json!(true) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                    other => break other,
                 }
-                if !r["error"].is_null() {
-                    failed += 1;
-                    let ms = (t.elapsed().as_secs_f64() * 1e4).round() / 10.0;
-                    writeln!(out, "{}", json!({"command": status, "ok": false, "result": r, "ms": ms})).map_err(|e| e.to_string())?;
-                    if !keep_going {
-                        break;
-                    }
+            };
+            // (said here: it is not asked about again at the end, unless another is started)
+            if s.id == "library.backup" {
+                backing_up = false;
+            } else {
+                restoring = false;
+            }
+            let ms = (t.elapsed().as_secs_f64() * 1e4).round() / 10.0;
+            let failure = match ended {
+                Ok(r) if !r["error"].is_null() => Some(json!({"command": status, "ok": false, "result": r, "ms": ms})),
+                Ok(_) => None,
+                Err(e) => Some(json!({"command": status, "ok": false, "error": e})),
+            };
+            if let Some(line) = failure {
+                failed += 1;
+                writeln!(out, "{line}").map_err(|e| e.to_string())?;
+                if !keep_going {
+                    break;
                 }
             }
         }
