@@ -966,9 +966,13 @@ fn a_compaction_that_failed_after_its_commit_keeps_the_old_files() {
     let (mut j, loaded, _) = Journal::open(Box::new(store.clone())).unwrap();
     *store.garble.lock().unwrap() = false;
     *store.fail_after_snap.lock().unwrap() = true;
-    let seq = j.seq();
-    assert!(j.snapshot(&loaded).is_err());
-    assert_eq!(store.files.get(&format!("{SNAPSHOT}.v10-{seq}")).as_deref(), Some(old.as_bytes()), "the way back stays");
+    let seq = j.seq() + 2;
+    let kept_seq = j.seq();
+    assert!(j.snapshot_with_unlogged(&loaded, 2).is_err());
+    assert_eq!(store.files.get(&format!("{SNAPSHOT}.v10-{kept_seq}")).as_deref(), Some(old.as_bytes()), "the way back stays");
+    // and the journal knows the snapshot holds those ops: the next one is numbered after them
+    assert_eq!(j.seq(), seq);
+    assert_eq!(j.snapshot_seq(), seq);
 }
 
 /// A store without segments (the browser's): the photos stay in `catalog.snap`, and the
