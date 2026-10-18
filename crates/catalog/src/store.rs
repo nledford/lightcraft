@@ -162,9 +162,19 @@ fn ignore_unsyncable(e: io::Error) -> io::Result<()> {
 #[cfg(not(windows))]
 fn unsyncable(e: &io::Error) -> bool {
     use io::ErrorKind::{InvalidInput, NotFound, Unsupported};
-    // (EBADF 9, EINVAL 22, ENOTSUP/EOPNOTSUPP 95 on Linux and 45 on the BSDs and macOS, where
-    // the kernel's own EOPNOTSUPP, which a POSIX build is given, is 102)
-    matches!(e.kind(), InvalidInput | Unsupported | NotFound) || matches!(e.raw_os_error(), Some(9 | 22 | 45 | 95 | 102))
+    // (EBADF 9 and EINVAL 22 everywhere; "not supported" is a platform's own number: on Linux 95,
+    // on the BSDs and macOS 45, and on macOS also the kernel's EOPNOTSUPP 102, which is ENETRESET
+    // on Linux and must fail there)
+    let platform: &[i32] = if cfg!(any(target_os = "linux", target_os = "android")) {
+        &[95]
+    } else if cfg!(target_vendor = "apple") {
+        &[45, 102]
+    } else if cfg!(any(target_os = "freebsd", target_os = "netbsd", target_os = "openbsd", target_os = "dragonfly")) {
+        &[45]
+    } else {
+        &[]
+    };
+    matches!(e.kind(), InvalidInput | Unsupported | NotFound) || e.raw_os_error().is_some_and(|c| matches!(c, 9 | 22) || platform.contains(&c))
 }
 
 /// A new staging file at `tmp`: whatever is already there (a leftover from a crashed save, or a link) is removed first
@@ -456,7 +466,16 @@ mod tests_sync_errors {
     /// real I/O error (EIO, ENOSPC) does.
     #[test]
     fn only_real_io_errors_fail_a_folder_sync() {
-        for code in [9, 22, 45, 95, 102] {
+        for code in [9, 22] {
+            assert!(unsyncable(&Error::from_raw_os_error(code)), "{code}");
+        }
+        #[cfg(target_os = "linux")]
+        {
+            assert!(unsyncable(&Error::from_raw_os_error(95)));
+            assert!(!unsyncable(&Error::from_raw_os_error(102)), "ENETRESET on Linux");
+        }
+        #[cfg(target_vendor = "apple")]
+        for code in [45, 102] {
             assert!(unsyncable(&Error::from_raw_os_error(code)), "{code}");
         }
         assert!(unsyncable(&Error::from(ErrorKind::Unsupported)) && unsyncable(&Error::from(ErrorKind::InvalidInput)));
