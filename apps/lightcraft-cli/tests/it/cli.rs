@@ -873,7 +873,13 @@ fn run_fails_for_a_background_backup_that_failed_even_when_a_later_one_works() {
     assert!(!o.status.success(), "{said}\n{}", String::from_utf8_lossy(&o.stderr));
     assert!(said.lines().any(|l| l.contains("\"command\":\"library.backupStatus\"") && l.contains("\"ok\":false")), "{said}");
     // the later backup was reached and worked
-    assert!(good.join("backup.json").exists() || std::fs::read_dir(&good).is_ok_and(|d| d.count() > 0), "{said}");
+    // the later backup's own status line says it worked (a backup lands in a folder named by its time)
+    let good_status = said.lines().filter_map(|l| serde_json::from_str::<Value>(l).ok()).rfind(|v| v["command"] == "library.backupStatus").unwrap();
+    assert!(
+        good_status["ok"] == true && good_status["result"]["error"].is_null() && good_status["result"]["dest"] == good.to_string_lossy().as_ref(),
+        "{said}"
+    );
+    assert!(std::fs::read_dir(&good).is_ok_and(|d| d.count() > 0), "{said}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
