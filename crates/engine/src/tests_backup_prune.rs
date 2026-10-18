@@ -480,6 +480,9 @@ fn a_folder_of_replaced_is_as_old_as_its_name_says() {
     assert_eq!(replaced_time("2026-01-10 09.00.00 UTC").as_deref(), Some("2026-01-10T09:00:00"));
     assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (2)").as_deref(), Some("2026-01-10T09:00:00"));
     assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (12)").as_deref(), Some("2026-01-10T09:00:00"));
+    assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (2) (not opened)").as_deref(), Some("2026-01-10T09:00:00"));
+    assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (1) (not opened)"), None);
+    assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (not opened) (2)"), None);
     assert_eq!(replaced_time("2026-01-10 09.00.00 UTC (not opened)").as_deref(), Some("2026-01-10T09:00:00"));
     for other in [
         "",

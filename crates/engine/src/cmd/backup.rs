@@ -237,7 +237,9 @@ pub(crate) fn replaced_time(name: &str) -> Option<String> {
         let Some(n) = rest.strip_prefix(" (").and_then(|r| r.strip_suffix(')')) else { return false };
         n.len() <= 6 && !n.starts_with('0') && n.parse::<u32>().is_ok_and(|n| n >= 2)
     };
-    if !(rest.is_empty() || rest == NOT_OPENED || numbered(rest)) {
+    // (` (not opened)` comes after a counter when the restore's folder had one)
+    let rest = rest.strip_suffix(NOT_OPENED).unwrap_or(rest);
+    if !(rest.is_empty() || numbered(rest)) {
         return None;
     }
     let (date, clock) = (time.get(..10)?, time.get(11..)?);
