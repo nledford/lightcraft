@@ -136,10 +136,16 @@ fn while_a_backup_is_made_the_row_says_so_and_a_second_cannot_be_started() {
     assert_eq!(backups(&mut h), 1);
     assert!(!says(&h, "Backing up"));
     click(&mut h, "button:settingsBackupNow");
-    let again = (0..400).any(|_| {
+    let t0 = std::time::Instant::now();
+    let mut again = false;
+    while t0.elapsed() < T {
         h.step();
-        backups(&mut h) == 2
-    });
+        if backups(&mut h) == 2 {
+            again = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
     assert!(again, "Back Up Now is on offer again");
 }
 
