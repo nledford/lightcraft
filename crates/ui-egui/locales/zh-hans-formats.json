@@ -299,6 +299,6 @@
   "Listing folders — folders: {folders}, files: {files}": "正在列出文件夹 — 文件夹：{folders}，文件：{files}",
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "已添加 {what} 合并（{mp}），这是全景图的最大尺寸（完整尺寸：{full}）",
   "Changes found: {n}": "发现的更改：{n}",
-  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "“{name}”仍在扫描：请等待完成，或用其所在行的 ✕ 停止",
+  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "“{name}”仍在扫描：请等待完成，或用其所在行的 × 停止",
   "Look at the changes found in “{name}” first, or dismiss them": "请先查看在“{name}”中发现的更改，或将其忽略"
 }

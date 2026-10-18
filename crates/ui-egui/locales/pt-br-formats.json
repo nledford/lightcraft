@@ -299,6 +299,6 @@
   "Listing folders — folders: {folders}, files: {files}": "Listando pastas — pastas: {folders}, arquivos: {files}",
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} mesclagem adicionada em {mp}, o maior tamanho possível para um panorama (tamanho completo: {full})",
   "Changes found: {n}": "Alterações encontradas: {n}",
-  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "“{name}” ainda está sendo verificada: aguarde ou interrompa com ✕ na linha dela",
+  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "“{name}” ainda está sendo verificada: aguarde ou interrompa com × na linha dela",
   "Look at the changes found in “{name}” first, or dismiss them": "Revise primeiro as alterações encontradas em “{name}” ou dispense-as"
 }

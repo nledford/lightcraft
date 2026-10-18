@@ -299,6 +299,6 @@
   "Listing folders — folders: {folders}, files: {files}": "Procházení složek – složky: {folders}, soubory: {files}",
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Do „{1}“ přesunuto fotografií: {n}{0:.0}. Úpravy → Zpět je vrátí.",
   "Changes found: {n}": "Nalezené změny: {n}",
-  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "„{name}“ se ještě prohledává: počkejte, nebo hledání zastavte ✕ na jeho řádku",
+  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "„{name}“ se ještě prohledává: počkejte, nebo hledání zastavte × na jeho řádku",
   "Look at the changes found in “{name}” first, or dismiss them": "Nejprve si prohlédněte změny nalezené v „{name}“, nebo je zahoďte"
 }

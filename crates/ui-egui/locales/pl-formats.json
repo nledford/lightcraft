@@ -299,6 +299,6 @@
   "Listing folders — folders: {folders}, files: {files}": "Przeglądanie folderów — foldery: {folders}, pliki: {files}",
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Przeniesiono do „{1}” — zdjęcia: {n}{0:.0}. Edytuj → Cofnij przywróci je.",
   "Changes found: {n}": "Znalezione zmiany: {n}",
-  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "„{name}” jest jeszcze przeszukiwany: poczekaj albo zatrzymaj to ✕ w jego wierszu",
+  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "„{name}” jest jeszcze przeszukiwany: poczekaj albo zatrzymaj to × w jego wierszu",
   "Look at the changes found in “{name}” first, or dismiss them": "Najpierw przejrzyj zmiany znalezione w „{name}” albo je odrzuć"
 }

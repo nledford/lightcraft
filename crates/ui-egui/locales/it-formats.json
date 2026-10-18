@@ -299,6 +299,6 @@
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Foto spostate in “{1}”: {n}{0:.0}. Modifica → Annulla le riporta indietro.",
   "Listing folders — folders: {folders}, files: {files}": "Elenco delle cartelle — cartelle: {folders}, file: {files}",
   "Changes found: {n}": "Modifiche trovate: {n}",
-  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "“{name}” è ancora in analisi: attendi, oppure fermala con ✕ sulla sua riga",
+  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "“{name}” è ancora in analisi: attendi, oppure fermala con × sulla sua riga",
   "Look at the changes found in “{name}” first, or dismiss them": "Guarda prima le modifiche trovate in “{name}”, oppure scartale"
 }
