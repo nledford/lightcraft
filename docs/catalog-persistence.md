@@ -260,7 +260,11 @@ is also what the next backup copies.
 | 65,536 | 26.9 MB | 54 | 864 ms | 146 ms (27.0 MB) | 803 ms (544 MB) | 2.0 s |
 
 1 million unedited JPEGs (414 MB), with the import that made them ("written": all snapshots together, as a multiple of
-the final one):
+the final one). A segment holds at most the photos per segment of its row, so a library of 1 million photos needs at
+least 1,000,000 ÷ that many segments (245 at 4,096): the counts below are the ones the harness reported and are lower
+than that for every row, so they do not describe a library of exactly 1 million photos; the harness
+was not kept, and they were not remeasured. Read the columns as how the sizes compare with each other, not as counts
+for a library of that size (the 3.5 million table above counts as expected):
 
 | Photos per segment | Segments | Import | Written | Open | One place | 20 places | All over |
 |---|---|---|---|---|---|---|---|
