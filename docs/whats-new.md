@@ -508,7 +508,7 @@
   A library of unedited photos takes about half the memory it did (1.4 kB per photo where it was 2.9 kB: 4.8 GB where
   it was 10 GB for 3.5 million photos) and opens faster.
 - File ▸ Back Up Library backs up the catalog (not the photos) to a folder named after the time (UTC) in the folder the
-  library's backups go to (Backups in the library folder unless another is set with `library.backupPreferences`), while you go on working, and says where it went when it is done. A backup holds a library of
+  library's backups go to (Backups in the library folder unless you chose another in Settings), while you go on working, and says where it went when it is done. A backup holds a library of
   its own (restore it to look at it or work in it). Each one shares with the one before it the files that didn't change (hard links, where the folder can hold them: on
   another volume than the last backup's, or a file system without links, they are copied), so a backup of a large
   library after a day's work copies a few megabytes where it can share, and removing an older backup takes nothing from a newer one. Agents:
@@ -518,8 +518,8 @@
 - Settings ▸ General ▸ Backups shows the folder the library's backups go to, and sets it: Choose Folder… for one of
   your own (on another drive, say), Use Library Folder for Backups in the library folder again. Agents:
   `library.backupPreferences` also answers `folder` (where backups go, chosen or not) and takes `choose` (ask with a
-  folder dialog, in the app). A folder inside the library folder (other than Backups) or inside a backup is refused
-  for backups, by this command and by `library.backup`.
+  folder dialog, in the app). A folder inside the library folder (other than Backups) or inside a backup, or a path
+  with `..` in it, is refused for backups, by this command and by `library.backup`.
 - A backup can be put back: File ▸ Restore Library from Backup… (`library.restore`) makes the open library what the backup holds and goes on in it, and
   keeps what the library was, with every change up to that moment, in Replaced in the library folder. With `to` it
   restores into another folder instead, to look at a backup without giving up the library. A backup that was edited
