@@ -167,16 +167,22 @@ fn a_backup_folder_on_the_librarys_own_drive_is_cautioned_about() {
 }
 
 /// A drive other than the library's cannot be made in a test; `/dev` is a file system of its own
-/// on every Unix, and a folder for backups need not be there until the first backup.
+/// on every Unix, and is there: what is looked at is the drive, not a folder that is missing.
 #[cfg(unix)]
 #[test]
 fn a_backup_folder_on_another_drive_is_not_cautioned_about() {
     let dir = TempFolder::new("other");
+    // (where /dev is not a file system of its own, in a sandbox or a container, there is no other drive to use)
+    if lightcraft_engine::cmd::backup::same_drive(&dir.0, std::path::Path::new("/dev")) != Some(false) {
+        lightcraft_testkit::skip!(System, "/dev is not on another drive than {}", dir.0.display());
+        return;
+    }
     let mut h = settings_of_a_library_in(&dir.0);
     assert!(says(&h, SAME_DRIVE));
-    h.app.run("library.backupPreferences", json!({"dir": "/dev/lightcraft-backups-test"})).unwrap();
+    h.app.run("library.backupPreferences", json!({"dir": "/dev"})).unwrap();
     steps(&mut h);
-    assert!(says(&h, "/dev/lightcraft-backups-test"), "the folder is the one set");
+    assert!(says(&h, "/dev"), "the folder is the one set");
+    assert!(!says(&h, NOT_THERE), "it is there: the drive is what is compared");
     assert!(!says(&h, SAME_DRIVE), "another drive is not cautioned about");
 }
 
