@@ -2250,7 +2250,7 @@
   "a restore of this library is under way": "このライブラリを復元中です",
   "a backup of this library is running": "このライブラリをバックアップ中です",
   "a restore of this library stopped part-way; open the library again": "このライブラリの復元が途中で止まりました。ライブラリを開き直してください",
-  "the library is not a folder on disk": "このライブラリはディスク上のフォルダーではありません",
+  "the library is not a folder on disk": "このライブラリはディスク上のフォルダではありません",
   "the library was closed or opened again before the backup was moved into place; it is as it was": "バックアップを配置する前にライブラリが閉じられたか、開き直されました。ライブラリは元のままです",
   "the backup was cancelled": "バックアップはキャンセルされました",
   "the restore was stopped; the library is as it was": "復元は中止されました。ライブラリは元のままです",

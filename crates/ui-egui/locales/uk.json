@@ -2248,7 +2248,7 @@
   "a restore of this library is under way": "цю бібліотеку зараз відновлюють",
   "a backup of this library is running": "зараз створюється резервна копія цієї бібліотеки",
   "a restore of this library stopped part-way; open the library again": "відновлення цієї бібліотеки перервалося посередині; відкрийте бібліотеку знову",
-  "the library is not a folder on disk": "бібліотека не є папкою на диску",
+  "the library is not a folder on disk": "бібліотека не є текою на диску",
   "the library was closed or opened again before the backup was moved into place; it is as it was": "бібліотеку закрили або відкрили знову до того, як резервну копію перенесли на місце; вона залишилася такою, як була",
   "the backup was cancelled": "створення резервної копії скасовано",
   "the restore was stopped; the library is as it was": "відновлення зупинено; бібліотека залишилася такою, як була",

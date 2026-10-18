@@ -851,3 +851,26 @@ fn run_sees_a_background_restore_or_backup_through_before_it_ends() {
     assert_eq!(with_four(run(&["library.selectBy", "rating=4", "ratingOp=eq"])), before + 1, "the photo has its four stars back");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Given a backup in the background that fails, when another that works is started after it,
+/// then the call still fails: how the first ended is said (and counted) before the second
+/// replaces it as the last backup the library knows.
+#[test]
+fn run_fails_for_a_background_backup_that_failed_even_when_a_later_one_works() {
+    let dir = std::env::temp_dir().join(format!("lc-cli-wait-failed-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let (lib, file, good) = (dir.join("library"), dir.join("not-a-folder"), dir.join("good"));
+    std::fs::write(&file, b"x").unwrap();
+    let o = Command::new(binary())
+        .args(["run", "--demo", "--library", lib.to_str().unwrap()])
+        .args(["library.backup", &format!("dir={}", file.display()), "background=true"])
+        .args(["library.compact", "library.compact", "library.compact"])
+        .args(["library.backup", &format!("dir={}", good.display()), "background=true"])
+        .output()
+        .unwrap();
+    let said = String::from_utf8_lossy(&o.stdout);
+    assert!(!o.status.success(), "{said}\n{}", String::from_utf8_lossy(&o.stderr));
+    assert!(said.lines().any(|l| l.contains("\"command\":\"library.backupStatus\"") && l.contains("\"ok\":false")), "{said}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
