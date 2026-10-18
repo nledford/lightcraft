@@ -615,7 +615,7 @@ pub fn remove(dir: &Path) -> Result<(), BackupError> {
         return Err(refused("is not a backup".into()));
     };
     let names = held(dir).map_err(|other| refused(format!("holds what is not a backup's ({other})")))?;
-    if let Some(other) = names.iter().find(|name| name.as_str() != MARKER && !listed.contents.contains_key(name.as_str())) {
+    if let Some(other) = names.iter().find(|name| name.as_str() != MARKER && !listed.contents.contains_key(name.as_str()) && !os_metadata(name)) {
         return Err(refused(format!("holds {other}, which is not one of the backup's files")));
     }
     let name = dir.file_name().and_then(|n| n.to_str()).ok_or_else(|| refused("has no name to go by".into()))?;
