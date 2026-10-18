@@ -863,7 +863,7 @@ fn run_fails_for_a_background_backup_that_failed_even_when_a_later_one_works() {
     let (lib, file, good) = (dir.join("library"), dir.join("not-a-folder"), dir.join("good"));
     std::fs::write(&file, b"x").unwrap();
     let o = Command::new(binary())
-        .args(["run", "--demo", "--library", lib.to_str().unwrap()])
+        .args(["run", "--demo", "--keep-going", "--library", lib.to_str().unwrap()])
         .args(["library.backup", &format!("dir={}", file.display()), "background=true"])
         .args(["library.compact", "library.compact", "library.compact"])
         .args(["library.backup", &format!("dir={}", good.display()), "background=true"])
@@ -872,6 +872,8 @@ fn run_fails_for_a_background_backup_that_failed_even_when_a_later_one_works() {
     let said = String::from_utf8_lossy(&o.stdout);
     assert!(!o.status.success(), "{said}\n{}", String::from_utf8_lossy(&o.stderr));
     assert!(said.lines().any(|l| l.contains("\"command\":\"library.backupStatus\"") && l.contains("\"ok\":false")), "{said}");
+    // the later backup was reached and worked
+    assert!(good.join("backup.json").exists() || std::fs::read_dir(&good).is_ok_and(|d| d.count() > 0), "{said}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

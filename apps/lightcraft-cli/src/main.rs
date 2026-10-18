@@ -619,15 +619,17 @@ fn run(args: &[String]) -> Result<(), String> {
         // A background job that ended is the last one the library knows: a later one of the same
         // kind replaces it, and with it how it ended. So how an earlier one ended is said, and
         // counted, before another is started.
-        let (earlier, status) = match s.id.as_str() {
-            "library.backup" => (backing_up, "library.backupStatus"),
-            "library.restore" => (restoring, "library.restoreStatus"),
-            _ => (false, ""),
-        };
-        if headless && earlier {
+        // (either kind: the engine refuses a backup while a restore runs, and the other way round)
+        let mut stop = false;
+        let starts_job = matches!(s.id.as_str(), "library.backup" | "library.restore");
+        for (is_backup, status) in [(true, "library.backupStatus"), (false, "library.restoreStatus")] {
+            let earlier = if is_backup { backing_up } else { restoring };
+            if !(headless && starts_job && earlier) {
+                continue;
+            }
             let step = Step { id: status.to_string(), params: json!({}) };
             let t = std::time::Instant::now();
-            // (another of its kind is refused while it runs: it is seen through first, as at the end)
+            // (it is seen through first, as at the end)
             let ended = loop {
                 match run_step(backend.as_mut(), &step) {
                     Ok(r) if r["running"] == json!(true) => std::thread::sleep(std::time::Duration::from_millis(20)),
@@ -635,7 +637,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 }
             };
             // (said here: it is not asked about again at the end, unless another is started)
-            if s.id == "library.backup" {
+            if is_backup {
                 backing_up = false;
             } else {
                 restoring = false;
@@ -651,9 +653,10 @@ fn run(args: &[String]) -> Result<(), String> {
             // (a line for each job, as for the last one at the end; only a failure fails the call)
             failed += usize::from(!ok);
             writeln!(out, "{line}").map_err(|e| e.to_string())?;
-            if !ok && !keep_going {
-                break;
-            }
+            stop |= !ok && !keep_going;
+        }
+        if stop {
+            break;
         }
         let t = std::time::Instant::now();
         let line = match run_step(backend.as_mut(), s) {
