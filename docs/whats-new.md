@@ -57,9 +57,10 @@
   the app you have open does either; snapshots, agents and the command line back up when told to. Settings shows when the library was last backed up. Agents:
   `library.backupPreferences` takes `every` (never, day, week, month) and `onClose` (never, ask, always), and
   answers them with `lastBackup`.
-- Settings ▸ General ▸ Backups says where the library stands, first: one line with a sign before it and **Back Up
-  Now** beside it. It reads "No backup of this library is in this folder, and nothing is set to make one" with a
-  caution sign, "Last backup: <when>" with a tick while a backup of this library is in the folder, "Backing up…"
+- Settings ▸ General ▸ Backups says where the library stands, first: one line, usually with a sign before it, and **Back Up
+  Now** beside it (not on offer while a backup or a restore is under way). It reads "No backup of this library is in this folder, and nothing is set to make one" with a
+  caution sign, "Last backup: <when>" with a tick while a backup of this library is in the folder, "Last backup: Not yet" with no sign
+  where a schedule is set and none was made, "Backing up…" with no sign
   while one is made, or that a chosen folder is not there (a drive not connected). The tick and the time are read
   from the folder, not remembered: a backup moved away or deleted since is no longer ticked ("No backup of this
   library is in this folder"), and a folder that holds one says when it was made after the folder was changed and

@@ -40,6 +40,8 @@ impl Drop for TempFolder {
 /// The app with a library on disk in `dir/library`, Settings open on General.
 fn settings_of_a_library_in(dir: &Path) -> Headless {
     let mut session = lightcraft_engine::Session::new().with_fs();
+    // a fixed clock: a backup's name and the time shown for it do not depend on when the test runs
+    session.clock = Box::new(|| "2026-01-01T12:00:00".to_string());
     session.open_library(dir.join("library"), false).unwrap();
     let mut h = Headless::new(LightcraftApp::new(session, Services::default()), [1300.0, 1000.0], 1.0);
     h.app.ui.dialog = Some(Dialog::Settings { tab: "general".into() });
