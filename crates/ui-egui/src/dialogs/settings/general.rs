@@ -115,7 +115,9 @@ struct BackupLook {
     pass: u64,
     of: (String, Option<String>, String, Option<String>, bool),
     shares_the_drive: Option<bool>,
-    there: bool,
+    /// Whether the folder is there: `None` when that can't be told (a folder that can't be read
+    /// is not a folder that is not there).
+    there: Option<bool>,
     holds_a_backup: bool,
     /// The newest backup of this library in the folder: when it says it was made, or its name.
     newest: Option<String>,
@@ -158,7 +160,7 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             });
             BackupLook {
                 shares_the_drive: lightcraft_engine::cmd::backup::backup_shares_the_drive(&app.session),
-                there: std::path::Path::new(&folder).exists(),
+                there: std::path::Path::new(&folder).try_exists().ok(),
                 holds_a_backup: newest.is_some(),
                 newest: newest.flatten(),
                 of,
@@ -169,7 +171,7 @@ fn backups(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     look.pass = pass;
     ui.data_mut(|d| d.insert_temp(look_id, look.clone()));
     // (a chosen folder that is not there is said to be just that: nothing is known of its drive)
-    let away = chosen && !look.there;
+    let away = chosen && look.there == Some(false);
     let mut result = None;
     // Where the library stands comes first, in the size and colour of what a row says, with a
     // sign before it (so it is not told by a colour alone) and Back Up Now beside it: no backup
