@@ -36,7 +36,8 @@ USAGE:
       command; values are JSON when they parse (1, true, [1,2], {…}), else strings. Exit status
       is non-zero when a command fails. Headless, a restore or backup started with
       `background=true` is waited for before the call ends, and how it ended is one more line
-      (`library.restoreStatus` / `library.backupStatus`); not after a command failed, unless
+      (`library.restoreStatus` / `library.backupStatus`; one that failed is said before a later
+      one of its kind is started, and fails the call); not after a command failed, unless
       --keep-going. Example:
         lightcraft-cli run --import ~/Photos/a.jpg develop.set control=light.exposure value=0.7 \\
             develop.auto app.export path=/tmp/a.jpg longEdge=1600
