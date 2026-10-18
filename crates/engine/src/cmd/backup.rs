@@ -458,7 +458,14 @@ fn restore_into(s: &Session, from: &Path, to: &Path, row: &Row<'_>) -> Result<Va
         let _lock = lightcraft_catalog::LibraryLock::acquire(to, &crate::library::program_name())
             .map_err(|e| crate::EngineError::LibraryInUse(e.to_string()));
         match _lock {
-            Ok(_) => restore::restore(from, to, &RestoreOptions { also: ALSO, aside: &aside }, row).map_err(other),
+            Ok(_held) => {
+                let made = restore::restore(from, to, &RestoreOptions { also: ALSO, aside: &aside }, row).map_err(other);
+                // (with the folder's lock still held: nobody else has prefs.json to save meanwhile)
+                if made.is_ok() {
+                    forget_id(to);
+                }
+                made
+            }
             Err(e) => Err(e),
         }
     };
@@ -474,7 +481,6 @@ fn restore_into(s: &Session, from: &Path, to: &Path, row: &Row<'_>) -> Result<Va
         }
     }
     let made = made?;
-    forget_id(to);
     log::info!("library: restored {} into {}", from.display(), to.display());
     Ok(json!({"restored": made, "opened": false}))
 }
