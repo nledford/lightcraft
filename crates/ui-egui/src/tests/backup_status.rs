@@ -69,7 +69,7 @@ fn backups(h: &mut Headless) -> usize {
 
 fn running(h: &mut Headless) -> bool {
     let status: Value = h.app.run("library.backupStatus", json!({})).unwrap();
-    !status.is_null() && status["finished"] != true
+    status["running"] == true
 }
 
 const NEVER: &str = "No backup of this library is in this folder";
