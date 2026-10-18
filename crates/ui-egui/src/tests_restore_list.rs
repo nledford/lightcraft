@@ -306,7 +306,7 @@ fn a_folder_dialog_that_answers_later_is_taken_as_it_finds_the_app() {
     click(&mut h, "button:restoreChooseFolder");
     h.app.ui.dialog = None;
     h.app.session.backup_hold.store(true, std::sync::atomic::Ordering::SeqCst);
-    h.app.run("library.backup", json!({})).unwrap();
+    h.app.run("library.backup", json!({"background": true})).unwrap();
     answer(&mut h, &kept);
     assert!(h.app.ui.dialog.is_none() && h.app.session.restore.is_none());
     h.app.session.backup_hold.store(false, std::sync::atomic::Ordering::SeqCst);
