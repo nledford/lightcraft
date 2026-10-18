@@ -858,6 +858,8 @@ fn a_v9_library_loads_and_is_split_into_segments() {
 struct Garbling {
     files: MemStore,
     garble: Arc<Mutex<bool>>,
+    /// `catalog.snap` is written, and then the write is said to have failed.
+    fail_after_snap: Arc<Mutex<bool>>,
 }
 
 impl Store for Garbling {
@@ -874,7 +876,11 @@ impl Store for Garbling {
         Ok(b)
     }
     fn write_atomic(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
-        self.files.write_atomic(name, data)
+        self.files.write_atomic(name, data)?;
+        if name == SNAPSHOT && *self.fail_after_snap.lock().unwrap() {
+            return Err(std::io::Error::other("folder not synced"));
+        }
+        Ok(())
     }
     fn append(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
         self.files.append(name, data)
@@ -945,6 +951,24 @@ fn a_compaction_by_hand_of_a_library_put_off_keeps_the_old_files() {
     assert_eq!(store.files.get(&format!("{SNAPSHOT}.v10-{seq}")).as_deref(), Some(old.as_bytes()));
     assert_eq!(store.files.get(&format!("{LOG}.v10-{seq}")).as_deref(), Some(log.as_bytes()));
     assert!(j.wants_snapshot_on_close() || j.log_records() == 0);
+}
+
+/// Given a library put off whose compaction commits the new snapshot but then reports a failure
+/// (the rename took effect), then the files it was are kept, not removed as if nothing happened.
+#[test]
+fn a_compaction_that_failed_after_its_commit_keeps_the_old_files() {
+    let old = include_str!("fixtures/v10-catalog.snap.json");
+    let log = include_str!("fixtures/v10-catalog.log.jsonl");
+    let store = Garbling::default();
+    store.files.set(SNAPSHOT, old.as_bytes().to_vec());
+    store.files.set(LOG, log.as_bytes().to_vec());
+    *store.garble.lock().unwrap() = true;
+    let (mut j, loaded, _) = Journal::open(Box::new(store.clone())).unwrap();
+    *store.garble.lock().unwrap() = false;
+    *store.fail_after_snap.lock().unwrap() = true;
+    let seq = j.seq();
+    assert!(j.snapshot(&loaded).is_err());
+    assert_eq!(store.files.get(&format!("{SNAPSHOT}.v10-{seq}")).as_deref(), Some(old.as_bytes()), "the way back stays");
 }
 
 /// A store without segments (the browser's): the photos stay in `catalog.snap`, and the

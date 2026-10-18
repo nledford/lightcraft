@@ -1039,9 +1039,12 @@ impl Journal {
         // format replaces them. If they can't be kept the library stays as it is.
         let mut kept_now = Vec::new();
         if let Some(from) = self.upgrade_deferred {
-            let snap = self.store.read(SNAPSHOT).map_err(io)?;
-            let log = self.store.read(LOG).map_err(io)?.unwrap_or_default();
-            match self.keep_replaced(from, snap.as_deref(), &log) {
+            let kept = (|| {
+                let snap = self.store.read(SNAPSHOT)?;
+                let log = self.store.read(LOG)?.unwrap_or_default();
+                self.keep_replaced(from, snap.as_deref(), &log)
+            })();
+            match kept {
                 Ok(kept) => kept_now = kept,
                 Err(e) if unlogged == 0 => {
                     return Err(CatalogError::Io(format!("the upgrade was put off (the files of format v{from} can't be kept): {e}")));
@@ -1059,7 +1062,15 @@ impl Journal {
             Err(e) => {
                 // nothing lost (the log is whole); don't retry on every append
                 self.stats.failed_snapshots += 1;
-                self.forget_kept(&kept_now);
+                // The new snapshot may have been committed all the same (the failure came after
+                // its rename): then the upgrade is done and its way back stays. Only a disk that
+                // still reads the old format has nothing to go back from; one that can't be read
+                // keeps them.
+                match self.on_disk_version() {
+                    Some(Some(VERSION)) => self.upgrade_deferred = None,
+                    None => {}
+                    Some(_) => self.forget_kept(&kept_now),
+                }
                 self.retry_at_records = self.log_records.saturating_add(self.policy.max_records);
                 return Err(io(e));
             }
