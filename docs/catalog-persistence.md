@@ -148,7 +148,8 @@ the other).
   is never taken for a backup, and is removed by a later backup to the same folder once it is an hour old.
 - **A backup says what it holds.** Its marker, `backup.json`, lists every file with its size and CRC-32.
   `library.checkBackup` reads a backup against that list and names the first file that was edited, damaged, removed or
-  added since.
+  added since (not what Finder or Explorer write into a folder somebody looked at: `.DS_Store`, `Thumbs.db`,
+  `desktop.ini`, `._…`).
 
 A backup on the same disk as the library guards against a damaged catalog or a mistake, not against losing the disk:
 set the library's backup folder to another drive for that.
