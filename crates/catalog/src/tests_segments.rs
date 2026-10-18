@@ -914,6 +914,12 @@ fn a_split_that_does_not_read_back_keeps_the_one_file() {
     assert!(segment_files(&store.files).is_empty());
     // the library is usable meanwhile, and its changes are saved
     run(&mut j, &mut loaded, vec![Op::SetRating { id: PhotoId(8), rating: 2 }]);
+    // and no compaction writes the new format meanwhile (that would be an upgrade with nothing
+    // kept to go back to)
+    let snapshot = store.files.get(SNAPSHOT).unwrap();
+    assert!(!j.wants_snapshot() && !j.wants_snapshot_on_close());
+    j.snapshot_in_background(&loaded).unwrap();
+    assert_eq!(store.files.get(SNAPSHOT).unwrap(), snapshot);
     drop(j);
     *store.garble.lock().unwrap() = false;
     let (_, again, r) = Journal::open(Box::new(store.clone())).unwrap();

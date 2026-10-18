@@ -75,7 +75,7 @@ library was, byte for byte, beside it:
   wanted. The browser build keeps none (it always runs the newest version).
 
 **To go back**, with LightCraft closed: move `catalog.snap`, `catalog.log` **and the `segments` folder** away, then
-rename the kept pair to `catalog.snap` and `catalog.log`. The older version opens the library as it was when it was
+rename each kept file to its corresponding active name (`catalog.snap` or `catalog.log`); do not create a file that was not kept. The older version opens the library as it was when it was
 upgraded; changes made since, in the newer version, are in what was moved away and are not carried back.
 
 The `segments` folder must go with them. It holds the newer library's photos, and left in place it would be taken for

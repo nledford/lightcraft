@@ -338,6 +338,10 @@ fn ms_since(t: web_time::Instant) -> f64 {
 
 pub struct Journal {
     store: Box<dyn Store>,
+    /// The library is in an older format still: its upgrade was put off (its files could not be
+    /// kept, or the new snapshot not written) and is tried at the next open. No compaction writes
+    /// the new format meanwhile: that would be an upgrade with no way back kept.
+    upgrade_deferred: bool,
     /// `seq` of the last durable op.
     seq: u64,
     snapshot_seq: u64,
@@ -721,6 +725,7 @@ impl Journal {
         let snapshot_bytes = head_bytes + listed.iter().map(|s| s.bytes).sum::<u64>();
         let mut j = Journal {
             store,
+            upgrade_deferred: false,
             seq: snapshot_seq,
             snapshot_seq,
             snapshot_bytes,
@@ -865,6 +870,8 @@ impl Journal {
                 rewritten = true;
                 report.upgraded_from = Some(from);
                 report.kept = kept;
+            } else {
+                j.upgrade_deferred = true;
             }
         }
         if report.other_defaults && !rewritten {
@@ -1073,7 +1080,7 @@ impl Journal {
     /// `catalog` must reflect every appended op. Appends go on meanwhile; [`Journal::poll`]
     /// finishes the compaction. No-op while a snapshot is already in flight.
     pub fn snapshot_in_background(&mut self, catalog: &Catalog) -> Result<()> {
-        if self.pending.is_some() {
+        if self.pending.is_some() || self.upgrade_deferred {
             return Ok(());
         }
         let t0 = web_time::Instant::now();
@@ -1272,7 +1279,7 @@ impl Journal {
 
     /// The log is long enough to be worth compacting.
     pub fn wants_snapshot(&self) -> bool {
-        self.pending.is_none() && self.log_records >= self.retry_at_records && self.policy.due(self.log_records, self.log_bytes, self.rewrite_bytes())
+        self.pending.is_none() && !self.upgrade_deferred && self.log_records >= self.retry_at_records && self.policy.due(self.log_records, self.log_bytes, self.rewrite_bytes())
     }
 
     /// Whether closing the library should compact the log: there is one, and compacting it
@@ -1281,7 +1288,7 @@ impl Journal {
     /// would be rewritten, but it isn't left that long between sessions). Nothing is lost either
     /// way: what isn't compacted stays in the log and is replayed on open.
     pub fn wants_snapshot_on_close(&self) -> bool {
-        self.log_records > 0 && (self.rewrite_bytes() <= self.policy.close_bytes || self.policy.long(self.log_records, self.log_bytes))
+        self.log_records > 0 && !self.upgrade_deferred && (self.rewrite_bytes() <= self.policy.close_bytes || self.policy.long(self.log_records, self.log_bytes))
     }
 
     /// Size of the snapshot as last written or loaded: `catalog.snap` and its segments (0: none
