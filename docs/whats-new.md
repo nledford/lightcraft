@@ -59,7 +59,8 @@
   or damaged, or that a newer LightCraft made, is refused with the library untouched; a restore interrupted after
   `restore.json` is written is finished when the library is next opened; an interruption before that leaves the
   library unchanged. A backup folder itself no longer opens as a library, so that it stays what it was.
-  `library.backups` lists a folder's backups. In the app the backup is copied while you go on working (the
+  `library.backups` lists a folder's backups. In the app `library.restore` without `dir` lists the library's backups
+  to choose from; run headless (the command line, an agent) it needs `dir`, the backup's folder. In the app the backup is copied while you go on working (the
   activity stack shows it and can stop it) and moved into place when the library is at rest; a toast says where what
   the library held went. Agents: `background`, `library.restoreStatus`.
 - Libraries are upgraded when first opened (catalog format 11) and can't be opened by earlier versions afterwards.
