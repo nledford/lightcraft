@@ -18,8 +18,8 @@
   for 3.5 million photos). Opening reads the segments on several threads: 0.15 s where it was 0.5 s for 300,000 photos,
   1.7 s where it was 6.1 s for 3.5 million. A damaged segment is named when the library is opened, and nothing is
   modified.
-- File ▸ Back Up Library backs up the catalog (not the photos) to a folder named after the time (UTC) in Backups in
-  the library folder, while you go on working, and says where it went when it is done. A backup opens as a library of
+- File ▸ Back Up Library backs up the catalog (not the photos) to a folder named after the time (UTC) in the folder the
+  library's backups go to (Backups in the library folder unless another is set with `library.backupPreferences`), while you go on working, and says where it went when it is done. A backup opens as a library of
   its own. Each one shares with the one before it the files that didn't change (hard links, where the folder can hold them: on
   another volume than the last backup's, or a file system without links, they are copied), so a backup of a large
   library after a day's work copies a few megabytes where it can share, and removing an older backup takes nothing from a newer one. Agents:
