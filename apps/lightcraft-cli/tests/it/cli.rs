@@ -894,3 +894,25 @@ fn run_says_how_each_of_two_background_backups_ended() {
     assert_eq!(said.lines().filter(|l| l.contains("\"command\":\"library.backupStatus\"") && l.contains("\"ok\":true")).count(), 2, "{said}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A restore into another folder (`to`) with `background=true` is done in the foreground and is
+/// no job: no status line follows it, and the call succeeds.
+#[test]
+fn run_does_not_wait_for_a_restore_into_another_folder() {
+    let dir = std::env::temp_dir().join(format!("lc-cli-restore-to-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let lib = dir.join("library");
+    let o = Command::new(binary()).args(["run", "--demo", "--library", lib.to_str().unwrap(), "library.backup"]).output().unwrap();
+    let said = String::from_utf8_lossy(&o.stdout);
+    let made = serde_json::from_str::<Value>(said.lines().last().unwrap()).unwrap()["result"]["report"]["dir"].as_str().unwrap().to_string();
+    let o = Command::new(binary())
+        .args(["run", "--demo", "--library", lib.to_str().unwrap()])
+        .args(["library.restore", &format!("dir={made}"), &format!("to={}", dir.join("elsewhere").display()), "background=true"])
+        .output()
+        .unwrap();
+    let said = String::from_utf8_lossy(&o.stdout);
+    assert!(o.status.success(), "{said}\n{}", String::from_utf8_lossy(&o.stderr));
+    assert!(!said.contains("restoreStatus"), "{said}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

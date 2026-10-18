@@ -660,7 +660,7 @@ fn run(args: &[String]) -> Result<(), String> {
             Ok(r) => {
                 // (started in the background: it is seen through below)
                 // (also one that was over before the call returned: how it ended is still to be said)
-                let goes_on = r["running"] == json!(true) || s.params["background"] == json!(true);
+                let goes_on = r["running"] == json!(true) || (s.params["background"] == json!(true) && r.get("running").is_some());
                 restoring |= goes_on && s.id == "library.restore";
                 backing_up |= goes_on && s.id == "library.backup";
                 json!({"command": s.id, "ok": true, "result": r, "ms": (t.elapsed().as_secs_f64() * 1e4).round() / 10.0})
