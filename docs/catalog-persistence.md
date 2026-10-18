@@ -57,7 +57,7 @@ library was, byte for byte, beside it:
   nothing that fails after it takes them away.
 - A library that can't be kept, or whose upgrade can't be written (a full disk, a folder that can't be written to),
   is not opened where working in it as it is would not be safe: one that states no defaults for develop settings
-  (formats before 9), or other ones than this version's. The error says why, and the catalog is not changed (a torn
+  (formats before 10), or other ones than this version's. The error says why, and the catalog is not changed (a torn
   last record of its log is still cut off, as on any open). A library that states this version's defaults opens as
   it is, and the next open tries again.
 - A library whose log was damaged is upgraded like any other. What it was is then its snapshot, kept under the name

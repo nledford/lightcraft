@@ -48,7 +48,7 @@
 //!
 //! The snapshot's `version` is the catalog format, and it covers the log beside it: the log has
 //! no header of its own, and is only ever appended to under a snapshot that states the defaults
-//! its records leave out (this build's format, or one from 9 on with this build's defaults).
+//! its records leave out (this build's format, or one from 10 on with this build's defaults).
 //!
 //! Every format, what it adds and which build wrote it first is one row of [`FORMATS`]: the
 //! newest row is [`VERSION`], what this build writes.
@@ -81,7 +81,7 @@
 //!   removes them afterwards: they are the user's to delete. (Not where the store says there is
 //!   no going back, [`Store::keeps_replaced_formats`].)
 //! - **A library that can't be upgraded is not opened**, where appending to it as it is would
-//!   not be safe: one that states no defaults for develop settings (formats before 9) or other
+//!   not be safe: one that states no defaults for develop settings (formats before 10) or other
 //!   ones than this build's ([`crate::stored`]), since a record written by this build leaves
 //!   out what equals this build's defaults. It is left as it was, and the error says why. (A
 //!   library that states this build's defaults opens as it is, and the next open tries again.)
@@ -629,7 +629,7 @@ impl Journal {
         } else if let (Some(from), false) = (older, rewritten) {
             // A library that states its defaults and has this build's may go on as it is when it
             // can't be upgraded now (the next open tries again): what is appended to it reads the
-            // same in every build that reads it. One that states none (formats before 9), or
+            // same in every build that reads it. One that states none (formats before 10), or
             // other ones, must not be appended to as it is: a record written from here on leaves
             // out what equals this build's defaults.
             let how = if report.other_defaults || !states_defaults { Upgrade::Must } else { Upgrade::May };
