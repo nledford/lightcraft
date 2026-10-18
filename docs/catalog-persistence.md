@@ -287,7 +287,8 @@ first.
   more and says so; opening the library again completes the restore.
 - **It takes the space of the catalog twice over**: the copy in the library, and what it replaced.
 
-In the app the menu item asks for the backup's folder, and the backup is copied and checked on a worker thread while
+In the app the menu item lists the library's backups to choose from (Choose Folder… opens the folder dialog, for a backup
+or a folder of backups elsewhere), and the backup is copied and checked on a worker thread while
 the library stays in use (`background: true`): a row in the activity stack (kind `restore`) shows it, and its ✕ stops
 it with nothing changed. Once the copy is made, its files are moved into place when the library is at rest (no slider
 held, no backup or other background work), which takes the moment that moving files and opening the catalog take; a
