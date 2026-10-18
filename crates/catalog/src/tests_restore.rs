@@ -927,3 +927,18 @@ fn a_removal_of_replaced_that_got_part_way_leaves_no_folder_that_looks_whole() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A folder of `Replaced` that Finder or Explorer wrote into (`.DS_Store`) is still as the restore
+/// left it: listed as such, and removed.
+#[test]
+fn a_folder_of_replaced_that_was_browsed_is_still_the_restores() {
+    let dir = temp("replaced-browsed");
+    let (made, _, _) = backed_up_and_changed(&dir);
+    restored(&made.dir, &dir, "first");
+    let folder = dir.join(REPLACED).join("first");
+    std::fs::write(folder.join(".DS_Store"), b"os").unwrap();
+    let listed = restore::replaced(&dir, ALSO);
+    assert!(listed.len() == 1 && listed[0].untouched, "{:?}", listed.iter().map(|r| &r.other).collect::<Vec<_>>());
+    restore::remove_replaced(&dir, "first", ALSO).unwrap();
+    assert!(!folder.exists());
+}
