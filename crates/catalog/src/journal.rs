@@ -586,6 +586,9 @@ struct SnapHeader {
     /// What a record's missing develop settings read as (from format 10 on).
     #[serde(default)]
     defaults: Option<serde_json::Value>,
+    /// The last op the snapshot holds.
+    #[serde(default)]
+    seq: Option<u64>,
 }
 
 /// The whole `catalog.snap` (after [`SnapHeader`] was checked; `format` and `version` are ignored).
@@ -940,6 +943,12 @@ impl Journal {
         }
     }
 
+    /// The `seq` of the snapshot in the store (`None`: none, or it can't be read to say).
+    fn on_disk_seq(&mut self) -> Option<u64> {
+        let bytes = self.store.read(SNAPSHOT).ok()??;
+        serde_json::from_slice::<SnapHeader>(&bytes).ok()?.seq
+    }
+
     /// Keep the files of a library in format `from` before an upgrade replaces them: `snap` and
     /// `log` as they were read, under names that say their format and the last change they hold.
     /// Returns the names (none where the store keeps none). All or nothing: on an error, what was
@@ -1067,7 +1076,15 @@ impl Journal {
                 // still reads the old format has nothing to go back from; one that can't be read
                 // keeps them.
                 match self.on_disk_version() {
-                    Some(Some(VERSION)) => self.upgrade_deferred = None,
+                    Some(Some(VERSION)) => {
+                        self.upgrade_deferred = None;
+                        // committed all the same: it holds the ops up to `seq`, so the next record
+                        // is numbered after them (else it would be skipped as stale when opened)
+                        if self.on_disk_seq() == Some(seq) {
+                            self.seq = seq;
+                            self.snapshot_seq = seq;
+                        }
+                    }
                     None => {}
                     Some(_) => self.forget_kept(&kept_now),
                 }
