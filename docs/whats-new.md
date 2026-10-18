@@ -492,8 +492,11 @@
 - The catalog on disk is several times smaller: a photo's record states only what was set (no empty fields, no default
   develop settings), about 0.4 to 0.6 kB for an unedited photo where it was 3.4 to 3.7 kB. Edits, history steps and
   versions are stored as what differs from the defaults.
-- Saving follows what changed, not the size of the library: the catalog file is rewritten when the changes since the
-  last rewrite have grown to a quarter of its size, where it used to be rewritten every 2000 changes. Importing 100,000
+- Saving follows what changed, not the size of the library: the catalog is compacted while you work when the log of
+  changes is long (2000 records or 16 MB) and has grown to a quarter of what a compaction would rewrite (`catalog.snap`,
+  the segments holding changed photos, and a sixteenth of the catalog for looking through it), or when it reaches
+  256 MB; on quit, any log is compacted where that rewrites up to 64 MB, a long one above that. It used to be
+  rewritten every 2000 changes. Importing 100,000
   photos rewrote it 50 times (9.4 GB written); it is now 15 times (0.25 GB). Quitting no longer rewrites a large
   catalog for a handful of changes.
 - The catalog's photos are saved in segment files (JSON files in `segments/` beside `catalog.snap`), and saving rewrites only the
