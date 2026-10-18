@@ -814,7 +814,7 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
         selection_ring(p, &t, fit, state);
     } else {
         let ph = img_rect.shrink(if square { 20.0 } else { 0.0 });
-        p.rect_filled(ph, 0.0, t.placeholder);
+        p.rect_filled(ph, 0.0, t.skeleton);
         // not drawn yet (or unreadable): the selection is still visible
         selection_ring(p, &t, ph, state);
         if app.renderer.failure(Slot::Thumb(id)).is_some() {

@@ -44,6 +44,9 @@ pub struct Tokens {
     pub grid_bg: Color32,
     pub cell: Color32,
     pub cell_selected: Color32,
+    /// A thumbnail's place while its picture is still being made: static, apart from the grid, the
+    /// cells and the canvas in every theme.
+    pub skeleton: Color32,
     /// The ring round the active photo (outer line, 2 pt): 3:1 or more against the grid and the
     /// square grid's cells. The photo itself is parted from it by [`Tokens::ring_inner`].
     pub ring_active: Color32,
@@ -53,8 +56,6 @@ pub struct Tokens {
     /// The ring round the other selected photos (1.5 pt, against the active one's 3 pt): 3:1 or
     /// more against the grid.
     pub ring_selected: Color32,
-    /// What stands where a photo is still being drawn.
-    pub placeholder: Color32,
     pub divider: Color32,
     pub inset: Color32,
     pub field: Color32,
@@ -136,10 +137,10 @@ impl Default for Tokens {
             grid_bg: Color32::from_rgb(0x0f, 0x0f, 0x0f),
             cell: Color32::from_rgb(0x1c, 0x1c, 0x1c),
             cell_selected: Color32::from_rgb(0x2d, 0x2d, 0x2d),
+            skeleton: Color32::from_rgb(0x25, 0x25, 0x25),
             ring_active: Color32::from_rgb(0xff, 0xff, 0xff),
             ring_inner: Color32::from_rgb(0x00, 0x00, 0x00),
             ring_selected: Color32::from_rgb(0xc0, 0xc0, 0xc0),
-            placeholder: Color32::from_rgb(0x26, 0x26, 0x26),
             divider: Color32::from_rgb(0x1c, 0x1c, 0x1c),
             inset: Color32::from_rgb(0x23, 0x23, 0x23),
             field: Color32::from_rgb(0x22, 0x22, 0x22),
@@ -182,12 +183,12 @@ impl Tokens {
         match kind {
             ThemeKind::Charcoal => base,
             ThemeKind::Midnight => Tokens {
-                placeholder: rgb(0x1c1c1c),
                 chrome: rgb(0x1e1e1e),
                 canvas: rgb(0x121212),
                 grid_bg: rgb(0x080808),
                 cell: rgb(0x121212),
                 cell_selected: rgb(0x262626),
+                skeleton: rgb(0x1d1d1d),
                 divider: rgb(0x0e0e0e),
                 inset: rgb(0x181818),
                 field: rgb(0x161616),
@@ -203,12 +204,12 @@ impl Tokens {
                 ring_active: rgb(0x141414),
                 ring_inner: rgb(0xffffff),
                 ring_selected: rgb(0x4a4a4a),
-                placeholder: rgb(0xc2c2c2),
                 chrome: rgb(0xe6e6e6),
                 canvas: rgb(0xcfcfcf),
                 grid_bg: rgb(0xd9d9d9),
                 cell: rgb(0xcbcbcb),
                 cell_selected: rgb(0xb4b4b4),
+                skeleton: rgb(0xbfbfbf),
                 divider: rgb(0xc4c4c4),
                 inset: rgb(0xdcdcdc),
                 field: rgb(0xf6f6f6),
@@ -237,12 +238,12 @@ impl Tokens {
                 ring_active: rgb(0x141414),
                 ring_inner: rgb(0xffffff),
                 ring_selected: rgb(0x4a4a4a),
-                placeholder: rgb(0xdcdcdc),
                 chrome: rgb(0xfafafa),
                 canvas: rgb(0xececec),
                 grid_bg: rgb(0xf2f2f2),
                 cell: rgb(0xe8e8e8),
                 cell_selected: rgb(0xd2d2d2),
+                skeleton: rgb(0xdddddd),
                 divider: rgb(0xe0e0e0),
                 inset: rgb(0xf0f0f0),
                 field: rgb(0xffffff),
@@ -510,8 +511,8 @@ mod tests {
     fn the_loading_placeholder_belongs_to_the_theme() {
         for kind in ThemeKind::ALL {
             let t = Tokens::for_kind(kind);
-            assert!(t.placeholder != t.grid_bg, "{kind:?}: the slab must show on the grid");
-            let dark_slab = contrast(t.placeholder, Color32::BLACK) < contrast(t.placeholder, Color32::WHITE);
+            assert!(t.skeleton != t.grid_bg, "{kind:?}: the slab must show on the grid");
+            let dark_slab = contrast(t.skeleton, Color32::BLACK) < contrast(t.skeleton, Color32::WHITE);
             assert_eq!(dark_slab, kind.is_dark(), "{kind:?}: a {} slab", if dark_slab { "dark" } else { "light" });
         }
     }
