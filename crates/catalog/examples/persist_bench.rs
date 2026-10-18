@@ -167,8 +167,9 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
             size as f64 / 1e6,
             size as f64 / n.max(1) as f64
         );
+        let last = if log_left > 0 { " (and a last one)" } else { "" };
         println!(
-            "  import: {compactions} compactions (and a last one) wrote {:.1} MB of snapshots ({:.1}x the final one) + {:.1} MB of log in {:.1} s; {:.1} MB of log left for the last",
+            "  import: {compactions} compactions{last} wrote {:.1} MB of snapshots ({:.1}x the final one) + {:.1} MB of log in {:.1} s; {:.1} MB of log left for the last",
             written as f64 / 1e6,
             written as f64 / size.max(1) as f64,
             log_written as f64 / 1e6,
