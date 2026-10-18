@@ -30,7 +30,8 @@
   `library.backup` (`dir`; returns when the backup is made, or at once with `background`), `library.backupStatus`,
   `library.backupPreferences` (the folder a library's backups go to), `library.checkBackup` (reads a backup against
   the list of files it was made with, and names one that was edited or damaged since).
-- `lightcraft-cli run` waits for a restore or backup it started with `background=true`, and says how it ended.
+- `lightcraft-cli run` waits for a restore or backup it started with `background=true`, and says how it ended, one
+  line for each. It exits non-zero if any of them failed, even when a later one worked.
 - Why a backup or a restore can't be made right now, or was not made (one is running already, the library is being
   restored, it was stopped or given up), is said in your language. Errors that name a folder or a file are still in English.
 - A backup restored into another folder (`library.restore` with `to`) is now checked to open as a library there;

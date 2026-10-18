@@ -874,3 +874,23 @@ fn run_fails_for_a_background_backup_that_failed_even_when_a_later_one_works() {
     assert!(said.lines().any(|l| l.contains("\"command\":\"library.backupStatus\"") && l.contains("\"ok\":false")), "{said}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Two background backups in a row that both work: each is waited for and said (the second is
+/// not refused for the first one still running), and the call succeeds.
+#[test]
+fn run_says_how_each_of_two_background_backups_ended() {
+    let dir = std::env::temp_dir().join(format!("lc-cli-wait-two-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let lib = dir.join("library");
+    let o = Command::new(binary())
+        .args(["run", "--demo", "--library", lib.to_str().unwrap()])
+        .args(["library.backup", &format!("dir={}", dir.join("one").display()), "background=true"])
+        .args(["library.backup", &format!("dir={}", dir.join("two").display()), "background=true"])
+        .output()
+        .unwrap();
+    let said = String::from_utf8_lossy(&o.stdout);
+    assert!(o.status.success(), "{said}\n{}", String::from_utf8_lossy(&o.stderr));
+    assert_eq!(said.lines().filter(|l| l.contains("\"command\":\"library.backupStatus\"") && l.contains("\"ok\":true")).count(), 2, "{said}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
