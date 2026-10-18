@@ -480,8 +480,9 @@ impl Session {
         #[cfg(not(target_arch = "wasm32"))]
         self.faces.library_changed();
         let (mut journal, mut catalog, report) = Journal::open(catalog)?;
-        if lock.is_some() {
-            // (only with the library's lock: see `Journal::remove_unlisted_segments`)
+        if lock.as_ref().is_some_and(|l| l.held()) {
+            // (only with the library's lock actually held, not one the file system could not give:
+            // see `Journal::remove_unlisted_segments`)
             journal.remove_unlisted_segments();
         }
         // A loaded catalog counts revisions from 0, like every other one. Caches (sidebar counts,

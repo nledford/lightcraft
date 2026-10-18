@@ -125,6 +125,8 @@ impl FsStore {
             Ok(_) => Err(io::Error::other(format!("{} is not a folder", folder.display()))),
             Err(e) if e.kind() == io::ErrorKind::NotFound => {
                 std::fs::create_dir_all(&folder).map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", folder.display())))?;
+                // (the new folder's entry in the library folder must survive a crash too: once per library)
+                Self::sync_folder(&self.dir);
                 Ok(folder)
             }
             Err(e) => Err(io::Error::new(e.kind(), format!("{}: {e}", folder.display()))),
