@@ -526,7 +526,9 @@ fn ui_commands_3(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Val
         }
         "view.tasks" => {
             // the list of running tasks under the top bar's bell: `show` opens or closes it, without it the list toggles
-            let show = p.get("show").and_then(Value::as_bool).unwrap_or(!app.activity_open);
+            // (a request not yet taken by the bell counts: two toggles in one frame end where they began)
+            let current = app.activity_set.unwrap_or(app.activity_open);
+            let show = p.get("show").and_then(Value::as_bool).unwrap_or(!current);
             if let Some(why) = crate::panels::activity::blocked(app).filter(|_| show) {
                 return Some(Err(format!("view.tasks: the list of tasks can't be shown now: {why}")));
             }
