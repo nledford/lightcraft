@@ -846,6 +846,12 @@ pub fn tick(app: &mut LightcraftApp, ctx: &egui::Context) {
         && let Err(e) = begin(app, ctx, &mut task)
     {
         log::warn!("import: {e}");
+        // (one the person asked for can be asked for again: it leaves a failed row with its request)
+        if let Some(request) = task.request.take() {
+            let guard = app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::No);
+            guard.set_request(request);
+            guard.finish(lightcraft_engine::activity::Outcome::failed(e.clone()));
+        }
         app.toast(ctx, crate::i18n::tr_format!("Import failed: {e}", e = e));
         return;
     }
@@ -1984,5 +1990,23 @@ mod tests {
         let rows = h.app.session.activity.finished();
         assert_eq!(rows.len(), 3, "{rows:?}");
         assert!(rows.iter().all(|r| r.detail.contains("1 import warning")), "{rows:?}");
+    }
+
+    /// An import that can't start in `tick` (here: its album is gone) leaves a failed row that can be retried.
+    #[test]
+    fn an_import_that_cannot_begin_leaves_a_row_to_retry() {
+        let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), crate::Services { png: None, ..Default::default() });
+        let mut h = crate::headless::Headless::new(app, [1200.0, 800.0], 1.0);
+        let ctx = egui::Context::default();
+        h.app.import = Some(ImportTask::asked(vec!["a.jpg".into()], json!({"mode": "add", "album": 987_654}), 0, Vec::new()));
+        tick(&mut h.app, &ctx);
+        assert!(h.app.import.is_none());
+        let rows = h.app.session.execute("activity.finished", &json!({})).unwrap();
+        let row = &rows["finished"][0];
+        assert_eq!(
+            (row["kind"].as_str(), row["ending"].as_str(), row["retryable"].as_bool()),
+            (Some("import"), Some("failed"), Some(true)),
+            "{rows}"
+        );
     }
 }
