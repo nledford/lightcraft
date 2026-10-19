@@ -132,7 +132,7 @@ fn wait_in_line(s: &Session, c: &str, p: &Value, what: &str, request: Request) -
         return None;
     }
     if !queue {
-        return Some(Err(bad(c, "a preview build is already running (with queue: true this one waits for it)")));
+        return Some(Err(bad(c, "a preview build is already running or waiting in line (with queue: true this one waits behind it)")));
     }
     if p.get("wait").and_then(Value::as_bool) == Some(true) {
         return Some(Err(bad(c, "a build that waits in line can't also be waited for: leave out wait")));

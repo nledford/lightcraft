@@ -108,7 +108,7 @@ fn a_new_build_does_not_start_ahead_of_one_waiting_while_the_lane_is_free_for_a_
     // (no command in between: `start_waiting` has not run since the build ended)
     release(h);
     let refused = s.execute("library.buildPreviews", &json!({"ids": ids, "edge": 256})).unwrap_err().to_string();
-    assert!(refused.contains("already running") && refused.contains("queue"), "{refused}");
+    assert!(refused.contains("already running or waiting") && refused.contains("queue"), "{refused}");
     // the refusal was a command like any: it let the waiting build start (it is not held back by its own line)
     assert!(s.preview_build.as_ref().is_some_and(|b| !Arc::ptr_eq(b, &held)), "the build that waited started");
     settle(&mut s);
