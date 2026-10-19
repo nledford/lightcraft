@@ -442,6 +442,66 @@ fn a_folder_with_rules_is_marked_as_it_is_treated() {
     assert!(c.smart_album_problems(f).is_empty());
 }
 
+/// What a loop search reads inside a folder is what the folder shows: albums at any depth, no
+/// folders, nothing under a parent that is no folder or is gone, and a ring of folders ends.
+#[test]
+fn a_loop_search_walks_folders_as_the_folder_shows() {
+    let mut c = Catalog::new();
+    let (a, b) = (folder(&mut c, "A", None), folder(&mut c, "B", None));
+    let (c1, c2) = (folder(&mut c, "C1", Some(b)), folder(&mut c, "C2", Some(b)));
+    let deep = folder(&mut c, "Deep", Some(c1));
+    let (x, y, z) = (album(&mut c, "X", Some(deep), &[]), album(&mut c, "Y", Some(c2), &[]), album(&mut c, "Z", Some(a), &[]));
+    let plain = album(&mut c, "Plain", None, &[]);
+    let under_plain = album(&mut c, "Under", None, &[]);
+    c.damage(under_plain, |al| al.parent = Some(plain));
+    let orphan = album(&mut c, "Orphan", None, &[]);
+    c.damage(orphan, |al| al.parent = Some(AlbumId(999)));
+    let tested_by_s = smart(&mut c, "S", None, tests(&[("is", x)]));
+    let reaches = |c: &Catalog| {
+        let all: Vec<AlbumId> = c.albums().map(|al| al.id).collect();
+        all.iter().flat_map(|&f| all.iter().map(move |&t| (f, t))).filter(|&(f, t)| c.album_reaches(f, t)).collect::<Vec<_>>()
+    };
+    // as the search read it before: through `album_members`
+    let by_members = |c: &Catalog| {
+        let all: Vec<AlbumId> = c.albums().map(|al| al.id).collect();
+        let mut found = Vec::new();
+        for &f in &all {
+            let mut seen = std::collections::HashSet::new();
+            let mut next = match c.album(f) {
+                Some(al) if al.folder => c.album_members(f),
+                Some(al) => al.smart.as_deref().map(Filter::albums_tested).unwrap_or_default(),
+                None => Vec::new(),
+            };
+            while let Some(t) = next.pop() {
+                if !seen.insert(t) {
+                    continue;
+                }
+                found.push((f, t));
+                match c.album(t) {
+                    Some(al) if al.folder => next.extend(c.album_members(t)),
+                    Some(al) => next.extend(al.smart.as_deref().map(Filter::albums_tested).unwrap_or_default()),
+                    None => {}
+                }
+            }
+        }
+        found
+    };
+    let sorted = |mut v: Vec<(AlbumId, AlbumId)>| {
+        v.sort();
+        v
+    };
+    assert_eq!(sorted(reaches(&c)), sorted(by_members(&c)));
+    assert!(c.album_reaches(b, x) && c.album_reaches(b, y) && !c.album_reaches(a, x) && c.album_reaches(a, z));
+    assert!(!c.album_reaches(plain, under_plain) && !c.album_reaches(AlbumId(999), x));
+    assert!(c.album_reaches(tested_by_s, x) && !c.album_reaches(tested_by_s, y));
+    // a ring of folders, and a folder that is its own parent
+    c.damage(b, |al| al.parent = Some(deep));
+    assert_eq!(sorted(reaches(&c)), sorted(by_members(&c)));
+    c.damage(a, |al| al.parent = Some(a));
+    assert_eq!(sorted(reaches(&c)), sorted(by_members(&c)));
+    assert!(c.album_reaches(b, x) && c.album_reaches(a, z));
+}
+
 /// 300 folders, the smart album in each limited to the next folder (no loop): every edit of the
 /// albums asks which of them are on a loop, and that looked through every album once per folder
 /// per smart album (over a second). A drag has to stay a drag.

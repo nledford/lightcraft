@@ -547,7 +547,8 @@ impl Catalog {
     /// folders they are in (the rules of `from` would then change when those of `to` do). Loops in
     /// saved rules end the search, they don't repeat it.
     pub fn album_reaches(&self, from: AlbumId, to: AlbumId) -> bool {
-        self.album_search(self.album_leads_to(from), |a| a == to)
+        let contents = std::cell::OnceCell::new();
+        self.album_search(self.album_leads_to(from, &contents), |a| a == to)
     }
 
     /// Whether a smart album with `rules` would include itself if it were in folder `parent`: its
@@ -569,11 +570,43 @@ impl Catalog {
             .find(|m| self.albums.get(m).and_then(|a| a.smart.as_deref()).is_some_and(|rules| self.smart_album_would_loop_in(rules, parent)))
     }
 
+    /// What is directly inside each folder, in one pass over the albums: for a search that walks
+    /// down several folders.
+    fn folder_contents(&self) -> std::collections::HashMap<AlbumId, Vec<AlbumId>> {
+        let mut map: std::collections::HashMap<AlbumId, Vec<AlbumId>> = std::collections::HashMap::new();
+        for a in self.albums.values() {
+            if let Some(p) = a.parent.filter(|p| self.albums.get(p).is_some_and(|f| f.folder)) {
+                map.entry(p).or_default().push(a.id);
+            }
+        }
+        map
+    }
+
     /// The albums whose photos decide those of `a`: the albums a smart album tests, or the albums
-    /// inside a folder.
-    fn album_leads_to(&self, a: AlbumId) -> Vec<AlbumId> {
+    /// inside a folder. `contents` is [`Self::folder_contents`], worked out when first needed.
+    fn album_leads_to(&self, a: AlbumId, contents: &std::cell::OnceCell<std::collections::HashMap<AlbumId, Vec<AlbumId>>>) -> Vec<AlbumId> {
         match self.albums.get(&a) {
-            Some(al) if al.folder => self.album_members(a),
+            Some(al) if al.folder => {
+                let contents = contents.get_or_init(|| self.folder_contents());
+                // as `album_members`, walking down the folders (each once: a ring ends the walk)
+                let mut inside = Vec::new();
+                let mut seen = std::collections::HashSet::from([a]);
+                let mut folders = vec![a];
+                while let Some(f) = folders.pop() {
+                    for &m in contents.get(&f).map(Vec::as_slice).unwrap_or_default() {
+                        match self.albums.get(&m) {
+                            Some(member) if member.folder => {
+                                if seen.insert(m) {
+                                    folders.push(m);
+                                }
+                            }
+                            Some(_) => inside.push(m),
+                            None => {}
+                        }
+                    }
+                }
+                inside
+            }
             Some(al) => al.smart.as_deref().map(Filter::albums_tested).unwrap_or_default(),
             None => Vec::new(),
         }
@@ -583,6 +616,7 @@ impl Catalog {
     /// ([`Self::album_leads_to`]); each album is looked at once.
     fn album_search(&self, start: Vec<AlbumId>, found: impl Fn(AlbumId) -> bool) -> bool {
         let mut seen: std::collections::HashSet<AlbumId> = std::collections::HashSet::new();
+        let contents = std::cell::OnceCell::new();
         let mut next = start;
         while let Some(a) = next.pop() {
             if !seen.insert(a) {
@@ -591,7 +625,7 @@ impl Catalog {
             if found(a) {
                 return true;
             }
-            next.extend(self.album_leads_to(a));
+            next.extend(self.album_leads_to(a, &contents));
         }
         false
     }
