@@ -8,6 +8,8 @@
 //! - Given an inner folder and a smart album, then theirs are shown too, and the view follows
 //!   what the albums hold.
 //! - Given a sort, newest or oldest first, then a folder follows it (it has no order by hand).
+//! - Given a folder shown in the default order, when a photo is rated, then the view follows the edit
+//!   photo by photo (it has no order of its own to be worked out whole), and still shows the right photos.
 //! - Given a filter, then it narrows the folder's photos like any other source's.
 //! - When the shown folder is deleted, then the grid goes back to All Photos.
 //! - Given a folder shown, when the view is saved as a smart album, then that album shows the
@@ -124,6 +126,23 @@ fn a_folder_follows_the_sort() {
     assert_eq!(shown(&mut s), [3, 2, 1]);
     s.sort.ascending = true;
     assert_eq!(shown(&mut s), [1, 2, 3]);
+}
+
+#[test]
+fn a_folder_follows_a_small_edit_instead_of_being_worked_out_whole() {
+    let mut s = Session::new();
+    let trips = trips(&mut s);
+    show(&mut s, trips);
+    assert_eq!(shown(&mut s), [3, 2, 1]);
+    let (followed, whole) = (s.view_followed, s.view_worked_out);
+    rate(&mut s, &[2], 5);
+    assert_eq!(shown(&mut s), [3, 2, 1]);
+    assert_eq!((s.view_followed, s.view_worked_out), (followed + 1, whole), "a rating changes no album: followed");
+    // what changes an album's photos is still asked whole, and shows them
+    s.selection.ids = vec![PhotoId(5)];
+    let rome = s.catalog.album_members(AlbumId(trips))[0].0;
+    s.execute("album.addPhotos", &json!({"id": rome, "ids": [5]})).unwrap();
+    assert!(shown(&mut s).contains(&5));
 }
 
 #[test]
