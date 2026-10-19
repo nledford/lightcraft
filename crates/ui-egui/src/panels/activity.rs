@@ -146,7 +146,6 @@ fn row(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) -> bool {
     clicked
 }
 
-/// The progress bar; while the amount of work isn't known, a segment sweeps across.
 /// The sweeping segment of an indeterminate bar, as offsets from the bar's left edge. Reduced motion
 /// leaves a still segment (a quarter of the bar, at its left end) that says "working" without moving.
 pub(crate) fn indeterminate_span(width: f32, time: f64, reduced: bool) -> (f32, f32) {
@@ -159,6 +158,7 @@ pub(crate) fn indeterminate_span(width: f32, time: f64, reduced: bool) -> (f32, 
     (x.max(0.0), (x + w).min(width))
 }
 
+/// The progress bar; while the amount of work isn't known, a segment sweeps across.
 fn bar(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) {
     let (rect, _) = ui.allocate_exact_size(vec2(width, 5.0), Sense::hover());
     let p = ui.painter();

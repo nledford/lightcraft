@@ -49,7 +49,7 @@
 ## 2026-10-21
 
 ### Reduce motion
-- **Settings ▸ Interface ▸ Reduce motion** (also View ▸ Reduce Motion, `view.reduceMotion`) turns off the animations
+- **Settings ▸ Interface ▸ Reduce motion** (`view.reduceMotion` for scripts and agents) turns off the animations
   that move or turn: a click on the photo or Z zooms at once instead of easing in, the interface's own small easing
   stops, the Synchronize Folder spinner becomes a still dot, and the activity panel's sweeping bar becomes a still
   segment. Fades that tell you something changed (toasts, the slideshow's crossfade and its control bar) stay. Off by
