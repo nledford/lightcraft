@@ -1635,6 +1635,17 @@ fn drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response
     let there = a.photos.iter().filter(|p| dragged.contains(&p.0)).count().min(library);
     let fresh = library.saturating_sub(there);
     if fresh == 0 {
+        // Local photos in the drag aren't in the album either: say why they stay out
+        let local = ids.len() - library;
+        if local > 0 {
+            let why = crate::i18n::tr_format!(
+                "{n} Local photo{} skipped: albums hold library photos (Add to My Photos first)",
+                if local == 1 { "" } else { "s" },
+                n = local
+            );
+            super::grid::refuse_drop(app, ui.ctx(), super::grid::albums_hint(), &why, released);
+            return;
+        }
         super::grid::drag_hint(ui.ctx(), crate::i18n::tr_format!("Already in “{}”", a.name));
         if released {
             app.ui.dragging_photos = None;
