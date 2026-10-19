@@ -273,13 +273,12 @@ fn a_library_that_fails_to_open_leaves_the_line_and_the_retries_alone() {
     g.finish(crate::activity::Outcome::failed("no"));
     s.execute("library.buildPreviews", &json!({"ids": ids, "edge": 256, "queue": true})).unwrap();
     let generation = s.library_generation();
-    let stores = crate::library::LibraryStores {
-        dir: PathBuf::from("unreadable"),
-        catalog: Box::new(Unreadable),
-        files: Box::new(Unreadable),
-        on_disk: false,
-    };
+    let smart_dir = Some(PathBuf::from("old-library/smart"));
+    s.media.smart_dir = smart_dir.clone();
+    let stores =
+        crate::library::LibraryStores { dir: PathBuf::from("unreadable"), catalog: Box::new(Unreadable), files: Box::new(Unreadable), on_disk: true };
     assert!(s.open_library_in(stores, false).is_err());
+    assert_eq!(s.media.smart_dir, smart_dir, "nor does its smart previews folder move to the library that did not open");
     assert_eq!(s.library_generation(), generation, "the old library is still the one open");
     assert_eq!(s.activity.waiting().len(), 1, "the line is kept");
     let row = s.activity.finished().into_iter().find(|f| f.id == failed).expect("the row stays");
