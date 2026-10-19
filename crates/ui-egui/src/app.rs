@@ -382,7 +382,7 @@ impl LightcraftApp {
                 if failed > 0 {
                     msg.push_str(&crate::i18n::tr_format!(" · {failed} couldn't be rendered", failed = failed));
                 }
-                if failed > 0 {
+                if failed > 0 || b.error().is_some() {
                     self.toast_error(ctx, msg);
                 } else {
                     self.toast(ctx, msg);
@@ -432,11 +432,11 @@ impl LightcraftApp {
                 self.toast(ctx, crate::i18n::tr("No horizon or vertical lines to level by"));
             }
             Ok(_) => {}
-            Err(e) => self.toast(ctx, e),
+            Err(e) => self.toast_error(ctx, e),
         }
     }
 
-    /// A toast that stays `secs` seconds (messages that say where to look or what to do next).
+    /// A toast that stays at least `secs` seconds (messages that say where to look or what to do next).
     pub fn toast_for(&mut self, _ctx: &egui::Context, text: impl Into<String>, secs: f64) {
         let t = self.tick_now();
         self.ui.show_toast(t, text.into(), secs, None);
@@ -523,7 +523,7 @@ impl LightcraftApp {
         }
     }
 
-    /// A toast for an error the user has to read and act on (stays 6 s).
+    /// A toast for an error the user has to read and act on (stays at least 6 s).
     pub fn toast_error(&mut self, ctx: &egui::Context, text: impl Into<String>) {
         self.toast_error_for(ctx, text, ERROR_TOAST_SECONDS);
     }

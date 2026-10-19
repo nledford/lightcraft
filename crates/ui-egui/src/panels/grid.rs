@@ -1252,7 +1252,7 @@ pub fn stack_badge(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, sid:
 /// not. The selection stays as it is (Compare keeps its pair).
 pub fn toggle_stack(app: &mut LightcraftApp, ctx: &egui::Context, id: PhotoId) {
     if let Err(e) = app.run("stack.toggle", json!({"ids": [id.0]})) {
-        app.toast(ctx, e);
+        app.toast_error(ctx, e);
     }
 }
 
@@ -1315,7 +1315,7 @@ fn context_menu_open_and_edit(app: &mut LightcraftApp, ui: &mut egui::Ui, id: Ph
     if set_reference.clicked()
         && let Err(e) = app.run("photo.setReference", json!({"id": id.0}))
     {
-        app.toast(ui.ctx(), e);
+        app.toast_error(ui.ctx(), e);
     }
     ui.separator();
 }
