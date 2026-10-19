@@ -86,6 +86,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.faceBoxes", "Face Boxes", None, "View"),
     ("view.focusPoint", "Show Focus Point", Some("Alt+F"), "View"),
     ("view.zoomToFocus", "Zoom to Focus Point", None, "View"),
+    ("view.reduceMotion", "Reduce Motion", None, "View"),
     ("view.reference", "Reference View", Some("Shift+R"), "View"),
     ("photo.setReference", "Set as Reference Photo", None, ""),
     ("compare.swap", "Swap Compare Photos", None, "View"),
@@ -569,6 +570,11 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             // {on?}; no params toggles. Toggle Zoom (Z) centres on the focus point when there is one.
             app.ui.settings.zoom_to_focus = p.get("on").and_then(Value::as_bool).unwrap_or(!app.ui.settings.zoom_to_focus);
             Ok(json!({"on": app.ui.settings.zoom_to_focus}))
+        }
+        "view.reduceMotion" => {
+            // {on?}; no params toggles. Zoom and spinner animations stop; fades stay.
+            app.ui.settings.reduce_motion = p.get("on").and_then(Value::as_bool).unwrap_or(!app.ui.settings.reduce_motion);
+            Ok(json!({"on": app.ui.settings.reduce_motion}))
         }
         "view.faceBoxes" => {
             app.ui.face_boxes = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.face_boxes);

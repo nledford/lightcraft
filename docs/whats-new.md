@@ -48,6 +48,13 @@
 
 ## 2026-10-21
 
+### Reduce motion
+- **Settings ▸ Interface ▸ Reduce motion** (also View ▸ Reduce Motion, `view.reduceMotion`) turns off the animations
+  that move or turn: a click on the photo or Z zooms at once instead of easing in, the interface's own small easing
+  stops, the Synchronize Folder spinner becomes a still dot, and the activity panel's sweeping bar becomes a still
+  segment. Fades that tell you something changed (toasts, the slideshow's crossfade and its control bar) stay. Off by
+  default; pinch and scroll zoom were never animated.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around

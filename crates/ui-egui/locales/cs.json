@@ -2394,5 +2394,8 @@
   "End Slideshow": "Ukončit prezentaci",
   "Save Current Settings as New Effect Preset…": "Uložit aktuální nastavení jako nové přednastavení efektu…",
   "Manage Effect Presets…": "Spravovat přednastavení efektů…",
-  "Export Effect Presets…": "Exportovat přednastavení efektů…"
+  "Export Effect Presets…": "Exportovat přednastavení efektů…",
+  "Reduce Motion": "Omezit pohyb",
+  "Reduce motion": "Omezit pohyb",
+  "Turns off zoom and spinner animations. Fades stay.": "Vypne animace přiblížení a načítacích indikátorů. Prolínání zůstává."
 }

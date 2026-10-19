@@ -2269,5 +2269,8 @@
   "SDR Shadows": "Cienie SDR",
   "SDR Whites": "Biele SDR",
   "SDR Clarity": "Przejrzystość SDR",
-  "Face Models on the GPU": "Modele twarzy przetwarzane na GPU"
+  "Face Models on the GPU": "Modele twarzy przetwarzane na GPU",
+  "Reduce Motion": "Ogranicz ruch",
+  "Reduce motion": "Ogranicz ruch",
+  "Turns off zoom and spinner animations. Fades stay.": "Wyłącza animacje powiększania i wskaźników pracy. Zanikanie i przenikanie zostają."
 }

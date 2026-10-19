@@ -28,6 +28,7 @@ pub mod menubar;
 pub mod menus;
 pub mod merge;
 mod model_setup;
+pub mod motion;
 pub mod panels;
 pub mod pick;
 pub mod print_view;
@@ -152,6 +153,8 @@ mod tests_profiles_layout;
 mod tests_quit_unsaved;
 #[cfg(test)]
 mod tests_recheck;
+#[cfg(test)]
+mod tests_reduce_motion;
 #[cfg(test)]
 mod tests_rename_person;
 #[cfg(test)]
@@ -1012,6 +1015,7 @@ impl LightcraftApp {
     /// Restyle `ctx` when the theme the settings select (Appearance Mode, the dark and light
     /// themes, the system's appearance in Auto) is not the one it shows. A no-op otherwise.
     pub fn sync_theme(&mut self, ctx: &egui::Context) {
+        motion::sync(ctx, self.ui.settings.reduce_motion);
         let wanted = self.ui.settings.theme(self.system_theme(ctx));
         if theme::current(ctx) != Some(wanted) {
             theme::apply_kind(ctx, wanted);

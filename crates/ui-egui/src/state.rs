@@ -463,6 +463,9 @@ pub struct AppSettings {
     /// View ▸ View Options: the lines the loupe's info overlay shows in Info 1 and Info 2.
     #[serde(deserialize_with = "lenient")]
     pub loupe_info: LoupeInfo,
+    /// Settings ▸ Interface ▸ Reduce motion: things that move or turn stand still; fades stay
+    /// (`view.reduceMotion`; see [`crate::motion`]).
+    pub reduce_motion: bool,
 }
 
 impl Default for AppSettings {
@@ -493,6 +496,7 @@ impl Default for AppSettings {
             focus_point: false,
             zoom_to_focus: true,
             loupe_info: LoupeInfo::default(),
+            reduce_motion: false,
         }
     }
 }
