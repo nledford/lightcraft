@@ -94,6 +94,27 @@ fn a_build_asked_for_while_one_runs_waits_behind_it_and_builds_the_photos_chosen
     assert_eq!(s.journal.iter().filter(|(c, _)| c == "library.buildPreviews").count(), 1, "{:?}", s.journal);
 }
 
+/// Given a build waiting in line, when the build ahead has ended and its turn has not come yet (the lane is free for
+/// the moment), then a new build asked for without `queue` is refused, not started ahead of it, and one with `queue`
+/// waits behind it. The one waiting still starts by itself, and then the other is not refused for it.
+#[test]
+fn a_new_build_does_not_start_ahead_of_one_waiting_while_the_lane_is_free_for_a_moment() {
+    let mut s = Session::with_demo();
+    s.activity.keep_after(0);
+    let ids: Vec<u64> = s.catalog.photos().take(1).map(|p| p.id.0).collect();
+    let h = hold(&mut s);
+    let held = h.build.clone();
+    let waiting = s.execute("library.buildPreviews", &json!({"ids": ids, "edge": 256, "queue": true})).unwrap()["queued"].as_u64().unwrap();
+    // (no command in between: `start_waiting` has not run since the build ended)
+    release(h);
+    let refused = s.execute("library.buildPreviews", &json!({"ids": ids, "edge": 256})).unwrap_err().to_string();
+    assert!(refused.contains("already running") && refused.contains("queue"), "{refused}");
+    // the refusal was a command like any: it let the waiting build start (it is not held back by its own line)
+    assert!(s.preview_build.as_ref().is_some_and(|b| !Arc::ptr_eq(b, &held)), "the build that waited started");
+    settle(&mut s);
+    assert!(finished(&mut s).iter().any(|r| r["id"] == waiting && r["ending"] == "done"));
+}
+
 /// Given a build waiting behind another, when its ✕ is pressed, then it leaves the line and never runs.
 #[test]
 fn a_waiting_build_taken_out_of_the_line_never_runs() {

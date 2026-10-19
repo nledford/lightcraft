@@ -120,12 +120,15 @@ fn request_for(command: &str, p: &Value, ids: &[lightcraft_catalog::PhotoId]) ->
     Request { command: command.into(), params: Value::Object(params) }
 }
 
-/// A build running (or one waiting in line, when `queue`): `queue` puts this one in line behind it → `{queued: id,
-/// place}`; without it the build is refused, as one at a time always was. `None`: the build can start now.
+/// A build running, or one waiting in line for the lane (it is about to start, once `start_waiting` gets to it): a
+/// new build `queue`s behind it → `{queued: id, place}`; without it the build is refused, as one at a time always
+/// was. `None`: the build can start now. (The one `start_waiting` is starting itself is not held back by the line
+/// it came out of.)
 fn wait_in_line(s: &Session, c: &str, p: &Value, what: &str, request: Request) -> Option<Result<Value>> {
     let queue = p.get("queue").and_then(Value::as_bool).unwrap_or(false);
     let running = s.preview_build.as_ref().is_some_and(|b| !b.finished.load(Ordering::Acquire));
-    if !running && !(queue && s.activity.lane_waiting(Lane::Previews)) {
+    let line_ahead = !s.starting_waiting && s.activity.lane_waiting(Lane::Previews);
+    if !running && !line_ahead {
         return None;
     }
     if !queue {

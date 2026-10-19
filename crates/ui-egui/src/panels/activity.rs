@@ -268,9 +268,14 @@ pub fn bell(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, icon: Rect, 
         }
         Some(Act::Failures(id)) => app.activity_failures = (app.activity_failures != Some(id)).then_some(id),
         Some(Act::Retry(id)) => {
-            // (the row may have gone meanwhile, or the line be full: say why, as a toast)
+            // (the row may have gone meanwhile, or the line be full: say why, as a toast; the reason alone, not the
+            // command it came from)
             if let Err(e) = app.session.execute("activity.retry", &json!({"id": id})) {
-                app.toast(&ctx, e.to_string());
+                let why = match e {
+                    lightcraft_engine::EngineError::BadParams { msg, .. } => msg,
+                    other => other.to_string(),
+                };
+                app.toast(&ctx, why);
             }
             if app.activity_failures == Some(id) {
                 app.activity_failures = None;

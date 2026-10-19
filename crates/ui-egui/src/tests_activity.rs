@@ -1216,6 +1216,29 @@ fn a_build_that_did_not_go_well_offers_retry() {
     assert!(h.step_until(T, |h| h.app.session.activity.list().is_empty()));
 }
 
+/// Given a build that did not go well and a line already full, when Retry is clicked, then the toast gives the
+/// reason alone, not the command it came from, and the row stays.
+#[test]
+fn a_refused_retry_says_why_without_the_command() {
+    let mut h = demo();
+    let photo = h.app.session.catalog.photos().next().map(|p| p.id.0).unwrap();
+    let g = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
+    g.set_request(lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({"ids": [photo], "edge": 256}) });
+    let failed = g.id();
+    g.finish(Outcome::failed("The disk is full"));
+    open_list(&mut h);
+    // (a build holds the lane, so nothing in line starts and frees a place)
+    let _running = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
+    for _ in 0..lightcraft_engine::activity::MAX_WAITING {
+        let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({}) };
+        h.app.session.activity.enqueue("previews", "Building previews", request).unwrap();
+    }
+    click(&mut h, &format!("activity:retry:{failed}"));
+    let toast = h.app.ui.toast.as_ref().map(|(text, ..)| text.clone()).unwrap_or_default();
+    assert!(toast.contains("waiting already") && !toast.contains("activity.retry"), "{toast}");
+    assert!(h.app.session.activity.finished().iter().any(|f| f.id == failed), "the row stays");
+}
+
 /// Given a preview build running and another waiting for it, when Quit is chosen, then the question says that one
 /// runs and one won't run; Quit Anyway stops the one and empties the line.
 #[test]
