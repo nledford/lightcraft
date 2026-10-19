@@ -192,7 +192,7 @@ fn folders_containing_each_other_still_answer() {
 /// 200 albums of 2,000 photos each in one folder, and as many photos again in none of them:
 /// asking each photo of each album's list is the slow way (it reads every list to the end for a
 /// photo in none). A pass over the library gathers the folder's photos once; so does a smart
-/// album limited to the folder. Measured against the slow way rather than the clock.
+/// album limited to the folder. Counted by how often the folder is gathered, not by the clock.
 #[test]
 fn a_folder_of_big_albums_is_shown_in_one_pass() {
     let mut c = Catalog::new();
@@ -203,19 +203,11 @@ fn a_folder_of_big_albums_is_shown_in_one_pass() {
         album(&mut c, &format!("A{k}"), Some(big), &list);
     }
     let limited = smart(&mut c, "In Big", None, Filter { album: Some(big), ..Default::default() });
-    // the best of a few runs: a busy machine can hold one up, not all of them
-    let timed = |f: &dyn Fn() -> usize| {
-        let once = || {
-            let start = std::time::Instant::now();
-            (f(), start.elapsed())
-        };
-        (0..5).map(|_| once()).min_by_key(|(_, took)| *took).unwrap()
-    };
-    // one photo at a time: nothing is gathered (once: it is the slow one)
-    let start = std::time::Instant::now();
+    // one photo at a time: nothing is gathered, which is why it is the slow way
+    let gathers = || crate::FOLDER_GATHERS.with(std::cell::Cell::get);
+    let before = gathers();
     let n = c.photos().filter(|p| c.album_contains(big, p)).count();
-    let slow = start.elapsed();
-    assert_eq!(n, 4000);
+    assert_eq!((n, gathers() - before), (4000, 0));
     for (what, f) in [
         ("query", &(|| shown(&c, big).len()) as &dyn Fn() -> usize),
         ("count", &|| c.album_count(big)),
@@ -223,9 +215,9 @@ fn a_folder_of_big_albums_is_shown_in_one_pass() {
         ("smart album's count", &|| c.album_count(limited)),
         ("smart album's query", &|| shown(&c, limited).len()),
     ] {
-        let (n, fast) = timed(f);
-        assert_eq!(n, 4000, "{what}");
-        assert!(fast * 5 < slow, "{what} took {fast:?}; one photo at a time took {slow:?}");
+        let before = gathers();
+        assert_eq!(f(), 4000, "{what}");
+        assert_eq!(gathers() - before, 1, "{what} gathered the folder's photos once for the whole pass");
     }
 }
 

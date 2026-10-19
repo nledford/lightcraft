@@ -491,6 +491,8 @@ impl Catalog {
 
     /// What folder `id` shows, gathered for a question about many photos.
     fn folder_photos(&self, id: AlbumId) -> FolderPhotos {
+        #[cfg(test)]
+        FOLDER_GATHERS.with(|n| n.set(n.get() + 1));
         let mut shown = FolderPhotos::default();
         for member in self.album_members(id).iter().filter_map(|m| self.albums.get(m)) {
             match member.smart {
@@ -1282,6 +1284,12 @@ impl FolderPhotos {
     fn holds(&self, cat: &Catalog, p: &Photo) -> bool {
         self.listed.contains(&p.id) || self.smart.iter().any(|s| cat.album_contains(*s, p))
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many times a folder's photos were gathered on this thread (tests count passes, not time).
+    static FOLDER_GATHERS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 thread_local! {
