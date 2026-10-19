@@ -574,7 +574,7 @@ pub fn poll_scan(app: &mut LightcraftApp, ctx: &egui::Context) {
         }
         Err(_) => {
             app.scan = None;
-            app.toast(ctx, crate::i18n::tr("Scan failed"));
+            app.toast_error(ctx, crate::i18n::tr("Scan failed"));
             return;
         }
     };
@@ -722,7 +722,7 @@ pub fn tick(app: &mut LightcraftApp, ctx: &egui::Context) {
             }
             Err(e) => {
                 log::warn!("import: {e}");
-                app.toast(ctx, crate::i18n::tr_format!("Import failed: {e}", e = e));
+                app.toast_error(ctx, crate::i18n::tr_format!("Import failed: {e}", e = e));
                 return;
             }
         }
@@ -872,7 +872,7 @@ fn finish(app: &mut LightcraftApp, ctx: &egui::Context, task: ImportTask) {
     app.session.merge_undo(steps, &label);
     if task.auto {
         if !task.warnings.is_empty() {
-            app.toast_for(ctx, xmp_warnings_text(&task.warnings), 8.0);
+            app.toast_error_for(ctx, xmp_warnings_text(&task.warnings), 8.0);
         } else if task.imported > 0 {
             app.toast(ctx, crate::i18n::tr_format!("Auto Import: added {} photo{}", task.imported, if task.imported == 1 { "" } else { "s" }));
         }
@@ -880,9 +880,9 @@ fn finish(app: &mut LightcraftApp, ctx: &egui::Context, task: ImportTask) {
     }
     if task.browse {
         if !task.warnings.is_empty() {
-            app.toast_for(ctx, xmp_warnings_text(&task.warnings), 8.0);
+            app.toast_error_for(ctx, xmp_warnings_text(&task.warnings), 8.0);
         } else if task.failed > 0 {
-            app.toast(ctx, crate::i18n::tr_format!("{} photo{} not readable", task.failed, if task.failed == 1 { "" } else { "s" }));
+            app.toast_error(ctx, crate::i18n::tr_format!("{} photo{} not readable", task.failed, if task.failed == 1 { "" } else { "s" }));
         }
         return;
     }
@@ -933,11 +933,15 @@ fn finish(app: &mut LightcraftApp, ctx: &egui::Context, task: ImportTask) {
         msg.push_str(&crate::i18n::tr_format!(" · {} not readable", task.failed));
     }
     if task.warnings.is_empty() {
-        app.toast(ctx, msg);
+        if task.failed > 0 {
+            app.toast_error(ctx, msg);
+        } else {
+            app.toast(ctx, msg);
+        }
     } else {
         msg.push_str("\n\n");
         msg.push_str(&xmp_warnings_text(&task.warnings));
-        app.toast_for(ctx, msg, 8.0);
+        app.toast_error_for(ctx, msg, 8.0);
     }
 }
 

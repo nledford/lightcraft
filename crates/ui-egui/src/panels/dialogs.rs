@@ -1075,7 +1075,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                                         app.toast(ui.ctx(), crate::i18n::tr_format!("Saved export preset “{}”", preset_name.trim()));
                                         preset_name.clear();
                                     }
-                                    Err(e) => app.toast(ui.ctx(), e),
+                                    Err(e) => app.toast_error(ui.ctx(), e),
                                 }
                             }
                             crate::widgets::named(ui.add(egui::TextEdit::singleline(preset_name).hint_text(crate::i18n::tr("Preset name")).desired_width(ui.available_width())), crate::i18n::tr("Preset name"));
@@ -1475,7 +1475,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         | Dialog::SaveEffect { .. }
                 ) =>
             {
-                app.toast(ctx, e)
+                app.toast_error(ctx, e)
             }
             // the SAM 3 dialog stays open to show the download (or why it can't start)
             Err(e) if matches!(dlg, Dialog::SamModel { .. }) => {
@@ -1497,7 +1497,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 close = true;
             }
             Err(e) if matches!(dlg, Dialog::MovePhotos { .. }) => {
-                app.toast(ctx, e);
+                app.toast_error(ctx, e);
                 close = true;
             }
             Ok(_) if keeps_open(app, &dlg) => {
@@ -1701,7 +1701,7 @@ fn sam_model_body(app: &mut LightcraftApp, ui: &mut egui::Ui, error: Option<&str
             if r.clicked()
                 && let Err(e) = crate::links::open(app, SAM_HELP)
             {
-                app.toast(ui.ctx(), e);
+                app.toast_error(ui.ctx(), e);
             }
         });
     }

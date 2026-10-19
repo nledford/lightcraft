@@ -48,6 +48,17 @@
 
 ## 2026-10-21
 
+### Toasts stay long enough to read
+- A toast now stays for the time its text takes to read (about a second plus a third of a second per word, at most
+  10 seconds), instead of 1.4 seconds whatever it said. A short "Library saved" still goes in under two seconds;
+  a hint such as "Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo" stays over
+  five.
+- Messages that tell you something failed (a command that couldn't run, a refused drop, a scan that failed) stay
+  at least 6 seconds, including some that used to vanish after 1.4 seconds.
+- Rest the pointer on a toast and it stays; after you move away it stays another second and a half. It never takes
+  a click from what is underneath it.
+- A toast fades in over a fraction of a second, as it already faded out.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around

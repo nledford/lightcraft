@@ -1723,7 +1723,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                         app.ui.last_find_missing_result = Some(Ok(v));
                     }
                     Err(e) => {
-                        app.toast(ctx, e.clone());
+                        app.toast_error(ctx, e.clone());
                         app.ui.last_find_missing_result = Some(Err(e));
                     }
                 }
@@ -2004,7 +2004,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                     }
                     app.toast(&ctx, msg);
                 }
-                Err(e) => app.toast(&ctx, e.clone()),
+                Err(e) => app.toast_error(&ctx, e.clone()),
             }
             return Some(r);
         }
@@ -2026,7 +2026,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             };
             let r = app.session.execute("keyword.export", &json!({"path": path})).map_err(|e| e.to_string());
             if let Err(e) = &r {
-                app.toast(&ctx, e.clone());
+                app.toast_error(&ctx, e.clone());
             }
             if let Ok(v) = &r {
                 let n = v["keywords"].as_u64().unwrap_or(0);
@@ -2149,8 +2149,10 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 let mut msg = crate::i18n::tr_format!("Imported {n} point curve preset{}", if n == 1 { "" } else { "s" }, n = n);
                 if failed > 0 {
                     msg += &crate::i18n::tr_format!(", {failed} file{} not readable", if failed == 1 { "" } else { "s" }, failed = failed);
+                    app.toast_error(&ctx, msg);
+                } else {
+                    app.toast(&ctx, msg);
                 }
-                app.toast(&ctx, msg);
             }
             return Some(r);
         }
@@ -2320,7 +2322,7 @@ pub fn delete_in_album(app: &mut LightcraftApp, ctx: &egui::Context) -> bool {
             let what = crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n);
             app.toast(ctx, crate::i18n::tr_format!("Removed {what} from {name}", what = what, name = name));
         }
-        Err(e) => app.toast(ctx, e),
+        Err(e) => app.toast_error(ctx, e),
     }
     true
 }
@@ -2420,7 +2422,7 @@ fn edit_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value, photocraft: 
     if let Some(check) = app.services.check_editor.as_ref()
         && let Err(e) = check(&editor)
     {
-        app.toast(ctx, e.clone());
+        app.toast_error(ctx, e.clone());
         return Err(e);
     }
     let mut params = file.params();
@@ -2452,7 +2454,7 @@ fn edit_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value, photocraft: 
         }
     }
     match (failed, copies.as_slice()) {
-        (Some(e), _) => app.toast(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
+        (Some(e), _) => app.toast_error(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
         (None, [(path, _)]) => {
             let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
             app.toast(ctx, crate::i18n::tr_format!("{name} opened for editing; it is stacked with the original", name = name));
@@ -2473,12 +2475,12 @@ const MAX_ORIGINALS: usize = 50;
 fn open_original_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value) -> Result<Value, String> {
     let r = open_originals(app, p);
     if let Err(e) = &r {
-        app.toast(ctx, e.clone());
+        app.toast_error(ctx, e.clone());
     }
     let r = r?;
     let opened = r["opened"].as_array().map_or(0, Vec::len);
     match (r["failed"].as_str(), r["opened"][0]["path"].as_str()) {
-        (Some(e), _) => app.toast(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
+        (Some(e), _) => app.toast_error(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
         (None, Some(path)) if opened == 1 => {
             let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
             app.toast(ctx, crate::i18n::tr_format!("{name} opened in the other editor", name = name));
