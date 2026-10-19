@@ -50,7 +50,7 @@
 
 ### Toasts stay long enough to read
 - A toast now stays for the time its text takes to read (about a second plus a third of a second per word, at most
-  10 seconds), instead of 1.4 seconds whatever it said. A short "Library saved" still goes in under two seconds;
+  10 seconds, unless a message asks for longer), instead of a fixed time. A short "Library saved" still goes in under two seconds;
   a hint such as "Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo" stays over
   five.
 - Messages that tell you something failed (a command that couldn't run, a refused drop, a scan that failed) stay
