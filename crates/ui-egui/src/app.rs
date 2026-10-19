@@ -2,11 +2,12 @@ use super::clock::{AppClock, monotonic_ms};
 use super::services::Services;
 use super::state::{GestureFrame, InjectedDrop, InjectedPress};
 use super::{
-    AiModel, Caches, CommandError, ControlRequest, ControlResponse, ErrorKind, GESTURE_TIMEOUT_MS, LightcraftApp, MAX_PENDING_GESTURES,
-    MAX_PENDING_SHOTS, MAX_SHOT_BYTES, MAX_SHOT_TOTAL_BYTES, MAX_TEXTURE_SIDE, PendingGesture, PendingShot, Perf, Receiver, SCREEN_PROFILE,
-    SCREENSHOT_FALLBACK_MS, SCREENSHOT_SETTLE_MS, SHOT_FORCE_BUSY_MS, SHOT_SETTLE_FRAMES, SHOT_SETTLE_MS, Sender, Session, ShotGeometry,
-    TOAST_SECONDS, UiState, Value, docking, drop_overlay, export_task, focus_scan, frame_rate, headless, i18n, import, lightroom_import, menus,
-    merge, model_setup, panels, pick, recheck, render, shortcuts, slideshow_export, state, sync, tasks, theme, updates_ui, widgets,
+    AiModel, Caches, CommandError, ControlRequest, ControlResponse, ERROR_TOAST_SECONDS, ErrorKind, GESTURE_TIMEOUT_MS, LightcraftApp,
+    MAX_PENDING_GESTURES, MAX_PENDING_SHOTS, MAX_SHOT_BYTES, MAX_SHOT_TOTAL_BYTES, MAX_TEXTURE_SIDE, PendingGesture, PendingShot, Perf, Receiver,
+    SCREEN_PROFILE, SCREENSHOT_FALLBACK_MS, SCREENSHOT_SETTLE_MS, SHOT_FORCE_BUSY_MS, SHOT_SETTLE_FRAMES, SHOT_SETTLE_MS, Sender, Session,
+    ShotGeometry, TOAST_SECONDS, UiState, Value, docking, drop_overlay, export_task, focus_scan, frame_rate, headless, i18n, import,
+    lightroom_import, menus, merge, model_setup, panels, pick, recheck, render, shortcuts, slideshow_export, state, sync, tasks, theme, updates_ui,
+    widgets,
 };
 
 mod control;
@@ -248,7 +249,7 @@ impl LightcraftApp {
             };
             if let Some(message) = completed {
                 let now = self.tick_now();
-                self.ui.toast = Some((message, now + TOAST_SECONDS, None));
+                self.ui.show_toast(now, message, TOAST_SECONDS, None);
             }
         }
         if r.is_ok() && id == "photo.label" {
@@ -262,7 +263,7 @@ impl LightcraftApp {
                 None => i18n::tr("Color label cleared").into(),
             };
             let now = self.tick_now();
-            self.ui.toast = Some((text, now + TOAST_SECONDS, label));
+            self.ui.show_toast(now, text, TOAST_SECONDS, label);
         }
         match &r {
             Err(e) => {
@@ -381,7 +382,11 @@ impl LightcraftApp {
                 if failed > 0 {
                     msg.push_str(&crate::i18n::tr_format!(" · {failed} couldn't be rendered", failed = failed));
                 }
-                self.toast(ctx, msg);
+                if failed > 0 {
+                    self.toast_error(ctx, msg);
+                } else {
+                    self.toast(ctx, msg);
+                }
             }
         } else {
             // The activity stack shows the run while it works; poll for the end.
@@ -396,17 +401,15 @@ impl LightcraftApp {
         match (unsaved, self.ui.unsaved_seen) {
             (Some((n, e)), false) => {
                 self.ui.unsaved_seen = true;
-                let t = self.tick_now();
-                self.ui.toast = Some((
+                self.toast_error(
+                    ctx,
                     crate::i18n::tr_format!(
                         "{n} change{} saved in memory but not written to disk: {e} — LightCraft will retry",
                         if n == 1 { "" } else { "s" },
                         n = n,
                         e = e
                     ),
-                    t + 6.0,
-                    None,
-                ));
+                );
             }
             (None, true) => {
                 self.ui.unsaved_seen = false;
@@ -436,7 +439,7 @@ impl LightcraftApp {
     /// A toast that stays `secs` seconds (messages that say where to look or what to do next).
     pub fn toast_for(&mut self, _ctx: &egui::Context, text: impl Into<String>, secs: f64) {
         let t = self.tick_now();
-        self.ui.toast = Some((text.into(), t + secs, None));
+        self.ui.show_toast(t, text.into(), secs, None);
     }
 
     /// Reverse geocoding: say how a place-names download ended (a failure stays readable, with what to do).
@@ -521,9 +524,15 @@ impl LightcraftApp {
     }
 
     /// A toast for an error the user has to read and act on (stays 6 s).
-    pub fn toast_error(&mut self, _ctx: &egui::Context, text: impl Into<String>) {
+    pub fn toast_error(&mut self, ctx: &egui::Context, text: impl Into<String>) {
+        self.toast_error_for(ctx, text, ERROR_TOAST_SECONDS);
+    }
+
+    /// An error toast that stays at least `secs` seconds (never under the 6 s of [`Self::toast_error`]):
+    /// a failure with a way out to read, such as a batch's list of files that failed.
+    pub fn toast_error_for(&mut self, _ctx: &egui::Context, text: impl Into<String>, secs: f64) {
         let t = self.tick_now();
-        self.ui.toast = Some((text.into(), t + 6.0, None));
+        self.ui.show_toast(t, text.into(), secs.max(ERROR_TOAST_SECONDS), None);
     }
 
     /// The process is about to end (settings and library are saved by then): make sure nothing is

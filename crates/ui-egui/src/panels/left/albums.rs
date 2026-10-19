@@ -196,7 +196,7 @@ fn finish_drop(app: &mut LightcraftApp, ui: &egui::Ui, dragged: AlbumId, result:
             app.ui.reveal_album = Some(dragged.0);
             ui.ctx().request_repaint();
         }
-        Err(e) => app.toast(ui.ctx(), e),
+        Err(e) => app.toast_error(ui.ctx(), e),
     }
     app.ui.dragging_album = None;
 }
@@ -406,7 +406,7 @@ fn drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response
 fn drop_photos_on_album(app: &mut LightcraftApp, ui: &egui::Ui, a: &Album, ids: Vec<u64>) {
     match app.run("album.addPhotos", json!({"id": a.id.0, "ids": ids})) {
         Ok(r) => app.toast(ui.ctx(), added_message(a, &r)),
-        Err(e) => app.toast(ui.ctx(), e),
+        Err(e) => app.toast_error(ui.ctx(), e),
     }
 }
 
