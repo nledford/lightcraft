@@ -464,11 +464,6 @@ impl Session {
         // Photo ids belong to one library; denoise work must not carry into the next.
         self.denoise.library_changed();
         self.media.denoise.clear();
-        // nor tasks waiting in line, or asked for again: they name the old library's photos and folders
-        let dropped = self.activity.library_changed();
-        if dropped > 0 {
-            log::info!("library: {dropped} task(s) waiting in line were dropped with the old library");
-        }
         // what was learned about the old library's faces is saved, and none of it carries over (photo ids are per library)
         #[cfg(not(target_arch = "wasm32"))]
         self.faces.library_changed();
@@ -598,6 +593,12 @@ impl Session {
             blocked: settings.blocked,
             lock: lock.take(),
         });
+        // (only now: a library that fails to open leaves the old one in place, with what waits in line for it)
+        // nor tasks waiting in line, or asked for again: they name the old library's photos and folders
+        let dropped = self.activity.library_changed();
+        if dropped > 0 {
+            log::info!("library: {dropped} task(s) waiting in line were dropped with the old library");
+        }
         // forget untouched Local records of folders not browsed for a while (journaled at once)
         if self.forget_local_days > 0 {
             let plan = self.forget_local(false, None);

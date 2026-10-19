@@ -238,3 +238,51 @@ fn another_library_drops_what_waits_and_what_could_be_retried() {
     s.close_library().unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A store whose files can't be read: the library in it can't be opened.
+struct Unreadable;
+
+impl lightcraft_catalog::Store for Unreadable {
+    fn read(&mut self, _: &str) -> std::io::Result<Option<Vec<u8>>> {
+        Err(std::io::Error::other("the disk went away"))
+    }
+    fn write_atomic(&mut self, _: &str, _: &[u8]) -> std::io::Result<()> {
+        Err(std::io::Error::other("the disk went away"))
+    }
+    fn append(&mut self, _: &str, _: &[u8]) -> std::io::Result<()> {
+        Err(std::io::Error::other("the disk went away"))
+    }
+    fn truncate(&mut self, _: &str, _: u64) -> std::io::Result<()> {
+        Err(std::io::Error::other("the disk went away"))
+    }
+    fn describe(&self) -> String {
+        "unreadable".into()
+    }
+}
+
+/// Given a build waiting and a failed one that could be retried, when another library fails to open, then the library
+/// stays as it was, and so do the line and the retry: nothing of them was about the library that did not open.
+#[test]
+fn a_library_that_fails_to_open_leaves_the_line_and_the_retries_alone() {
+    let mut s = Session::with_demo();
+    let ids: Vec<u64> = s.catalog.photos().take(1).map(|p| p.id.0).collect();
+    let h = hold(&mut s);
+    let g = s.activity.start("previews", "Building previews", Cancel::Yes);
+    g.set_request(Request { command: "library.buildPreviews".into(), params: json!({"size": "huge"}) });
+    let failed = g.id();
+    g.finish(crate::activity::Outcome::failed("no"));
+    s.execute("library.buildPreviews", &json!({"ids": ids, "edge": 256, "queue": true})).unwrap();
+    let generation = s.library_generation();
+    let stores = crate::library::LibraryStores {
+        dir: PathBuf::from("unreadable"),
+        catalog: Box::new(Unreadable),
+        files: Box::new(Unreadable),
+        on_disk: false,
+    };
+    assert!(s.open_library_in(stores, false).is_err());
+    assert_eq!(s.library_generation(), generation, "the old library is still the one open");
+    assert_eq!(s.activity.waiting().len(), 1, "the line is kept");
+    let row = s.activity.finished().into_iter().find(|f| f.id == failed).expect("the row stays");
+    assert!(row.retryable, "and the row can still be retried");
+    release(h);
+}
