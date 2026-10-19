@@ -572,9 +572,14 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(json!({"on": app.ui.settings.zoom_to_focus}))
         }
         "view.reduceMotion" => {
-            // {on?}; no params toggles. Zoom and spinner animations stop; fades stay.
-            app.ui.settings.reduce_motion = p.get("on").and_then(Value::as_bool).unwrap_or(!app.ui.settings.reduce_motion);
-            Ok(json!({"on": app.ui.settings.reduce_motion}))
+            // {on?} sets it; {follow: true} goes back to the system's Reduce Motion; no params toggles
+            // what is in effect. Zoom and spinner animations stop; fades stay.
+            app.ui.settings.reduce_motion = if p.get("follow").and_then(Value::as_bool) == Some(true) {
+                None
+            } else {
+                Some(p.get("on").and_then(Value::as_bool).unwrap_or(!app.reduce_motion()))
+            };
+            Ok(json!({"on": app.reduce_motion(), "followsSystem": app.ui.settings.reduce_motion.is_none()}))
         }
         "view.faceBoxes" => {
             app.ui.face_boxes = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.face_boxes);

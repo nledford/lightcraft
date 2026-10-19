@@ -464,8 +464,9 @@ pub struct AppSettings {
     #[serde(deserialize_with = "lenient")]
     pub loupe_info: LoupeInfo,
     /// Settings ▸ Interface ▸ Reduce motion: things that move or turn stand still; fades stay
-    /// (`view.reduceMotion`; see [`crate::motion`]).
-    pub reduce_motion: bool,
+    /// (`view.reduceMotion`; see [`crate::motion`]). `None`: follow the system's Reduce Motion until
+    /// the user chooses.
+    pub reduce_motion: Option<bool>,
 }
 
 impl Default for AppSettings {
@@ -496,7 +497,7 @@ impl Default for AppSettings {
             focus_point: false,
             zoom_to_focus: true,
             loupe_info: LoupeInfo::default(),
-            reduce_motion: false,
+            reduce_motion: None,
         }
     }
 }
