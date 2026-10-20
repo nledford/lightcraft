@@ -189,7 +189,10 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
             // screen readers hear the count too, as the label used to carry it
             let name = format!("{} ({n})", crate::i18n::tr(text));
             let r = Check::new(&format!("sync.{widget}"), on, text).accessible_name(&name).enabled(n > 0).show(ui);
-            ui.label(egui::RichText::new(format!("({n})")).color(t.text_dim));
+            // painted, not a Label: a Label adds its own accessibility node and the count would be heard twice
+            let galley = ui.painter().layout_no_wrap(format!("({n})"), t.font(13.0), t.text_dim);
+            let (rect, _) = ui.allocate_exact_size(galley.size(), egui::Sense::hover());
+            ui.painter().galley(rect.min, galley, t.text_dim);
             crate::widgets::register(ui, widget, r.rect);
         });
     };

@@ -26,7 +26,7 @@ impl Rig {
         Rig { ctx }
     }
 
-    /// One frame with `events`; returns what `draw` made and the AccessKit nodes' (role, name, toggled).
+    /// One frame with `events`; returns what `draw` made and the AccessKit nodes' (role, name, toggled); a Label's text is its value, reported as the name.
     fn frame<T>(&self, events: Vec<egui::Event>, draw: impl FnOnce(&mut egui::Ui) -> T) -> (T, Vec<(String, String, Option<String>)>) {
         let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), events, ..Default::default() };
         let mut out_val = None;
@@ -40,7 +40,13 @@ impl Rig {
             .map(|u| {
                 u.nodes
                     .iter()
-                    .map(|(_, n)| (format!("{:?}", n.role()), n.label().unwrap_or_default().to_string(), n.toggled().map(|t| format!("{t:?}"))))
+                    .map(|(_, n)| {
+                        (
+                            format!("{:?}", n.role()),
+                            n.label().or_else(|| n.value()).unwrap_or_default().to_string(),
+                            n.toggled().map(|t| format!("{t:?}")),
+                        )
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -307,4 +313,6 @@ fn the_synchronize_choices_announce_their_count() {
         l
     };
     assert!(names.contains(&format!("{label} (7)").as_str()), "label and count are announced together: {names:?}");
+    let separate: Vec<_> = nodes.iter().filter(|n| n.1 == "(7)").collect();
+    assert!(separate.is_empty(), "the count is not announced a second time on its own: {separate:?}");
 }
