@@ -911,9 +911,11 @@ pub fn text_button(ui: &mut Ui, id: &str, label: &str, active: bool) -> Response
 
 /// [`text_button`] in a box `width` wide, for a grid of them or a button of a fixed width: its text
 /// is cut short with … when it does not fit. `label` is drawn as given (the caller translates it;
-/// it may be a name the user chose). Addressable as `button:{id}`.
-pub fn text_button_sized(ui: &mut Ui, id: &str, label: &str, active: bool, width: f32, height: f32) -> Response {
+/// it may be a name the user chose); `ink` is its colour (`None`: the text colour; the dimmed one
+/// suits a label that stands for an empty value). Addressable as `button:{id}`.
+pub fn text_button_sized(ui: &mut Ui, id: &str, label: &str, active: bool, width: f32, height: f32, ink: Option<Color32>) -> Response {
     let t = Tokens::get(ui.ctx());
+    let ink = ink.unwrap_or(t.text);
     let (r, resp) = ui.allocate_exact_size(vec2(width, height), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, active, label));
     register(ui, format!("button:{id}"), r);
@@ -926,8 +928,8 @@ pub fn text_button_sized(ui: &mut Ui, id: &str, label: &str, active: bool, width
     };
     let p = ui.painter_at(r);
     p.rect(r, CornerRadius::same(4), fill, Stroke::new(1.0, t.button_border), StrokeKind::Inside);
-    let galley = one_line(&p, label, t.semibold(11.5), t.text, r.width() - 12.0);
-    p.galley(r.center() - galley.size() / 2.0, galley, t.text);
+    let galley = one_line(&p, label, t.semibold(11.5), ink, r.width() - 12.0);
+    p.galley(r.center() - galley.size() / 2.0, galley, ink);
     resp
 }
 

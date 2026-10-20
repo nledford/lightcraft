@@ -100,15 +100,16 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, b: &Bindable, sc:
     };
     ui.label(name).on_hover_text(hover);
     let recording = app.recording_shortcut.as_deref() == Some(b.id);
-    let text = if recording {
-        RichText::new(crate::i18n::tr("Press keys…")).color(egui::Color32::WHITE)
+    // an unset shortcut shows a dimmed dash
+    let (text, ink) = if recording {
+        (crate::i18n::tr("Press keys…").to_string(), None)
     } else {
         match sc {
-            Some(sc) => RichText::new(menu_text(sc, mac)).color(t.text),
-            None => RichText::new("—").color(t.text_dim),
+            Some(sc) => (menu_text(sc, mac), None),
+            None => ("—".to_string(), Some(t.text_dim)),
         }
     };
-    let r = crate::widgets::text_button_sized(ui, &format!("shortcut-{}", b.id), text.text(), recording, 110.0, 24.0);
+    let r = crate::widgets::text_button_sized(ui, &format!("shortcut-{}", b.id), &text, recording, 110.0, 24.0, ink);
     if r.clicked() {
         app.recording_shortcut = if recording { None } else { Some(b.id.to_string()) };
     }
