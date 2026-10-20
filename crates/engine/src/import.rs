@@ -33,7 +33,7 @@ use crate::Session;
 use crate::media::ProbeInfo;
 
 mod reads;
-pub use reads::{MAX_SKIPPED, ReadWatch, STALL_AFTER, StalledRead};
+pub use reads::{MAX_SKIPPED, MAX_STUCK_READERS, ReadWatch, STALL_AFTER, StalledRead, StuckReaders};
 pub(crate) use reads::{abandon_flag, progressed};
 
 /// File extensions LightCraft imports (lower case).
@@ -698,9 +698,10 @@ pub struct ScanProgress {
 }
 
 impl ScanProgress {
-    /// Progress of a scan whose probes count as stalled after `stall_after` ([`Session::import_stall_after`]).
-    pub fn new(stall_after: std::time::Duration) -> Self {
-        ScanProgress { reads: std::sync::Arc::new(ReadWatch::new(stall_after)), ..Default::default() }
+    /// Progress of a scan whose probes count as stalled after `stall_after` ([`Session::import_stall_after`]) and
+    /// whose abandoned reads are counted in `stuck` ([`Session::stuck_readers`]).
+    pub fn new(stall_after: std::time::Duration, stuck: std::sync::Arc<StuckReaders>) -> Self {
+        ScanProgress { reads: std::sync::Arc::new(ReadWatch::with_stuck(stall_after, stuck)), ..Default::default() }
     }
 }
 
@@ -1031,7 +1032,7 @@ impl ImportJob {
             done: Default::default(),
             read_total: Default::default(),
             read_done: Default::default(),
-            reads: std::sync::Arc::new(ReadWatch::new(s.import_stall_after)),
+            reads: std::sync::Arc::new(ReadWatch::with_stuck(s.import_stall_after, s.stuck_readers.clone())),
         })
     }
 

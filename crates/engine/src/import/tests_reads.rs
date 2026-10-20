@@ -32,6 +32,12 @@ impl Gate {
 /// for it with a deadline of seconds ([`until`]).
 pub(crate) const STALL: Duration = Duration::from_millis(400);
 
+/// A count of abandoned readers of its own, so that tests running in parallel in one process cannot fill each other's
+/// ([`Session::stuck_readers`]).
+pub(crate) fn own_stuck() -> Arc<reads::StuckReaders> {
+    Arc::new(reads::StuckReaders::new(reads::MAX_STUCK_READERS))
+}
+
 /// Wait (at most 10 s) until `ok`.
 pub(crate) fn until(what: &str, mut ok: impl FnMut() -> bool) {
     let started = Instant::now();
@@ -45,6 +51,7 @@ pub(crate) fn until(what: &str, mut ok: impl FnMut() -> bool) {
 /// `probe`.
 fn job(probe: impl Fn(&str) -> Result<ProbeInfo, String> + Send + Sync + 'static) -> ImportJob {
     let mut s = Session::new();
+    s.stuck_readers = own_stuck();
     let mut job = ImportJob::new(&mut s, ImportOptions { mode: ImportMode::Add, ..ImportOptions::default() }).unwrap();
     job.reads.set_stall_after(STALL);
     job.reads.set_poll(Duration::from_millis(5));
@@ -179,7 +186,7 @@ fn a_slow_read_that_keeps_progressing_is_never_reported() {
 /// Then only the one the row names (the longer without progress) is given up; the other is named next.
 #[test]
 fn skip_gives_up_only_the_read_that_is_named() {
-    let watch = Arc::new(ReadWatch::new(STALL));
+    let watch = Arc::new(ReadWatch::with_stuck(STALL, own_stuck()));
     watch.set_poll(Duration::from_millis(5));
     let gate = Gate::default();
     let cancel = Arc::new(AtomicBool::new(false));
@@ -258,7 +265,7 @@ fn the_fourth_skipped_read_ends_the_import_with_an_error() {
 /// Then its answer is handed to the late handler and nothing else: the file stays failed.
 #[test]
 fn a_late_answer_from_a_given_up_read_is_ignored_while_the_run_goes_on() {
-    let watch = ReadWatch::new(STALL);
+    let watch = ReadWatch::with_stuck(STALL, own_stuck());
     watch.set_poll(Duration::from_millis(5));
     let cancel = AtomicBool::new(false);
     let (gate, late_flag) = (Gate::default(), Gate::default());
@@ -315,7 +322,7 @@ fn a_review_scan_names_a_stalled_file_and_lists_it_as_unreadable_once_skipped() 
     // (the probe's hang is keyed on the `lc-reads-` prefix the other tests give their files)
     s.media.file_probe = Some(Arc::new(move |p: &str| probe(&format!("lc-reads-{}", shown(p)))));
     let (input, paths) = ScanInput::new(&mut s, &[dir.to_string_lossy().to_string()]);
-    let progress = Arc::new(ScanProgress::new(STALL));
+    let progress = Arc::new(ScanProgress::new(STALL, own_stuck()));
     progress.reads.set_poll(Duration::from_millis(5));
     let p = progress.clone();
     let worker = std::thread::spawn(move || scan_with(input, &paths, &p));
@@ -442,7 +449,7 @@ fn a_skipped_move_keeps_the_source_and_leaves_nothing_at_the_destination() {
 fn a_read_queued_at_the_memory_gate_is_never_reported() {
     let gate = Arc::new(crate::memory::WorkGate::new(100).with_heartbeat(Duration::from_millis(20)));
     // (the gate says every 20 ms that a wait goes on: fifty times in the stall time)
-    let watch = ReadWatch::new(Duration::from_secs(1));
+    let watch = ReadWatch::with_stuck(Duration::from_secs(1), own_stuck());
     watch.set_poll(Duration::from_millis(5));
     let cancel = AtomicBool::new(false);
     // held by work that is not a pool's (an interactive render, say)
@@ -477,7 +484,7 @@ fn a_read_queued_at_the_memory_gate_is_never_reported() {
 fn reads_blocked_only_by_an_abandoned_holder_are_named_and_the_cap_ends_the_run() {
     let gate = Arc::new(crate::memory::WorkGate::new(100).with_heartbeat(Duration::from_millis(20)));
     let (drive, release) = (Gate::default(), Gate::default());
-    let watch = ReadWatch::new(Duration::from_millis(600));
+    let watch = ReadWatch::with_stuck(Duration::from_millis(600), own_stuck());
     // (thirty times the gate's heartbeat: were a wait for abandoned memory counted as progress, the clock would be
     // reset before it could run out)
     watch.set_poll(Duration::from_millis(5));
@@ -550,41 +557,44 @@ fn cancel_and_restart_cannot_pile_up_blocked_readers() {
             job
         })
     };
-    let attempt = |jobs: u32| {
+    // one run of `jobs` reads; with `cancel_after_starts`, ✕ is pressed once that many readers are blocked inside
+    // `work` (no timing guess: it waits for them)
+    let attempt = |jobs: u32, cancel_after_starts: Option<usize>| {
         let watch = ReadWatch::with_stuck(STALL, stuck.clone());
         watch.set_poll(Duration::from_millis(5));
         let cancel = AtomicBool::new(false);
         let before = *entered.lock().unwrap();
         let outcomes = std::thread::scope(|sc| {
-            sc.spawn(|| {
-                // ✕ once the readers are blocked (or at once, when none could start)
-                let started = Instant::now();
-                while *entered.lock().unwrap() < before + (jobs as usize).min(THREADS) && started.elapsed() < Duration::from_millis(300) {
-                    std::thread::sleep(Duration::from_millis(2));
-                }
-                cancel.store(true, Relaxed);
-            });
+            if let Some(n) = cancel_after_starts {
+                let (cancel, entered) = (&cancel, &entered);
+                sc.spawn(move || {
+                    until("the readers to start", || *entered.lock().unwrap() >= before + n);
+                    cancel.store(true, Relaxed);
+                });
+            }
             let pool = reads::Pool { watch: &watch, cancel: &cancel, name: "test-read", threads: THREADS };
             pool.run((0..jobs).collect(), &|i| format!("job-{i}"), work.clone(), Arc::new(|_| {}), Arc::new(|| {}), &|_| {})
         });
         (watch, outcomes, *entered.lock().unwrap() - before)
     };
     for run in 0..6 {
-        let (watch, outcomes, started) = attempt(5);
-        if run < CAP / THREADS {
-            assert_eq!(started, THREADS, "run {run} starts its readers");
-            assert!(watch.ended().is_none());
-        } else {
+        let capped = run >= CAP / THREADS;
+        let (watch, outcomes, started) = attempt(5, (!capped).then_some(THREADS));
+        if capped {
             assert_eq!(started, 0, "run {run} finds the cap reached and starts nothing");
             assert!(watch.ended().is_some_and(|why| why.contains("not answering")), "{:?}", watch.ended());
             assert!(outcomes.iter().all(|o| matches!(o, reads::Outcome::Unreached)));
+            assert_eq!(stuck.alive(), CAP, "and adds nothing to what is blocked");
+        } else {
+            assert_eq!(started, THREADS, "run {run} starts its readers");
+            assert!(watch.ended().is_none());
+            assert_eq!(stuck.alive(), THREADS * (run + 1), "every reader the cancelled run left blocked is counted");
         }
-        assert!(stuck.alive() <= CAP);
     }
     assert!(inside.lock().unwrap().1 <= CAP, "never more readers blocked at once than the cap");
     gate.open();
     until("the blocked readers to exit", || stuck.alive() == 0);
-    let (watch, outcomes, _) = attempt(2);
+    let (watch, outcomes, _) = attempt(2, None);
     assert!(watch.ended().is_none());
     assert!(outcomes.iter().all(|o| matches!(o, reads::Outcome::Done(_))), "{outcomes:?}");
 }

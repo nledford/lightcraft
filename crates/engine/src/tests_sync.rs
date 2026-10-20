@@ -706,7 +706,7 @@ fn a_probe_that_stops_answering_is_named_and_skipping_it_lists_the_file_as_unrea
         real(p)
     }));
     let input = crate::sync::SyncInput::new(&mut s, &dir.path("trip"), false).unwrap();
-    let progress = std::sync::Arc::new(crate::sync::SyncProgress::new(crate::import::tests_reads::STALL));
+    let progress = std::sync::Arc::new(crate::sync::SyncProgress::new(crate::import::tests_reads::STALL, crate::import::tests_reads::own_stuck()));
     progress.files.reads.set_poll(Duration::from_millis(5));
     let p = progress.clone();
     let worker = std::thread::spawn(move || crate::sync::scan_with(input, &p));
@@ -755,7 +755,7 @@ fn hanging_checks(dir: &Scratch, n: usize) -> (Session, crate::import::tests_rea
 fn scan_skipping(s: &mut Session, dir: &Scratch) -> crate::sync::FolderChanges {
     use crate::import::tests_reads::until;
     let input = crate::sync::SyncInput::new(s, &dir.path("trip"), false).unwrap();
-    let progress = std::sync::Arc::new(crate::sync::SyncProgress::new(crate::import::tests_reads::STALL));
+    let progress = std::sync::Arc::new(crate::sync::SyncProgress::new(crate::import::tests_reads::STALL, crate::import::tests_reads::own_stuck()));
     progress.files.reads.set_poll(Duration::from_millis(5));
     let p = progress.clone();
     let worker = std::thread::spawn(move || crate::sync::scan_with(input, &p));
@@ -830,7 +830,7 @@ fn a_synchronize_run_stops_at_the_cap_and_does_nothing_after() {
     }));
     let choice = SyncChoice { remove_missing: true, read_metadata: true, ..SyncChoice::default() };
     let (work, mut commit) = SyncJob::start(&mut s, changes, choice).unwrap();
-    let progress = std::sync::Arc::new(SyncProgress::new(crate::import::tests_reads::STALL));
+    let progress = std::sync::Arc::new(SyncProgress::new(crate::import::tests_reads::STALL, crate::import::tests_reads::own_stuck()));
     progress.files.reads.set_poll(Duration::from_millis(5));
     let (tx, rx) = std::sync::mpsc::channel();
     let p = progress.clone();
@@ -870,7 +870,7 @@ fn a_run_made_from_a_stopped_scan_does_nothing_but_say_so() {
     assert!(changes.missing.iter().any(|m| m.path.ends_with("b.png")), "{:?}", changes.missing);
     let choice = SyncChoice { remove_missing: true, read_metadata: true, ..SyncChoice::default() };
     let (work, mut commit) = SyncJob::start(&mut s, changes, choice).unwrap();
-    let progress = SyncProgress::new(crate::import::tests_reads::STALL);
+    let progress = SyncProgress::new(crate::import::tests_reads::STALL, crate::import::tests_reads::own_stuck());
     let mut steps = Vec::new();
     work.run(&progress, |step| {
         steps.push(step);

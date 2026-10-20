@@ -353,6 +353,7 @@ fn skip_on_the_folders_scan_row_lists_the_file_as_unreadable() {
     let dir = Scratch::new("scanstall");
     let mut h = changed_folder(&dir);
     h.app.session.import_stall_after = Duration::from_millis(500);
+    h.app.session.stuck_readers = std::sync::Arc::new(lightcraft_engine::import::StuckReaders::new(lightcraft_engine::import::MAX_STUCK_READERS));
     let gate = Gate::default();
     let in_probe = gate.clone();
     let real = h.app.session.media.file_probe.clone().expect("the files' probe");
@@ -385,6 +386,7 @@ fn a_folders_scan_that_stops_at_the_cap_says_so() {
     let dir = Scratch::new("scancap");
     let mut h = changed_folder(&dir);
     h.app.session.import_stall_after = Duration::from_millis(500);
+    h.app.session.stuck_readers = std::sync::Arc::new(lightcraft_engine::import::StuckReaders::new(lightcraft_engine::import::MAX_STUCK_READERS));
     let gate = Gate::default();
     let in_probe = gate.clone();
     let real = h.app.session.media.file_probe.clone().expect("the files' probe");

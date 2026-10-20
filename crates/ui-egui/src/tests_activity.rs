@@ -547,6 +547,8 @@ fn hanging(tag: &str, hangs: &[&str]) -> (Headless, std::path::PathBuf, Gate) {
     let gate = Gate::default();
     let mut s = lightcraft_engine::Session::new();
     s.import_stall_after = Duration::from_millis(500);
+    // (its own count of blocked readers: tests share the process)
+    s.stuck_readers = std::sync::Arc::new(lightcraft_engine::import::StuckReaders::new(lightcraft_engine::import::MAX_STUCK_READERS));
     let in_probe = gate.clone();
     s.media.file_probe = Some(std::sync::Arc::new(move |p: &str| {
         if p.contains("IMG_hang") {

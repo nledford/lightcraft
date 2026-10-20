@@ -62,9 +62,10 @@ pub struct SyncProgress {
 }
 
 impl SyncProgress {
-    /// Progress of a scan or run whose reads count as stalled after `stall_after` ([`Session::import_stall_after`]).
-    pub fn new(stall_after: std::time::Duration) -> Self {
-        SyncProgress { files: ScanProgress::new(stall_after), ..Default::default() }
+    /// Progress of a scan or run whose reads count as stalled after `stall_after` ([`Session::import_stall_after`])
+    /// and whose abandoned reads are counted in `stuck` ([`Session::stuck_readers`]).
+    pub fn new(stall_after: std::time::Duration, stuck: std::sync::Arc<crate::import::StuckReaders>) -> Self {
+        SyncProgress { files: ScanProgress::new(stall_after, stuck), ..Default::default() }
     }
 
     /// (done, of how many), both halves together.

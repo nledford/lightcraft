@@ -28,7 +28,7 @@ pub struct SyncTask {
 pub fn open(app: &mut LightcraftApp, path: &str, name: &str, disk: bool) -> Result<(), String> {
     cancel(app);
     let input = SyncInput::new(&mut app.session, path, disk).map_err(|e| e.to_string())?;
-    let progress = Arc::new(SyncProgress::new(app.session.import_stall_after));
+    let progress = Arc::new(SyncProgress::new(app.session.import_stall_after, app.session.stuck_readers.clone()));
     let (tx, rx) = std::sync::mpsc::channel();
     let p = progress.clone();
     let job = move || {
@@ -232,7 +232,7 @@ pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
             return Err(e);
         }
     };
-    let progress = Arc::new(SyncProgress::new(app.session.import_stall_after));
+    let progress = Arc::new(SyncProgress::new(app.session.import_stall_after, app.session.stuck_readers.clone()));
     let crashed = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (tx, rx) = std::sync::mpsc::channel();
     let (p, c) = (progress.clone(), crashed.clone());

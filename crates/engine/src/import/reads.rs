@@ -20,9 +20,11 @@
 //!   instead of leaving yet another thread blocked.
 //!
 //! - **Earlier runs:** an abandoned read stays blocked after its run is over, and the next run builds a new pool. The
-//!   abandoned threads still alive are counted across runs ([`StuckReaders`], [`MAX_STUCK_READERS`]); while that many
-//!   are blocked, a run is not started and ends with the same "drive is not answering" error, so repeated
-//!   cancel and restart cannot pile up blocked threads.
+//!   abandoned threads still alive are counted across runs ([`StuckReaders`], [`MAX_STUCK_READERS`]), whichever drive
+//!   they wait on; once that many are blocked, a run is not started (and a Skip starts no replacement reader) and the
+//!   run ends with an error saying so, so repeated cancel and restart cannot pile up blocked threads. The count is
+//!   looked at when a run starts and after each Skip; ✕ can still abandon the readers of the runs under way (at most
+//!   [`crate::import::workers`] each) on top, so the bound is the cap plus that.
 //!
 //! Several pools can run at once under one [`ReadWatch`] (Synchronize Folder probes the new files while it checks
 //! the library's photos): the watch names the longest stall of all, and Skip acts on the pool that has it.
@@ -39,8 +41,9 @@ use web_time::Instant;
 pub const STALL_AFTER: Duration = Duration::from_secs(10);
 /// The skipped reads that end a run with an error: each leaves a thread blocked until the system lets it go.
 pub const MAX_SKIPPED: usize = 4;
-/// The abandoned reads that may be still blocked at once, over all runs of the process: four runs' worth of
-/// [`MAX_SKIPPED`]. A further run is refused until the system lets some go.
+/// The abandoned reads that keep a new run from starting, over all runs of the process (eight runs' worth of
+/// [`MAX_SKIPPED`]). It is looked at when a run starts and after a Skip, and ✕ can abandon the readers of the runs
+/// under way on top: the blocked threads stay bounded by this plus a few runs' readers, not unbounded.
 pub const MAX_STUCK_READERS: usize = 32;
 /// How often the coordinating thread looks at ✕, Skip and the readers.
 const POLL: Duration = Duration::from_millis(250);
@@ -64,8 +67,7 @@ impl StuckReaders {
         StuckReaders { alive: AtomicUsize::new(0), cap }
     }
 
-    /// The process-wide count, which every run uses (tests count per watch: they run in parallel in one process).
-    #[cfg(not(test))]
+    /// The process-wide count: a session starts with it ([`crate::Session::stuck_readers`]).
     pub fn global() -> std::sync::Arc<StuckReaders> {
         static GLOBAL: std::sync::OnceLock<std::sync::Arc<StuckReaders>> = std::sync::OnceLock::new();
         GLOBAL.get_or_init(|| std::sync::Arc::new(StuckReaders::new(MAX_STUCK_READERS))).clone()
@@ -116,11 +118,7 @@ impl Default for ReadWatch {
             skip: Mutex::new(None),
             skipped: AtomicUsize::new(0),
             ended: Mutex::new(None),
-            // (tests run in parallel in one process: each watch counts its own unless a test shares one)
-            #[cfg(not(test))]
             stuck: StuckReaders::global(),
-            #[cfg(test)]
-            stuck: std::sync::Arc::new(StuckReaders::new(MAX_STUCK_READERS)),
         }
     }
 }
@@ -130,9 +128,8 @@ fn millis(d: Duration) -> u64 {
 }
 
 impl ReadWatch {
-    /// A watch whose runs count their abandoned readers in `stuck` instead of the process-wide count.
-    #[cfg(test)]
-    pub(crate) fn with_stuck(after: Duration, stuck: std::sync::Arc<StuckReaders>) -> Self {
+    /// A watch whose runs count their abandoned readers in `stuck` ([`crate::Session::stuck_readers`]).
+    pub fn with_stuck(after: Duration, stuck: std::sync::Arc<StuckReaders>) -> Self {
         ReadWatch { stuck, ..ReadWatch::new(after) }
     }
 
@@ -214,7 +211,10 @@ impl ReadWatch {
     }
 
     fn blocked_elsewhere(&self) -> String {
-        format!("the drive is not answering ({} reads of earlier runs are still blocked)", self.stuck.alive())
+        format!(
+            "a drive is not answering: {} reads that were given up are still waiting for it (try again later, or restart LightCraft)",
+            self.stuck.alive()
+        )
     }
 
     fn end(&self, why: String) {
@@ -357,10 +357,15 @@ fn worker_loop<J: Send + 'static, R: Send + 'static>(me: std::sync::Arc<Worker>,
         // not hold it)
         let next = lock(&shared.jobs).recv();
         let Ok((i, job)) = next else { return };
-        if shared.over.load(Ordering::SeqCst) || me.abandoned.load(Ordering::SeqCst) {
-            return;
+        // (checked and claimed under one lock: the end-of-run sweep sets `over` first, so it either sees this job and
+        // abandons the thread, or the thread sees `over` and never starts it)
+        {
+            let mut busy = lock(&me.busy);
+            if shared.over.load(Ordering::SeqCst) || me.abandoned.load(Ordering::SeqCst) {
+                return;
+            }
+            *busy = Some((i, Instant::now()));
         }
-        *lock(&me.busy) = Some((i, Instant::now()));
         let result = crate::guard::catch("import", || (shared.work)(job));
         // decided under the lock the coordinator abandons under, so that it never abandons the next job by mistake
         let abandoned = {

@@ -7,6 +7,7 @@
 - Skip gives up that one file: an import lists it as not readable ("skipped: no answer after 14 s"), the review and Synchronize Folder list it as unreadable, and the work goes on with the next files. When several files wait, Skip takes the one that is named, then the next is named.
 - ✕ now ends an import within about a second while files are being read or copied, however long a read has been waiting; a copy that was under way is taken back. While folders are being listed, ✕ still waits for the listing.
 - After four skipped files the import or scan stops with an error that the drive is not answering. Agents use `activity.skip {id}`; `activity.list` shows `stalled` for the task.
+- While 32 or more given-up reads are still blocked on a drive that stopped answering, a new import or scan ends at once with an error saying so, even from another drive: try again later, or restart LightCraft.
 
 ## 2026-10-14
 

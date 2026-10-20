@@ -1330,6 +1330,7 @@
   "Skip gives up that one file: an import lists it as not readable (\"skipped: no answer after 14 s\"), the review and Synchronize Folder list it as unreadable, and the work goes on with the next files. When several files wait, Skip takes the one that is named, then the next is named.": "「スキップ」はそのファイル1つをあきらめます。読み込みでは読み込み不可として記録し（「スキップ: 14 秒後も応答なし」）、確認画面とフォルダーの同期では読み込めないファイルとして一覧に載せ、処理は次のファイルに進みます。複数のファイルが待っているときは、表示されているものが対象で、次に次のファイルが表示されます。",
   "✕ now ends an import within about a second while files are being read or copied, however long a read has been waiting; a copy that was under way is taken back. While folders are being listed, ✕ still waits for the listing.": "ファイルの読み取りやコピー中は、読み取りがどれだけ待たされていても、× は約1秒で読み込みを終了するようになりました。実行中のコピーは取り消されます。フォルダーの一覧取得中は、× は引き続き一覧の完了を待ちます。",
   "After four skipped files the import or scan stops with an error that the drive is not answering. Agents use `activity.skip {id}`; `activity.list` shows `stalled` for the task.": "4つのファイルをスキップすると、ドライブが応答しないというエラーで読み込みまたはスキャンが止まります。エージェントは `activity.skip {id}` を使い、`activity.list` はそのタスクに `stalled` を表示します。",
+  "While 32 or more given-up reads are still blocked on a drive that stopped answering, a new import or scan ends at once with an error saying so, even from another drive: try again later, or restart LightCraft.": "応答しなくなったドライブで、あきらめた読み取りが32件以上まだ止まっている間は、別のドライブからでも、新しい読み込みやスキャンはその旨のエラーですぐに終了します。しばらくしてからやり直すか、LightCraft を再起動してください。",
   "Give up on this file and go on": "このファイルをあきらめて続ける",
   "Sky": "空",
   "Slideshow": "スライドショー",

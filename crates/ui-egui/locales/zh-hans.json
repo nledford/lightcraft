@@ -1393,6 +1393,7 @@
   "Skip gives up that one file: an import lists it as not readable (\"skipped: no answer after 14 s\"), the review and Synchronize Folder list it as unreadable, and the work goes on with the next files. When several files wait, Skip takes the one that is named, then the next is named.": "“跳过”只放弃那一个文件：导入把它记为无法读取（“已跳过：14 秒后仍无响应”），审阅和同步文件夹把它列为无法读取，工作继续处理后面的文件。多个文件在等待时，“跳过”处理被点名的那个，随后会点名下一个。",
   "✕ now ends an import within about a second while files are being read or copied, however long a read has been waiting; a copy that was under way is taken back. While folders are being listed, ✕ still waits for the listing.": "现在只要文件正在读取或复制，无论读取已等待多久，× 都会在约一秒内结束导入；正在进行的复制会被撤回。列出文件夹内容时，× 仍要等列表完成。",
   "After four skipped files the import or scan stops with an error that the drive is not answering. Agents use `activity.skip {id}`; `activity.list` shows `stalled` for the task.": "跳过四个文件后，导入或扫描会因驱动器无响应而报错停止。代理使用 `activity.skip {id}`；`activity.list` 会为该任务显示 `stalled`。",
+  "While 32 or more given-up reads are still blocked on a drive that stopped answering, a new import or scan ends at once with an error saying so, even from another drive: try again later, or restart LightCraft.": "当 32 个或更多已放弃的读取仍卡在已无响应的驱动器上时，新的导入或扫描会立即报错停止，即使来自另一个驱动器：请稍后再试，或重新启动 LightCraft。",
   "Give up on this file and go on": "放弃此文件并继续",
   "Sky": "天空",
   "Slideshow": "幻灯片播放",

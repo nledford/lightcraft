@@ -481,7 +481,7 @@ pub fn open(app: &mut LightcraftApp, paths: Vec<String>) -> Result<Value, String
     }
     let sources = paths.clone();
     let (input, paths) = ScanInput::new(&mut app.session, &paths);
-    let progress = std::sync::Arc::new(ScanProgress::new(app.session.import_stall_after));
+    let progress = std::sync::Arc::new(ScanProgress::new(app.session.import_stall_after, app.session.stuck_readers.clone()));
     let (tx, rx) = std::sync::mpsc::channel();
     let p = progress.clone();
     let job = move || {
@@ -526,7 +526,7 @@ pub fn browse(app: &mut LightcraftApp, path: &str, subfolders: Option<bool>) -> 
     // the photos the library already knows from this folder show at once: keep or pick the active one
     app.session.keep_active_in_view();
     let (input, _) = ScanInput::new(&mut app.session, std::slice::from_ref(&dir_s));
-    let progress = std::sync::Arc::new(ScanProgress::new(app.session.import_stall_after));
+    let progress = std::sync::Arc::new(ScanProgress::new(app.session.import_stall_after, app.session.stuck_readers.clone()));
     let (tx, rx) = std::sync::mpsc::channel();
     let p = progress.clone();
     let root = dir_s.clone();

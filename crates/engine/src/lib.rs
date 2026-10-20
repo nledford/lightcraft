@@ -348,6 +348,10 @@ pub struct Session {
     /// offers Skip ([`import::STALL_AFTER`]). For tests, which cannot wait 10 s: nothing else sets it.
     #[doc(hidden)]
     pub import_stall_after: std::time::Duration,
+    /// The reads of imports and scans that were given up and are still blocked in the system, counted over all runs
+    /// ([`import::StuckReaders`]); a session starts with the process-wide count, a test may give its own.
+    #[doc(hidden)]
+    pub stuck_readers: std::sync::Arc<import::StuckReaders>,
     /// The last Synchronize Folder scan, which `folder.synchronize` acts on while it is current
     /// (see [`Session::take_folder_changes`]).
     pub folder_changes: Option<sync::FolderChanges>,
@@ -489,6 +493,7 @@ impl Session {
             before: Default::default(),
             import_probes: Default::default(),
             import_stall_after: import::STALL_AFTER,
+            stuck_readers: import::StuckReaders::global(),
             folder_changes: None,
             activity: Default::default(),
             preview_build: None,
