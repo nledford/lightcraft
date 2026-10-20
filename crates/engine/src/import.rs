@@ -486,7 +486,7 @@ pub fn launch_path(arg: &str, cwd: Option<&Path>, home: Option<&Path>, dcim: imp
 
 /// Probe files (headers + content hash) as an import would.
 pub(crate) fn probe_paths(s: &Session, paths: &[String]) -> Vec<Result<ProbeInfo, String>> {
-    let progress = ScanProgress::default();
+    let progress = ScanProgress::new(s.import_stall_after, s.stuck_readers.clone());
     probe_all(s.media.file_probe.as_ref(), paths, &progress)
 }
 
@@ -752,8 +752,9 @@ impl ScanInput {
 /// against the library and earlier candidates). Nothing is added; the probes are kept for the
 /// import that follows.
 pub fn scan(s: &mut Session, paths: &[String]) -> Vec<ImportCandidate> {
+    let progress = ScanProgress::new(s.import_stall_after, s.stuck_readers.clone());
     let (input, paths) = ScanInput::new(s, paths);
-    let out = scan_with(input, &paths, &ScanProgress::default());
+    let out = scan_with(input, &paths, &progress);
     s.import_probes = out.probes;
     out.candidates
 }

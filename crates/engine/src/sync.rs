@@ -581,8 +581,9 @@ fn check_photos(photos: &[(Arc<Photo>, SidecarNaming)], labels: &Arc<Catalog>, l
 
 /// [`scan_with`] on the calling thread.
 pub fn scan(s: &mut Session, path: &str, disk: bool) -> Result<FolderChanges> {
+    let progress = SyncProgress::new(s.import_stall_after, s.stuck_readers.clone());
     let input = SyncInput::new(s, path, disk)?;
-    let changes = scan_with(input, &SyncProgress::default());
+    let changes = scan_with(input, &progress);
     if changes.offline {
         return Err(not_there(&changes.path));
     }
@@ -646,9 +647,10 @@ fn sidecar_has_news(labels: &Catalog, p: &Photo, naming: SidecarNaming, listing:
 /// whose file is back by now is left alone. Once the import is in, a part that fails is
 /// reported in `failed` and the rest is still done (and still one step).
 pub fn synchronize(s: &mut Session, changes: FolderChanges, choice: SyncChoice) -> Result<SyncReport> {
+    let progress = SyncProgress::new(s.import_stall_after, s.stuck_readers.clone());
     let (work, mut commit) = SyncJob::start(s, changes, choice)?;
     let mut steps = Vec::new();
-    work.run(&SyncProgress::default(), |step| {
+    work.run(&progress, |step| {
         steps.push(step);
         true
     });
