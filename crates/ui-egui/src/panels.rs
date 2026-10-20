@@ -92,11 +92,16 @@ pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
     use crate::toast::{HOVER_HOLD, toast_alpha};
     let now = app.tick_now();
     let Some(shown) = app.ui.toast.as_mut() else { return };
-    if now > shown.until {
+    // no frames run in an idle app while the pointer rests on it: a hovered toast is not expired
+    // before the frame that sees the pointer leave has started its hold
+    if now > shown.until && !shown.hovered {
         app.ui.toast = None;
         return;
     }
-    let Some(canvas) = app.canvas_rect else { return };
+    let Some(canvas) = app.canvas_rect else {
+        shown.hovered = false; // a hidden canvas cannot pin the toast
+        return;
+    };
     let t = Tokens::get(ctx);
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("toast")));
     // long messages (a save warning, the web build's notices) wrap within the canvas
