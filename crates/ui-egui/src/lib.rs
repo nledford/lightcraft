@@ -438,6 +438,8 @@ pub struct LightcraftApp {
     pub import: Option<import::ImportTask>,
     /// A folder scan in progress (feeds the import review).
     pub scan: Option<import::ScanTask>,
+    /// The folders the last review's scan listed, for the import that review starts (and no other).
+    pub review_listed: Option<lightcraft_engine::import::ListedFolders>,
     /// A Synchronize Folder scan in progress (feeds its dialog).
     pub sync: Option<sync::SyncTask>,
     /// `session.folder_changes` came from the Synchronize Folder dialog (and goes with it).
@@ -541,6 +543,7 @@ impl LightcraftApp {
             merge: merge::MergeState::default(),
             import: None,
             scan: None,
+            review_listed: None,
             sync: None,
             sync_owns_changes: false,
             sync_run: None,
