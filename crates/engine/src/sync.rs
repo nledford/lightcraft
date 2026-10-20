@@ -668,6 +668,8 @@ pub struct SyncJob;
 pub struct SyncWork {
     /// The import of the new files, and the files.
     import: Option<(crate::import::ImportJob, Vec<String>)>,
+    /// Why the scan ended early, if it did ([`FolderChanges::stopped`]).
+    stopped: Option<String>,
     moved: Vec<FolderMoved>,
     missing: Vec<FolderPhoto>,
     /// (photo, its file, how its sidecar is named)
@@ -710,7 +712,7 @@ impl SyncJob {
         if changes.offline {
             return Err(not_there(&changes.path));
         }
-        let FolderChanges { new, missing, metadata, moved, probes, .. } = changes;
+        let FolderChanges { new, missing, metadata, moved, probes, stopped, .. } = changes;
         let opts = ImportOptions { mode: ImportMode::Add, ..Default::default() };
         let import = if choice.import_new && !new.is_empty() {
             s.import_probes = probes;
@@ -735,6 +737,7 @@ impl SyncJob {
         };
         let work = SyncWork {
             import,
+            stopped,
             moved: if choice.relink_moved { moved } else { Vec::new() },
             missing: if choice.remove_missing { missing } else { Vec::new() },
             sidecars,
@@ -759,7 +762,7 @@ impl SyncWork {
     pub fn run(self, progress: &SyncProgress, mut send: impl FnMut(SyncStep) -> bool) {
         use std::sync::atomic::Ordering::Relaxed;
         let cancel = &progress.files.cancel;
-        let SyncWork { import, moved, missing, sidecars } = self;
+        let SyncWork { import, stopped, moved, missing, sidecars } = self;
         let pieces = import.as_ref().map_or(0, |(_, f)| f.len()) + moved.len() + missing.len() + sidecars.len();
         progress.to_check.store(pieces, Relaxed);
         progress.checked.store(0, Relaxed);
@@ -787,6 +790,12 @@ impl SyncWork {
                     return;
                 }
             }
+        }
+        // the scan itself ended early (the drive stopped answering): what it listed is only what it reached, and the
+        // disk is not asked again for relinking, removing or sidecars
+        if let Some(why) = stopped {
+            send(SyncStep::Stopped(why));
+            return;
         }
         if cancel.load(Relaxed) {
             return;

@@ -850,3 +850,33 @@ fn a_synchronize_run_stops_at_the_cap_and_does_nothing_after() {
     assert_eq!(report.removed, 0);
     assert!(s.catalog.photos().any(|p| p.file_name == "b.png" && p.in_library()), "the missing photo was not removed");
 }
+
+/// Given a scan that stopped at the cap (the drive stopped answering) and found a photo missing,
+/// When the run is made from its changes (remove missing on),
+/// Then the run hands over only a `Stopped` step: the missing photo is not removed on a partial scan.
+#[test]
+fn a_run_made_from_a_stopped_scan_does_nothing_but_say_so() {
+    use crate::sync::{SyncChoice, SyncJob, SyncProgress, SyncStep};
+    let dir = Scratch::new("stoppedscan");
+    let (mut s, gate, _hook) = hanging_checks(&dir, 6);
+    let changes = scan_skipping(&mut s, &dir);
+    gate.open();
+    assert!(changes.stopped.is_some());
+    assert!(changes.missing.iter().any(|m| m.path.ends_with("b.png")), "{:?}", changes.missing);
+    let choice = SyncChoice { remove_missing: true, read_metadata: true, ..SyncChoice::default() };
+    let (work, mut commit) = SyncJob::start(&mut s, changes, choice).unwrap();
+    let progress = SyncProgress::new(crate::import::tests_reads::STALL);
+    let mut steps = Vec::new();
+    work.run(&progress, |step| {
+        steps.push(step);
+        true
+    });
+    assert!(matches!(steps.as_slice(), [SyncStep::Stopped(why)] if why.contains("not answering")));
+    for step in steps {
+        commit.apply(&mut s, step);
+    }
+    let report = commit.finish(&mut s);
+    assert!(report.stopped.as_deref().is_some_and(|w| w.contains("not answering")), "{report:?}");
+    assert_eq!(report.removed, 0);
+    assert!(s.catalog.photos().any(|p| p.file_name == "b.png" && p.in_library()));
+}

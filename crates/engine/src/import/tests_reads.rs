@@ -150,15 +150,16 @@ fn a_slow_read_that_keeps_progressing_is_never_reported() {
     let seen = Arc::new(AtomicBool::new(false));
     let mut job = job(|path: &str| {
         if shown(path).starts_with("lc-reads-slow") {
-            // 30 steps of 20 ms: 600 ms in all, longer than the stall time, but never more than a twentieth of it without
-            // progress (a step would have to be delayed twenty-fold to trip it)
-            for _ in 0..30 {
+            // 60 steps of 20 ms: 1.2 s in all, longer than the stall time (1 s), but never more than a fiftieth of it
+            // without progress (a step would have to be delayed fifty-fold, a whole second, to trip it)
+            for _ in 0..60 {
                 std::thread::sleep(Duration::from_millis(20));
                 reads::progressed();
             }
         }
         jpeg()
     });
+    job.reads.set_stall_after(Duration::from_secs(1));
     let reads = job.reads.clone();
     let paths = files(&["slow.jpg", "a.jpg"]);
     let worker = std::thread::spawn(move || job.prepare(&paths, &AtomicBool::new(false)));
