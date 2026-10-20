@@ -580,7 +580,7 @@ fn cancel_and_restart_cannot_pile_up_blocked_readers() {
                 }
                 cancel.store(true, Relaxed);
             });
-            let pool = reads::Pool { watch: &watch, cancel: &cancel, name: "test-read", threads: THREADS };
+            let pool = reads::Pool { watch: &watch, cancel, name: "test-read", threads: THREADS };
             let outcomes = pool.run((0..jobs).collect(), &|i| format!("job-{i}"), work.clone(), Arc::new(|_| {}), Arc::new(|| {}), &|_| {});
             over.store(true, Relaxed);
             outcomes
