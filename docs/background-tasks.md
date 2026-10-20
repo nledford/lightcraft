@@ -4,7 +4,8 @@ Everything that takes a while runs off the UI thread and shows up in **one** pla
 top-left corner under the top bar (issue #345). Each task has a row with its name, a progress bar (a sweep while
 the amount of work isn't known), the count and what it's working on, and ✕ if it can stop. Quitting asks first while
 a task that can stop is running. Agents see the same list through `activity.list` / `activity.cancel`, and
-`ui.inspect` reports it as `activity`.
+`ui.inspect` reports it as `activity`. A task stuck on something that doesn't answer (an import's file on a network
+drive that stopped responding) names it on its row and offers Skip (`activity.skip`).
 
 The registry is `lightcraft_engine::activity` (`crates/engine/src/activity.rs`, `Session::activity`). The stack is
 `crates/ui-egui/src/panels/activity.rs`. Every job that can last more than a moment uses it; **don't add a progress
@@ -46,6 +47,22 @@ guard.detail(&file_name);
   - `Cancel::Yes`: the job polls `guard.is_cancelled()` itself.
   - `Cancel::No`: the job can't stop; it gets no ✕ and doesn't make Quit ask.
   - `set_cancellable(false)` for a phase that has to finish once started (a Lightroom import adding its photos).
+- **Something that may never answer** (a file on a network drive that dropped its connection): `guard.waiting_on(name,
+  waited)` puts it in the row's `stalled` (`{what, secs}`), which the stack words as "Waiting for IMG_0457.jpg · 14 s"
+  in the caution colour and answers with a Skip button next to ✕ (`activity:skip:<id>`, `activity.skip {id}`).
+  `guard.clear_waiting()` when it answers; `guard.take_skip()` says whether Skip was asked for (once). What skipping
+  does is the job's: an import fails that file ("skipped: no answer after N s"), a scan lists it as unreadable, and
+  the work goes on. A blocked read can't be interrupted, so such a job reads on threads it can abandon, and ✕ must not
+  wait for them. `crates/engine/src/import/reads.rs` is that pool: it reports a read as stalled after 10 s *without
+  progress* (a chunk read or written; code that works long without touching the disk calls `import::progressed()`), a
+  skip gives up only the read the row names, and an abandoned read keeps its memory permit
+  (`memory::work_gate`) until the drive answers, so later large jobs can wait for it. The fourth skipped read of a scan
+  or import ends it with an error: an import says so in its toast (`Prepared::stopped`), a scan in an error toast (`ScanOutput::stopped`,
+  `FolderChanges::stopped`), and a Synchronize run stops there and reports it (`SyncReport::stopped`). A wait for memory at
+  the gate counts as progress (the gate reports once a second). `ScanProgress::reads` / `SyncProgress::files.reads` / `ImportJob::reads`
+  are the `ReadWatch` a frontend mirrors onto the row each frame (`panels::activity::follow_reads`). Not covered:
+  listing folders (the walk), a few path checks before a copy, and Synchronize Folder's sidecar reads and file checks
+  after the scan.
 - **Quiet periodic work** shows no row: the auto-import folder listing runs every few seconds through
   `tasks::spawn(.., None, ..)`.
 
@@ -61,6 +78,7 @@ guard.detail(&file_name);
 | Face scan, AI Denoise | `crates/engine/src/cmd/face_recognize.rs`, `crates/engine/src/denoise.rs` | a continuous job with no ✕, kept in session state |
 | Find Missing Photos | `crates/ui-egui/src/tasks.rs` | a generic background task with a row (`kind: Some(..)`) |
 | Reading focus points | `crates/engine/src/focus_scan.rs` | a worker paced by the UI's per-frame pump (`focus.pump {pace}`); `Cancel::Flag`; commits in batches without undo steps |
+| Import reads that stop answering | `crates/engine/src/import/reads.rs`, `crates/ui-egui/src/import.rs` | publish what the job waits for each frame (`waiting_on`, `clear_waiting`) and take Skip (`take_skip`); the reads themselves run on detached threads so that a blocked one never holds the job |
 
 ## Testing
 
