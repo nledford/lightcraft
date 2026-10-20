@@ -106,7 +106,8 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
     };
     app.sync = None;
     if let Some(why) = &changes.stopped {
-        // what the dialog lists is what was reached before the drive stopped answering
+        // what the dialog lists is what was reached before the drive stopped answering (a run made from it only
+        // imports the new files: the dialog says so and takes the other choices off)
         app.toast_error(ctx, format!("{}: {why}", crate::i18n::tr("Stopped")));
     }
     let c = SyncCounts {
@@ -117,10 +118,14 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
         missing: changes.missing.len(),
         metadata: changes.metadata.len(),
         moved: changes.moved.len(),
+        stopped: changes.stopped.is_some(),
     };
     app.session.folder_changes = Some(changes);
     app.sync_owns_changes = true;
-    if let Some(Dialog::SynchronizeFolder { counts, .. }) = &mut app.ui.dialog {
+    if let Some(Dialog::SynchronizeFolder { counts, relink_moved, remove_missing, read_metadata, .. }) = &mut app.ui.dialog {
+        if c.stopped {
+            (*relink_moved, *remove_missing, *read_metadata) = (false, false, false);
+        }
         *counts = Some(c);
     }
 }
@@ -154,7 +159,7 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
         return;
     }
     let choice = |ui: &mut egui::Ui, on: &mut bool, n: usize, text: String, widget: &str| {
-        let r = ui.add_enabled(n > 0, egui::Checkbox::new(on, text));
+        let r = ui.add_enabled(n > 0 && !(c.stopped && widget != "syncImportNew"), egui::Checkbox::new(on, text));
         crate::widgets::register(ui.ctx(), widget, r.rect);
     };
     let count = |text: &str, n: usize| format!("{} ({n})", crate::i18n::tr(text));
@@ -166,6 +171,9 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
     let dim = |ui: &mut egui::Ui, s: &str| ui.label(egui::RichText::new(s).color(t.text_dim));
     if c.new + c.moved + c.missing + c.metadata == 0 {
         dim(ui, crate::i18n::tr("The library is up to date with this folder."));
+    }
+    if c.stopped {
+        dim(ui, crate::i18n::tr("The scan stopped when the drive stopped answering: only new photos can be imported from it."));
     }
     if c.missing > 0 {
         dim(ui, crate::i18n::tr("Missing photos move to Recently Deleted and can be restored; no file on disk is touched."));

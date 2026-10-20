@@ -1749,6 +1749,7 @@
   "The graphics card is set up when the next photo is made.": "Grafická karta se nastaví při zpracování další fotografie.",
   "The import reads the catalog without changing it and adds its photos, edits, keywords and collections to the library open now.": "Import načte katalog bez jeho změny a přidá fotografie, úpravy, klíčová slova a kolekce do právě otevřené knihovny.",
   "The library is up to date with this folder.": "Knihovna odpovídá aktuálnímu obsahu této složky.",
+  "The scan stopped when the drive stopped answering: only new photos can be imported from it.": "Skenování se zastavilo, protože disk přestal odpovídat: z něj lze importovat jen nové fotografie.",
   "The model is kept on this computer only. LightCraft never uploads or shares it.": "Model zůstane pouze na tomto počítači. LightCraft jej nikdy neodesílá ani nesdílí.",
   "The number at the end of the original name (IMG_0042 → 0042)": "Číslo na konci původního názvu (IMG_0042 → 0042)",
   "The original extension is always added; {ext} only puts it inside the name as well.": "Původní přípona se vždy přidá; {ext} ji navíc vloží i do názvu.",

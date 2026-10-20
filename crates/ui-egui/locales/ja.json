@@ -1915,6 +1915,7 @@
   "Remove missing photos from the library": "見つからない写真をライブラリから除去",
   "Read metadata updates from XMP sidecars": "XMP サイドカーからメタデータの更新を読み込む",
   "The library is up to date with this folder.": "ライブラリはこのフォルダと一致しています。",
+  "The scan stopped when the drive stopped answering: only new photos can be imported from it.": "ドライブが応答しなくなったためスキャンが止まりました。ここから読み込めるのは新しい写真だけです。",
   "Missing photos move to Recently Deleted and can be restored; no file on disk is touched.": "見つからない写真は「最近削除した写真」に移動し、復元できます。ディスク上のファイルには手を加えません",
   "Reading a sidecar replaces the photo's rating, labels, metadata and edits with what it says.": "サイドカーを読み込むと、写真のレーティング、ラベル、メタデータ、編集内容がその内容に置き換わります。",
   "Skipped: files already in the library elsewhere": "スキップ: 別の場所ですでにライブラリにあるファイル",

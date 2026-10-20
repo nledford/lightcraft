@@ -410,5 +410,14 @@ fn a_folders_scan_that_stops_at_the_cap_says_so() {
     assert!(ended, "the scan never ended");
     let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
     assert!(toast.starts_with("Stopped:") && toast.contains("not answering"), "{toast}");
+    // a run made from it only imports: the other choices are off, and the dialog says why
+    let c = counts(&h);
+    assert!(c.stopped, "{c:?}");
+    match &h.app.ui.dialog {
+        Some(Dialog::SynchronizeFolder { relink_moved, remove_missing, read_metadata, .. }) => {
+            assert_eq!((*relink_moved, *remove_missing, *read_metadata), (false, false, false));
+        }
+        d => panic!("{d:?}"),
+    }
     h.app.ui.dialog = None;
 }

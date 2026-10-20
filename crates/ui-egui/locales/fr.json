@@ -1903,6 +1903,7 @@
   "Remove missing photos from the library": "Retirer les photos manquantes de la bibliothèque",
   "Read metadata updates from XMP sidecars": "Lire les métadonnées mises à jour dans les fichiers annexes XMP",
   "The library is up to date with this folder.": "La bibliothèque est à jour avec ce dossier.",
+  "The scan stopped when the drive stopped answering: only new photos can be imported from it.": "L'analyse s'est arrêtée parce que le lecteur a cessé de répondre : seules les nouvelles photos peuvent en être importées.",
   "Missing photos move to Recently Deleted and can be restored; no file on disk is touched.": "Les photos manquantes vont dans Supprimées récemment et peuvent être restaurées ; aucun fichier sur le disque n'est touché.",
   "Reading a sidecar replaces the photo's rating, labels, metadata and edits with what it says.": "Lire un fichier annexe remplace la note, les étiquettes, les métadonnées et les retouches de la photo par son contenu.",
   "Skipped: files already in the library elsewhere": "Ignorés : fichiers déjà ailleurs dans la bibliothèque",

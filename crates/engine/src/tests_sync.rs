@@ -728,7 +728,12 @@ fn a_probe_that_stops_answering_is_named_and_skipping_it_lists_the_file_as_unrea
 fn hanging_checks(dir: &Scratch, n: usize) -> (Session, crate::import::tests_reads::Gate, crate::sync::CheckHookGuard) {
     use crate::import::tests_reads::Gate;
     for i in 0..n {
-        write_png(&dir.path(&format!("trip/hang-check-{i}.png")), 20 + i as u8);
+        let file = dir.path(&format!("trip/hang-check-{i}.png"));
+        write_png(&file, 20 + i as u8);
+        // (checks run newest capture first, and a PNG's capture date is its file's time: old ones come last, so that
+        // `a.png` and `b.png` are checked before the hung ones can use up the skips, however many readers there are)
+        let old = std::time::SystemTime::now() - Duration::from_secs(3600);
+        std::fs::File::options().write(true).open(&file).unwrap().set_modified(old).unwrap();
     }
     write_png(&dir.path("trip/a.png"), 1);
     write_png(&dir.path("trip/day1/b.png"), 2);

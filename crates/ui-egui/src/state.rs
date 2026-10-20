@@ -1258,6 +1258,10 @@ pub struct SyncCounts {
     pub metadata: usize,
     #[serde(default)]
     pub moved: usize,
+    /// The scan ended early (the drive stopped answering): what it lists is only what it reached, and a run made from
+    /// it only imports the new files.
+    #[serde(default)]
+    pub stopped: bool,
 }
 
 impl Default for UiState {

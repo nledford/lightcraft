@@ -1913,6 +1913,7 @@
   "Remove missing photos from the library": "从图库中移除缺失的照片",
   "Read metadata updates from XMP sidecars": "从 XMP 附属文件读取元数据更新",
   "The library is up to date with this folder.": "图库与此文件夹一致。",
+  "The scan stopped when the drive stopped answering: only new photos can be imported from it.": "扫描因驱动器停止响应而中止：只能从中导入新照片。",
   "Missing photos move to Recently Deleted and can be restored; no file on disk is touched.": "缺失的照片会移到“最近删除”，可以恢复；磁盘上的文件不会被改动。",
   "Reading a sidecar replaces the photo's rating, labels, metadata and edits with what it says.": "读取附属文件会用其内容替换照片的评级、标签、元数据和编辑。",
   "Skipped: files already in the library elsewhere": "已跳过：已在图库其他位置的文件",

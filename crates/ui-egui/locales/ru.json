@@ -1625,6 +1625,7 @@
   "Remove missing photos from the library": "Убрать отсутствующие фото из библиотеки",
   "Read metadata updates from XMP sidecars": "Прочитать обновлённые метаданные из XMP-файлов",
   "The library is up to date with this folder.": "Библиотека соответствует этой папке.",
+  "The scan stopped when the drive stopped answering: only new photos can be imported from it.": "Сканирование остановлено, потому что диск перестал отвечать: из него можно импортировать только новые фото.",
   "Missing photos move to Recently Deleted and can be restored; no file on disk is touched.": "Отсутствующие фото перемещаются в «Недавно удалённые», их можно восстановить; файлы на диске не затрагиваются.",
   "Reading a sidecar replaces the photo's rating, labels, metadata and edits with what it says.": "Чтение XMP-файла заменяет оценку, метки, метаданные и правки фото его содержимым.",
   "Skipped: files already in the library elsewhere": "Пропущено: файлы, которые уже есть в библиотеке в другом месте",

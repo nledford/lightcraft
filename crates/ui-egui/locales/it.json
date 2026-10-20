@@ -1865,6 +1865,7 @@
   "Remove missing photos from the library": "Togli dalla libreria le foto mancanti",
   "Read metadata updates from XMP sidecars": "Leggi gli aggiornamenti dei metadati dai file XMP collaterali",
   "The library is up to date with this folder.": "La libreria è aggiornata rispetto a questa cartella.",
+  "The scan stopped when the drive stopped answering: only new photos can be imported from it.": "La scansione si è fermata perché l'unità ha smesso di rispondere: si possono importare solo le foto nuove.",
   "Missing photos move to Recently Deleted and can be restored; no file on disk is touched.": "Le foto mancanti finiscono in Eliminate di recente e si possono ripristinare; nessun file sul disco viene toccato.",
   "Reading a sidecar replaces the photo's rating, labels, metadata and edits with what it says.": "Leggere un file collaterale sostituisce valutazione, etichette, metadati e modifiche della foto con quello che contiene.",
   "Skipped: files already in the library elsewhere": "Saltati: file già presenti altrove nella libreria",

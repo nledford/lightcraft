@@ -58,7 +58,7 @@ guard.detail(&file_name);
   skip gives up only the read the row names, and an abandoned read keeps its memory permit
   (`memory::work_gate`) until the drive answers, so later large jobs can wait for it. The fourth skipped read of a scan
   or import ends it with an error: an import says so in its toast (`Prepared::stopped`), a scan in an error toast (`ScanOutput::stopped`,
-  `FolderChanges::stopped`), and a Synchronize run stops there and reports it (`SyncReport::stopped`). A wait for memory at
+  `FolderChanges::stopped`), and a Synchronize run stops there and reports it (`SyncReport::stopped`). A run made from a scan that stopped imports the new files the scan listed, then stops: no relink, remove or sidecar step (what the scan lists is only what it reached), and the dialog disables those choices. A wait for memory at
   the gate counts as progress (the gate reports once a second) only while a holder that was not given up is working: a
   wait blocked only by abandoned reads, which keep their memory (`WorkGate::abandoned_bytes`), is named and can be
   skipped too. `ScanProgress::reads` / `SyncProgress::files.reads` / `ImportJob::reads`

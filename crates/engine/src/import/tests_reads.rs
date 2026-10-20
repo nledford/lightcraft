@@ -41,7 +41,7 @@ pub(crate) fn until(what: &str, mut ok: impl FnMut() -> bool) {
     }
 }
 
-/// An import job whose reads count as stalled after 30 ms without progress, looked at every 5 ms, and whose probe is
+/// An import job whose reads count as stalled after [`STALL`] without progress, looked at every 5 ms, and whose probe is
 /// `probe`.
 fn job(probe: impl Fn(&str) -> Result<ProbeInfo, String> + Send + Sync + 'static) -> ImportJob {
     let mut s = Session::new();
