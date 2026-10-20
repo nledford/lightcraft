@@ -565,7 +565,10 @@ impl Catalog {
 
     fn photo_mut(&mut self, id: PhotoId) -> Result<&mut Photo> {
         self.touch(id);
-        self.photos.get_mut(&id).map(Arc::make_mut).ok_or(CatalogError::NoPhoto(id))
+        let p = self.photos.get_mut(&id).map(Arc::make_mut).ok_or(CatalogError::NoPhoto(id))?;
+        // (`Arc::make_mut` copies a photo others hold: the text kept for it goes with the copy)
+        self.index.text_moved(id, p);
+        Ok(p)
     }
 
     /// The op being applied changes photo `id` (or adds or removes it).
@@ -676,10 +679,12 @@ impl Catalog {
                 let id = photo.id;
                 self.next_photo = self.next_photo.max(id.0.saturating_add(1));
                 self.photos.insert(id, Arc::new(*photo));
+                self.index.text_changed(id, self.photos.get(&id).map(|p| &**p));
                 Op::RemovePhoto { id }
             }
             Op::RemovePhoto { id } => {
                 let p = self.photos.remove(&id).ok_or(CatalogError::NoPhoto(id))?;
+                self.index.text_changed(id, None);
                 // album membership is restored by the batch the engine builds (see `delete_permanently`)
                 Op::AddPhoto { photo: Box::new((*p).clone()) }
             }
@@ -707,7 +712,9 @@ impl Catalog {
             }
             Op::SetMeta { id, meta } => {
                 let p = self.photo_mut(id)?;
-                Op::SetMeta { id, meta: Box::new(std::mem::replace(&mut p.meta, *meta)) }
+                let old = std::mem::replace(&mut p.meta, *meta);
+                self.index.text_changed(id, self.photos.get(&id).map(|p| &**p));
+                Op::SetMeta { id, meta: Box::new(old) }
             }
             Op::SetDeleted { id, deleted } => {
                 let p = self.photo_mut(id)?;
@@ -882,7 +889,9 @@ impl Catalog {
                 let p = self.photo_mut(id)?;
                 let old_name = std::mem::replace(&mut p.file_name, file_name);
                 let old_format = format.map(|f| std::mem::replace(&mut p.format, f));
-                Op::Relink { id, file_name: old_name, source: std::mem::replace(&mut p.source, source), format: old_format }
+                let old = Op::Relink { id, file_name: old_name, source: std::mem::replace(&mut p.source, source), format: old_format };
+                self.index.text_changed(id, self.photos.get(&id).map(|p| &**p));
+                old
             }
             Op::SetContent { id, width, height, file_size, content_hash, preview_only, preview_checked } => {
                 let p = self.photo_mut(id)?;
@@ -913,7 +922,9 @@ impl Catalog {
                 }
                 let p = self.photo_mut(id)?;
                 let old_name = std::mem::replace(&mut p.file_name, file_name);
-                Op::SetFile { id, file_name: old_name, source: std::mem::replace(&mut p.source, source) }
+                let old = Op::SetFile { id, file_name: old_name, source: std::mem::replace(&mut p.source, source) };
+                self.index.text_changed(id, self.photos.get(&id).map(|p| &**p));
+                old
             }
             Op::SetLabelName { label, name } => {
                 let name = name.map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
@@ -1163,5 +1174,7 @@ mod tests_lock;
 mod tests_repair;
 #[cfg(test)]
 mod tests_scale;
+#[cfg(test)]
+mod tests_search_text;
 #[cfg(test)]
 mod tests_torn_append;
