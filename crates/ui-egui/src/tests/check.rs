@@ -404,3 +404,84 @@ fn a_focused_segment_shows_the_focus_ring() {
     let (_, rects) = paint_frame(&rig, Vec::new(), draw);
     assert!(rects.iter().any(|r| r.1 == t.accent && r.2 == 2.0), "the focused segment shows the ring");
 }
+
+/// The rectangles of the focus rings (2 px accent strokes) a frame painted.
+fn ring_rects(rig: &Rig, events: Vec<egui::Event>, draw: impl FnOnce(&mut egui::Ui)) -> Vec<Rect> {
+    fn walk(shape: &egui::Shape, accent: Color32, into: &mut Vec<Rect>) {
+        match shape {
+            egui::Shape::Rect(r) if r.stroke.color == accent && r.stroke.width == 2.0 => into.push(r.rect),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, accent, into)),
+            _ => {}
+        }
+    }
+    let accent = Tokens::get(&rig.ctx).accent;
+    let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), events, ..Default::default() };
+    let mut draw = Some(draw);
+    let mut out = rig.ctx.run_ui(raw, |ui| draw.take().map(|d| d(ui)).unwrap_or_default());
+    out.textures_delta.clear();
+    let mut rings = Vec::new();
+    out.shapes.iter().for_each(|c| walk(&c.shape, accent, &mut rings));
+    rings
+}
+
+fn tab() -> Vec<egui::Event> {
+    vec![egui::Event::Key { key: egui::Key::Tab, physical_key: Some(egui::Key::Tab), pressed: true, repeat: false, modifiers: Default::default() }]
+}
+
+/// Star ratings, drop-down buttons and section headers (with their eye) show the focus ring when
+/// Tab reaches them, and not before.
+#[test]
+fn stars_dropdowns_and_section_headers_show_the_focus_ring() {
+    type Draw = fn(&mut egui::Ui);
+    let draws: [(&str, Draw); 3] = [
+        ("stars", |ui| {
+            crate::rating::Rating::new("r", 2).show(ui);
+        }),
+        ("dropdown", |ui| {
+            let t = Tokens::get(ui.ctx());
+            crate::widgets::dropdown(ui, "d", "Sort", t.semibold(12.0), t.text);
+        }),
+        ("section_header", |ui| {
+            crate::widgets::section_header(ui, "s", "Light", true, None);
+        }),
+    ];
+    for (name, draw) in draws {
+        let rig = Rig::new();
+        assert!(ring_rects(&rig, Vec::new(), draw).is_empty(), "{name}: no ring before focus");
+        ring_rects(&rig, tab(), draw);
+        assert_eq!(ring_rects(&rig, Vec::new(), draw).len(), 1, "{name}: one ring on the focused control");
+    }
+}
+
+/// The drop-down's ring stands clear of its text, which starts at the control's left edge.
+#[test]
+fn the_dropdown_ring_does_not_cut_the_text() {
+    let rig = Rig::new();
+    let draw = |ui: &mut egui::Ui| {
+        let t = Tokens::get(ui.ctx());
+        crate::widgets::dropdown(ui, "d", "Sort", t.semibold(12.0), t.text).rect
+    };
+    let (mut rect, mut rings) = (Rect::NOTHING, Vec::new());
+    ring_rects(&rig, Vec::new(), |ui| rect = draw(ui));
+    ring_rects(&rig, tab(), |ui| rect = draw(ui));
+    rings.extend(ring_rects(&rig, Vec::new(), |ui| rect = draw(ui)));
+    let ring = rings.first().expect("a ring");
+    assert!(ring.min.x + 2.0 <= rect.min.x, "the 2 px ring ends before the text: ring {ring:?}, control {rect:?}");
+}
+
+/// A section header's eye toggle takes the focus after the header, and shows its own ring.
+#[test]
+fn a_focused_section_eye_shows_the_focus_ring() {
+    let rig = Rig::new();
+    let draw = |ui: &mut egui::Ui| {
+        crate::widgets::section_header(ui, "s", "Light", true, Some(false));
+    };
+    ring_rects(&rig, Vec::new(), draw);
+    ring_rects(&rig, tab(), draw);
+    let header = ring_rects(&rig, Vec::new(), draw);
+    assert_eq!(header.len(), 1, "the header has the focus first");
+    ring_rects(&rig, tab(), draw);
+    let eye = ring_rects(&rig, Vec::new(), draw);
+    assert_eq!(eye.len(), 1, "the eye has it next");
+    assert!(eye[0].width() < 30.0 && header[0].width() > 100.0, "a small ring on the eye, not the header: {eye:?} / {header:?}");
+}
