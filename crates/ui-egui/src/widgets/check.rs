@@ -59,6 +59,7 @@ pub struct Check<'a> {
     label: &'a str,
     enabled: bool,
     tooltip: Option<&'a str>,
+    reason: Option<&'a str>,
     emphasis: Emphasis,
 }
 
@@ -76,7 +77,7 @@ pub enum Emphasis {
 impl<'a> Check<'a> {
     /// A tick box for `value`, addressable as `check:{id}`.
     pub fn new(id: &'a str, value: &'a mut bool, label: &'a str) -> Self {
-        Check { id, value, label, enabled: true, tooltip: None, emphasis: Emphasis::Normal }
+        Check { id, value, label, enabled: true, tooltip: None, reason: None, emphasis: Emphasis::Normal }
     }
 
     /// Off: drawn faded, and a click or a key does nothing.
@@ -85,9 +86,16 @@ impl<'a> Check<'a> {
         self
     }
 
-    /// Shown on hover; when it is disabled, the reason why.
+    /// Shown on hover, whether it is on or disabled (while disabled it reads as the reason why);
+    /// [`Check::disabled_reason`] is for a reason that must not show while it is on.
     pub fn tooltip(mut self, text: &'a str) -> Self {
         self.tooltip = Some(text);
+        self
+    }
+
+    /// Shown on hover only while it is disabled, as the reason why; an enabled one shows nothing.
+    pub fn disabled_reason(mut self, text: &'a str) -> Self {
+        self.reason = Some(text);
         self
     }
 
@@ -107,6 +115,7 @@ impl<'a> Check<'a> {
                 label: self.label,
                 enabled: self.enabled,
                 tooltip: self.tooltip,
+                reason: self.reason,
                 form: Form::Box,
                 on,
                 emphasis: self.emphasis,
@@ -161,6 +170,7 @@ impl<'a, V: PartialEq> Radio<'a, V> {
                 label: self.label,
                 enabled: self.enabled,
                 tooltip: self.tooltip,
+                reason: None,
                 form: Form::Round,
                 on,
                 emphasis: Emphasis::Normal,
@@ -185,6 +195,7 @@ struct Spec<'a> {
     label: &'a str,
     enabled: bool,
     tooltip: Option<&'a str>,
+    reason: Option<&'a str>,
     form: Form,
     on: bool,
     emphasis: Emphasis,
@@ -199,7 +210,7 @@ enum Form {
 /// Lay out, interact with and draw one row (the box and its wrapped label); true when it was
 /// activated by a click or the keyboard.
 fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
-    let Spec { widget, label, enabled, tooltip, form: shape, on, emphasis } = spec;
+    let Spec { widget, label, enabled, tooltip, reason, form: shape, on, emphasis } = spec;
     let kind = match shape {
         Form::Box => egui::Role::CheckBox,
         Form::Round => egui::Role::RadioButton,
@@ -268,6 +279,7 @@ fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
     // `resp.enabled()` is false only when the whole ui is disabled around this control; one turned
     // off with `.enabled(false)` sits in an enabled ui. egui's disabled hover text shows only in the
     // first case, so the reason is shown with the plain hover text in the second.
+    let tooltip = if enabled { tooltip } else { reason.or(tooltip) };
     let resp = match tooltip {
         Some(tip) if resp.enabled() => resp.on_hover_text(crate::i18n::tr(tip)),
         Some(tip) => resp.on_disabled_hover_text(crate::i18n::tr(tip)),

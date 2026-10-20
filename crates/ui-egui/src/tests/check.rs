@@ -155,6 +155,25 @@ fn a_disabled_check_and_radio_say_why_on_hover() {
     }
 }
 
+/// A reason for being off (the face switch without a model) is for the disabled box only: the
+/// same box, on and enabled, shows nothing.
+#[test]
+fn a_disabled_reason_shows_only_while_disabled() {
+    for (enabled, shown) in [(false, true), (true, false)] {
+        let rig = Rig::new();
+        rig.ctx.all_styles_mut(|s| s.interaction.tooltip_delay = 0.0);
+        let mut on = true;
+        let draw = |ui: &mut egui::Ui, on: &mut bool| Check::new("d", on, "Faces").enabled(enabled).disabled_reason("Choose a model").show(ui);
+        let (c, _) = rig.frame(Vec::new(), |ui| draw(ui, &mut on));
+        let hover = vec![egui::Event::PointerMoved(c.rect.center())];
+        for _ in 0..3 {
+            rig.frame(hover.clone(), |ui| draw(ui, &mut on));
+        }
+        let (c, _) = rig.frame(Vec::new(), |ui| draw(ui, &mut on));
+        assert_eq!(c.is_tooltip_open(), shown, "enabled = {enabled}");
+    }
+}
+
 #[test]
 fn screen_readers_hear_a_checkbox_and_a_radio_with_their_state() {
     let rig = Rig::new();

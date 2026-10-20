@@ -257,7 +257,7 @@ pub fn settings_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let can_toggle = on || (runtime && usable);
     let r = Check::new("settings.facesEnabled", &mut on, "Recognise faces (experimental)")
         .enabled(can_toggle)
-        .tooltip("Choose a model below (Use) to start.")
+        .disabled_reason("Choose a model below (Use) to start.")
         .show(ui);
     if r.changed() {
         match app.run("faces.enable", json!({"enabled": on})) {
