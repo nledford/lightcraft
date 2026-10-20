@@ -1490,7 +1490,17 @@ pub fn commit_prepared(s: &mut Session, opts: &ImportOptions, now: &str, prepare
             PreparedItem::Duplicate { path, existing, reason, hash } => {
                 let existing = existing.or_else(|| {
                     let h = hash?;
-                    new_hash.get(&h).copied().or_else(|| s.catalog.photos().find(|p| p.content_hash.as_deref() == Some(h.as_str())).map(|p| p.id))
+                    // the plain key first, then a Duplicate's `<hash>:dup<id>`
+                    new_hash
+                        .get(&h)
+                        .copied()
+                        .or_else(|| s.catalog.photos().find(|p| p.content_hash.as_deref() == Some(h.as_str())).map(|p| p.id))
+                        .or_else(|| {
+                            s.catalog
+                                .photos()
+                                .find(|p| p.content_hash.as_deref().is_some_and(|k| crate::sync::base_hash(k) == h.as_str()))
+                                .map(|p| p.id)
+                        })
                 });
                 let trashed = existing.filter(|id| s.catalog.photo(*id).is_some_and(|p| p.deleted));
                 match trashed {
@@ -1799,6 +1809,20 @@ mod prepared_tests {
         let mut prepared = Prepared { scanned: 1, items: vec![PreparedItem::Ready(Box::new(ready))] };
         prepared.revalidate_add(&s);
         assert!(matches!(prepared.items.first(), Some(PreparedItem::Duplicate { reason: "content", existing: Some(PhotoId(7)), .. })));
+    }
+
+    /// A Duplicate without a named original is matched by content, and a photo keyed
+    /// `<hash>:dup<id>` stands for its content too.
+    #[test]
+    fn commit_names_a_duplicate_keyed_photo_as_the_original_by_content() {
+        let mut s = Session::new();
+        let mut twin = Photo::new(PhotoId(7), Source::File { path: "/elsewhere/twin.jpg".into() }, "twin.jpg", "JPG", 1, 1, "now");
+        twin.content_hash = Some("abc123:dup5".into());
+        s.commit("twin", Op::AddPhoto { photo: Box::new(twin) }).unwrap();
+        let dup = PreparedItem::Duplicate { path: "/new/c.jpg".into(), existing: None, reason: "content", hash: Some("abc123".into()) };
+        let prepared = Prepared { scanned: 1, items: vec![dup] };
+        let r = commit_prepared(&mut s, &ImportOptions::default(), "now", prepared).unwrap();
+        assert_eq!(r.duplicates.first().map(|d| d.existing), Some(Some(7)), "{:?}", r.duplicates);
     }
 
     fn unread_paths(n: usize) -> Vec<String> {
