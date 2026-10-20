@@ -186,7 +186,9 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
     // the label is the English key (`Check` translates it); the count sits beside it
     let choice = |ui: &mut egui::Ui, on: &mut bool, n: usize, text: &str, widget: &str| {
         ui.horizontal(|ui| {
-            let r = Check::new(&format!("sync.{widget}"), on, text).enabled(n > 0).show(ui);
+            // screen readers hear the count too, as the label used to carry it
+            let name = format!("{} ({n})", crate::i18n::tr(text));
+            let r = Check::new(&format!("sync.{widget}"), on, text).accessible_name(&name).enabled(n > 0).show(ui);
             ui.label(egui::RichText::new(format!("({n})")).color(t.text_dim));
             crate::widgets::register(ui, widget, r.rect);
         });

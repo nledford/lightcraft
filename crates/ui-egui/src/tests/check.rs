@@ -278,3 +278,33 @@ fn a_dialog_checkbox_and_a_toggle_are_reachable_by_id() {
     ask(&mut h, "ui.clickWidget", json!({"id": "button:keywordView-containing"}));
     assert_eq!(h.app.ui.keywording_view, crate::state::KeywordingView::Containing);
 }
+
+/// The Synchronize dialog draws its count beside the box; screen readers still hear it with the
+/// (translated) label, as when the count was part of the label.
+#[test]
+fn the_synchronize_choices_announce_their_count() {
+    use crate::state::{Dialog, SyncCounts};
+    let rig = Rig::new();
+    let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
+    let mut dlg = Dialog::SynchronizeFolder {
+        path: "/p".into(),
+        name: "p".into(),
+        disk: false,
+        counts: Some(SyncCounts { new: 7, ..Default::default() }),
+        import_new: true,
+        relink_moved: false,
+        remove_missing: false,
+        read_metadata: false,
+    };
+    crate::i18n::set_language(crate::i18n::Locale::De);
+    let (_, nodes) = rig.frame(Vec::new(), |ui| crate::sync::body(&app, ui, &mut dlg));
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    let names: Vec<&str> = nodes.iter().filter(|n| n.0 == "CheckBox").map(|n| n.1.as_str()).collect();
+    let label = {
+        crate::i18n::set_language(crate::i18n::Locale::De);
+        let l = crate::i18n::tr("Import new photos").to_string();
+        crate::i18n::set_language(crate::i18n::Locale::En);
+        l
+    };
+    assert!(names.contains(&format!("{label} (7)").as_str()), "label and count are announced together: {names:?}");
+}

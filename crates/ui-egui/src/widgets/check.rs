@@ -63,6 +63,7 @@ pub struct Check<'a> {
     reason: Option<&'a str>,
     emphasis: Emphasis,
     translated: bool,
+    accessible_name: Option<&'a str>,
 }
 
 /// How loud the label reads among its neighbours.
@@ -79,7 +80,7 @@ pub enum Emphasis {
 impl<'a> Check<'a> {
     /// A tick box for `value`, addressable as `check:{id}`.
     pub fn new(id: &'a str, value: &'a mut bool, label: &'a str) -> Self {
-        Check { id, value, label, enabled: true, tooltip: None, reason: None, emphasis: Emphasis::Normal, translated: false }
+        Check { id, value, label, enabled: true, tooltip: None, reason: None, emphasis: Emphasis::Normal, translated: false, accessible_name: None }
     }
 
     /// Off: drawn faded, and a click or a key does nothing.
@@ -108,6 +109,14 @@ impl<'a> Check<'a> {
         self
     }
 
+    /// What screen readers announce instead of the label, for a row whose visible text is
+    /// completed by a neighbour (a count beside it). Already in the chosen language; the visible
+    /// label is unchanged.
+    pub fn accessible_name(mut self, name: &'a str) -> Self {
+        self.accessible_name = Some(name);
+        self
+    }
+
     /// How loud the label reads.
     pub fn emphasis(mut self, emphasis: Emphasis) -> Self {
         self.emphasis = emphasis;
@@ -129,6 +138,7 @@ impl<'a> Check<'a> {
                 on,
                 emphasis: self.emphasis,
                 translated: self.translated,
+                accessible_name: self.accessible_name,
             },
         );
         if toggled {
@@ -185,6 +195,7 @@ impl<'a, V: PartialEq> Radio<'a, V> {
                 on,
                 emphasis: Emphasis::Normal,
                 translated: false,
+                accessible_name: None,
             },
         );
         if clicked && !on {
@@ -212,6 +223,8 @@ struct Spec<'a> {
     emphasis: Emphasis,
     /// `label` is already translated.
     translated: bool,
+    /// What assistive technology announces instead of `label`.
+    accessible_name: Option<&'a str>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -223,7 +236,7 @@ enum Form {
 /// Lay out, interact with and draw one row (the box and its wrapped label); true when it was
 /// activated by a click or the keyboard.
 fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
-    let Spec { widget, label, enabled, tooltip, reason, form: shape, on, emphasis, translated } = spec;
+    let Spec { widget, label, enabled, tooltip, reason, form: shape, on, emphasis, translated, accessible_name } = spec;
     let kind = match shape {
         Form::Box => egui::Role::CheckBox,
         Form::Round => egui::Role::RadioButton,
@@ -242,7 +255,7 @@ fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let id = ui.scope_id().with(("lc-check", widget.as_str()));
     let resp = ui.interact(rect, id, if enabled { Sense::click() } else { Sense::hover() });
-    resp.widget_info(|| WidgetInfo::selected(kind, enabled, on, label));
+    resp.widget_info(|| WidgetInfo::selected(kind, enabled, on, accessible_name.unwrap_or(label)));
     crate::widgets::register(ui, widget, rect);
 
     let state = if !enabled {
