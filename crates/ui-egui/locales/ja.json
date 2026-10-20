@@ -2345,5 +2345,7 @@
   "Checking the GPU for faces": "顔用の GPU を確認中",
   "Reduce Motion": "動きを減らす",
   "Reduce motion": "動きを減らす",
-  "Turns off zoom and spinner animations. Fades stay. Follows the system's Reduce Motion until you change it here.": "ズームとスピナーのアニメーションをオフにします。フェードはそのまま残ります。ここで変更するまで、システムの「視差効果を減らす」設定に従います。"
+  "Turns off zoom and spinner animations. Fades stay. Follows the system's Reduce Motion until you change it here.": "ズームとスピナーのアニメーションをオフにします。フェードはそのまま残ります。ここで変更するまで、システムの「視差効果を減らす」設定に従います。",
+  "Use the system setting": "システム設定に従う",
+  "Turns off zoom and spinner animations. Fades stay.": "ズームとスピナーのアニメーションをオフにします。フェードはそのまま残ります。"
 }
