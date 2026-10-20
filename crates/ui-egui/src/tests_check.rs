@@ -316,3 +316,91 @@ fn the_synchronize_choices_announce_their_count() {
     let separate: Vec<_> = nodes.iter().filter(|n| n.1 == "(7)").collect();
     assert!(separate.is_empty(), "the count is not announced a second time on its own: {separate:?}");
 }
+
+/// Every rectangle the frame painted, as (fill, stroke colour, stroke width).
+fn painted_rects(out: &egui::FullOutput) -> Vec<(Color32, Color32, f32)> {
+    fn walk(shape: &egui::Shape, into: &mut Vec<(Color32, Color32, f32)>) {
+        match shape {
+            egui::Shape::Rect(r) => into.push((r.fill, r.stroke.color, r.stroke.width)),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, into)),
+            _ => {}
+        }
+    }
+    let mut rects = Vec::new();
+    out.shapes.iter().for_each(|c| walk(&c.shape, &mut rects));
+    rects
+}
+
+/// One frame of `draw`, returning what it made and what it painted.
+fn paint_frame<T>(rig: &Rig, events: Vec<egui::Event>, draw: impl FnOnce(&mut egui::Ui) -> T) -> (T, Vec<(Color32, Color32, f32)>) {
+    let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), events, ..Default::default() };
+    let mut val = None;
+    let mut draw = Some(draw);
+    let mut out = rig.ctx.run_ui(raw, |ui| val = draw.take().map(|d| d(ui)));
+    out.textures_delta.clear();
+    (val.expect("the frame ran"), painted_rects(&out))
+}
+
+/// Keyboard focus shows on the buttons that were migrated to `text_button`, `text_button_sized`
+/// and `swatch_toggle` (keymap, keyword view, soft proof), whether they are idle, hovered or
+/// selected, and an unfocused one paints no ring: the pressed and hover fills are unchanged.
+#[test]
+fn a_focused_button_swatch_and_icon_button_show_the_focus_ring() {
+    type Draw = fn(&mut egui::Ui, bool) -> egui::Response;
+    let draws: [(&str, Draw); 4] = [
+        ("text_button", |ui, on| crate::widgets::text_button(ui, "a", "Auto", on)),
+        ("text_button_sized", |ui, on| crate::widgets::text_button_sized(ui, "b", "Name", on, 80.0, 24.0, None)),
+        ("swatch_toggle", |ui, on| crate::widgets::swatch_toggle(ui, "c", Color32::RED, on, "Out of gamut")),
+        ("icon_button", |ui, on| crate::widgets::icon_button(ui, "d", crate::icons::Icon::Eye, vec2(32.0, 32.0), on, true, "Eye")),
+    ];
+    for (name, draw) in draws {
+        let rig = Rig::new();
+        let t = Tokens::get(&rig.ctx);
+        let ring = |rects: &[(Color32, Color32, f32)]| rects.iter().any(|r| r.1 == t.accent && r.2 == 2.0);
+        let fill = |rects: &[(Color32, Color32, f32)], c: Color32| rects.iter().any(|r| r.0 == c);
+        // idle, unfocused: no ring
+        let (resp, rects) = paint_frame(&rig, Vec::new(), |ui| draw(ui, false));
+        assert!(!ring(&rects), "{name}: no ring without focus");
+        // idle, focused: ring
+        rig.ctx.memory_mut(|m| m.request_focus(resp.id));
+        let (_, rects) = paint_frame(&rig, Vec::new(), |ui| draw(ui, false));
+        assert!(ring(&rects), "{name}: a focused idle button shows the ring");
+        // focused and selected: ring on top of the selected fill
+        let (_, rects) = paint_frame(&rig, Vec::new(), |ui| draw(ui, true));
+        assert!(ring(&rects), "{name}: a focused selected button shows the ring");
+        // unfocused and selected: the pressed fill, no ring
+        rig.ctx.memory_mut(|m| m.surrender_focus(resp.id));
+        let (_, rects) = paint_frame(&rig, Vec::new(), |ui| draw(ui, true));
+        assert!(!ring(&rects), "{name}: a selected button without focus has no ring");
+        if name != "icon_button" {
+            assert!(fill(&rects, t.pressed), "{name}: selected keeps the pressed fill");
+            // unfocused and hovered: the hover fill, no ring
+            let hover = vec![egui::Event::PointerMoved(resp.rect.center())];
+            paint_frame(&rig, hover.clone(), |ui| draw(ui, false));
+            let (_, rects) = paint_frame(&rig, hover, |ui| draw(ui, false));
+            assert!(fill(&rects, t.hover), "{name}: hover keeps the hover fill");
+            assert!(!ring(&rects), "{name}: a hovered button without focus has no ring");
+        }
+    }
+}
+
+/// The segmented control's segments take the focus ring too.
+#[test]
+fn a_focused_segment_shows_the_focus_ring() {
+    let rig = Rig::new();
+    let t = Tokens::get(&rig.ctx);
+    let draw = |ui: &mut egui::Ui| crate::widgets::segmented(ui, "seg", &[("One", "one"), ("Two", "two")], Some(0), 2);
+    let (_, rects) = paint_frame(&rig, Vec::new(), draw);
+    assert!(!rects.iter().any(|r| r.1 == t.accent && r.2 == 2.0), "no ring without focus");
+    // Tab reaches the first segment
+    let tab = vec![egui::Event::Key {
+        key: egui::Key::Tab,
+        physical_key: Some(egui::Key::Tab),
+        pressed: true,
+        repeat: false,
+        modifiers: Default::default(),
+    }];
+    paint_frame(&rig, tab, draw);
+    let (_, rects) = paint_frame(&rig, Vec::new(), draw);
+    assert!(rects.iter().any(|r| r.1 == t.accent && r.2 == 2.0), "the focused segment shows the ring");
+}
