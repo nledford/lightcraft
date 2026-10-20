@@ -178,7 +178,7 @@ mod tests_temp_slider;
 #[cfg(test)]
 mod tests_titlebar;
 #[cfg(test)]
-mod tests_toasts;
+mod tests_toast_timing;
 #[cfg(test)]
 mod tests_tool_overlay;
 #[cfg(test)]
