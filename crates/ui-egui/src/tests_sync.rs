@@ -421,3 +421,34 @@ fn a_folders_scan_that_stops_at_the_cap_says_so() {
     }
     h.app.ui.dialog = None;
 }
+
+/// Given a scan that stopped (its choices were forced off) that then goes stale,
+/// When Synchronize is refused and the folder is scanned again,
+/// Then the new dialog has the default choices, not the forced-off ones.
+#[test]
+fn a_rescan_after_a_stopped_scan_starts_from_the_default_choices() {
+    let dir = Scratch::new("restopped");
+    let mut h = changed_folder(&dir);
+    open_and_scan(&mut h, &dir.path("trip"));
+    if let Some(Dialog::SynchronizeFolder { counts: Some(c), relink_moved, .. }) = &mut h.app.ui.dialog {
+        c.stopped = true;
+        *relink_moved = false;
+    }
+    let a = h.app.session.catalog.photos().find(|p| p.file_name == "a.png").unwrap().id;
+    let r = h.request("engine.execute", json!({"command": "photo.rate", "params": {"ids": [a.0], "rating": 3}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.dialog.confirm", json!({}), T);
+    assert_eq!(r["ok"], false, "{r}");
+    let rescanned = h.step_until(T, |h| matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { counts: Some(_), .. })));
+    assert!(rescanned);
+    assert!(matches!(h.app.ui.dialog, Some(Dialog::SynchronizeFolder { relink_moved: true, .. })), "{:?}", h.app.ui.dialog);
+}
+
+/// A scan that stopped with nothing found does not say the library is up to date: it did not look at everything.
+#[test]
+fn a_stopped_scan_that_found_nothing_is_not_up_to_date() {
+    let mut c = crate::state::SyncCounts::default();
+    assert!(crate::sync::up_to_date(&c));
+    c.stopped = true;
+    assert!(!crate::sync::up_to_date(&c));
+}

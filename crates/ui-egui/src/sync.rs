@@ -130,6 +130,11 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
 }
 
+/// Whether the dialog says the library is up to date: the scan ran to its end and found nothing to do.
+pub(crate) fn up_to_date(c: &SyncCounts) -> bool {
+    c.new + c.moved + c.missing + c.metadata == 0 && !c.stopped
+}
+
 /// How far the scan is (files probed, of how many).
 fn progress(app: &LightcraftApp) -> Option<(usize, usize)> {
     app.sync.as_ref().map(|t| t.progress.counts())
@@ -169,7 +174,7 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
     choice(ui, read_metadata, c.metadata, count("Read metadata updates from XMP sidecars", c.metadata), "syncReadMetadata");
     ui.add_space(6.0);
     let dim = |ui: &mut egui::Ui, s: &str| ui.label(egui::RichText::new(s).color(t.text_dim));
-    if c.new + c.moved + c.missing + c.metadata == 0 {
+    if up_to_date(c) {
         dim(ui, crate::i18n::tr("The library is up to date with this folder."));
     }
     if c.stopped {
@@ -193,7 +198,7 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
 /// thread at once ([`SyncRun`]); nothing is read from disk on the UI thread. A scan that went
 /// stale (the folder's photos changed meanwhile) is refused and made again, keeping the choices.
 pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
-    let Dialog::SynchronizeFolder { path, name, disk, counts: Some(_), import_new, relink_moved, remove_missing, read_metadata, .. } = dlg else {
+    let Dialog::SynchronizeFolder { path, name, disk, counts: Some(was), import_new, relink_moved, remove_missing, read_metadata, .. } = dlg else {
         return Err("the folder is still being scanned".into());
     };
     if app.sync_run.is_some() {
@@ -214,6 +219,8 @@ pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
         Err(e) => {
             // look again, in the background, keeping what was ticked
             if open(app, path, name, *disk).is_ok()
+                // (a stopped scan's choices were forced off, not ticked by the person: the new dialog keeps its defaults)
+                && !was.stopped
                 && let Some(Dialog::SynchronizeFolder { import_new: i, relink_moved: l, remove_missing: m, read_metadata: x, .. }) =
                     &mut app.ui.dialog
             {
