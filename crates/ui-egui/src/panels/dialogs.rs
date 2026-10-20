@@ -1512,6 +1512,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     if app.ui.dialog.as_ref().is_some_and(|now| *now != at_start) {
         return;
     }
+    // a review closed without importing (Cancel, Esc) leaves no listing behind (OK took it already)
+    if close && matches!(dlg, Dialog::Import { .. }) {
+        app.review_listed = None;
+    }
     app.ui.dialog = if close { None } else { Some(dlg) };
 }
 
