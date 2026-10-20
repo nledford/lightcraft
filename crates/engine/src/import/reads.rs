@@ -198,13 +198,25 @@ pub(super) struct Pool<'a> {
 struct Worker {
     /// The job it is on (its index) and when it last made progress.
     busy: Mutex<Option<(usize, Instant)>>,
-    abandoned: AtomicBool,
+    abandoned: std::sync::Arc<AtomicBool>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 thread_local! {
     /// The pool thread this is, for [`progressed`].
     static CURRENT: std::cell::RefCell<Option<std::sync::Arc<Worker>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The abandon flag of the pool thread this is (`None` on any other thread), for the memory gate to tell the permits of
+/// reads that were given up from the others.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn abandon_flag() -> Option<std::sync::Arc<AtomicBool>> {
+    CURRENT.with(|current| current.borrow().as_ref().map(|worker| worker.abandoned.clone()))
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn abandon_flag() -> Option<std::sync::Arc<AtomicBool>> {
+    None
 }
 
 /// The job on this thread has made progress (a chunk read or written, a wait for memory over, a step done): its

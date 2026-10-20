@@ -33,8 +33,8 @@ use crate::Session;
 use crate::media::ProbeInfo;
 
 mod reads;
-pub(crate) use reads::progressed;
 pub use reads::{MAX_SKIPPED, ReadWatch, STALL_AFTER, StalledRead};
+pub(crate) use reads::{abandon_flag, progressed};
 
 /// File extensions LightCraft imports (lower case).
 pub const EXTENSIONS: &[&str] = &[

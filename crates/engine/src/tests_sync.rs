@@ -725,7 +725,7 @@ fn a_probe_that_stops_answering_is_named_and_skipping_it_lists_the_file_as_unrea
 /// A library of `trip/a.png`, `trip/day1/b.png` and `n` photos `trip/hang-check-<i>.png` (whose checks wait on the
 /// returned gate), the hung ones' files and `b.png` gone from the disk, so that a check that did run would call them
 /// missing.
-fn hanging_checks(dir: &Scratch, n: usize) -> (Session, crate::import::tests_reads::Gate) {
+fn hanging_checks(dir: &Scratch, n: usize) -> (Session, crate::import::tests_reads::Gate, crate::sync::CheckHookGuard) {
     use crate::import::tests_reads::Gate;
     for i in 0..n {
         write_png(&dir.path(&format!("trip/hang-check-{i}.png")), 20 + i as u8);
@@ -741,8 +741,9 @@ fn hanging_checks(dir: &Scratch, n: usize) -> (Session, crate::import::tests_rea
     }
     let gate = Gate::default();
     let in_check = gate.clone();
-    *crate::sync::CHECK_HOOK.lock().unwrap() = Some(std::sync::Arc::new(move || in_check.wait()));
-    (s, gate)
+    // (only this test's photos hang: its folder is its own)
+    let hook = crate::sync::hook_checks_under(&dir.path("trip/hang-check-"), std::sync::Arc::new(move || in_check.wait()));
+    (s, gate, hook)
 }
 
 /// Skip every check the row names until the scan is over.
@@ -766,10 +767,9 @@ fn scan_skipping(s: &mut Session, dir: &Scratch) -> crate::sync::FolderChanges {
 #[test]
 fn a_skipped_check_is_not_listed_as_missing() {
     let dir = Scratch::new("skipcheck");
-    let (mut s, gate) = hanging_checks(&dir, 1);
+    let (mut s, gate, _hook) = hanging_checks(&dir, 1);
     let changes = scan_skipping(&mut s, &dir);
     gate.open();
-    *crate::sync::CHECK_HOOK.lock().unwrap() = None;
     let missing: Vec<&str> = changes.missing.iter().map(|m| m.path.as_str()).collect();
     assert_eq!(missing.len(), 1, "{missing:?}");
     assert!(missing[0].ends_with("b.png"), "{missing:?}");
@@ -782,10 +782,9 @@ fn a_skipped_check_is_not_listed_as_missing() {
 #[test]
 fn a_scan_that_stops_at_the_cap_says_so() {
     let dir = Scratch::new("capcheck");
-    let (mut s, gate) = hanging_checks(&dir, 6);
+    let (mut s, gate, _hook) = hanging_checks(&dir, 6);
     let changes = scan_skipping(&mut s, &dir);
     gate.open();
-    *crate::sync::CHECK_HOOK.lock().unwrap() = None;
     let why = changes.stopped.clone().expect("the scan says why it stopped");
     assert!(why.contains("not answering"), "{why}");
     assert!(changes.missing.iter().all(|m| !m.path.contains("hang-check")), "{:?}", changes.missing);

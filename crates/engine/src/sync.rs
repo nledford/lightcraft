@@ -490,18 +490,42 @@ impl Listing {
     }
 }
 
-/// What tests run before the check of a photo whose file name has `hang-check` in it (to make a check that does not
-/// answer).
+/// What tests run before the check of a photo whose path starts with a prefix they registered (a scratch folder of
+/// their own, so that tests running side by side don't see each other's): to make a check that does not answer.
 #[cfg(test)]
-pub(crate) static CHECK_HOOK: std::sync::Mutex<Option<Arc<dyn Fn() + Send + Sync>>> = std::sync::Mutex::new(None);
+type CheckHook = (String, Arc<dyn Fn() + Send + Sync>);
+
+#[cfg(test)]
+static CHECK_HOOKS: std::sync::Mutex<Vec<CheckHook>> = std::sync::Mutex::new(Vec::new());
+
+/// Run `hook` before the checks of photos under `prefix`, until the returned guard is dropped.
+#[cfg(test)]
+pub(crate) fn hook_checks_under(prefix: &str, hook: Arc<dyn Fn() + Send + Sync>) -> CheckHookGuard {
+    CHECK_HOOKS.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push((prefix.to_string(), hook));
+    CheckHookGuard(prefix.to_string())
+}
+
+#[cfg(test)]
+pub(crate) struct CheckHookGuard(String);
+
+#[cfg(test)]
+impl Drop for CheckHookGuard {
+    fn drop(&mut self) {
+        CHECK_HOOKS.lock().unwrap_or_else(std::sync::PoisonError::into_inner).retain(|(p, _)| *p != self.0);
+    }
+}
 
 #[cfg(test)]
 fn check_hook(file: &Path) {
-    if file.to_string_lossy().contains("hang-check") {
-        let hook = CHECK_HOOK.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-        if let Some(hook) = hook {
-            hook();
-        }
+    let name = file.to_string_lossy();
+    let hook = CHECK_HOOKS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .iter()
+        .find(|(p, _)| name.starts_with(p.as_str()))
+        .map(|(_, h)| h.clone());
+    if let Some(hook) = hook {
+        hook();
     }
 }
 

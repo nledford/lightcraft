@@ -422,28 +422,91 @@ fn a_skipped_move_keeps_the_source_and_leaves_nothing_at_the_destination() {
     let _ = std::fs::remove_dir_all(&t.dir);
 }
 
-/// Given a read that waits for memory (the gate is held by other work) for longer than the stall time,
+/// Given a read that waits for memory (a gate of the test's own, held by other work) for longer than the stall time,
 /// Then it is never reported as stalled: waiting for memory is not a drive that stopped answering.
 #[test]
 fn a_read_queued_at_the_memory_gate_is_never_reported() {
-    let gate = crate::memory::work_gate();
-    let limit = gate.usage().1;
-    // the stall time is shorter than the hold, longer than the gate's once-a-second heartbeat
-    let mut job = job(|_: &str| {
-        let _permit = crate::memory::work_gate().acquire(1);
-        jpeg()
+    let gate = Arc::new(crate::memory::WorkGate::new(100));
+    let watch = ReadWatch::new(Duration::from_millis(1500));
+    watch.set_poll(Duration::from_millis(5));
+    let cancel = AtomicBool::new(false);
+    // held by work that is not a pool's (an interactive render, say)
+    let held = gate.acquire(100);
+    let work: Arc<dyn Fn(u32) -> u32 + Send + Sync> = {
+        let gate = gate.clone();
+        Arc::new(move |job| {
+            let _permit = gate.acquire(1);
+            job
+        })
+    };
+    let outcomes = std::thread::scope(|sc| {
+        sc.spawn(|| {
+            let started = Instant::now();
+            while started.elapsed() < Duration::from_millis(2600) {
+                assert!(watch.stalled().is_none(), "waiting at the gate was called a stall after {:?}", started.elapsed());
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            drop(held);
+        });
+        let pool = reads::Pool { watch: &watch, cancel: &cancel, name: "test-read", threads: 1 };
+        pool.run(vec![7u32], &|i| format!("job-{i}"), work, Arc::new(|_| {}), Arc::new(|| {}), &|_| {})
     });
-    job.reads.set_stall_after(Duration::from_millis(1500));
-    let reads = job.reads.clone();
-    let held = gate.acquire(limit);
-    let paths = files(&["queued.jpg"]);
-    let worker = std::thread::spawn(move || job.prepare(&paths, &AtomicBool::new(false)));
-    let started = Instant::now();
-    while started.elapsed() < Duration::from_millis(2600) {
-        assert!(reads.stalled().is_none(), "waiting at the gate was called a stall after {:?}", started.elapsed());
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    drop(held);
-    let prepared = worker.join().unwrap();
-    assert_eq!((ready(&prepared), failures(&prepared).len()), (1, 0));
+    assert!(matches!(outcomes.first(), Some(reads::Outcome::Done(7))), "{outcomes:?}");
+}
+
+/// Given a reader that holds the whole memory gate and was given up (it keeps the memory until the drive answers),
+/// When other reads need the gate,
+/// Then each is named as stalled (the wait is blocked by abandoned work only, which is not progress), Skip works on
+/// it, and the fourth skipped read ends the run: the import cannot sit there forever.
+#[test]
+fn reads_blocked_only_by_an_abandoned_holder_are_named_and_the_cap_ends_the_run() {
+    let gate = Arc::new(crate::memory::WorkGate::new(100));
+    let (drive, release) = (Gate::default(), Gate::default());
+    let watch = ReadWatch::new(Duration::from_millis(1200));
+    // (longer than the gate's once-a-second heartbeat: were a wait for abandoned memory counted as progress, the
+    // clock would be reset before it could run out)
+    watch.set_poll(Duration::from_millis(5));
+    let cancel = AtomicBool::new(false);
+    let work: Arc<dyn Fn(u32) -> u32 + Send + Sync> = {
+        let (gate, drive, release) = (gate.clone(), drive.clone(), release.clone());
+        Arc::new(move |job| {
+            let _permit = gate.acquire(100);
+            if job == 0 {
+                // the drive stops answering while this read holds all the memory
+                drive.wait();
+            }
+            release.wait();
+            job
+        })
+    };
+    let outcomes = std::thread::scope(|sc| {
+        sc.spawn(|| {
+            // (a failed wait below must end the run too, or the scope would never end)
+            struct Stop<'a>(&'a AtomicBool);
+            impl Drop for Stop<'_> {
+                fn drop(&mut self) {
+                    self.0.store(true, Relaxed);
+                }
+            }
+            let _stop = Stop(&cancel);
+            until("the first read to be named", || watch.stalled().is_some_and(|s| s.what == "job-0"));
+            watch.skip();
+            until("the first read to be given up", || watch.skipped() == 1);
+            assert_eq!(gate.abandoned_bytes(), 100, "its memory stays counted");
+            // the next read waits for that memory, which is not progress: it is named in its turn
+            for n in 2..=4 {
+                until("a read waiting at the gate to be named", || watch.stalled().is_some_and(|s| s.what == format!("job-{}", n - 1)));
+                watch.skip();
+                until("it to be given up", || watch.skipped() == n);
+            }
+            release.open();
+            drive.open();
+        });
+        let pool = reads::Pool { watch: &watch, cancel: &cancel, name: "test-read", threads: 1 };
+        pool.run((0..6u32).collect(), &|i| format!("job-{i}"), work, Arc::new(|_| {}), Arc::new(|| {}), &|_| {})
+    });
+    assert_eq!(watch.skipped(), MAX_SKIPPED);
+    assert!(watch.ended().is_some_and(|why| why.contains("not answering")), "{:?}", watch.ended());
+    assert!(outcomes.iter().take(4).all(|o| matches!(o, reads::Outcome::Failed(_))), "{outcomes:?}");
+    assert!(outcomes.iter().skip(4).all(|o| matches!(o, reads::Outcome::Unreached)), "{outcomes:?}");
 }
