@@ -525,3 +525,66 @@ fn reads_blocked_only_by_an_abandoned_holder_are_named_and_the_cap_ends_the_run(
     assert!(outcomes.iter().take(4).all(|o| matches!(o, reads::Outcome::Failed(_))), "{outcomes:?}");
     assert!(outcomes.iter().skip(4).all(|o| matches!(o, reads::Outcome::Unreached)), "{outcomes:?}");
 }
+
+/// Given reads that block in the operating system and stay blocked after their run was cancelled,
+/// When the run is cancelled and started again and again,
+/// Then the readers still blocked from earlier runs stay bounded across runs: a run that finds the cap reached starts
+/// no reader and ends with the "drive is not answering" error, and once the drive lets go the next run completes.
+#[test]
+fn cancel_and_restart_cannot_pile_up_blocked_readers() {
+    const CAP: usize = 6;
+    const THREADS: usize = 3;
+    let stuck = Arc::new(reads::StuckReaders::new(CAP));
+    let (gate, entered, inside) = (Gate::default(), Arc::new(Mutex::new(0usize)), Arc::new(Mutex::new((0usize, 0usize))));
+    let work: Arc<dyn Fn(u32) -> u32 + Send + Sync> = {
+        let (gate, entered, inside) = (gate.clone(), entered.clone(), inside.clone());
+        Arc::new(move |job| {
+            *entered.lock().unwrap() += 1;
+            {
+                let mut n = inside.lock().unwrap();
+                n.0 += 1;
+                n.1 = n.1.max(n.0);
+            }
+            gate.wait();
+            inside.lock().unwrap().0 -= 1;
+            job
+        })
+    };
+    let attempt = |jobs: u32| {
+        let watch = ReadWatch::with_stuck(STALL, stuck.clone());
+        watch.set_poll(Duration::from_millis(5));
+        let cancel = AtomicBool::new(false);
+        let before = *entered.lock().unwrap();
+        let outcomes = std::thread::scope(|sc| {
+            sc.spawn(|| {
+                // ✕ once the readers are blocked (or at once, when none could start)
+                let started = Instant::now();
+                while *entered.lock().unwrap() < before + (jobs as usize).min(THREADS) && started.elapsed() < Duration::from_millis(300) {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+                cancel.store(true, Relaxed);
+            });
+            let pool = reads::Pool { watch: &watch, cancel: &cancel, name: "test-read", threads: THREADS };
+            pool.run((0..jobs).collect(), &|i| format!("job-{i}"), work.clone(), Arc::new(|_| {}), Arc::new(|| {}), &|_| {})
+        });
+        (watch, outcomes, *entered.lock().unwrap() - before)
+    };
+    for run in 0..6 {
+        let (watch, outcomes, started) = attempt(5);
+        if run < CAP / THREADS {
+            assert_eq!(started, THREADS, "run {run} starts its readers");
+            assert!(watch.ended().is_none());
+        } else {
+            assert_eq!(started, 0, "run {run} finds the cap reached and starts nothing");
+            assert!(watch.ended().is_some_and(|why| why.contains("not answering")), "{:?}", watch.ended());
+            assert!(outcomes.iter().all(|o| matches!(o, reads::Outcome::Unreached)));
+        }
+        assert!(stuck.alive() <= CAP);
+    }
+    assert!(inside.lock().unwrap().1 <= CAP, "never more readers blocked at once than the cap");
+    gate.open();
+    until("the blocked readers to exit", || stuck.alive() == 0);
+    let (watch, outcomes, _) = attempt(2);
+    assert!(watch.ended().is_none());
+    assert!(outcomes.iter().all(|o| matches!(o, reads::Outcome::Done(_))), "{outcomes:?}");
+}

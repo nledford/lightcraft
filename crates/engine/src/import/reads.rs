@@ -19,6 +19,11 @@
 //! - **A drive that is gone:** the [`MAX_SKIPPED`]th skipped read ends the run with an error ([`ReadWatch::ended`])
 //!   instead of leaving yet another thread blocked.
 //!
+//! - **Earlier runs:** an abandoned read stays blocked after its run is over, and the next run builds a new pool. The
+//!   abandoned threads still alive are counted across runs ([`StuckReaders`], [`MAX_STUCK_READERS`]); while that many
+//!   are blocked, a run is not started and ends with the same "drive is not answering" error, so repeated
+//!   cancel and restart cannot pile up blocked threads.
+//!
 //! Several pools can run at once under one [`ReadWatch`] (Synchronize Folder probes the new files while it checks
 //! the library's photos): the watch names the longest stall of all, and Skip acts on the pool that has it.
 
@@ -34,6 +39,9 @@ use web_time::Instant;
 pub const STALL_AFTER: Duration = Duration::from_secs(10);
 /// The skipped reads that end a run with an error: each leaves a thread blocked until the system lets it go.
 pub const MAX_SKIPPED: usize = 4;
+/// The abandoned reads that may be still blocked at once, over all runs of the process: four runs' worth of
+/// [`MAX_SKIPPED`]. A further run is refused until the system lets some go.
+pub const MAX_STUCK_READERS: usize = 32;
 /// How often the coordinating thread looks at ✕, Skip and the readers.
 const POLL: Duration = Duration::from_millis(250);
 /// Once ✕ is pressed, how long jobs under way get to finish before they are abandoned.
@@ -41,6 +49,35 @@ const CANCEL_GRACE: Duration = Duration::from_millis(400);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// How many abandoned reader threads are still alive (blocked in the operating system), shared by every run that
+/// uses it. A thread counts from the moment it is abandoned until it truly exits, however long after its run ended.
+#[derive(Debug)]
+pub struct StuckReaders {
+    alive: AtomicUsize,
+    cap: usize,
+}
+
+impl StuckReaders {
+    pub fn new(cap: usize) -> Self {
+        StuckReaders { alive: AtomicUsize::new(0), cap }
+    }
+
+    /// The process-wide count, which every run uses.
+    pub fn global() -> std::sync::Arc<StuckReaders> {
+        static GLOBAL: std::sync::OnceLock<std::sync::Arc<StuckReaders>> = std::sync::OnceLock::new();
+        GLOBAL.get_or_init(|| std::sync::Arc::new(StuckReaders::new(MAX_STUCK_READERS))).clone()
+    }
+
+    /// Abandoned readers still blocked.
+    pub fn alive(&self) -> usize {
+        self.alive.load(Ordering::SeqCst)
+    }
+
+    fn full(&self) -> bool {
+        self.alive() >= self.cap
+    }
 }
 
 /// A read that has gone without progress ([`ReadWatch::stalled`]).
@@ -65,6 +102,7 @@ pub struct ReadWatch {
     skip: Mutex<Option<(String, Instant)>>,
     skipped: AtomicUsize,
     ended: Mutex<Option<String>>,
+    stuck: std::sync::Arc<StuckReaders>,
 }
 
 impl Default for ReadWatch {
@@ -77,6 +115,11 @@ impl Default for ReadWatch {
             skip: Mutex::new(None),
             skipped: AtomicUsize::new(0),
             ended: Mutex::new(None),
+            // (tests run in parallel in one process: each watch counts its own unless a test shares one)
+            #[cfg(not(test))]
+            stuck: StuckReaders::global(),
+            #[cfg(test)]
+            stuck: std::sync::Arc::new(StuckReaders::new(MAX_STUCK_READERS)),
         }
     }
 }
@@ -86,6 +129,12 @@ fn millis(d: Duration) -> u64 {
 }
 
 impl ReadWatch {
+    /// A watch whose runs count their abandoned readers in `stuck` instead of the process-wide count.
+    #[cfg(test)]
+    pub(crate) fn with_stuck(after: Duration, stuck: std::sync::Arc<StuckReaders>) -> Self {
+        ReadWatch { stuck, ..ReadWatch::new(after) }
+    }
+
     /// A watch that calls a read stalled after `after` ([`STALL_AFTER`] by default).
     pub fn new(after: Duration) -> Self {
         let watch = ReadWatch::default();
@@ -161,6 +210,10 @@ impl ReadWatch {
     /// Why the run cannot go on, once it cannot: too many reads were skipped, or a reader could not be started.
     pub fn ended(&self) -> Option<String> {
         lock(&self.ended).clone()
+    }
+
+    fn blocked_elsewhere(&self) -> String {
+        format!("the drive is not answering ({} reads of earlier runs are still blocked)", self.stuck.alive())
     }
 
     fn end(&self, why: String) {
@@ -269,10 +322,33 @@ struct Shared<J, R> {
     init: std::sync::Arc<dyn Fn() + Send + Sync>,
     /// The run is over: a job still queued is not started.
     over: AtomicBool,
+    stuck: std::sync::Arc<StuckReaders>,
+}
+
+/// Gives up the thread's place in the [`StuckReaders`] count when it exits, if it was abandoned.
+#[cfg(not(target_arch = "wasm32"))]
+struct Exit(std::sync::Arc<Worker>, std::sync::Arc<StuckReaders>);
+
+#[cfg(not(target_arch = "wasm32"))]
+impl Drop for Exit {
+    fn drop(&mut self) {
+        if self.0.abandoned.load(Ordering::SeqCst) {
+            self.1.alive.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+}
+
+/// Abandon `w` (its job is given up), counting it until its thread exits. Call with its `busy` lock held and `Some`.
+#[cfg(not(target_arch = "wasm32"))]
+fn abandon(w: &Worker, stuck: &StuckReaders) {
+    if !w.abandoned.swap(true, Ordering::SeqCst) {
+        stuck.alive.fetch_add(1, Ordering::SeqCst);
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn worker_loop<J: Send + 'static, R: Send + 'static>(me: std::sync::Arc<Worker>, shared: std::sync::Arc<Shared<J, R>>) {
+    let _exit = Exit(me.clone(), shared.stuck.clone());
     CURRENT.with(|current| *current.borrow_mut() = Some(me.clone()));
     (shared.init)();
     loop {
@@ -332,6 +408,10 @@ impl Pool<'_> {
         if total == 0 || self.halted() {
             return outcomes;
         }
+        if self.watch.stuck.full() {
+            self.watch.end(self.watch.blocked_elsewhere());
+            return outcomes;
+        }
         let pool = self.watch.register_pool();
         let (job_tx, job_rx) = mpsc::channel::<(usize, J)>();
         let (result_tx, result_rx) = mpsc::channel::<Message<R>>();
@@ -342,6 +422,7 @@ impl Pool<'_> {
             late: late.clone(),
             init,
             over: AtomicBool::new(false),
+            stuck: self.watch.stuck.clone(),
         });
         let start = |n: usize| -> std::io::Result<Arc<Worker>> {
             let me = Arc::new(Worker::default());
@@ -452,7 +533,7 @@ impl Pool<'_> {
                     if *busy != Some((i, since)) {
                         continue; // it answered just now
                     }
-                    w.abandoned.store(true, Ordering::SeqCst);
+                    abandon(w, &self.watch.stuck);
                 }
                 live.remove(k);
                 let secs = since.elapsed().as_secs();
@@ -464,6 +545,8 @@ impl Pool<'_> {
                 let skipped = self.watch.skipped.fetch_add(1, Ordering::Relaxed).saturating_add(1);
                 if skipped >= MAX_SKIPPED {
                     self.watch.end(format!("the drive is not answering ({} is the last file it stopped on)", label(i)));
+                } else if self.watch.stuck.full() {
+                    self.watch.end(self.watch.blocked_elsewhere());
                 } else {
                     match start(started) {
                         Ok(w) => {
@@ -482,7 +565,7 @@ impl Pool<'_> {
         for w in &live {
             let busy = lock(&w.busy);
             if busy.is_some() {
-                w.abandoned.store(true, Ordering::SeqCst);
+                abandon(w, &self.watch.stuck);
             }
         }
         drop(job_tx);
