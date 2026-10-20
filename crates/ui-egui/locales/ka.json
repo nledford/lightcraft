@@ -1949,6 +1949,7 @@
   "Size limit": "ზომის ზღვარი",
   "Size rules measure the photo as shown: Megapixels now counts the cropped photo, like Long Edge, Short Edge and": "ზომის წესები ფოტოს ზომავს ისე, როგორც ჩანს: მეგაპიქსელი ახლა ჩამოჭრილ ფოტოს ითვლის, როგორც გრძელი გვერდი, მოკლე გვერდი და",
   "Skip": "გამოტოვება",
+  "Skip Stalled File": "გაჭედილი ფაილის გამოტოვება",
   "Skipped: files already in the library elsewhere": "გამოტოვებულია: ფაილები, რომლებიც ბიბლიოთეკაში უკვე სხვა ადგილასაა",
   "Skipped: files that can't be read": "გამოტოვებულია: ფაილები, რომელთა წაკითხვა შეუძლებელია",
   "Sky": "ცა",

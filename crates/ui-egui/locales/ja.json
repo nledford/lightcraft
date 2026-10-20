@@ -1324,6 +1324,7 @@
   "Size (% of short edge)": "サイズ（短辺に対する%）",
   "Size limit": "サイズの上限",
   "Skip": "スキップ",
+  "Skip Stalled File": "応答のないファイルをスキップ",
   "Sky": "空",
   "Slideshow": "スライドショー",
   "Slideshow paused": "スライドショーを一時停止しました",

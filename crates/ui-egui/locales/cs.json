@@ -1625,6 +1625,7 @@
   "Size (% of short edge)": "Velikost (% kratší hrany)",
   "Size limit": "Limit velikosti",
   "Skip": "Přeskočit",
+  "Skip Stalled File": "Přeskočit zablokovaný soubor",
   "Skipped: files already in the library elsewhere": "Přeskočeno: soubory již v knihovně na jiném místě",
   "Skipped: files that can't be read": "Přeskočeno: soubory, které nelze načíst",
   "Sky": "Obloha",
