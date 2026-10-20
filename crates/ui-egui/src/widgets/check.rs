@@ -13,7 +13,8 @@
 //! A click, or Space or Return on the focused control, changes the value and marks the response
 //! changed. A disabled one is drawn faded, ignores clicks and the keyboard, and shows its tooltip
 //! as the reason. Labels and tooltips are English keys: they are translated here when drawn, so a
-//! caller passes them untranslated.
+//! caller passes them untranslated. A label that has a value in it is a `tr_format!` result, already
+//! translated: [`Check::translated`] draws it as it is.
 //!
 //! Every control's egui id and its `check:`/`radio:` automation name come from the `id` string and
 //! the enclosing `ui`: two controls with the same `id` in one `ui` (a loop that leaves its index
@@ -61,6 +62,7 @@ pub struct Check<'a> {
     tooltip: Option<&'a str>,
     reason: Option<&'a str>,
     emphasis: Emphasis,
+    translated: bool,
 }
 
 /// How loud the label reads among its neighbours.
@@ -77,7 +79,7 @@ pub enum Emphasis {
 impl<'a> Check<'a> {
     /// A tick box for `value`, addressable as `check:{id}`.
     pub fn new(id: &'a str, value: &'a mut bool, label: &'a str) -> Self {
-        Check { id, value, label, enabled: true, tooltip: None, reason: None, emphasis: Emphasis::Normal }
+        Check { id, value, label, enabled: true, tooltip: None, reason: None, emphasis: Emphasis::Normal, translated: false }
     }
 
     /// Off: drawn faded, and a click or a key does nothing.
@@ -96,6 +98,13 @@ impl<'a> Check<'a> {
     /// Shown on hover only while it is disabled, as the reason why; an enabled one shows nothing.
     pub fn disabled_reason(mut self, text: &'a str) -> Self {
         self.reason = Some(text);
+        self
+    }
+
+    /// The label is already in the chosen language (a `tr_format!` result with a value in it), so
+    /// it is drawn as it is instead of being looked up as an English key.
+    pub fn translated(mut self) -> Self {
+        self.translated = true;
         self
     }
 
@@ -119,6 +128,7 @@ impl<'a> Check<'a> {
                 form: Form::Box,
                 on,
                 emphasis: self.emphasis,
+                translated: self.translated,
             },
         );
         if toggled {
@@ -174,6 +184,7 @@ impl<'a, V: PartialEq> Radio<'a, V> {
                 form: Form::Round,
                 on,
                 emphasis: Emphasis::Normal,
+                translated: false,
             },
         );
         if clicked && !on {
@@ -199,6 +210,8 @@ struct Spec<'a> {
     form: Form,
     on: bool,
     emphasis: Emphasis,
+    /// `label` is already translated.
+    translated: bool,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -210,13 +223,13 @@ enum Form {
 /// Lay out, interact with and draw one row (the box and its wrapped label); true when it was
 /// activated by a click or the keyboard.
 fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
-    let Spec { widget, label, enabled, tooltip, reason, form: shape, on, emphasis } = spec;
+    let Spec { widget, label, enabled, tooltip, reason, form: shape, on, emphasis, translated } = spec;
     let kind = match shape {
         Form::Box => egui::Role::CheckBox,
         Form::Round => egui::Role::RadioButton,
     };
     let t = Tokens::get(ui.ctx());
-    let label = crate::i18n::tr(label);
+    let label = if translated { label } else { crate::i18n::tr(label) };
     let enabled = enabled && ui.is_enabled();
     let wrap = (ui.available_width() - BOX - GAP).max(60.0);
     let (font, base) = match emphasis {

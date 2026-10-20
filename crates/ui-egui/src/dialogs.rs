@@ -1188,9 +1188,7 @@ fn export_color_rows(ui: &mut egui::Ui, t: &Tokens, opts: &mut ExportOptions) {
     use lightcraft_engine::export::ExportFormat as F;
     let rendered = opts.format.is_rendered();
     if matches!(opts.format, F::Jpeg | F::Tiff | F::Avif | F::Png | F::Jxl) {
-        let tip = crate::i18n::tr(
-            "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float",
-        );
+        let tip = "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float";
         Check::new("exportHdr", &mut opts.hdr, "HDR output").tooltip(tip).show(ui);
         if opts.hdr && !opts.hdr_output() {
             ui.label(egui::RichText::new(crate::i18n::tr("HDR TIFF needs 32-bit float.")).color(t.text_dim));
@@ -1558,7 +1556,8 @@ fn keyword_tag_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, conf
     ui.add_space(6.0);
     if editing.is_none() {
         if let Some(p) = parent {
-            check(ui, "keywordInside", inside, &crate::i18n::tr_format!("Put inside “{parent}”", parent = p.replace('|', " › ")));
+            let label = crate::i18n::tr_format!("Put inside “{parent}”", parent = p.replace('|', " › "));
+            Check::new("keywordInside", inside, &label).translated().show(ui);
         }
         let n = app.session.selection.ids.len();
         Check::new("keywordAddToSelected", add_to_selected, "Add to Selected Photos").enabled(n > 0).show(ui);
