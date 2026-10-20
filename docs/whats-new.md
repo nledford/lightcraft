@@ -165,6 +165,8 @@
   instead of about 970 ms. A view of less than about a sixteenth of the library (a folder, a search) never pays for
   this; a mid-sized one pays once, the second time it is shown in a sort (Recently Added: about 0.6 s at 312,000
   photos), and a larger one the first time; after that it is fast. The order of the photos is the same as before.
+  Photos added or removed (an import, an undone import) go into or out of that order, even after more changes than
+  LightCraft remembers one by one, instead of sorting the whole library again.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
