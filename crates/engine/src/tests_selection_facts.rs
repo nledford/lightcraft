@@ -137,3 +137,20 @@ fn a_long_selection_that_grows_within_a_frame_is_seen_at_once() {
     assert_ne!(s.selection_key(), key);
     assert!(s.selection_view().contains(PhotoId(9_000_000)));
 }
+
+#[test]
+fn a_command_that_swaps_selected_ids_after_reading_the_index_leaves_no_stale_answer() {
+    let ids: Vec<PhotoId> = (1..=2000).map(PhotoId).collect();
+    let mut s = Session::with_demo();
+    s.selection = Selection { ids: ids.clone(), active: Some(ids[0]) };
+    let key = s.selection_key();
+    s.execute_fn("test", |s| {
+        assert!(s.selection_view().contains(ids[1000]));
+        // the same length, first and last ids
+        s.selection.ids[1000] = PhotoId(9_000_000);
+        Ok(json!({}))
+    })
+    .unwrap();
+    assert_ne!(s.selection_key(), key);
+    assert!(!s.selection_view().contains(ids[1000]) && s.selection_view().contains(PhotoId(9_000_000)));
+}
