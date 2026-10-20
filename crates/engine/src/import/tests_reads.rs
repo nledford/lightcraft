@@ -563,17 +563,27 @@ fn cancel_and_restart_cannot_pile_up_blocked_readers() {
         let watch = ReadWatch::with_stuck(STALL, stuck.clone());
         watch.set_poll(Duration::from_millis(5));
         let cancel = AtomicBool::new(false);
+        let over = AtomicBool::new(false);
         let before = *entered.lock().unwrap();
         let outcomes = std::thread::scope(|sc| {
-            if let Some(n) = cancel_after_starts {
-                let (cancel, entered) = (&cancel, &entered);
-                sc.spawn(move || {
-                    until("the readers to start", || *entered.lock().unwrap() >= before + n);
-                    cancel.store(true, Relaxed);
-                });
-            }
+            let (cancel, entered, over) = (&cancel, &entered, &over);
+            sc.spawn(move || {
+                match cancel_after_starts {
+                    Some(n) => until("the readers to start", || *entered.lock().unwrap() >= before + n),
+                    // nothing is to start, or the run is meant to finish: ✕ only as a way out if it does not
+                    None => {
+                        let waited = Instant::now();
+                        while !over.load(Relaxed) && waited.elapsed() < Duration::from_secs(2) {
+                            std::thread::sleep(Duration::from_millis(2));
+                        }
+                    }
+                }
+                cancel.store(true, Relaxed);
+            });
             let pool = reads::Pool { watch: &watch, cancel: &cancel, name: "test-read", threads: THREADS };
-            pool.run((0..jobs).collect(), &|i| format!("job-{i}"), work.clone(), Arc::new(|_| {}), Arc::new(|| {}), &|_| {})
+            let outcomes = pool.run((0..jobs).collect(), &|i| format!("job-{i}"), work.clone(), Arc::new(|_| {}), Arc::new(|| {}), &|_| {});
+            over.store(true, Relaxed);
+            outcomes
         });
         (watch, outcomes, *entered.lock().unwrap() - before)
     };
