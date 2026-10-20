@@ -64,7 +64,8 @@ impl StuckReaders {
         StuckReaders { alive: AtomicUsize::new(0), cap }
     }
 
-    /// The process-wide count, which every run uses.
+    /// The process-wide count, which every run uses (tests count per watch: they run in parallel in one process).
+    #[cfg(not(test))]
     pub fn global() -> std::sync::Arc<StuckReaders> {
         static GLOBAL: std::sync::OnceLock<std::sync::Arc<StuckReaders>> = std::sync::OnceLock::new();
         GLOBAL.get_or_init(|| std::sync::Arc::new(StuckReaders::new(MAX_STUCK_READERS))).clone()
