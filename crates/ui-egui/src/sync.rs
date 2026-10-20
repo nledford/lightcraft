@@ -28,7 +28,7 @@ pub struct SyncTask {
 pub fn open(app: &mut LightcraftApp, path: &str, name: &str, disk: bool) -> Result<(), String> {
     cancel(app);
     let input = SyncInput::new(&mut app.session, path, disk).map_err(|e| e.to_string())?;
-    let progress = Arc::new(SyncProgress::default());
+    let progress = Arc::new(SyncProgress::new(app.session.import_stall_after));
     let (tx, rx) = std::sync::mpsc::channel();
     let p = progress.clone();
     let job = move || {
@@ -92,6 +92,7 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
     let (done, total) = task.progress.counts();
     task.guard.progress(done as u64, total as u64);
+    crate::panels::activity::follow_reads(&task.guard, &task.progress.files.reads);
     ctx.request_repaint_after(std::time::Duration::from_millis(100));
     let changes = match task.rx.try_recv() {
         Ok(c) => c,
@@ -104,6 +105,10 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
         }
     };
     app.sync = None;
+    if let Some(why) = &changes.stopped {
+        // what the dialog lists is what was reached before the drive stopped answering
+        app.toast_error(ctx, format!("{}: {why}", crate::i18n::tr("Stopped")));
+    }
     let c = SyncCounts {
         offline: changes.offline,
         new: changes.new.len(),
@@ -209,7 +214,7 @@ pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
             return Err(e);
         }
     };
-    let progress = Arc::new(SyncProgress::default());
+    let progress = Arc::new(SyncProgress::new(app.session.import_stall_after));
     let crashed = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (tx, rx) = std::sync::mpsc::channel();
     let (p, c) = (progress.clone(), crashed.clone());
@@ -276,6 +281,7 @@ pub fn poll_run(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
     let (done, total) = run.counts();
     run.guard.progress(done as u64, total as u64);
+    crate::panels::activity::follow_reads(&run.guard, &run.progress.files.reads);
     let mut steps = Vec::new();
     let finished = loop {
         match run.rx.try_recv() {
@@ -333,8 +339,13 @@ pub fn poll_run(app: &mut LightcraftApp, ctx: &egui::Context) {
     if let Some(e) = not_saved.first() {
         parts.push(format!("{}: {e}", crate::i18n::tr("Not saved")));
     }
+    if let Some(why) = &r.stopped {
+        parts.insert(0, format!("{}: {why}", crate::i18n::tr("Stopped")));
+    }
     let text = if parts.is_empty() { crate::i18n::tr("The library is up to date with this folder.").to_string() } else { parts.join(" · ") };
-    if not_saved.is_empty() && !crashed {
+    if r.stopped.is_some() {
+        app.toast_error(ctx, format!("{name}: {text}"));
+    } else if not_saved.is_empty() && !crashed {
         app.toast(ctx, format!("{name}: {text}"));
     } else {
         app.toast_for(ctx, format!("{name}: {text}"), 12.0);

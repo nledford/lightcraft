@@ -343,3 +343,72 @@ fn a_local_folder_with_library_photos_offers_synchronize() {
     assert!(matches!(h.app.ui.dialog, Some(Dialog::SynchronizeFolder { .. })), "the dialog opens at once");
     assert!(h.step_until(T, |h| matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { counts: Some(_), .. }))));
 }
+
+/// Given a Synchronize Folder scan whose read of a new file never answers,
+/// When its row names the file and Skip is asked for (`activity.skip`),
+/// Then the scan finishes and the dialog counts that file as unreadable, with the other new file found.
+#[test]
+fn skip_on_the_folders_scan_row_lists_the_file_as_unreadable() {
+    use crate::tests_activity::Gate;
+    let dir = Scratch::new("scanstall");
+    let mut h = changed_folder(&dir);
+    h.app.session.import_stall_after = Duration::from_millis(150);
+    let gate = Gate::default();
+    let in_probe = gate.clone();
+    let real = h.app.session.media.file_probe.clone().expect("the files' probe");
+    h.app.session.media.file_probe = Some(std::sync::Arc::new(move |p: &str| {
+        if p.ends_with("hang.png") {
+            in_probe.wait();
+        }
+        real(p)
+    }));
+    write_png(&dir.path("trip/hang.png"), 9);
+    crate::sync::open(&mut h.app, &dir.path("trip"), "trip", false).unwrap();
+    assert!(h.step_until(T, |h| h.app.session.activity.list().first().is_some_and(|t| t.stalled.is_some())), "no stall");
+    let row = h.app.session.activity.list().remove(0);
+    assert_eq!((row.kind, row.stalled.as_ref().map(|s| s.what.as_str())), ("sync", Some("hang.png")));
+    let r = h.request("engine.execute", json!({"command": "activity.skip", "params": {"id": row.id}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert!(h.step_until(T, |h| matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { counts: Some(_), .. }))), "the scan went on");
+    gate.open();
+    let c = counts(&h);
+    assert_eq!((c.new, c.unreadable), (1, 1), "c.png is new, hang.png could not be read");
+    h.app.ui.dialog = None;
+}
+
+/// Given a Synchronize Folder scan whose reads of new files stop answering one after another,
+/// When the fourth is skipped,
+/// Then an error toast says the scan stopped, and the dialog still lists what was reached.
+#[test]
+fn a_folders_scan_that_stops_at_the_cap_says_so() {
+    use crate::tests_activity::Gate;
+    let dir = Scratch::new("scancap");
+    let mut h = changed_folder(&dir);
+    h.app.session.import_stall_after = Duration::from_millis(150);
+    let gate = Gate::default();
+    let in_probe = gate.clone();
+    let real = h.app.session.media.file_probe.clone().expect("the files' probe");
+    h.app.session.media.file_probe = Some(std::sync::Arc::new(move |p: &str| {
+        if p.contains("hang-") {
+            in_probe.wait();
+        }
+        real(p)
+    }));
+    for i in 0..4 {
+        write_png(&dir.path(&format!("trip/hang-{i}.png")), 40 + i as u8);
+    }
+    crate::sync::open(&mut h.app, &dir.path("trip"), "trip", false).unwrap();
+    let ended = h.step_until(T, |h| {
+        if let Some(row) = h.app.session.activity.list().first()
+            && row.stalled.is_some()
+        {
+            let _ = h.app.session.activity.skip(row.id);
+        }
+        matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { counts: Some(_), .. }))
+    });
+    gate.open();
+    assert!(ended, "the scan never ended");
+    let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
+    assert!(toast.starts_with("Stopped:") && toast.contains("not answering"), "{toast}");
+    h.app.ui.dialog = None;
+}

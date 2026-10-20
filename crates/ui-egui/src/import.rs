@@ -258,6 +258,8 @@ pub struct ImportTask {
     browse: bool,
     /// Cancel was pressed: no further files are started; batches already readied are added.
     pub cancelled: bool,
+    /// The import ended early with an error of its own (the drive stopped answering), not because of ✕.
+    stopped: Option<String>,
     /// Auto Import (the watched folder): the selection stays as it is, a short toast when done.
     auto: bool,
     /// Auto Import: the selection to keep.
@@ -304,6 +306,8 @@ struct ImportRun {
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
     total: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     done: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    /// Which file the reads wait for, and Skip for it (shown on the import's row in the activity stack).
+    reads: std::sync::Arc<lightcraft_engine::import::ReadWatch>,
     opts: lightcraft_engine::import::ImportOptions,
     now: String,
     album: Option<u64>,
@@ -332,10 +336,10 @@ impl ImportRun {
         ctx: &egui::Context,
     ) -> Result<Self, String> {
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let (total, done) = (job.total.clone(), job.done.clone());
+        let (total, done, reads) = (job.total.clone(), job.done.clone(), job.reads.clone());
         let (opts, now) = (job.opts.clone(), job.now().to_string());
         let runner = Self::spawn(job, queue, cancel.clone(), ctx)?;
-        Ok(ImportRun { runner, cancel, total, done, opts, now, album, album_name })
+        Ok(ImportRun { runner, cancel, total, done, reads, opts, now, album, album_name })
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -357,12 +361,16 @@ impl ImportRun {
                     Ok(p) => p,
                     Err(_) => break, // logged; the files readied so far are added
                 };
+                let stopped = prepared.stopped().is_some();
                 if let Err(unsent) = tx.send(prepared) {
                     // the import was dropped: nothing will add these, so take back what a Move placed
                     unsent.0.rollback();
                     break;
                 }
                 ctx.request_repaint();
+                if stopped {
+                    break;
+                }
             }
             ctx.request_repaint();
         };
@@ -473,7 +481,7 @@ pub fn open(app: &mut LightcraftApp, paths: Vec<String>) -> Result<Value, String
     }
     let sources = paths.clone();
     let (input, paths) = ScanInput::new(&mut app.session, &paths);
-    let progress = std::sync::Arc::new(ScanProgress::default());
+    let progress = std::sync::Arc::new(ScanProgress::new(app.session.import_stall_after));
     let (tx, rx) = std::sync::mpsc::channel();
     let p = progress.clone();
     let job = move || {
@@ -518,7 +526,7 @@ pub fn browse(app: &mut LightcraftApp, path: &str, subfolders: Option<bool>) -> 
     // the photos the library already knows from this folder show at once: keep or pick the active one
     app.session.keep_active_in_view();
     let (input, _) = ScanInput::new(&mut app.session, std::slice::from_ref(&dir_s));
-    let progress = std::sync::Arc::new(ScanProgress::default());
+    let progress = std::sync::Arc::new(ScanProgress::new(app.session.import_stall_after));
     let (tx, rx) = std::sync::mpsc::channel();
     let p = progress.clone();
     let root = dir_s.clone();
@@ -570,6 +578,8 @@ pub fn poll_scan(app: &mut LightcraftApp, ctx: &egui::Context) {
             task.guard.progress(done as u64, total as u64);
             // while the folders are listed the total isn't known: say what is happening instead
             task.guard.detail(if total == 0 { crate::i18n::tr("Looking for photos…") } else { "" });
+            // a file that has stopped answering is named on the row, which then offers Skip
+            crate::panels::activity::follow_reads(&task.guard, &task.progress.reads);
             return;
         }
         Err(_) => {
@@ -583,6 +593,10 @@ pub fn poll_scan(app: &mut LightcraftApp, ctx: &egui::Context) {
         return;
     }
     app.session.import_probes = out.probes;
+    if let Some(why) = &out.stopped {
+        // the folder shows only what was reached before the drive stopped answering
+        app.toast_error(ctx, format!("{}: {why}", crate::i18n::tr("Stopped")));
+    }
     if task.browse {
         // records of files gone from the folder (deleted or moved by another app) that nothing was changed on go,
         // as `library.browse` forgets them (issue #1392)
@@ -750,6 +764,10 @@ pub fn tick(app: &mut LightcraftApp, ctx: &egui::Context) {
         if guard.is_cancelled() {
             task.cancelled = true;
         }
+        // a file that has stopped answering is named on the row, which then offers Skip (`activity.skip`)
+        if let Some(run) = &task.run {
+            crate::panels::activity::follow_reads(guard, &run.reads);
+        }
     }
     if !finished {
         app.import = Some(task);
@@ -760,6 +778,9 @@ pub fn tick(app: &mut LightcraftApp, ctx: &egui::Context) {
 
 /// Add one readied batch to the catalog (an undo step merged into the import's at the end).
 fn commit_batch(app: &mut LightcraftApp, task: &mut ImportTask, prepared: lightcraft_engine::import::Prepared) {
+    if let Some(why) = prepared.stopped() {
+        task.stopped = Some(why.to_string());
+    }
     let Some(run) = task.run.as_ref() else { return };
     let n = prepared.len();
     let (opts, now, album, album_name) = (&run.opts, run.now.as_str(), run.album, run.album_name.clone());
@@ -864,6 +885,13 @@ fn finish(app: &mut LightcraftApp, ctx: &egui::Context, task: ImportTask) {
         crate::i18n::tr_format!("Add {} Photo{}", task.imported, if task.imported == 1 { "" } else { "s" })
     };
     app.session.merge_undo(steps, &label);
+    // the drive stopped answering (the other kinds of import have no summary to add it to)
+    if (task.auto || task.browse)
+        && let Some(why) = &task.stopped
+    {
+        app.toast_error(ctx, crate::i18n::tr_format!("Import failed: {e}", e = why));
+        return;
+    }
     if task.auto {
         if !task.warnings.is_empty() {
             app.toast_for(ctx, xmp_warnings_text(&task.warnings), 8.0);
@@ -896,6 +924,7 @@ fn finish(app: &mut LightcraftApp, ctx: &egui::Context, task: ImportTask) {
         && task.failed == 0
         && task.warnings.is_empty()
         && !task.cancelled
+        && task.stopped.is_none()
         && show_existing(app, ctx, &task.existing)
     {
         return;
@@ -926,11 +955,19 @@ fn finish(app: &mut LightcraftApp, ctx: &egui::Context, task: ImportTask) {
     if task.failed > 0 {
         msg.push_str(&crate::i18n::tr_format!(" · {} not readable", task.failed));
     }
-    if task.warnings.is_empty() {
-        app.toast(ctx, msg);
-    } else {
+    if let Some(why) = &task.stopped {
+        msg.push_str("\n\n");
+        msg.push_str(&crate::i18n::tr_format!("Import failed: {e}", e = why));
+    }
+    if !task.warnings.is_empty() {
         msg.push_str("\n\n");
         msg.push_str(&xmp_warnings_text(&task.warnings));
+    }
+    if task.stopped.is_some() {
+        app.toast_error(ctx, msg);
+    } else if task.warnings.is_empty() {
+        app.toast(ctx, msg);
+    } else {
         app.toast_for(ctx, msg, 8.0);
     }
 }

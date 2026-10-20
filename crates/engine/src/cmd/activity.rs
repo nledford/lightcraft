@@ -37,7 +37,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Skip Stalled File",
             [],
             None,
-            "{id} → {skipped: 1} — give up what a task is stuck waiting on (its row in activity.list has stalled): an import records the file as failed (\"skipped: no answer after N s\") and goes on with the next ones. The read itself stays blocked until the drive answers, and its late result is ignored. An unknown id (it may have just finished) or a task that waits on nothing is an error",
+            "{id} → {skipped: 1} — give up the one file a task is stuck waiting on, the one that has gone longest without progress (its row in activity.list has stalled: {what, secs}); the next stalled file is named afterwards. An import records the file as failed (\"skipped: no answer after N s\"), the review, Local-view and Synchronize Folder scans list it as unreadable with that reason, and the work goes on. The read itself stays blocked until the drive answers, and its late result is ignored. The fourth skipped file ends the import or scan with an error that the drive is not answering. Listing folders is not covered: ✕ waits for it. An unknown id (it may have just finished) or a task that waits on nothing is an error",
             always,
             |s, p| {
                 const C: &str = "activity.skip";
