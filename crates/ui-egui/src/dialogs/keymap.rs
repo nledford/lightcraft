@@ -102,7 +102,7 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, b: &Bindable, sc:
     let recording = app.recording_shortcut.as_deref() == Some(b.id);
     // an unset shortcut shows a dimmed dash
     let (text, ink) = if recording {
-        (crate::i18n::tr("Press keys…").to_string(), None)
+        (crate::i18n::tr("Press keys…").to_string(), Some(egui::Color32::WHITE))
     } else {
         match sc {
             Some(sc) => (menu_text(sc, mac), None),

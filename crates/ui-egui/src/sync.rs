@@ -183,9 +183,13 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
         ui.label(crate::i18n::tr("This folder isn't there: it was moved or renamed, or its disk isn't connected."));
         return;
     }
-    let choice = |ui: &mut egui::Ui, on: &mut bool, n: usize, text: String, widget: &str| {
-        let r = Check::new(&format!("sync.{widget}"), on, &text).enabled(n > 0).show(ui);
-        crate::widgets::register(ui, widget, r.rect);
+    // the label is the English key (`Check` translates it); the count sits beside it
+    let choice = |ui: &mut egui::Ui, on: &mut bool, n: usize, text: &str, widget: &str| {
+        ui.horizontal(|ui| {
+            let r = Check::new(&format!("sync.{widget}"), on, text).enabled(n > 0).show(ui);
+            ui.label(egui::RichText::new(format!("({n})")).color(t.text_dim));
+            crate::widgets::register(ui, widget, r.rect);
+        });
     };
     let count = |text: &str, n: usize| format!("{} ({n})", crate::i18n::tr(text));
     let dim = |ui: &mut egui::Ui, s: &str| ui.label(egui::RichText::new(s).color(t.text_dim));
@@ -204,10 +208,10 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
         skipped(ui);
         return;
     }
-    choice(ui, import_new, c.new, count("Import new photos", c.new), "syncImportNew");
-    choice(ui, relink_moved, c.moved, count("Relink photos whose file was renamed or moved", c.moved), "syncRelinkMoved");
-    choice(ui, remove_missing, c.missing, count("Remove missing photos from the library", c.missing), "syncRemoveMissing");
-    choice(ui, read_metadata, c.metadata, count("Read metadata updates from XMP sidecars", c.metadata), "syncReadMetadata");
+    choice(ui, import_new, c.new, "Import new photos", "syncImportNew");
+    choice(ui, relink_moved, c.moved, "Relink photos whose file was renamed or moved", "syncRelinkMoved");
+    choice(ui, remove_missing, c.missing, "Remove missing photos from the library", "syncRemoveMissing");
+    choice(ui, read_metadata, c.metadata, "Read metadata updates from XMP sidecars", "syncReadMetadata");
     ui.add_space(6.0);
     if c.missing > 0 {
         dim(ui, crate::i18n::tr("Missing photos move to Recently Deleted and can be restored; no file on disk is touched."));
