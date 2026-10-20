@@ -344,6 +344,10 @@ pub struct Session {
     pub before: std::collections::HashMap<PhotoId, Arc<DevelopSettings>>,
     /// File probes from the last import review (`library.importPreview`), reused by the import.
     pub import_probes: std::collections::HashMap<String, media::ProbeInfo>,
+    /// How long a file read of an import or scan goes without progress before the row says it waits for that file and
+    /// offers Skip ([`import::STALL_AFTER`]). For tests, which cannot wait 10 s: nothing else sets it.
+    #[doc(hidden)]
+    pub import_stall_after: std::time::Duration,
     /// The last Synchronize Folder scan, which `folder.synchronize` acts on while it is current
     /// (see [`Session::take_folder_changes`]).
     pub folder_changes: Option<sync::FolderChanges>,
@@ -484,6 +488,7 @@ impl Session {
             recent_keywords: Vec::new(),
             before: Default::default(),
             import_probes: Default::default(),
+            import_stall_after: import::STALL_AFTER,
             folder_changes: None,
             activity: Default::default(),
             preview_build: None,

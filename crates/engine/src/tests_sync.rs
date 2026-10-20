@@ -685,3 +685,169 @@ fn sidecar_namings_for_many_photos_agree_with_one_at_a_time() {
     assert_eq!(s.sidecar_namings(&ids), one_by_one);
     assert!(one_by_one.contains(&crate::sidecar::SidecarNaming::Full), "the case that matters is there");
 }
+
+/// Given a folder with a new file whose read stops answering (a share that dropped its connection),
+/// When the scan has waited on it and Skip is asked for,
+/// Then the scan names that file while it waits, and then lists it as unreadable with the skip as its reason, with
+/// the other new file found as usual.
+#[test]
+fn a_probe_that_stops_answering_is_named_and_skipping_it_lists_the_file_as_unreadable() {
+    use crate::import::tests_reads::{Gate, until};
+    let dir = Scratch::new("stall");
+    let mut s = library(&dir);
+    write_png(&dir.path("trip/new.png"), 7);
+    write_png(&dir.path("trip/hang.png"), 8);
+    let (gate, real) = (Gate::default(), s.media.file_probe.clone().unwrap());
+    let in_probe = gate.clone();
+    s.media.file_probe = Some(std::sync::Arc::new(move |p: &str| {
+        if p.ends_with("hang.png") {
+            in_probe.wait();
+        }
+        real(p)
+    }));
+    let input = crate::sync::SyncInput::new(&mut s, &dir.path("trip"), false).unwrap();
+    let progress = std::sync::Arc::new(crate::sync::SyncProgress::new(Duration::from_millis(30)));
+    progress.files.reads.set_poll(Duration::from_millis(5));
+    let p = progress.clone();
+    let worker = std::thread::spawn(move || crate::sync::scan_with(input, &p));
+    until("the stall to be reported", || progress.files.reads.stalled().is_some());
+    assert_eq!(progress.files.reads.stalled().map(|s| s.what).as_deref(), Some("hang.png"));
+    progress.files.reads.skip();
+    let changes = worker.join().unwrap();
+    gate.open();
+    assert_eq!(changes.unreadable.len(), 1, "{changes:?}");
+    assert!(changes.unreadable[0].path.ends_with("hang.png"));
+    assert!(changes.unreadable[0].error.as_deref().is_some_and(|e| e.starts_with("skipped: no answer after ")), "{:?}", changes.unreadable[0]);
+    assert_eq!(changes.new.len(), 1);
+    assert!(changes.new[0].path.ends_with("new.png"));
+}
+
+/// A library of `trip/a.png`, `trip/day1/b.png` and `n` photos `trip/hang-check-<i>.png` (whose checks wait on the
+/// returned gate), the hung ones' files and `b.png` gone from the disk, so that a check that did run would call them
+/// missing.
+fn hanging_checks(dir: &Scratch, n: usize) -> (Session, crate::import::tests_reads::Gate) {
+    use crate::import::tests_reads::Gate;
+    for i in 0..n {
+        write_png(&dir.path(&format!("trip/hang-check-{i}.png")), 20 + i as u8);
+    }
+    write_png(&dir.path("trip/a.png"), 1);
+    write_png(&dir.path("trip/day1/b.png"), 2);
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [dir.path("trip")]})).unwrap();
+    assert_eq!(s.catalog.len(), 2 + n);
+    std::fs::remove_file(dir.path("trip/day1/b.png")).unwrap();
+    for i in 0..n {
+        std::fs::remove_file(dir.path(&format!("trip/hang-check-{i}.png"))).unwrap();
+    }
+    let gate = Gate::default();
+    let in_check = gate.clone();
+    *crate::sync::CHECK_HOOK.lock().unwrap() = Some(std::sync::Arc::new(move || in_check.wait()));
+    (s, gate)
+}
+
+/// Skip every check the row names until the scan is over.
+fn scan_skipping(s: &mut Session, dir: &Scratch) -> crate::sync::FolderChanges {
+    use crate::import::tests_reads::until;
+    let input = crate::sync::SyncInput::new(s, &dir.path("trip"), false).unwrap();
+    let progress = std::sync::Arc::new(crate::sync::SyncProgress::new(Duration::from_millis(30)));
+    progress.files.reads.set_poll(Duration::from_millis(5));
+    let p = progress.clone();
+    let worker = std::thread::spawn(move || crate::sync::scan_with(input, &p));
+    until("the scan to end", || {
+        progress.files.reads.skip();
+        worker.is_finished()
+    });
+    worker.join().unwrap()
+}
+
+/// Given a photo whose check never answers (its file is gone, which a check that ran would find),
+/// When the check is skipped,
+/// Then the photo is not listed as missing (nothing is known of it), while a photo whose check ran is.
+#[test]
+fn a_skipped_check_is_not_listed_as_missing() {
+    let dir = Scratch::new("skipcheck");
+    let (mut s, gate) = hanging_checks(&dir, 1);
+    let changes = scan_skipping(&mut s, &dir);
+    gate.open();
+    *crate::sync::CHECK_HOOK.lock().unwrap() = None;
+    let missing: Vec<&str> = changes.missing.iter().map(|m| m.path.as_str()).collect();
+    assert_eq!(missing.len(), 1, "{missing:?}");
+    assert!(missing[0].ends_with("b.png"), "{missing:?}");
+    assert!(changes.stopped.is_none());
+}
+
+/// Given a scan whose checks stop answering one after another,
+/// When the fourth is skipped,
+/// Then the scan says it stopped, and lists nothing as missing for the checks that never ran.
+#[test]
+fn a_scan_that_stops_at_the_cap_says_so() {
+    let dir = Scratch::new("capcheck");
+    let (mut s, gate) = hanging_checks(&dir, 6);
+    let changes = scan_skipping(&mut s, &dir);
+    gate.open();
+    *crate::sync::CHECK_HOOK.lock().unwrap() = None;
+    let why = changes.stopped.clone().expect("the scan says why it stopped");
+    assert!(why.contains("not answering"), "{why}");
+    assert!(changes.missing.iter().all(|m| !m.path.contains("hang-check")), "{:?}", changes.missing);
+}
+
+/// Given a Synchronize run whose reads of new files stop answering one after another,
+/// When the fourth is skipped,
+/// Then the run hands over a `Stopped` step last and does no relinking, removing or sidecar reading after it, and
+/// the report says why.
+#[test]
+fn a_synchronize_run_stops_at_the_cap_and_does_nothing_after() {
+    use crate::import::tests_reads::{Gate, until};
+    use crate::sync::{SyncChoice, SyncJob, SyncProgress, SyncStep};
+    let dir = Scratch::new("runcap");
+    let mut s = library(&dir);
+    std::fs::remove_file(dir.path("trip/day1/b.png")).unwrap();
+    for i in 0..4 {
+        write_png(&dir.path(&format!("trip/hang-{i}.png")), 30 + i as u8);
+    }
+    for i in 0..6 {
+        write_png(&dir.path(&format!("trip/ok-{i}.png")), 50 + i as u8);
+    }
+    let changes = crate::sync::scan(&mut s, &dir.path("trip"), false).unwrap();
+    assert_eq!((changes.new.len(), changes.missing.len()), (10, 1));
+    // the hung files change size, so the probes the scan kept for them no longer hold: they are read again
+    for i in 0..4 {
+        let mut bytes = std::fs::read(dir.path(&format!("trip/hang-{i}.png"))).unwrap();
+        bytes.extend_from_slice(b"more");
+        std::fs::write(dir.path(&format!("trip/hang-{i}.png")), bytes).unwrap();
+    }
+    let (gate, real) = (Gate::default(), s.media.file_probe.clone().unwrap());
+    let in_probe = gate.clone();
+    s.media.file_probe = Some(std::sync::Arc::new(move |p: &str| {
+        if p.contains("hang-") {
+            in_probe.wait();
+        }
+        real(p)
+    }));
+    let choice = SyncChoice { remove_missing: true, read_metadata: true, ..SyncChoice::default() };
+    let (work, mut commit) = SyncJob::start(&mut s, changes, choice).unwrap();
+    let progress = std::sync::Arc::new(SyncProgress::new(Duration::from_millis(30)));
+    progress.files.reads.set_poll(Duration::from_millis(5));
+    let (tx, rx) = std::sync::mpsc::channel();
+    let p = progress.clone();
+    let worker = std::thread::spawn(move || work.run(&p, |step| tx.send(step).is_ok()));
+    until("the run to end", || {
+        progress.files.reads.skip();
+        worker.is_finished()
+    });
+    worker.join().unwrap();
+    gate.open();
+    let steps: Vec<SyncStep> = rx.try_iter().collect();
+    assert!(matches!(steps.last(), Some(SyncStep::Stopped(why)) if why.contains("not answering")), "the last step says it stopped");
+    assert!(
+        steps.iter().all(|st| matches!(st, SyncStep::Import(_) | SyncStep::Stopped(_))),
+        "no relinking, removing or sidecar reading after the drive stopped answering"
+    );
+    for step in steps {
+        commit.apply(&mut s, step);
+    }
+    let report = commit.finish(&mut s);
+    assert!(report.stopped.as_deref().is_some_and(|w| w.contains("not answering")), "{report:?}");
+    assert_eq!(report.removed, 0);
+    assert!(s.catalog.photos().any(|p| p.file_name == "b.png" && p.in_library()), "the missing photo was not removed");
+}

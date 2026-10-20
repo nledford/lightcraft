@@ -32,6 +32,10 @@ use serde::{Deserialize, Serialize};
 use crate::Session;
 use crate::media::ProbeInfo;
 
+mod reads;
+pub(crate) use reads::progressed;
+pub use reads::{MAX_SKIPPED, ReadWatch, STALL_AFTER, StalledRead};
+
 /// File extensions LightCraft imports (lower case).
 pub const EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "tif", "tiff", "webp", "dng", "cr2", "cr3", "nef", "nrw", "arw", "raf", "orf", "rw2", "rwl", "raw", "pef", "srw", "psd",
@@ -483,74 +487,129 @@ pub fn launch_path(arg: &str, cwd: Option<&Path>, home: Option<&Path>, dcim: imp
 /// Probe files (headers + content hash) as an import would.
 pub(crate) fn probe_paths(s: &Session, paths: &[String]) -> Vec<Result<ProbeInfo, String>> {
     let progress = ScanProgress::default();
-    probe_all(s.media.file_probe.as_ref(), paths, &progress.done, &progress.cancel)
+    probe_all(s.media.file_probe.as_ref(), paths, &progress)
 }
 
 /// Probe files with `probe` (a clone of the session's file probe), off the session: on a worker thread.
 pub(crate) fn probe_with(probe: &crate::media::FileProbe, paths: &[String]) -> Vec<Result<ProbeInfo, String>> {
     let progress = ScanProgress::default();
-    probe_all(Some(probe), paths, &progress.done, &progress.cancel)
+    probe_all(Some(probe), paths, &progress)
 }
 
-/// Probe `paths` (several at once), counting each in `done`. Stops before the next file once
-/// `cancel` is set: the files not reached come back as errors.
-fn probe_all(
+/// [`read_files`] for plain probes: nothing cached, no sidecar.
+fn probe_all(probe: Option<&crate::media::FileProbe>, paths: &[String], progress: &ScanProgress) -> Vec<Result<ProbeInfo, String>> {
+    let jobs = paths.iter().map(|p| ReadJob { path: p.clone(), cached: None }).collect();
+    read_files(probe, jobs, |_, _| false, None, &progress.done, &progress.cancel, &progress.reads).into_iter().map(|r| r.info).collect()
+}
+
+/// Run `work` on each of `jobs` on the pool's threads (see [`reads`]), `label(i)` naming job `i` when it stalls;
+/// `on_done` counts each job settled. `None` for a job that was skipped, panicked or was not reached.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn pooled<J: Send + 'static, R: Send + 'static>(
+    watch: &ReadWatch,
+    cancel: &std::sync::atomic::AtomicBool,
+    name: &'static str,
+    jobs: Vec<J>,
+    label: &dyn Fn(usize) -> String,
+    work: impl Fn(J) -> R + Send + Sync + 'static,
+    on_done: &dyn Fn(),
+) -> Vec<Option<R>> {
+    let pool = reads::Pool { watch, cancel, name, threads: workers(jobs.len()) };
+    let outcomes = pool.run(jobs, label, std::sync::Arc::new(work), std::sync::Arc::new(|_| {}), std::sync::Arc::new(|| {}), &|_| on_done());
+    outcomes
+        .into_iter()
+        .map(|o| match o {
+            reads::Outcome::Done(r) => Some(r),
+            _ => None,
+        })
+        .collect()
+}
+
+/// A file to read: its path, and what an earlier scan probed of it (used while `still_valid` says it holds).
+struct ReadJob {
+    path: String,
+    cached: Option<ProbeInfo>,
+}
+
+/// What reading a file gave: its probe (or why not) and the text of its XMP sidecar, when asked for and there is one.
+struct Read {
+    info: Result<ProbeInfo, String>,
+    packet: Option<String>,
+}
+
+/// A file's name, for the row that says what is waited for.
+#[cfg(not(target_arch = "wasm32"))]
+fn shown(path: &str) -> String {
+    Path::new(path).file_name().map_or_else(|| path.to_string(), |n| n.to_string_lossy().to_string())
+}
+
+/// Read `jobs` (several at once), counting each in `done`: a cached probe is checked with `still_valid` (it asks the
+/// disk) and kept if it holds, else the file is probed; with `naming`, the file's XMP sidecar is looked up and read
+/// too. Every disk access happens on the pool's threads (see [`reads`]), so that a drive that stops answering
+/// never holds the caller: the file that waits is named by `watch`, and given up when it is asked to. Stops before
+/// the next file once `cancel` is set: the files not reached come back as errors (the reason the watch ended, if
+/// it did).
+fn read_files(
     probe: Option<&crate::media::FileProbe>,
-    paths: &[String],
+    jobs: Vec<ReadJob>,
+    still_valid: fn(&str, &ProbeInfo) -> bool,
+    naming: Option<crate::sidecar::SidecarNaming>,
     done: &std::sync::atomic::AtomicUsize,
     cancel: &std::sync::atomic::AtomicBool,
-) -> Vec<Result<ProbeInfo, String>> {
+    watch: &ReadWatch,
+) -> Vec<Read> {
     use std::sync::atomic::Ordering::Relaxed;
-    let Some(probe) = probe.cloned() else {
-        return paths
-            .iter()
-            .map(|p| {
-                Ok(ProbeInfo {
-                    format: Path::new(p).extension().map(|e| e.to_string_lossy().to_uppercase()).unwrap_or_default(),
+    let probe = probe.cloned();
+    // (owned by what it moves into: the pool's threads outlive this call when a read hangs)
+    let read_one = move |job: ReadJob| -> Read {
+        let ReadJob { path, cached } = job;
+        let info = match cached.filter(|info| still_valid(&path, info)) {
+            Some(info) => Ok(info),
+            None => match &probe {
+                Some(probe) => probe(&path),
+                None => Ok(ProbeInfo {
+                    format: Path::new(&path).extension().map(|e| e.to_string_lossy().to_uppercase()).unwrap_or_default(),
                     ..Default::default()
-                })
-            })
-            .collect();
+                }),
+            },
+        };
+        reads::progressed();
+        let packet = naming.and_then(|n| crate::sidecar::find_sidecar(&path, n)).and_then(|f| std::fs::read_to_string(f).ok());
+        Read { info, packet }
     };
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let n = workers(paths.len());
-        if n > 1 {
-            let mut results: Vec<Option<Result<ProbeInfo, String>>> = vec![None; paths.len()];
-            let next = std::sync::atomic::AtomicUsize::new(0);
-            let out = std::sync::Mutex::new(&mut results);
-            std::thread::scope(|sc| {
-                for _ in 0..n {
-                    sc.spawn(|| {
-                        loop {
-                            let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                            if i >= paths.len() {
-                                break;
-                            }
-                            if cancel.load(Relaxed) {
-                                break;
-                            }
-                            let r = probe(&paths[i]);
-                            done.fetch_add(1, Relaxed);
-                            out.lock().unwrap_or_else(|e| e.into_inner())[i] = Some(r);
-                        }
-                    });
-                }
-            });
-            return results.into_iter().map(|r| r.unwrap_or_else(|| Err("not probed".into()))).collect();
-        }
-    }
-    paths
-        .iter()
-        .map(|p| {
-            if cancel.load(Relaxed) {
-                return Err("cancelled".into());
-            }
-            let r = probe(p);
+        use std::sync::Arc;
+        let paths: Vec<String> = jobs.iter().map(|j| j.path.clone()).collect();
+        let pool = reads::Pool { watch, cancel, name: "lc-import-read", threads: workers(jobs.len()) };
+        let work: Arc<dyn Fn(ReadJob) -> Read + Send + Sync> = Arc::new(read_one);
+        let outcomes = pool.run(jobs, &|i| paths.get(i).map(|p| shown(p)).unwrap_or_default(), work, Arc::new(|_| {}), Arc::new(|| {}), &|_| {
             done.fetch_add(1, Relaxed);
-            r
-        })
-        .collect()
+        });
+        let unreached = watch.ended().unwrap_or_else(|| "not probed".into());
+        outcomes
+            .into_iter()
+            .map(|o| match o {
+                reads::Outcome::Done(read) => read,
+                reads::Outcome::Failed(why) => Read { info: Err(why), packet: None },
+                reads::Outcome::Unreached => Read { info: Err(unreached.clone()), packet: None },
+            })
+            .collect()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = watch;
+        jobs.into_iter()
+            .map(|job| {
+                if cancel.load(Relaxed) {
+                    return Read { info: Err("cancelled".into()), packet: None };
+                }
+                let r = read_one(job);
+                done.fetch_add(1, Relaxed);
+                r
+            })
+            .collect()
+    }
 }
 
 /// Copy `src` into `dir` as `name` (default: its own name), made unique with -1, -2…; returns the
@@ -634,12 +693,37 @@ pub struct ScanProgress {
     pub done: std::sync::atomic::AtomicUsize,
     /// Shared with the scan's row in the activity stack (its ✕ sets it).
     pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Which file the probes wait for, and Skip for it (the scan's row shows it; see [`ReadWatch`]).
+    pub reads: std::sync::Arc<ReadWatch>,
+}
+
+impl ScanProgress {
+    /// Progress of a scan whose probes count as stalled after `stall_after` ([`Session::import_stall_after`]).
+    pub fn new(stall_after: std::time::Duration) -> Self {
+        ScanProgress { reads: std::sync::Arc::new(ReadWatch::new(stall_after)), ..Default::default() }
+    }
+}
+
+/// A probe a review scan kept still holds for the scan that follows while the file is as big as it was (or can't be
+/// looked at: it is then probed again, or fails there).
+fn cache_holds_for_scan(path: &str, info: &ProbeInfo) -> bool {
+    let size = std::fs::metadata(path).map(|m| m.len()).ok();
+    size.is_none() || size == Some(info.file_size)
+}
+
+/// A probe a scan kept still holds for the import while the file is still there, as it was (the web's files are not
+/// `std::fs` files: kept as probed).
+fn cache_holds_for_import(path: &str, info: &ProbeInfo) -> bool {
+    cfg!(target_arch = "wasm32") || std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.len() == info.file_size)
 }
 
 /// The result of [`scan_with`]: the candidates, and the probes to keep for the import that follows.
 pub struct ScanOutput {
     pub candidates: Vec<ImportCandidate>,
     pub probes: HashMap<String, ProbeInfo>,
+    /// Why the scan ended early for a reason of its own, if it did: the drive stopped answering (the fourth read was
+    /// skipped). The candidates not reached say so as their error.
+    pub stopped: Option<String>,
 }
 
 impl ScanInput {
@@ -686,20 +770,13 @@ pub(crate) fn scan_files(mut input: ScanInput, files: Vec<String>, progress: &Sc
     let by_path = library_files(&input.library, &files);
     let todo: Vec<String> = files.iter().filter(|f| !by_path.contains_key(Path::new(f))).cloned().collect();
     progress.total.store(todo.len(), Relaxed);
-    // probes from a preceding `scan` are reused when the file is unchanged (same size)
-    let cached: Vec<Option<ProbeInfo>> = todo
-        .iter()
-        .map(|f| {
-            let info = input.cache.remove(f)?;
-            let size = std::fs::metadata(f).map(|m| m.len()).ok();
-            (size.is_none() || size == Some(info.file_size)).then_some(info)
-        })
-        .collect();
-    let missing: Vec<String> = todo.iter().zip(&cached).filter(|(_, c)| c.is_none()).map(|(f, _)| f.clone()).collect();
-    progress.done.store(todo.len() - missing.len(), Relaxed);
-    let mut fresh = probe_all(input.probe.as_ref(), &missing, &progress.done, &progress.cancel).into_iter();
+    // probes from a preceding `scan` are reused when the file is unchanged (same size): checked by the readers
+    let jobs: Vec<ReadJob> = todo.iter().map(|f| ReadJob { path: f.clone(), cached: input.cache.remove(f) }).collect();
     let probed: Vec<Result<ProbeInfo, String>> =
-        cached.into_iter().map(|c| c.map(Ok).unwrap_or_else(|| fresh.next().unwrap_or_else(|| Err("not probed".into())))).collect();
+        read_files(input.probe.as_ref(), jobs, cache_holds_for_scan, None, &progress.done, &progress.cancel, &progress.reads)
+            .into_iter()
+            .map(|r| r.info)
+            .collect();
     crate::memory::release();
     let mut probes: HashMap<String, Result<ProbeInfo, String>> = todo.into_iter().zip(probed).collect();
     // (who in the library has a content that was probed: asked once the probes are in)
@@ -742,7 +819,7 @@ pub(crate) fn scan_files(mut input: ScanInput, files: Vec<String>, progress: &Sc
         }
         out.push(c);
     }
-    ScanOutput { candidates: out, probes: kept }
+    ScanOutput { candidates: out, probes: kept, stopped: progress.reads.ended() }
 }
 
 /// Import files/folders. See the module docs.
@@ -760,6 +837,11 @@ pub fn import_with(s: &mut Session, paths: &[String], opts: &ImportOptions) -> c
     let prepared = job.prepare(paths, &std::sync::atomic::AtomicBool::new(false));
     // probes a scan left for files not imported now stay for a later import
     s.import_probes.extend(std::mem::take(&mut job.cache));
+    if let Some(why) = prepared.stopped() {
+        let why = why.to_string();
+        prepared.rollback();
+        return Err(crate::EngineError::Other(why));
+    }
     commit_prepared(s, &job.opts, &job.now, prepared)
 }
 
@@ -797,6 +879,8 @@ pub struct ImportJob {
     /// ones read so far: the step before they are handled.
     pub read_total: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub read_done: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    /// What the file reads are doing: which file has stopped answering, and Skip for it (see [`ReadWatch`]).
+    pub reads: std::sync::Arc<ReadWatch>,
 }
 
 /// The outcome of [`ImportJob::prepare`] for one batch, in file order.
@@ -804,6 +888,8 @@ pub struct ImportJob {
 pub struct Prepared {
     pub scanned: usize,
     items: Vec<PreparedItem>,
+    /// Why the import cannot go on, when it ended early for a reason of its own (the drive stopped answering).
+    stopped: Option<String>,
 }
 
 #[derive(Debug)]
@@ -841,6 +927,12 @@ impl Prepared {
                 crate::import_move::rollback(pl);
             }
         }
+    }
+
+    /// Why the import ended early for a reason of its own, if it did: the drive stopped answering (the
+    /// [`MAX_SKIPPED`]th read was skipped) or a reader could not be started. What was readied before is in the batch.
+    pub fn stopped(&self) -> Option<&str> {
+        self.stopped.as_deref()
     }
 
     /// Entries in the batch (after expanding folders).
@@ -939,6 +1031,7 @@ impl ImportJob {
             done: Default::default(),
             read_total: Default::default(),
             read_done: Default::default(),
+            reads: std::sync::Arc::new(ReadWatch::new(s.import_stall_after)),
         })
     }
 
@@ -988,7 +1081,10 @@ impl ImportJob {
         self.look_up_library();
         let opts = self.opts.clone();
         let mode = self.mode;
-        let mut out = Prepared { scanned: files.len(), items: Vec::new() };
+        let mut out = Prepared { scanned: files.len(), items: Vec::new(), stopped: None };
+        let reads = self.reads.clone();
+        // ✕, or an import that cannot go on
+        let halted = || cancel.load(Relaxed) || reads.ended().is_some();
         let mut todo = Vec::new();
         for f in files {
             match self.by_path.get(f.as_str()).copied() {
@@ -1007,30 +1103,20 @@ impl ImportJob {
         }
 
         // files a preceding scan already probed are not read again (a network share is slow to read),
-        // as long as they are still there, as they were: a file gone or changed since is probed again
-        let cached: Vec<Option<ProbeInfo>> = todo
-            .iter()
-            .map(|f| {
-                // (the web's files are not std::fs files: kept as probed)
-                self.cache
-                    .remove(f)
-                    .filter(|info| cfg!(target_arch = "wasm32") || std::fs::metadata(f).is_ok_and(|m| m.is_file() && m.len() == info.file_size))
-            })
-            .collect();
-        let missing: Vec<String> = todo.iter().zip(&cached).filter(|(_, c)| c.is_none()).map(|(f, _)| f.clone()).collect();
+        // as long as they are still there, as they were: a file gone or changed since is probed again.
+        // The readers check that, and look up and read each file's sidecar: no disk access is made on this thread.
+        let jobs: Vec<ReadJob> = todo.iter().map(|f| ReadJob { path: f.clone(), cached: self.cache.remove(f) }).collect();
         // Reading the files is the slow part of adding them where they are: it is counted on its
         // own, and `cancel` stops it too (a large library takes long enough to want both).
-        self.read_total.fetch_add(missing.len(), Relaxed);
-        let mut fresh = probe_all(self.probe.as_ref(), &missing, &self.read_done, cancel).into_iter();
-        let probed: Vec<Result<ProbeInfo, String>> =
-            cached.into_iter().map(|c| c.map(Ok).unwrap_or_else(|| fresh.next().unwrap_or_else(|| Err("not probed".into())))).collect();
+        self.read_total.fetch_add(jobs.len(), Relaxed);
+        let read = read_files(self.probe.as_ref(), jobs, cache_holds_for_import, Some(self.naming), &self.read_done, cancel, &self.reads);
         crate::memory::release();
         // Files are planned one by one, in order (duplicates, sidecars, names, folders); their
         // copies or moves — the slow part, reading and writing every byte and verifying it — are
         // collected and run on several threads (issue #367), then their outcomes take their places.
         let mut plan = Plan::default();
-        for (path, info) in todo.into_iter().zip(probed) {
-            if cancel.load(Relaxed) {
+        for (path, Read { info, packet: file_packet }) in todo.into_iter().zip(read) {
+            if halted() {
                 break;
             }
             let mut info = match info {
@@ -1048,7 +1134,7 @@ impl ImportJob {
                 && plan.transfers.iter().any(|t| t.info.content_hash.as_ref() == Some(h))
             {
                 self.run_plan(&mut plan, &mut out, cancel);
-                if cancel.load(Relaxed) {
+                if halted() {
                     break;
                 }
             }
@@ -1063,9 +1149,7 @@ impl ImportJob {
             // the XMP sidecar (or a raw's embedded XMP), read before copying: its capture time files
             // and names the copy when the file itself has none
             let raw = info.kind == MediaKind::Raw;
-            let packet = crate::sidecar::find_sidecar(&path, self.naming)
-                .and_then(|f| std::fs::read_to_string(f).ok())
-                .or_else(|| info.xmp.clone().filter(|_| raw));
+            let packet = file_packet.or_else(|| info.xmp.clone().filter(|_| raw));
             let target = crate::crs::Target::for_file(info.kind, &info.format, info.preview_only.is_some(), &info.meta.camera);
             let sidecar = packet.and_then(|x| match crate::sidecar::parse_sidecar(&x, target) {
                 Ok(sc) => Some(sc),
@@ -1104,7 +1188,7 @@ impl ImportJob {
                     let family = (dir.to_string_lossy().to_lowercase(), name_family(as_named));
                     if plan.transfers.iter().any(|t| t.family == family) {
                         self.run_plan(&mut plan, &mut out, cancel);
-                        if cancel.load(Relaxed) {
+                        if halted() {
                             break;
                         }
                     }
@@ -1137,13 +1221,14 @@ impl ImportJob {
             plan.slots.push(Slot::Item(PreparedItem::Ready(Box::new(ReadyFile { path, stored, info, sidecar, placed: None }))));
         }
         self.run_plan(&mut plan, &mut out, cancel);
+        out.stopped = self.reads.ended();
         out
     }
 
     /// Run the transfers `plan` collected (on several threads) and append its items to `out` in
     /// file order. Transfers not started because `cancel` was set leave no item.
     fn run_plan(&mut self, plan: &mut Plan, out: &mut Prepared, cancel: &std::sync::atomic::AtomicBool) {
-        let mut done = run_transfers(std::mem::take(&mut plan.transfers), self.file_bytes.as_ref(), cancel, &self.done).into_iter();
+        let mut done = run_transfers(std::mem::take(&mut plan.transfers), self.file_bytes.clone(), cancel, &self.done, &self.reads).into_iter();
         for slot in std::mem::take(&mut plan.slots) {
             let item = match slot {
                 Slot::Item(it) => it,
@@ -1235,63 +1320,75 @@ pub fn batch_size() -> usize {
 }
 
 /// Run `transfers` (several at once where threads exist); their outcomes in order, `None` for one
-/// not started because `cancel` was set. `done` counts each one finished.
+/// not started because `cancel` was set, or cut off by it. `done` counts each one finished. A transfer that stops
+/// answering is reported by `watch` and given up when it is asked to, like a read ([`ReadWatch`]): its item is
+/// `Failed` then, and whatever it writes later is taken back.
 fn run_transfers(
     transfers: Vec<Transfer>,
-    file_bytes: Option<&crate::merge::ByteReader>,
+    file_bytes: Option<crate::merge::ByteReader>,
     cancel: &std::sync::atomic::AtomicBool,
     done: &std::sync::atomic::AtomicUsize,
+    watch: &ReadWatch,
 ) -> Vec<Option<PreparedItem>> {
     use std::sync::atomic::Ordering::Relaxed;
-    let one = |t: Transfer| {
-        if cancel.load(Relaxed) {
-            return None;
-        }
-        let path = t.path.clone();
-        // last-resort guard: a panic is this file's failure, not the import's
-        let item = crate::guard::catch("import", || run_transfer(t, file_bytes)).unwrap_or_else(|e| PreparedItem::Failed(path, e));
-        done.fetch_add(1, Relaxed);
-        Some(item)
-    };
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let n = workers(transfers.len());
-        if n > 1 {
-            let mut results: Vec<Option<PreparedItem>> = std::iter::repeat_with(|| None).take(transfers.len()).collect();
-            let queue = std::sync::Mutex::new(transfers.into_iter().enumerate());
-            let out = std::sync::Mutex::new(&mut results);
-            // (the tests' injected faults hold for the workers too)
-            #[cfg(test)]
+        use std::sync::Arc;
+        let paths: Vec<String> = transfers.iter().map(|t| t.path.clone()).collect();
+        let pool = reads::Pool { watch, cancel, name: "lc-import-copy", threads: workers(transfers.len()) };
+        let work: Arc<dyn Fn(Transfer) -> PreparedItem + Send + Sync> = Arc::new(move |t| run_transfer(t, file_bytes.as_ref()));
+        // (the tests' injected faults hold for the workers too)
+        #[cfg(test)]
+        let init: Arc<dyn Fn() + Send + Sync> = {
             let fault = crate::import_move::injected_fault();
-            let work = &|| {
-                #[cfg(test)]
-                crate::import_move::inject(fault);
-                loop {
-                    let next = queue.lock().unwrap_or_else(std::sync::PoisonError::into_inner).next();
-                    let Some((i, t)) = next else { break };
-                    let r = one(t);
-                    if let Some(slot) = out.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get_mut(i) {
-                        *slot = r;
-                    }
-                }
-            };
-            std::thread::scope(|sc| {
-                let handles: Vec<_> =
-                    (0..n).filter_map(|i| std::thread::Builder::new().name(format!("lc-import-copy-{i}")).spawn_scoped(sc, work).ok()).collect();
-                if handles.is_empty() {
-                    // no thread to be had: copy here, one after another
-                    work();
-                }
-                for h in handles {
-                    if h.join().is_err() {
-                        log::error!("import: a copy worker stopped unexpectedly");
-                    }
-                }
-            });
-            return results;
-        }
+            Arc::new(move || crate::import_move::inject(fault))
+        };
+        #[cfg(not(test))]
+        let init: Arc<dyn Fn() + Send + Sync> = Arc::new(|| {});
+        let outcomes = pool.run(transfers, &|i| paths.get(i).map(|p| shown(p)).unwrap_or_default(), work, Arc::new(discard), init, &|_| {
+            done.fetch_add(1, Relaxed);
+        });
+        outcomes
+            .into_iter()
+            .zip(paths)
+            .map(|(o, path)| match o {
+                reads::Outcome::Done(item) => Some(item),
+                reads::Outcome::Failed(why) => Some(PreparedItem::Failed(path, why)),
+                reads::Outcome::Unreached => None,
+            })
+            .collect()
     }
-    transfers.into_iter().map(one).collect()
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = watch;
+        transfers
+            .into_iter()
+            .map(|t| {
+                if cancel.load(Relaxed) {
+                    return None;
+                }
+                let path = t.path.clone();
+                // last-resort guard: a panic is this file's failure, not the import's
+                let item = crate::guard::catch("import", || run_transfer(t, file_bytes.as_ref())).unwrap_or_else(|e| PreparedItem::Failed(path, e));
+                done.fetch_add(1, Relaxed);
+                Some(item)
+            })
+            .collect()
+    }
+}
+
+/// What a transfer made after it was given up is not wanted: a placed file is taken back (its source was never
+/// touched), a copy removed.
+#[cfg(not(target_arch = "wasm32"))]
+fn discard(item: PreparedItem) {
+    let PreparedItem::Ready(ready) = item else { return };
+    match &ready.placed {
+        Some(placed) => crate::import_move::rollback(placed),
+        None if ready.stored != ready.path => {
+            let _ = std::fs::remove_file(&ready.stored);
+        }
+        None => {}
+    }
 }
 
 /// Copy or move one planned file (and Copy as DNG); its item.
@@ -1316,7 +1413,10 @@ fn run_transfer(t: Transfer, file_bytes: Option<&crate::merge::ByteReader>) -> P
         // decoding the raw twice and encoding it takes several times the file's size in memory
         let weight = usize::try_from(info.file_size).unwrap_or(usize::MAX).saturating_mul(6);
         let _permit = crate::memory::work_gate().acquire(weight);
-        match crate::cmd::convert::write_dng_with(file_bytes, &stored, String::new()) {
+        progressed();
+        let made = crate::cmd::convert::write_dng_with(file_bytes, &stored, String::new());
+        progressed();
+        match made {
             Ok(dng) => {
                 let _ = std::fs::remove_file(&stored);
                 stored = dng;
@@ -1586,6 +1686,10 @@ impl Session {
 mod tests_known;
 
 #[cfg(test)]
+#[path = "import/tests_reads.rs"]
+pub(crate) mod tests_reads;
+
+#[cfg(test)]
 mod prepared_tests {
     use super::*;
 
@@ -1606,6 +1710,7 @@ mod prepared_tests {
         let mut prepared = Prepared {
             scanned: 2,
             items: vec![PreparedItem::Ready(Box::new(ready(&existing_path))), PreparedItem::Ready(Box::new(ready(&other_path)))],
+            stopped: None,
         };
         prepared.revalidate_add(&s);
         assert!(matches!(prepared.items.first(), Some(PreparedItem::Duplicate { reason: "path", .. })));

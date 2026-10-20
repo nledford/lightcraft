@@ -35,11 +35,15 @@ pub(crate) fn write_dng_with(file_bytes: Option<&crate::merge::ByteReader>, path
         Some(r) => r(path)?,
         None => std::fs::read(path).map_err(|e| format!("{path}: {e}"))?,
     };
+    // (the steps below are CPU work with no disk wait: their ends tell a pool's watch that the job goes on)
+    crate::import::progressed();
     let mut raw = lightcraft_raw::decode(&bytes).map_err(|e| format!("{path}: {e}"))?;
+    crate::import::progressed();
     crate::camera_preview::with_starting_colour(&mut raw, &bytes);
     drop(bytes);
     let dng = lightcraft_raw::write_dng(&raw, &lightcraft_raw::DngWriteOptions { xmp: (!packet.is_empty()).then_some(packet), ..Default::default() })
         .map_err(|e| e.to_string())?;
+    crate::import::progressed();
     let back = lightcraft_raw::decode(&dng).map_err(|e| format!("{path}: the DNG written for it doesn't decode ({e}); the raw is kept"))?;
     let same = match (&back.data, &raw.data) {
         (lightcraft_raw::RawData::U16(a), lightcraft_raw::RawData::U16(b)) => a == b,

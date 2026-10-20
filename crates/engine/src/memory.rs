@@ -132,7 +132,10 @@ impl WorkGate {
     pub fn acquire(&self, bytes: usize) -> Permit<'_> {
         let mut g = self.lock();
         while g.0 > 0 && g.0 + bytes > g.1 {
-            g = self.cv.wait(g).unwrap_or_else(|e| e.into_inner());
+            // (a wait for memory is not a read that stopped answering: say once a second that this one goes on)
+            let (guard, _) = self.cv.wait_timeout(g, std::time::Duration::from_secs(1)).unwrap_or_else(|e| e.into_inner());
+            g = guard;
+            crate::import::progressed();
         }
         g.0 += bytes;
         Permit { gate: self, bytes }
