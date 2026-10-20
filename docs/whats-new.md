@@ -158,11 +158,12 @@
   the albums themselves. The counts are the same as before, including for albums that loop through each other.
 
 ### Big views open without sorting the whole library again
-- Switching to All Photos, Recently Added or a smart album, or clearing a filter or search, no longer sorts every photo
-  of the library each time. The library keeps each sort order (capture date, import date, edit date, file name, rating,
-  file size) and moves only the photos an edit changed. On a library of 312,000 photos, All Photos now lists in about
-  30 ms instead of about 330 ms, and a view sorted by file name in about 30 ms instead of about 970 ms. The first time a
-  sort is used after LightCraft opens still sorts once. The order of the photos is the same as before.
+- Showing All Photos, Recently Added or a smart album, or clearing a filter or search, no longer sorts every photo of
+  the library each time. Once a sort (capture date, import date, edit date, file name, rating or file size) has been
+  used for a big view, LightCraft keeps that order and moves only the photos an edit changed. On a library of 312,000
+  photos, All Photos then lists in about 30 ms instead of about 330 ms, and a view sorted by file name in about 30 ms
+  instead of about 970 ms. The first big view in a sort after LightCraft opens still sorts once, as before; small views
+  (a folder, a search) never pay for it. The order of the photos is the same as before.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
