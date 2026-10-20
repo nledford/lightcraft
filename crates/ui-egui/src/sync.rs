@@ -196,7 +196,8 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
 
 /// Synchronize with the dialog's choices: the scan the dialog showed is handed to a worker
 /// thread at once ([`SyncRun`]); nothing is read from disk on the UI thread. A scan that went
-/// stale (the folder's photos changed meanwhile) is refused and made again, keeping the choices.
+/// stale (the folder's photos changed meanwhile) is refused and made again, keeping the choices the person made
+/// (after a stopped scan only Import new: the other three were switched off for them).
 pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
     let Dialog::SynchronizeFolder { path, name, disk, counts: Some(was), import_new, relink_moved, remove_missing, read_metadata, .. } = dlg else {
         return Err("the folder is still being scanned".into());
@@ -219,12 +220,14 @@ pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
         Err(e) => {
             // look again, in the background, keeping what was ticked
             if open(app, path, name, *disk).is_ok()
-                // (a stopped scan's choices were forced off, not ticked by the person: the new dialog keeps its defaults)
-                && !was.stopped
                 && let Some(Dialog::SynchronizeFolder { import_new: i, relink_moved: l, remove_missing: m, read_metadata: x, .. }) =
                     &mut app.ui.dialog
             {
-                (*i, *l, *m, *x) = (*import_new, *relink_moved, *remove_missing, *read_metadata);
+                *i = *import_new;
+                // (a stopped scan forced the other three off, the person did not: the new dialog keeps their defaults)
+                if !was.stopped {
+                    (*l, *m, *x) = (*relink_moved, *remove_missing, *read_metadata);
+                }
             }
             return Err(e);
         }

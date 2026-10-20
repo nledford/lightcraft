@@ -430,9 +430,11 @@ fn a_rescan_after_a_stopped_scan_starts_from_the_default_choices() {
     let dir = Scratch::new("restopped");
     let mut h = changed_folder(&dir);
     open_and_scan(&mut h, &dir.path("trip"));
-    if let Some(Dialog::SynchronizeFolder { counts: Some(c), relink_moved, .. }) = &mut h.app.ui.dialog {
+    if let Some(Dialog::SynchronizeFolder { counts: Some(c), relink_moved, import_new, .. }) = &mut h.app.ui.dialog {
         c.stopped = true;
         *relink_moved = false;
+        // (the one choice the person can still make)
+        *import_new = false;
     }
     let a = h.app.session.catalog.photos().find(|p| p.file_name == "a.png").unwrap().id;
     let r = h.request("engine.execute", json!({"command": "photo.rate", "params": {"ids": [a.0], "rating": 3}}), T);
@@ -441,7 +443,11 @@ fn a_rescan_after_a_stopped_scan_starts_from_the_default_choices() {
     assert_eq!(r["ok"], false, "{r}");
     let rescanned = h.step_until(T, |h| matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { counts: Some(_), .. })));
     assert!(rescanned);
-    assert!(matches!(h.app.ui.dialog, Some(Dialog::SynchronizeFolder { relink_moved: true, .. })), "{:?}", h.app.ui.dialog);
+    assert!(
+        matches!(h.app.ui.dialog, Some(Dialog::SynchronizeFolder { relink_moved: true, import_new: false, .. })),
+        "Relink back to its default, Import new as the person left it: {:?}",
+        h.app.ui.dialog
+    );
 }
 
 /// A scan that stopped with nothing found does not say the library is up to date: it did not look at everything.
