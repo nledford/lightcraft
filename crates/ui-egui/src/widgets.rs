@@ -915,7 +915,8 @@ pub fn dropdown_within(ui: &mut Ui, id: &str, text: &str, font: egui::FontId, co
     ui.painter().galley(pos2(r.left(), r.center().y - galley.size().y / 2.0), galley, c);
     paint(ui.painter(), Rect::from_center_size(pos2(r.right() - 10.0, r.center().y), vec2(16.0, 16.0)), Icon::ChevronDown, c);
     if resp.has_focus() {
-        focus_ring(ui.painter(), r, &t);
+        // (on a rect grown past the text, which starts at the left edge and would be cut by the ring)
+        focus_ring(ui.painter(), r.expand2(vec2(4.0, 2.0)), &t);
     }
     if elided { resp.on_hover_text(text) } else { resp }
 }
