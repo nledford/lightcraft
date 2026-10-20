@@ -174,6 +174,25 @@ fn a_disabled_reason_shows_only_while_disabled() {
     }
 }
 
+/// A label is an English key that the box translates once; one that is already translated (a
+/// `tr_format!` result) is drawn and announced as it is, not looked up again.
+#[test]
+fn a_translated_label_is_not_looked_up_again() {
+    let rig = Rig::new();
+    crate::i18n::set_language(crate::i18n::Locale::De);
+    let mut on = false;
+    let (_, nodes) = rig.frame(Vec::new(), |ui| {
+        Check::new("key", &mut on, "Auto Crop").show(ui);
+        // "Auto Crop" stands for text that was translated already and happens to be a catalog key.
+        Check::new("ready", &mut on, "Auto Crop").translated().show(ui);
+    });
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    let names: Vec<&str> = nodes.iter().filter(|n| n.0 == "CheckBox").map(|n| n.1.as_str()).collect();
+    let german = crate::i18n::Locale::De.tr("Auto Crop");
+    assert!(names.contains(&german), "an English key is translated: {names:?}");
+    assert!(names.contains(&"Auto Crop"), "a translated label is kept as it is: {names:?}");
+}
+
 #[test]
 fn screen_readers_hear_a_checkbox_and_a_radio_with_their_state() {
     let rig = Rig::new();
