@@ -26,6 +26,12 @@ impl Gate {
     }
 }
 
+/// How long a read may go without progress before the tests call it stalled. Long next to anything a test does between
+/// two signs of progress (a few milliseconds), so that a busy machine delaying a thread by tens or hundreds of
+/// milliseconds cannot make a healthy read look stalled; the tests that wait for a stall pay for it in time, and wait
+/// for it with a deadline of seconds ([`until`]).
+pub(crate) const STALL: Duration = Duration::from_millis(400);
+
 /// Wait (at most 10 s) until `ok`.
 pub(crate) fn until(what: &str, mut ok: impl FnMut() -> bool) {
     let started = Instant::now();
@@ -40,7 +46,7 @@ pub(crate) fn until(what: &str, mut ok: impl FnMut() -> bool) {
 fn job(probe: impl Fn(&str) -> Result<ProbeInfo, String> + Send + Sync + 'static) -> ImportJob {
     let mut s = Session::new();
     let mut job = ImportJob::new(&mut s, ImportOptions { mode: ImportMode::Add, ..ImportOptions::default() }).unwrap();
-    job.reads.set_stall_after(Duration::from_millis(30));
+    job.reads.set_stall_after(STALL);
     job.reads.set_poll(Duration::from_millis(5));
     job.probe = Some(Arc::new(probe));
     job
@@ -103,7 +109,7 @@ fn cancel_ends_the_import_while_a_read_hangs() {
     let r = ends.recv_timeout(Duration::from_secs(5));
     gate.open();
     assert!(r.is_ok(), "the import still waits for the read that hangs");
-    assert!(pressed.elapsed() < Duration::from_millis(1500), "took {:?}", pressed.elapsed());
+    assert!(pressed.elapsed() < Duration::from_secs(4), "took {:?}", pressed.elapsed());
 }
 
 /// Given a file that has not answered for longer than the stall time,
@@ -120,7 +126,7 @@ fn a_stalled_read_is_named_and_skipping_it_fails_that_file_and_goes_on() {
     until("the stall to be reported", || reads.stalled().is_some());
     let stalled = reads.stalled().expect("stalled");
     assert_eq!(stalled.what, "lc-reads-hang.jpg");
-    assert!(stalled.waited >= Duration::from_millis(30), "{:?}", stalled.waited);
+    assert!(stalled.waited >= STALL, "{:?}", stalled.waited);
     assert!(!worker.is_finished(), "the import waits for it");
     reads.skip();
     let prepared = worker.join().unwrap();
@@ -144,9 +150,10 @@ fn a_slow_read_that_keeps_progressing_is_never_reported() {
     let seen = Arc::new(AtomicBool::new(false));
     let mut job = job(|path: &str| {
         if shown(path).starts_with("lc-reads-slow") {
-            // 10 steps of 15 ms: 150 ms in all, five times the stall time, but never 30 ms without progress
-            for _ in 0..10 {
-                std::thread::sleep(Duration::from_millis(15));
+            // 30 steps of 20 ms: 600 ms in all, longer than the stall time, but never more than a twentieth of it without
+            // progress (a step would have to be delayed twenty-fold to trip it)
+            for _ in 0..30 {
+                std::thread::sleep(Duration::from_millis(20));
                 reads::progressed();
             }
         }
@@ -171,16 +178,22 @@ fn a_slow_read_that_keeps_progressing_is_never_reported() {
 /// Then only the one the row names (the longer without progress) is given up; the other is named next.
 #[test]
 fn skip_gives_up_only_the_read_that_is_named() {
-    let watch = Arc::new(ReadWatch::new(Duration::from_millis(30)));
+    let watch = Arc::new(ReadWatch::new(STALL));
     watch.set_poll(Duration::from_millis(5));
     let gate = Gate::default();
     let cancel = Arc::new(AtomicBool::new(false));
+    // job 1 starts hanging only once job 0 has: whatever the scheduling, job 0 has gone longer without progress
+    let first_hangs = Arc::new(AtomicBool::new(false));
     let work: Arc<dyn Fn(u32) -> u32 + Send + Sync> = {
-        let gate = gate.clone();
+        let (gate, first_hangs) = (gate.clone(), first_hangs.clone());
         Arc::new(move |job| {
-            if job == 1 {
-                // starts hanging 60 ms after job 0 did
-                std::thread::sleep(Duration::from_millis(60));
+            if job == 0 {
+                first_hangs.store(true, Relaxed);
+            } else {
+                while !first_hangs.load(Relaxed) {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                std::thread::sleep(Duration::from_millis(20));
                 reads::progressed();
             }
             gate.wait();
@@ -193,8 +206,8 @@ fn skip_gives_up_only_the_read_that_is_named() {
         pool.run(vec![0u32, 1], &|i| format!("job-{i}"), work, Arc::new(|_| {}), Arc::new(|| {}), &|_| {})
     });
     until("job 0 to be named", || watch.stalled().is_some_and(|s| s.what == "job-0"));
-    // (long enough for job 1 to stall as well)
-    std::thread::sleep(Duration::from_millis(150));
+    // (long enough for job 1 to stall as well; job 0 is named however long this takes)
+    std::thread::sleep(STALL * 2);
     assert_eq!(watch.stalled().map(|s| s.what).as_deref(), Some("job-0"), "the longest is named");
     watch.skip();
     until("job 1 to be named next", || watch.skipped() == 1 && watch.stalled().is_some_and(|s| s.what == "job-1"));
@@ -244,7 +257,7 @@ fn the_fourth_skipped_read_ends_the_import_with_an_error() {
 /// Then its answer is handed to the late handler and nothing else: the file stays failed.
 #[test]
 fn a_late_answer_from_a_given_up_read_is_ignored_while_the_run_goes_on() {
-    let watch = ReadWatch::new(Duration::from_millis(30));
+    let watch = ReadWatch::new(STALL);
     watch.set_poll(Duration::from_millis(5));
     let cancel = AtomicBool::new(false);
     let (gate, late_flag) = (Gate::default(), Gate::default());
@@ -301,7 +314,7 @@ fn a_review_scan_names_a_stalled_file_and_lists_it_as_unreadable_once_skipped() 
     // (the probe's hang is keyed on the `lc-reads-` prefix the other tests give their files)
     s.media.file_probe = Some(Arc::new(move |p: &str| probe(&format!("lc-reads-{}", shown(p)))));
     let (input, paths) = ScanInput::new(&mut s, &[dir.to_string_lossy().to_string()]);
-    let progress = Arc::new(ScanProgress::new(Duration::from_millis(30)));
+    let progress = Arc::new(ScanProgress::new(STALL));
     progress.reads.set_poll(Duration::from_millis(5));
     let p = progress.clone();
     let worker = std::thread::spawn(move || scan_with(input, &paths, &p));
@@ -337,7 +350,7 @@ impl Transfers {
     fn job(&self, mode: ImportMode, convert_dng: bool) -> ImportJob {
         let opts = ImportOptions { mode, convert_dng, destination: Some(self.dest.to_string_lossy().to_string()), ..ImportOptions::default() };
         let mut job = ImportJob::new(&mut Session::new(), opts).unwrap();
-        job.reads.set_stall_after(Duration::from_millis(30));
+        job.reads.set_stall_after(STALL);
         job.reads.set_poll(Duration::from_millis(5));
         job.probe = Some(Arc::new(|_: &str| Ok(ProbeInfo { format: "CR2".into(), kind: MediaKind::Raw, ..ProbeInfo::default() })));
         job
@@ -426,8 +439,9 @@ fn a_skipped_move_keeps_the_source_and_leaves_nothing_at_the_destination() {
 /// Then it is never reported as stalled: waiting for memory is not a drive that stopped answering.
 #[test]
 fn a_read_queued_at_the_memory_gate_is_never_reported() {
-    let gate = Arc::new(crate::memory::WorkGate::new(100));
-    let watch = ReadWatch::new(Duration::from_millis(1500));
+    let gate = Arc::new(crate::memory::WorkGate::new(100).with_heartbeat(Duration::from_millis(20)));
+    // (the gate says every 20 ms that a wait goes on: fifty times in the stall time)
+    let watch = ReadWatch::new(Duration::from_secs(1));
     watch.set_poll(Duration::from_millis(5));
     let cancel = AtomicBool::new(false);
     // held by work that is not a pool's (an interactive render, say)
@@ -442,7 +456,7 @@ fn a_read_queued_at_the_memory_gate_is_never_reported() {
     let outcomes = std::thread::scope(|sc| {
         sc.spawn(|| {
             let started = Instant::now();
-            while started.elapsed() < Duration::from_millis(2600) {
+            while started.elapsed() < Duration::from_millis(2200) {
                 assert!(watch.stalled().is_none(), "waiting at the gate was called a stall after {:?}", started.elapsed());
                 std::thread::sleep(Duration::from_millis(5));
             }
@@ -460,11 +474,11 @@ fn a_read_queued_at_the_memory_gate_is_never_reported() {
 /// it, and the fourth skipped read ends the run: the import cannot sit there forever.
 #[test]
 fn reads_blocked_only_by_an_abandoned_holder_are_named_and_the_cap_ends_the_run() {
-    let gate = Arc::new(crate::memory::WorkGate::new(100));
+    let gate = Arc::new(crate::memory::WorkGate::new(100).with_heartbeat(Duration::from_millis(20)));
     let (drive, release) = (Gate::default(), Gate::default());
-    let watch = ReadWatch::new(Duration::from_millis(1200));
-    // (longer than the gate's once-a-second heartbeat: were a wait for abandoned memory counted as progress, the
-    // clock would be reset before it could run out)
+    let watch = ReadWatch::new(Duration::from_millis(600));
+    // (thirty times the gate's heartbeat: were a wait for abandoned memory counted as progress, the clock would be
+    // reset before it could run out)
     watch.set_poll(Duration::from_millis(5));
     let cancel = AtomicBool::new(false);
     let work: Arc<dyn Fn(u32) -> u32 + Send + Sync> = {

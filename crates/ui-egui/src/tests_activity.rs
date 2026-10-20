@@ -531,7 +531,7 @@ impl Gate {
 }
 
 /// A folder of four stand-in JPEGs and one (`IMG_hang.jpg`) whose read never answers, and an app that calls a read
-/// stalled after 150 ms (a network drive that dropped its connection).
+/// stalled after 500 ms (a network drive that dropped its connection).
 fn hanging_import(tag: &str) -> (Headless, std::path::PathBuf, Gate) {
     hanging(tag, &["IMG_hang.jpg"])
 }
@@ -546,7 +546,7 @@ fn hanging(tag: &str, hangs: &[&str]) -> (Headless, std::path::PathBuf, Gate) {
     }
     let gate = Gate::default();
     let mut s = lightcraft_engine::Session::new();
-    s.import_stall_after = Duration::from_millis(150);
+    s.import_stall_after = Duration::from_millis(500);
     let in_probe = gate.clone();
     s.media.file_probe = Some(std::sync::Arc::new(move |p: &str| {
         if p.contains("IMG_hang") {

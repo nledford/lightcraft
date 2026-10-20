@@ -101,6 +101,8 @@ pub fn cache_share(budget: usize) -> usize {
 pub struct WorkGate {
     state: Mutex<GateState>,
     cv: Condvar,
+    /// How often a wait says it goes on ([`crate::import::progressed`]).
+    heartbeat: std::time::Duration,
 }
 
 struct GateState {
@@ -134,7 +136,18 @@ pub struct Permit<'a> {
 
 impl WorkGate {
     pub fn new(limit: usize) -> WorkGate {
-        WorkGate { state: Mutex::new(GateState { used: 0, limit, holders: Vec::new(), next: 0 }), cv: Condvar::new() }
+        WorkGate {
+            state: Mutex::new(GateState { used: 0, limit, holders: Vec::new(), next: 0 }),
+            cv: Condvar::new(),
+            heartbeat: std::time::Duration::from_secs(1),
+        }
+    }
+
+    /// This gate with another heartbeat (tests wait for it).
+    #[cfg(test)]
+    pub(crate) fn with_heartbeat(mut self, every: std::time::Duration) -> WorkGate {
+        self.heartbeat = every;
+        self
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, GateState> {
@@ -166,7 +179,7 @@ impl WorkGate {
             // long as some holder that was not given up is working. A wait that only abandoned reads block (they
             // keep their memory until the drive answers) is not progress: the waiting read is named and can be
             // skipped too.
-            let (guard, _) = self.cv.wait_timeout(g, std::time::Duration::from_secs(1)).unwrap_or_else(|e| e.into_inner());
+            let (guard, _) = self.cv.wait_timeout(g, self.heartbeat).unwrap_or_else(|e| e.into_inner());
             g = guard;
             if g.live_holder() {
                 crate::import::progressed();
