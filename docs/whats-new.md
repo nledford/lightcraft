@@ -162,8 +162,9 @@
   the library each time. Once a sort (capture date, import date, edit date, file name, rating or file size) has been
   used for a big view, LightCraft keeps that order and moves only the photos an edit changed. On a library of 312,000
   photos, All Photos then lists in about 30 ms instead of about 330 ms, and a view sorted by file name in about 30 ms
-  instead of about 970 ms. The first big view in a sort after LightCraft opens still sorts once, as before; small views
-  (a folder, a search) never pay for it. The order of the photos is the same as before.
+  instead of about 970 ms. A view of less than about a sixteenth of the library (a folder, a search) never pays for
+  this; a mid-sized one pays once, the second time it is shown in a sort (Recently Added: about 0.6 s at 312,000
+  photos), and a larger one the first time; after that it is fast. The order of the photos is the same as before.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
