@@ -12,7 +12,12 @@
 //!
 //! A click, or Space or Return on the focused control, changes the value and marks the response
 //! changed. A disabled one is drawn faded, ignores clicks and the keyboard, and shows its tooltip
-//! as the reason. Labels are English strings, translated when drawn.
+//! as the reason. Labels and tooltips are English keys: they are translated here when drawn, so a
+//! caller passes them untranslated.
+//!
+//! Every control's egui id and its `check:`/`radio:` automation name come from the `id` string and
+//! the enclosing `ui`: two controls with the same `id` in one `ui` (a loop that leaves its index
+//! out of the id) share both, so each must be given a distinct one.
 
 use egui::{Color32, Pos2, Rect, Response, Sense, Shape, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2};
 
@@ -260,8 +265,9 @@ fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
     p.galley_with_override_text_color(pos2(rect.min.x + BOX + GAP, rect.center().y - galley.size().y / 2.0), galley, text_color);
 
     let activated = resp.clicked();
-    // (a check turned off on its own sits in an enabled ui: egui still calls the response enabled,
-    // and it is the plain hover text that shows the reason)
+    // `resp.enabled()` is false only when the whole ui is disabled around this control; one turned
+    // off with `.enabled(false)` sits in an enabled ui. egui's disabled hover text shows only in the
+    // first case, so the reason is shown with the plain hover text in the second.
     let resp = match tooltip {
         Some(tip) if resp.enabled() => resp.on_hover_text(crate::i18n::tr(tip)),
         Some(tip) => resp.on_disabled_hover_text(crate::i18n::tr(tip)),
