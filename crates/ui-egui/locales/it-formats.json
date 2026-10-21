@@ -283,6 +283,7 @@
   " · kept, not applied: {}": " · conservato, non applicato: {}",
   "Delete the effect preset “{name}”?": "Eliminare il preset effetto “{name}”?",
   "{n} raws can now be developed from their raw data": "Raw che ora si possono sviluppare dai loro dati raw: {n}",
+  "Removed {n} sample photos. Edit → Undo brings them back.": "Foto di esempio rimosse: {n}. Modifica → Annulla le ripristina.",
   "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "Removed “{name}” from {n} photos. Edit → Undo puts it back.",
   "Inside: {names}": "Al suo interno: {names}",
   "Template preview: {name}": "Anteprima del modello: {name}",

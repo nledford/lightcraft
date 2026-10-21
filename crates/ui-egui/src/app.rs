@@ -128,6 +128,7 @@ impl LightcraftApp {
             library_window_input: Default::default(),
             alt_asks_for_library: false,
             recent_checks: Default::default(),
+            samples_present: None,
             activity_expanded: false,
             model_setup: Default::default(),
         }

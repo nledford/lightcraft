@@ -68,6 +68,7 @@ mod rename_person;
 mod rules_editor;
 mod sam_setup;
 mod samples;
+mod samples_banner;
 mod scroll;
 mod slider_reset;
 mod slideshow;

@@ -166,6 +166,17 @@
   only they filled and the folders left empty, in one undo step. An album that also holds a photo of yours stays, with
   that photo. `library.addSamples` (with an optional `folder` name) and `library.removeSamples` do the same for agents.
 
+### A new library asks how to begin
+- A new library made by the desktop app now starts empty instead of quietly filling with the 24 procedural demo
+  photos. Its first screen, "Welcome to LightCraft", offers Import Photos…, Import Lightroom Catalog… and Try Sample
+  Photos (which does what Help ▸ Add Sample Photos does). `--memory` still starts with the demo photos (`--no-demo` for
+  none), as do `lightcraft-cli --demo` and the web build.
+- While sample photos are in a library, a tinted banner under the top bar says so and offers Import Photos… and Remove
+  Sample Photos; once photos of your own are in, it offers Remove Sample Photos or Keep Them. Hide and Keep Them close it
+  until samples are added again. After a removal from the banner a message says how many photos went and that Edit →
+  Undo brings them back. Screen readers read out the banner's words, and every message (toast) as it appears.
+- A ghost button (the banner's Hide and Keep Them) shows an edge while it is pointed at or pressed.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around

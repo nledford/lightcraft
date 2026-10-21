@@ -306,5 +306,6 @@
   "Inside: {names}": "Inuti: {names}",
   "Where should the Lightroom catalog “{catalog}” go?": "Vart ska Lightroom-katalogen ”{catalog}” importeras?",
   "Merge into the open library “{library}” ({count} photo{})": "Slå samman med det öppna biblioteket ”{library}” ({count} foto{:.0})",
-  "Added {n} sample photos, with albums under “{folder}” and keywords to try": "Lade till {n} exempelfoton, med album under ”{folder}” och nyckelord att prova"
+  "Added {n} sample photos, with albums under “{folder}” and keywords to try": "Lade till {n} exempelfoton, med album under ”{folder}” och nyckelord att prova",
+  "Removed {n} sample photos. Edit → Undo brings them back.": "Borttagna exempelfoton: {n}. Redigera → Ångra tar tillbaka dem."
 }

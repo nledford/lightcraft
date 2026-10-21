@@ -61,6 +61,7 @@
   "Redo {}": "重做：{0}",
   "Remove “{}” from Favorites": "从收藏夹中移除“{0}”",
   "Removed from {}": "已从 {} 移除",
+  "Removed {n} sample photos. Edit → Undo brings them back.": "已移除 {n} 张示例照片。编辑 → 撤销可恢复。",
   "Rename {n} Photos…": "重命名 {n} 张照片…",
   "Rename “{name}”": "重命名“{name}”",
   "Rendering on the CPU: {why}": "正在使用 CPU 渲染：{why}",

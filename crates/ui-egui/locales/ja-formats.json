@@ -61,6 +61,7 @@
   "Redo {}": "やり直す：{}",
   "Remove “{}” from Favorites": "「{}」をお気に入りから削除",
   "Removed from {}": "{} から削除しました",
+  "Removed {n} sample photos. Edit → Undo brings them back.": "サンプル写真を{n}枚削除しました。編集 → 取り消すで元に戻せます。",
   "Rename {n} Photos…": "{n}枚の写真の名前を変更…",
   "Rename “{name}”": "「{name}」の名前を変更",
   "Rendering on the CPU: {why}": "CPUで描画：{why}",

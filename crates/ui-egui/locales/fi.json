@@ -2330,5 +2330,12 @@
   "Drop to open the face model": "Pudota avataksesi kasvomallin",
   "Dropped Files": "Pudotetut tiedostot",
   "Finish Lightroom catalog import before adding photos": "Viimeistele Lightroom-luettelon tuonti ennen kuvien lisäämistä",
-  "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta"
+  "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta",
+  "Welcome to LightCraft": "Tervetuloa LightCraftiin",
+  "Start with photos of your own, or look around with a set of sample photos first. Nothing is copied or moved unless you choose to.": "Aloita omilla kuvillasi tai tutustu ensin esimerkkikuviin. Mitään ei kopioida tai siirretä, ellet itse niin valitse.",
+  "Try Sample Photos": "Kokeile esimerkkikuvia",
+  "These are sample photos, to try LightCraft on. Import your own whenever you're ready.": "Nämä ovat esimerkkikuvia LightCraftin kokeilemiseen. Tuo omat kuvasi, kun olet valmis.",
+  "Your photos are in. The sample photos are still here too.": "Kuvasi on tuotu. Esimerkkikuvat ovat edelleen mukana.",
+  "Keep Them": "Säilytä ne",
+  "Hide": "Piilota"
 }

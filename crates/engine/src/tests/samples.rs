@@ -36,7 +36,7 @@ fn sample_photos_come_into_an_empty_library_as_one_undo_step() {
     // Given a new, empty library
     let mut s = Session::new();
     assert_eq!(s.catalog.len(), 0);
-    assert!(!s.has_samples());
+    assert!(s.catalog.never_held_photos() && !s.has_samples());
     // When the person asks for the sample photos
     let r = s.execute("library.addSamples", &json!({})).unwrap();
     // Then the demo photos and their albums are in, and one is selected to look at
@@ -50,7 +50,7 @@ fn sample_photos_come_into_an_empty_library_as_one_undo_step() {
     s.execute("edit.undo", &json!({})).unwrap();
     assert_eq!(s.catalog.len(), 0);
     assert_eq!(s.catalog.albums().count(), 0);
-    assert!(!s.has_samples());
+    assert!(!s.has_samples() && !s.catalog.never_held_photos());
 }
 
 #[test]
@@ -209,7 +209,7 @@ fn removing_the_samples_while_one_of_their_albums_is_shown_goes_back_to_all_phot
 
 #[test]
 fn the_catalog_counts_its_sample_photos_as_they_come_and_go() {
-    // the count the Help menu asks for each frame, without scanning the library
+    // the count the banner and the Help menu ask for each frame, without scanning the library
     let mut s = Session::with_demo();
     let n = samples(&s);
     assert_eq!(s.catalog.sample_photos(), n);
@@ -224,21 +224,25 @@ fn the_catalog_counts_its_sample_photos_as_they_come_and_go() {
     // and a catalog read back from its snapshot counts them again
     let back = lightcraft_catalog::Catalog::from_snapshot(&s.catalog.to_snapshot()).unwrap();
     assert_eq!(back.sample_photos(), n);
+    assert_eq!(back.sample_photos_in_library(), n);
 }
 
 #[test]
-fn samples_in_recently_deleted_are_still_counted() {
+fn samples_in_recently_deleted_are_counted_but_not_as_in_the_library() {
     let mut s = Session::with_demo();
     let n = samples(&s);
     let ids: Vec<_> = s.catalog.photos().map(|p| p.id).collect();
     s.selection.ids = ids.clone();
     s.execute("photo.delete", &json!({"ids": ids.iter().map(|i| i.0).collect::<Vec<_>>()})).unwrap();
     assert_eq!(s.catalog.sample_photos(), n, "still in the library's catalog, to remove or restore");
+    assert_eq!(s.catalog.sample_photos_in_library(), 0);
     let back = lightcraft_catalog::Catalog::from_snapshot(&s.catalog.to_snapshot()).unwrap();
     assert_eq!(back.sample_photos(), n);
-    // restored, they are as before
+    assert_eq!(back.sample_photos_in_library(), 0);
+    // restored, they are back in the library
     s.execute("edit.undo", &json!({})).unwrap();
     assert_eq!(s.catalog.sample_photos(), n);
+    assert_eq!(s.catalog.sample_photos_in_library(), n);
 }
 
 #[test]

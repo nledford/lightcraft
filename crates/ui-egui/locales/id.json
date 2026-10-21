@@ -2342,5 +2342,12 @@
   "Drop to open the face model": "Jatuhkan untuk membuka model wajah",
   "Dropped Files": "File yang dijatuhkan",
   "Finish Lightroom catalog import before adding photos": "Selesaikan impor katalog Lightroom sebelum menambahkan foto",
-  "Import dropped files without review": "Impor file yang dijatuhkan tanpa tinjauan"
+  "Import dropped files without review": "Impor file yang dijatuhkan tanpa tinjauan",
+  "Welcome to LightCraft": "Selamat datang di LightCraft",
+  "Start with photos of your own, or look around with a set of sample photos first. Nothing is copied or moved unless you choose to.": "Mulailah dengan foto Anda sendiri, atau lihat-lihat dulu dengan sekumpulan foto contoh. Tidak ada yang disalin atau dipindahkan kecuali Anda memilihnya.",
+  "Try Sample Photos": "Coba Foto Contoh",
+  "These are sample photos, to try LightCraft on. Import your own whenever you're ready.": "Ini adalah foto contoh untuk mencoba LightCraft. Impor foto Anda sendiri kapan pun Anda siap.",
+  "Your photos are in. The sample photos are still here too.": "Foto Anda sudah masuk. Foto contoh juga masih ada di sini.",
+  "Keep Them": "Simpan",
+  "Hide": "Sembunyikan"
 }

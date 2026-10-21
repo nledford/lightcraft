@@ -306,5 +306,6 @@
   "Inside: {names}": "Di dalam: {names}",
   "Where should the Lightroom catalog “{catalog}” go?": "Ke mana katalog Lightroom “{catalog}” diimpor?",
   "Merge into the open library “{library}” ({count} photo{})": "Gabungkan ke pustaka yang terbuka “{library}” ({count} foto{:.0})",
-  "Added {n} sample photos, with albums under “{folder}” and keywords to try": "{n} foto contoh ditambahkan, dengan album di bawah “{folder}” dan kata kunci untuk dicoba"
+  "Added {n} sample photos, with albums under “{folder}” and keywords to try": "{n} foto contoh ditambahkan, dengan album di bawah “{folder}” dan kata kunci untuk dicoba",
+  "Removed {n} sample photos. Edit → Undo brings them back.": "{n} foto contoh dihapus. Edit → Urungkan mengembalikannya."
 }
