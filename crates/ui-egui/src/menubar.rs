@@ -260,6 +260,9 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "app.systemInfo",
             "app.openLogFolder",
             "---",
+            "library.addSamples",
+            "library.removeSamples",
+            "---",
             "app.about",
         ],
     ),
@@ -1079,6 +1082,15 @@ mod tests {
             MenuNode::Submenu { children, .. } => find(children, id),
             _ => None,
         })
+    }
+
+    #[test]
+    fn the_sample_photo_items_sit_before_about_in_the_help_menu() {
+        let a = app();
+        let help = menu_bar(&a).into_iter().find(|(t, _)| t == "Help").expect("Help menu").1;
+        let at =
+            |id: &str| help.iter().position(|n| matches!(n, MenuNode::Item { id: i, .. } if i == id)).unwrap_or_else(|| panic!("{id} is in Help"));
+        assert!(at("library.addSamples") < at("app.about") && at("library.removeSamples") < at("app.about"));
     }
 
     #[test]
