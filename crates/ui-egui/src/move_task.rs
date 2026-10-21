@@ -19,7 +19,7 @@ pub struct MoveRun {
     /// The folder's name, as the toast says it.
     name: String,
     /// The worker, so a test can wait until it has sent its result.
-    #[cfg(test)]
+    #[cfg(all(test, not(target_arch = "wasm32")))]
     pub(crate) worker: Option<std::thread::JoinHandle<()>>,
 }
 
@@ -41,7 +41,7 @@ pub(crate) fn stalled(app: &mut LightcraftApp) -> (std::sync::mpsc::Sender<MoveO
         finish: None,
         folder: String::new(),
         name: String::new(),
-        #[cfg(test)]
+        #[cfg(all(test, not(target_arch = "wasm32")))]
         worker: None,
     });
     (tx, guard)
