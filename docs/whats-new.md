@@ -1,5 +1,27 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### Several albums, folders, keywords or dates at once
+- In the left panel, Cmd+click (Ctrl+click on Windows and Linux) adds an album, a folder, a keyword or a date to the
+  ones chosen, or takes it away; Shift+click takes every row between the last one clicked and this one. The grid
+  shows the photos of any of them, each once. A plain click chooses one row alone, as before.
+- In the Keyword List (right panel ▸ Keywords) the same clicks pick several keywords.
+- Right-click one of several rows chosen to act on them all, as one step to undo: move albums into a folder, export
+  them, or delete them; give folders a colour label or remove them from the library; give keywords to the selected
+  photos, take them away, merge them or delete them. Deleting or removing several asks first and says what goes.
+  Right-click a row that is not among them and you get that row's own menu; the others stay chosen.
+- Dragging one of several albums or keywords moves them all (albums go into the folder they are dropped in or
+  beside; placing by hand among its neighbours stays one album's).
+- Right after choosing several rows with Cmd or Shift, the Delete key asks about those rows. Click anywhere else,
+  or select photos or change what is shown in any other way, and Delete is about the photos again; after a plain
+  click on an album it always was.
+- For agents: `library.source` takes `ids` (albums) or `paths` (folders), `library.filter` takes `keywords` and
+  `dates`; `album.delete` and `album.move` take `ids`, `keyword.delete` and `keyword.move` take `keywords`,
+  `library.removeFolder` and `folder.label` take `paths`. `library.state` lists `albums` and `libraryFolders`.
+- `album.setRules` with `replace` keeps a smart album's album, as it already kept its folder (`album: null` drops
+  it), so editing a smart album saved from an album view no longer loses the album it was limited to.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
