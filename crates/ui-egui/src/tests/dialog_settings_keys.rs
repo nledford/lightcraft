@@ -90,8 +90,8 @@ fn band(image: &egui::ColorImage, rect: egui::Rect, colour: Color32) -> usize {
 fn tab_stops_once_at_the_tabs_and_once_at_each_row_of_choices() {
     let mut h = demo();
     show(&mut h, "general");
-    // Given Settings just opened: the focus is nowhere
-    assert_eq!(focused(&h), "");
+    // Given Settings just opened: the focus is in the filter box, which is ready to type in
+    assert_eq!(focused(&h), "field:settingsFilter");
     // When Tab is pressed, it goes to the tab that is open
     key(&mut h, "Tab");
     assert_eq!(focused(&h), "button:settingsTab-general");
@@ -128,7 +128,7 @@ fn the_stop_of_a_row_is_the_choice_that_holds() {
         key(&mut h, "Tab");
     }
     assert_eq!(focused(&h), "button:settingsStartup-2");
-    // (Settings closed and opened on Interface: the focus starts nowhere again)
+    // (Settings closed and opened on Interface: the focus starts in the filter again)
     h.app.ui.dialog = None;
     steps(&mut h);
     show(&mut h, "interface");

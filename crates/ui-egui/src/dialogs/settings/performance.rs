@@ -180,7 +180,7 @@ fn smart_previews(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 "Photos whose originals are not connected are shown and edited from their smart previews; new ones can only be made from originals that are connected."
             ),
         );
-        ui.add(egui::Label::new(RichText::new(question).color(t.caution)).wrap());
+        ui.add(egui::Label::new(RichText::new(question).color(t.legible(t.caution, t.chrome, 4.5))).wrap());
         ui.horizontal(|ui| {
             let r = ui.button(crate::i18n::tr("Delete and Change Folder"));
             register(ui, "button:settingsSmartDelete", r.rect);

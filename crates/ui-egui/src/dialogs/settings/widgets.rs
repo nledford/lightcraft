@@ -88,6 +88,7 @@ pub(crate) fn ask_first(t: &Tokens, id: &str, button: egui::Response, question: 
     let mut ids = None;
     egui::Popup::from_toggle_button_response(&button).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         ui.set_max_width(280.0);
+        legible_controls(ui, t);
         ui.add(egui::Label::new(RichText::new(crate::i18n::tr(question)).color(t.text_label)).wrap());
         ui.horizontal(|ui| {
             let r = ui.button(crate::i18n::tr(yes));
@@ -162,7 +163,7 @@ pub(crate) fn heading(ui: &mut egui::Ui, t: &Tokens, text: &str) {
         if left > 0.0 {
             let strength = (left * 2.0).min(1.0);
             let around = r.rect.expand2(egui::vec2(6.0, 2.0));
-            let outline = egui::Stroke::new(1.0, t.accent.gamma_multiply(strength));
+            let outline = egui::Stroke::new(1.0, t.legible(t.accent, t.chrome, 3.0).gamma_multiply(strength));
             ui.painter().set(behind, egui::Shape::rect_filled(around, egui::CornerRadius::same(4), t.hover.gamma_multiply(strength)));
             ui.painter().rect_stroke(around, egui::CornerRadius::same(4), outline, egui::StrokeKind::Inside);
             register_geometry(ui.ctx(), format!("settingsLanded:{name}"), around);

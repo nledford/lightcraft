@@ -124,11 +124,13 @@ fn tabs_are_not_drawn_as_the_choices_under_them_are() {
     let image = h.paint();
     // Then a choice is a bordered button
     let choice = rect(&h, "button:settingsLanguage-4");
-    let border: usize = edges(choice, 1.0).iter().map(|e| count(&image, *e, t.button_border)).sum();
+    // (in the border colour made to stand out from the window)
+    let line = t.legible(t.button_border, t.chrome, 3.0);
+    let border: usize = edges(choice, 1.0).iter().map(|e| count(&image, *e, line)).sum();
     assert!(border as f32 > choice.width(), "a choice has a border ({border} px)");
     // And a tab that is not open is its name alone on the window: no border, no fill of its own
     let import = tab(&h, "import");
-    let border: usize = edges(import, 1.0).iter().map(|e| count(&image, *e, t.button_border)).sum();
+    let border: usize = edges(import, 1.0).iter().map(|e| count(&image, *e, line) + count(&image, *e, t.button_border)).sum();
     assert_eq!(border, 0, "a tab has no border");
     assert_eq!(count(&image, import, t.button), 0, "a tab has no button fill");
     assert!(count(&image, import, t.chrome) as f32 > 0.6 * import.area(), "a tab is drawn on the window itself");
@@ -282,6 +284,8 @@ fn tabs_on_two_lines_each_stand_on_a_line_of_their_own() {
     let mut h = Headless::new(LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services::default()), [480.0, 640.0], 1.0);
     h.settle(T);
     let t = Tokens::get(&h.view.ctx);
+    // (the bar's line: the divider colour, made to stand out from the window)
+    let line = t.legible(t.divider, t.chrome, 3.0);
     show(&mut h, "general");
     let tabs: Vec<egui::Rect> = TABS.iter().map(|(id, _)| tab(&h, id)).collect();
     let first = tabs[0];
@@ -294,9 +298,9 @@ fn tabs_on_two_lines_each_stand_on_a_line_of_their_own() {
     for bottom in [first.bottom().round(), lower[0].bottom().round()] {
         let strip = egui::Rect::from_min_max(egui::pos2(window.left(), bottom), egui::pos2(window.right(), bottom + 1.0));
         assert!(
-            count(&image, strip, t.divider) as f32 > 0.8 * (window.width() - 32.0),
+            count(&image, strip, line) as f32 > 0.8 * (window.width() - 32.0),
             "a line runs under the tabs at y = {bottom} ({} px)",
-            count(&image, strip, t.divider)
+            count(&image, strip, line)
         );
     }
     // And the lower line of tabs starts clear of it

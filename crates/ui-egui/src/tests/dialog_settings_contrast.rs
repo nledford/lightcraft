@@ -1,11 +1,11 @@
 //! What Settings says and marks can be read in every theme: its explanations, placeholders,
 //! cautions and the accent used as text stand 4.5:1 against what they are on, and the lines that
-//! say where a control is stand 3:1. No text in it uses a character the interface
+//! say where a control or the tab bar is stand 3:1. No text in it uses a character the interface
 //! font lacks.
 //!
 //! Before: explanations were 4.20:1 in Charcoal and 4.33:1 in Silver, "In Use" 2.9:1 in Charcoal,
-//! placeholders under 4.3:1 in every theme, the borders of text boxes and checkboxes 1.6 to 1.7:1;
-//! and the hint under External Editing drew two empty
+//! placeholders under 4.3:1 in every theme, the borders of text boxes and checkboxes 1.6 to 1.7:1
+//! and the line under the tabs 1.2 to 1.4:1; and the hint under External Editing drew two empty
 //! boxes where its menu path had arrows.
 
 use std::time::Duration;
@@ -113,6 +113,7 @@ fn a_colour_is_made_legible_only_where_it_is_not() {
             ("a refusal", t.reject, t.chrome, 4.5),
             ("the accent as text on a card", t.accent, t.inset, 4.5),
             ("a placeholder", t.text_dim, t.field, 4.5),
+            ("the line under the tabs", t.divider, t.chrome, 3.0),
             ("a control's border", t.button_border, t.chrome, 3.0),
         ] {
             // Then the legible one stands the ratio asked for
@@ -141,9 +142,8 @@ fn explanations_placeholders_and_the_accent_as_text_can_be_read_in_every_theme()
         show(&mut h, "performance");
         let hint = text_colour(&h, "Choose a size to cap");
         assert!(contrast(hint, t.chrome) >= 4.5, "{kind:?}: an explanation is {:.2}:1", contrast(hint, t.chrome));
-        // A text box's placeholder, on the box it is in (General, PhotoCraft's location)
-        show(&mut h, "general");
-        let placeholder = text_colour(&h, "Found automatically");
+        // The filter's placeholder, on the box it is in
+        let placeholder = text_colour(&h, "Filter settings");
         assert!(contrast(placeholder, t.field) >= 4.5, "{kind:?}: a placeholder is {:.2}:1", contrast(placeholder, t.field));
         // The line that says which GPU renders, under the Rendering setting
         show(&mut h, "performance");
@@ -187,11 +187,10 @@ fn explanations_placeholders_and_the_accent_as_text_can_be_read_in_every_theme()
 }
 
 #[test]
-fn the_lines_that_say_where_a_control_is_stand_out_in_every_theme() {
+fn the_borders_of_a_box_a_button_a_checkbox_and_a_radio_stand_3_to_1_in_every_theme() {
     for kind in ThemeKind::ALL {
         let mut h = demo(kind);
         let t = Tokens::for_kind(kind);
-        // A text box's border: the top edge of General's "Other editor"
         show(&mut h, "general");
         scroll_to_end(&mut h);
         let image = h.paint();
@@ -224,8 +223,6 @@ fn the_lines_that_say_where_a_control_is_stand_out_in_every_theme() {
             assert!(share >= STRAIGHT, "{kind:?}: only {share:.2} of {what}'s border stands 3:1");
         }
         // A checkbox's border: the left edge of its box (unticked: the GPU is off here)
-        show(&mut h, "performance");
-        let image = h.paint();
         let check = rect(&h, "check:settings.gpu");
         let side =
             egui::Rect::from_min_max(egui::pos2(check.left() - 1.0, check.center().y - 2.0), egui::pos2(check.left() + 5.0, check.center().y + 2.0));
@@ -240,6 +237,28 @@ fn the_lines_that_say_where_a_control_is_stand_out_in_every_theme() {
             egui::Rect::from_min_max(egui::pos2(radio.left() - 1.0, radio.center().y - 2.0), egui::pos2(radio.left() + 4.0, radio.center().y + 2.0));
         let share = edge_share(&image, ring, t.inset, 3.0, false);
         assert!(share >= CURVED, "{kind:?}: only {share:.2} of a radio button's ring on a card stands 3:1");
+    }
+}
+
+#[test]
+fn what_the_filter_found_can_be_read_with_the_pointer_or_the_focus_on_it() {
+    for kind in ThemeKind::ALL {
+        let mut h = demo(kind);
+        let t = Tokens::for_kind(kind);
+        show(&mut h, "general");
+        let r = h.request("ui.clickWidget", json!({"id": "field:settingsFilter"}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        h.request("ui.text", json!({"text": "clear cache"}), T);
+        for _ in 0..4 {
+            h.step();
+        }
+        // (the line under a result's title; a hovered or focused row has the hover fill behind it)
+        let snippet = text_colour(&h, "Clear Cache");
+        assert!(
+            contrast(snippet, t.hover) >= 4.5 && contrast(snippet, t.chrome) >= 4.5,
+            "{kind:?}: a result's text is {:.2}:1 on a hovered row",
+            contrast(snippet, t.hover)
+        );
     }
 }
 
@@ -346,4 +365,71 @@ fn the_gpu_line_reads_as_it_did_in_english_and_in_the_language_shown() {
 #[test]
 fn the_smart_previews_folder_reads_as_it_did_in_english() {
     assert_eq!(crate::dialogs::settings::smart_folder_default(), "(library default)");
+}
+
+#[test]
+fn the_lines_that_say_where_a_control_is_stand_out_in_every_theme() {
+    for kind in ThemeKind::ALL {
+        let mut h = demo(kind);
+        let t = Tokens::for_kind(kind);
+        show(&mut h, "performance");
+        let image = h.paint();
+        // The line under the tabs: just under a tab that is not open, so its own line is not there
+        let tab = rect(&h, "button:settingsTab-general");
+        let under = egui::Rect::from_min_max(egui::pos2(tab.left(), tab.bottom().round()), egui::pos2(tab.right(), tab.bottom().round() + 1.0));
+        let share = edge_share(&image, under, t.chrome, 3.0, true);
+        assert!(share >= STRAIGHT, "{kind:?}: only {share:.2} of the line under the tabs stands 3:1");
+        // A checkbox's border: the left edge of its box (unticked: the GPU is off here)
+        let check = rect(&h, "check:settings.gpu");
+        let side =
+            egui::Rect::from_min_max(egui::pos2(check.left() - 1.0, check.center().y - 2.0), egui::pos2(check.left() + 5.0, check.center().y + 2.0));
+        let share = edge_share(&image, side, t.chrome, 3.0, false);
+        assert!(share >= STRAIGHT, "{kind:?}: only {share:.2} of a checkbox's border stands 3:1");
+    }
+}
+
+#[test]
+fn a_choice_a_radio_and_a_question_have_borders_that_stand_out_too() {
+    for kind in ThemeKind::ALL {
+        let mut h = demo(kind);
+        let t = Tokens::for_kind(kind);
+        // A choice that is not the chosen one: its left edge (Performance, the second preview size)
+        show(&mut h, "performance");
+        let image = h.paint();
+        let choice = rect(&h, "button:settingsPreview-1");
+        let side = egui::Rect::from_min_max(
+            egui::pos2(choice.left() - 1.0, choice.center().y - 3.0),
+            egui::pos2(choice.left() + 2.0, choice.center().y + 3.0),
+        );
+        let share = edge_share(&image, side, t.chrome, 3.0, false);
+        assert!(share >= STRAIGHT, "{kind:?}: only {share:.2} of a choice's border stands 3:1");
+        // The question a button asks before it acts: the border of its yes button (Keep has the focus, whose ring would be measured), on the panel it is in
+        let r = h.request("ui.clickWidget", json!({"id": "button:settingsClearCache"}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        for _ in 0..4 {
+            h.step();
+        }
+        h.request("ui.move", json!({"x": 3.0, "y": 3.0}), T);
+        h.step();
+        h.step();
+        let image = h.paint();
+        let confirm = rect(&h, "button:settingsClearCache:confirm");
+        let top = egui::Rect::from_min_max(
+            egui::pos2(confirm.center().x - 10.0, confirm.top() - 1.0),
+            egui::pos2(confirm.center().x + 10.0, confirm.top() + 2.0),
+        );
+        let share = edge_share(&image, top, t.chrome, 3.0, true);
+        assert!(share >= STRAIGHT, "{kind:?}: only {share:.2} of a button in the question stands 3:1");
+        h.request("ui.key", json!({"key": "Escape"}), T);
+        h.step();
+        // A radio button on a theme's card, which is on the card's own fill: the one not chosen
+        show(&mut h, "interface");
+        let image = h.paint();
+        let other = if kind == ThemeKind::Midnight { "radio:theme-charcoal" } else { "radio:theme-midnight" };
+        let radio = rect(&h, other);
+        let ring =
+            egui::Rect::from_min_max(egui::pos2(radio.left() - 1.0, radio.center().y - 2.0), egui::pos2(radio.left() + 4.0, radio.center().y + 2.0));
+        let share = edge_share(&image, ring, t.inset, 3.0, false);
+        assert!(share >= CURVED, "{kind:?}: only {share:.2} of a radio button on a card stands 3:1");
+    }
 }
