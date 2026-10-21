@@ -176,6 +176,37 @@ fn a_batch_into_a_large_library_with_a_file_gone_is_followed_without_a_pass_over
 }
 
 #[test]
+fn the_sweep_gives_way_to_a_scan_the_app_holds_and_goes_on_when_it_ends() {
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let mut s = lightcraft_engine::Session::new();
+    let ops: Vec<Op> =
+        (0..600).map(|i| Op::AddPhoto { photo: Box::new(photo(s.catalog.alloc_photo_id(), "Z", &format!("IMG_{i:04}.jpg"))) }).collect();
+    s.catalog.apply(Op::Batch { ops }).unwrap();
+    s.media.availability.set_probe(logging(&log));
+    // (a review scan under way: the guard is what the app's give-way reads)
+    let scan = s.activity.start("scan", "Reading photos", lightcraft_engine::activity::Cancel::No);
+    let app = LightcraftApp::new(s, Services { png: None, ..Default::default() });
+    let mut h = Headless::new(app, [1400.0, 900.0], 1.0);
+    let r = h.request("ui.set", json!({"view": "photoGrid", "leftPanel": true}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..30 {
+        h.step();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let asked = checked(&log);
+    assert!(asked < 300, "only what the grid shows is asked while the scan runs ({asked})");
+    assert!(
+        h.app.session.media.availability.sweeping() > 300,
+        "the sweep waits: {} left, listing {}",
+        h.app.session.media.availability.sweeping(),
+        h.app.caches.files_listing.load(Ordering::SeqCst)
+    );
+    drop(scan);
+    assert!(h.step_until(T, |h| h.file_checks_done()), "the sweep goes on when the scan ends");
+    assert!(checked(&log) >= 600, "every file was checked in the end");
+}
+
+#[test]
 fn opening_another_library_checks_its_files_before_the_rest_of_the_first_ones() {
     let files = {
         let mut a = lightcraft_engine::availability::Availability::default();

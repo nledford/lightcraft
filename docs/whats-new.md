@@ -8,6 +8,8 @@
   again every five minutes, one at a time and after what the window asks about; the files of photos that come in
   or move are checked as they do. Edits that change no file (a rating, an album, a keyword) check nothing. Opening
   another library drops the check of the one that was open.
+  While an import, an import review scan, a Synchronize Folder or a Local folder listing is reading the same
+  files, the check waits and then goes on where it stopped, so it no longer slows them down.
 
 ## 2026-10-14
 

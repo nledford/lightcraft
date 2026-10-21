@@ -12,6 +12,11 @@
 //! at a time and only while nothing is asked, for the sidebar's Missing Photos count
 //! ([`Availability::is_gone`]): one stream of checks on a share, not one per thing that wants
 //! to know.
+//!
+//! A sweep of a large library on a share takes tens of minutes, and its `stat`s compete with the
+//! reads of an import or a scan on the same share. So the worker starts no sweep check while the
+//! caller says files are busy ([`Availability::sweep_yields_to`]); what is asked still gets
+//! answered, and the sweep goes on where it stopped when the work ends.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -21,6 +26,12 @@ use std::time::Duration;
 pub type ExistsProbe = Arc<dyn Fn(&str) -> bool + Send + Sync>;
 /// Called (from the worker) when an answer changed, e.g. to repaint the UI.
 pub type Waker = Arc<dyn Fn() + Send + Sync>;
+
+/// Whether file work that a sweep should not compete with is going on.
+pub type Busy = Arc<dyn Fn() -> bool + Send + Sync>;
+
+/// How often a sweep that is giving way looks whether the work has ended.
+const YIELD_POLL: Duration = Duration::from_millis(250);
 
 /// How long a cached answer is used before it is checked again (it is still returned meanwhile).
 pub const RECHECK: Duration = Duration::from_secs(15);
@@ -43,6 +54,8 @@ struct State {
     worker: bool,
     /// Bumped when the sweep under way is dropped for another one ([`Availability::restart_sweeps`]).
     sweep_epoch: u64,
+    /// Whether file work a sweep gives way to is going on.
+    busy: Option<Busy>,
     /// Bumped whenever a file is found gone, or found back.
     gone_generation: u64,
 }
@@ -88,6 +101,14 @@ impl Availability {
             return;
         }
         self.background = Some(wake);
+    }
+
+    /// The sweep starts no check while `busy` says so (the caller's import, scan or Local read in
+    /// flight); asked files are answered all the same, and the sweep resumes where it was left when
+    /// `busy` turns false. `busy` should read state that a task's guard owns (the activity stack), so
+    /// a task that never ends cleanly can't hold the sweep for good.
+    pub fn sweep_yields_to(&self, busy: Busy) {
+        lock(&self.state).busy = Some(busy);
     }
 
     /// The existence check itself (blocking: for worker threads, e.g. the Rename preview's).
@@ -208,6 +229,16 @@ impl Availability {
                 // about too, or was checked a moment ago)
                 let (path, asked) = {
                     let mut st = lock(&state);
+                    let giving_way = if st.queue.is_empty() && !st.sweep.is_empty() { st.busy.clone() } else { None };
+                    if let Some(busy) = giving_way {
+                        drop(st);
+                        if busy() {
+                            // (the worker stays: a question asked meanwhile is answered at once)
+                            std::thread::sleep(YIELD_POLL);
+                            continue;
+                        }
+                        st = lock(&state);
+                    }
                     match st.queue.pop_front() {
                         Some(p) => (p, true),
                         None => loop {
@@ -424,6 +455,85 @@ mod tests {
         assert!(a.sweep(vec!["gone 1".into(), "here".into()]));
         wait_until("the sweep", || a.sweeping() == 0 && a.pending() == 0 && a.gone_len() == 1);
         assert!(a.is_gone("gone 1") && !a.is_gone("here") && !a.is_gone("never asked"));
+    }
+
+    fn busy_flag(a: &Availability) -> Arc<std::sync::atomic::AtomicBool> {
+        let busy = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let b = busy.clone();
+        a.sweep_yields_to(Arc::new(move || b.load(Ordering::SeqCst)));
+        busy
+    }
+
+    #[test]
+    fn a_sweep_gives_way_to_file_work_answers_what_is_asked_and_resumes_after() {
+        let (a, log, _) = logged();
+        let busy = busy_flag(&a);
+        assert!(a.sweep((0..20).map(|i| format!("sweep {i}")).collect()));
+        std::thread::sleep(YIELD_POLL * 3);
+        assert!(held(&log).is_empty(), "no sweep check while files are busy");
+        assert_eq!(a.sweeping(), 20, "nothing of the sweep is lost");
+        assert_eq!(a.exists("asked"), None);
+        wait_until("the answer", || a.exists("asked") == Some(true));
+        assert_eq!(*held(&log), ["asked"], "what is asked is answered, the sweep still waits");
+        busy.store(false, Ordering::SeqCst);
+        wait_until("the sweep", || a.sweeping() == 0);
+        wait_until("the log", || held(&log).len() == 21);
+        // it went on from its first file, not from scratch
+        assert_eq!(held(&log).iter().filter(|p| *p == "sweep 0").count(), 1);
+    }
+
+    #[test]
+    fn a_sweep_stopped_part_way_goes_on_from_there() {
+        let mut a = Availability::default();
+        let log = Arc::new(Mutex::new(Vec::<String>::new()));
+        let l = log.clone();
+        a.set_probe(Arc::new(move |p| {
+            std::thread::sleep(Duration::from_millis(5));
+            held(&l).push(p.to_string());
+            true
+        }));
+        a.run_in_background(Arc::new(|| {}));
+        let busy = busy_flag(&a);
+        busy.store(false, Ordering::SeqCst);
+        assert!(a.sweep((0..100).map(|i| format!("sweep {i}")).collect()));
+        wait_until("a few checks", || held(&log).len() >= 3);
+        busy.store(true, Ordering::SeqCst);
+        std::thread::sleep(YIELD_POLL * 2);
+        let stopped = held(&log).len();
+        assert!(stopped < 100, "stopped part way");
+        std::thread::sleep(YIELD_POLL * 2);
+        assert_eq!(held(&log).len(), stopped, "paused");
+        assert_eq!(a.sweeping(), 100 - stopped, "what is left is kept");
+        busy.store(false, Ordering::SeqCst);
+        wait_until("the sweep", || a.sweeping() == 0 && held(&log).len() == 100);
+        let mut all = held(&log).clone();
+        all.sort();
+        all.dedup();
+        assert_eq!(all.len(), 100, "every file checked once, none again from the start");
+    }
+
+    #[test]
+    fn a_sweep_gives_way_while_a_task_is_in_the_activity_stack_and_goes_on_when_its_guard_drops() {
+        let (a, log, _) = logged();
+        let activity = crate::activity::Activity::default();
+        let act = activity.clone();
+        a.sweep_yields_to(Arc::new(move || act.any_of(&["scan", "import", "sync"])));
+        // (a task that never ends cleanly: its guard drops as its thread unwinds)
+        let guard = activity.start("scan", "Reading photos", crate::activity::Cancel::No);
+        assert!(a.sweep((0..5).map(|i| format!("sweep {i}")).collect()));
+        std::thread::sleep(YIELD_POLL * 3);
+        assert!(held(&log).is_empty());
+        let other = activity.start("export", "Exporting", crate::activity::Cancel::No);
+        drop(other);
+        drop(guard);
+        wait_until("the sweep", || held(&log).len() == 5);
+    }
+
+    #[test]
+    fn a_sweep_that_yields_to_nothing_runs_as_before() {
+        let (a, log, _) = logged();
+        assert!(a.sweep(vec!["a".into(), "b".into()]));
+        wait_until("the sweep", || held(&log).len() == 2);
     }
 
     #[test]

@@ -213,6 +213,12 @@ impl Activity {
         tasks.iter().filter(|e| e.try_cancel()).count()
     }
 
+    /// Whether a task of one of `kinds` is in flight. Its guard's lifetime is the answer: a task that
+    /// ends, fails or panics stops counting.
+    pub fn any_of(&self, kinds: &[&str]) -> bool {
+        lock(&self.inner.tasks).iter().any(|e| kinds.contains(&e.kind))
+    }
+
     /// Tasks that quitting would cut short: cancellable ones not already stopping.
     pub fn running_cancellable(&self) -> Vec<TaskInfo> {
         lock(&self.inner.tasks).iter().filter(|e| e.is_cancellable() && !e.is_cancelled()).map(|e| e.info()).collect()
