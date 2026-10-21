@@ -220,7 +220,7 @@ impl MoveFinish {
         if !Arc::ptr_eq(&identity, &s.library_identity) {
             // (opening a library is refused while a move runs)
             return Err(EngineError::Other(
-                "another library was opened while photos were being moved: their library follows them when it opens".into(),
+                "the library changed while photos were being moved: the files are in their new folder, but the library still points at the old places (File ▸ Find Missing Photos… relinks them)".into(),
             ));
         }
         let r = match out.0 {
