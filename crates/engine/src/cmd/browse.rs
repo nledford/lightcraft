@@ -473,6 +473,11 @@ pub(crate) fn follow_folder(s: &mut Session, from: &str, to: &str) {
         *other = chosen.unwrap_or_default();
     }
     follow_library_folder(&mut s.filter.library_folder, from, to);
+    for other in &mut s.filter.library_folders {
+        let mut chosen = Some(std::mem::take(other));
+        follow_library_folder(&mut chosen, from, to);
+        *other = chosen.unwrap_or_default();
+    }
     if let Some(b) = &mut s.browse
         && let Ok(rel) = Path::new(&b.path).strip_prefix(from)
     {

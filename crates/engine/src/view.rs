@@ -192,6 +192,12 @@ pub fn filter_chips(f: &Filter, cat: &Catalog) -> Vec<FilterChip> {
             add(format!("{name}: {x}"), json!({key: Null}));
         }
     }
+    // albums in the filter itself (an agent's; the albums of the source are not a filter)
+    let albums = f.albums_wanted();
+    if !albums.is_empty() {
+        let names: Vec<String> = albums.iter().map(|a| cat.album(*a).map_or_else(|| format!("album {}", a.0), |a| a.name.clone())).collect();
+        add(format!("Album: {}", names.join(" or ")), json!({"album": Null, "albums": []}));
+    }
     // several of a kind (chosen together in the sidebar) are one chip: clearing it clears them all
     let keywords = f.keywords_wanted();
     if !keywords.is_empty() {

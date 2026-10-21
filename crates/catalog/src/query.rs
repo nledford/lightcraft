@@ -347,10 +347,13 @@ impl Filter {
     /// as given, each once (by folder identity). A blank one is no folder.
     pub fn library_folders_wanted(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
+        let mut keys: Vec<String> = Vec::new();
         // as given: a folder may be named with spaces at its edge, and trimming would make it
         // another folder
         for d in self.library_folder.iter().chain(&self.library_folders).filter(|d| !d.trim().is_empty()) {
-            if !out.iter().any(|o| folder_key(o) == folder_key(d)) {
+            let key = folder_key(d);
+            if !keys.contains(&key) {
+                keys.push(key);
                 out.push(d.clone());
             }
         }
@@ -360,7 +363,15 @@ impl Filter {
     /// The folders wanted ([`Filter::library_folders_wanted`]) as folder identities
     /// ([`folder_key`]); empty without a choice.
     fn library_roots(&self) -> Vec<String> {
-        self.library_folders_wanted().iter().map(|d| folder_key(d)).collect()
+        // (each folder's identity is worked out once: this runs per photo for a smart album)
+        let mut roots: Vec<String> = Vec::new();
+        for d in self.library_folder.iter().chain(&self.library_folders).filter(|d| !d.trim().is_empty()) {
+            let key = folder_key(d);
+            if !roots.contains(&key) {
+                roots.push(key);
+            }
+        }
+        roots
     }
 
     /// [`Filter::matches`] with what [`Filter::prepare`] works out done already, so a query over a
@@ -730,6 +741,38 @@ impl Catalog {
         }
         holds
     }
+
+    /// For each of `folders`: whether the library holds a photo imported from it (or from a
+    /// folder inside it), and whether some of those photos are on a disk (not the startup disk)
+    /// the folder does not lie in, which makes it a way to several disks (`/Volumes`, `/mnt`…)
+    /// and not a folder of one. One pass over the library, however many folders.
+    pub fn folders_scan(&self, folders: &[String]) -> Vec<FolderScan> {
+        let roots: Vec<String> = folders.iter().map(|d| folder_key(d)).collect();
+        let mut out = vec![FolderScan::default(); roots.len()];
+        for p in self.photos().filter(|p| !p.deleted) {
+            let mut volume: Option<Option<String>> = None;
+            for (scan, root) in out.iter_mut().zip(&roots) {
+                if (scan.holds && scan.other_disks) || !photo_in_root(p, root) {
+                    continue;
+                }
+                scan.holds = true;
+                let v = volume.get_or_insert_with(|| crate::folders::volume_of(p));
+                if v.as_deref().is_some_and(|v| v != "/" && !key_within(root, v)) {
+                    scan.other_disks = true;
+                }
+            }
+        }
+        out
+    }
+}
+
+/// What [`Catalog::folders_scan`] finds for one folder.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FolderScan {
+    /// The library holds a photo imported from it or from a folder inside it.
+    pub holds: bool,
+    /// Some of its photos are on another disk than the one the folder lies in.
+    pub other_disks: bool,
 }
 
 /// Whether a library photo (not one only browsed in Local) lies in the folder whose

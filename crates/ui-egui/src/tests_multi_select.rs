@@ -489,3 +489,143 @@ fn delete_asks_about_several_keywords_picked_in_the_keyword_list() {
     ask(&mut h, "ui.key", json!({"key": "Backspace"}));
     assert!(!several_dialog(&h), "{:?}", h.app.ui.dialog);
 }
+
+// ---- What two independent reviews found
+
+/// A range starts from a row that is chosen: not from an album clicked before All Photos was shown.
+#[test]
+fn shift_click_does_not_start_from_an_album_that_is_no_longer_shown() {
+    let mut h = app("info");
+    let ([a, _, c, d], _) = four_albums(&mut h);
+    click(&mut h, &row(a));
+    click(&mut h, "source:all");
+    shift_click(&mut h, &row(d));
+    assert_eq!(shown(&h), vec![d], "nothing was chosen: the row alone");
+    // chosen by a command, not a click: the range starts from it
+    run(&mut h, "library.source", json!({"kind": "album", "id": c}));
+    shift_click(&mut h, &row(a));
+    assert_eq!(shown(&h).first(), Some(&c));
+    assert_eq!(shown(&h).last(), Some(&a));
+    assert_eq!(shown(&h).len(), 3);
+}
+
+/// The Delete key goes back to the photos when anything else changes what is shown or selected.
+#[test]
+fn delete_is_the_photos_again_after_a_change_made_without_the_pointer() {
+    let mut h = app("info");
+    let ([a, _, c, _], ids) = four_albums(&mut h);
+    click(&mut h, &row(a));
+    cmd_click(&mut h, &row(c));
+    assert!(h.app.ui.side.keys.is_some());
+    // a key, a menu or an agent selects photos
+    run(&mut h, "library.select", json!({"ids": [ids[0]]}));
+    ask(&mut h, "ui.key", json!({"key": "Backspace"}));
+    assert!(!several_dialog(&h), "{:?}", h.app.ui.dialog);
+    assert!(h.app.ui.side.keys.is_none());
+}
+
+/// A confirmation for several rows that is refused says why.
+#[test]
+fn a_refused_question_about_several_albums_says_why() {
+    let mut h = app("info");
+    let ([a, _, c, _], _) = four_albums(&mut h);
+    click(&mut h, &row(a));
+    cmd_click(&mut h, &row(c));
+    right_click(&mut h, &row(c));
+    click(&mut h, "sideMenu:albums:delete");
+    // one of them goes while the question is up
+    h.app.session.execute("album.delete", &json!({"id": c})).unwrap();
+    click(&mut h, "button:dialogOk");
+    assert!(h.app.session.catalog.album(AlbumId(a)).is_some(), "refused as a whole");
+    let said = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
+    assert!(said.contains(&c.to_string()), "the toast names the album that is gone: {said:?}");
+    // only the reason, not the command it came from, and for as long as any refusal stays
+    assert!(!said.contains("album.delete"), "{said:?}");
+    let (left, now) = (h.app.ui.toast.as_ref().map_or(0.0, |t| t.1), h.time());
+    assert!(left - now > 5.0, "a refusal stays {} s", left - now);
+}
+
+/// The control channel's confirm of a refused question about several rows answers with the reason.
+#[test]
+fn a_refused_confirm_of_several_albums_answers_with_the_reason() {
+    let mut h = app("info");
+    let ([a, _, c, _], _) = four_albums(&mut h);
+    click(&mut h, &row(a));
+    cmd_click(&mut h, &row(c));
+    right_click(&mut h, &row(c));
+    click(&mut h, "sideMenu:albums:delete");
+    h.app.session.execute("album.delete", &json!({"id": c})).unwrap();
+    let r = h.request("ui.dialog.confirm", json!({}), std::time::Duration::from_secs(10));
+    assert_eq!(r["ok"], false, "{r}");
+    let said = r["error"].as_str().unwrap_or_default();
+    assert!(said.contains(&c.to_string()), "the error names the album that is gone: {said:?}");
+    assert!(h.app.session.catalog.album(AlbumId(a)).is_some(), "refused as a whole");
+}
+
+/// A keyword that is gone is not picked any more: the row left alone has its own menu.
+#[test]
+fn a_keyword_that_is_gone_is_not_picked_any_more() {
+    let (mut h, _) = keyword_list();
+    click(&mut h, "keywordRow:Sel K1");
+    cmd_click(&mut h, "keywordRow:Sel K3");
+    run(&mut h, "keyword.delete", json!({"keyword": "Sel K3"}));
+    assert_eq!(picked(&h), vec!["Sel K1"]);
+    right_click(&mut h, "keywordRow:Sel K1");
+    assert!(has(&h, "keywordMenu:delete") && !has(&h, "sideMenu:keywords:delete"), "one keyword's menu");
+}
+
+/// Another library's rows are not what was chosen in this one.
+#[test]
+fn what_was_chosen_is_forgotten_when_another_library_opens() {
+    /// Gone with the test, however it ends.
+    struct Scratch(std::path::PathBuf);
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let mut h = app("keywords");
+    let ([a, _, c, _], _) = four_albums(&mut h);
+    click(&mut h, &row(a));
+    cmd_click(&mut h, &row(c));
+    assert!(h.app.ui.side.keys.is_some());
+    let dir = Scratch(std::env::temp_dir().join(format!("lc-multi-select-switch-{}", std::process::id())));
+    let _ = std::fs::remove_dir_all(&dir.0);
+    h.app.session.open_library(&dir.0, false).unwrap();
+    h.settle(SETTLE);
+    assert!(h.app.ui.side.keys.is_none());
+}
+
+/// The menus and questions for several rows: in the nine languages LightCraft had when this was written, none of the words stay
+/// English. (A string with no entry in a language's catalog is shown as written, so nothing else fails when
+/// one is forgotten. A language added later is not asked for them here: it shows them in English until it
+/// is translated.)
+#[test]
+fn the_words_of_several_rows_at_once_are_in_every_language() {
+    let words = [
+        "Choose one album to rename it",
+        "Choose one folder to rename it",
+        "Choose one folder to synchronize it",
+        "Choose one keyword to create a keyword inside it",
+        "Choose one keyword to edit it",
+        "Choose one keyword to rename it",
+        "Create Keyword Tag Inside…",
+        "Delete Albums",
+        "Delete Folder",
+        "Delete Keywords",
+        "Moves the photos imported from these folders to Recently Deleted; no file is touched",
+        "No photo has them; the keywords below them go too.",
+        "One of them is a whole disk: remove a disk by itself",
+        "Remove Folder Color Label",
+        "Remove Folders from Library",
+        "Set Folder Color Label",
+        "That includes the photos in the folders inside them.",
+        "The photos stay in All Photos. Undo brings the albums back.",
+    ];
+    use crate::i18n::Locale::{Cs, De, Es, Fr, It, Ja, Ka, Pl, PtBr, Ru, Uk, ZhHans, ZhHant};
+    for language in [Cs, De, Es, Fr, It, Ja, Ka, Pl, PtBr, Ru, Uk, ZhHans, ZhHant] {
+        for word in words {
+            assert_ne!(language.tr(word), word, "{language:?} has no entry for {word:?}");
+        }
+    }
+}

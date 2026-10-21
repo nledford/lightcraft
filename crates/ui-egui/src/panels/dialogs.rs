@@ -1477,6 +1477,9 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             {
                 app.toast(ctx, e)
             }
+            // several rows: one that can't be deleted or removed refuses them all; `several_run`
+            // already toasted the reason, which says which
+            Err(_) if matches!(dlg, Dialog::Several(_)) => close = true,
             // the SAM 3 dialog stays open to show the download (or why it can't start)
             Err(e) if matches!(dlg, Dialog::SamModel { .. }) => {
                 if let Dialog::SamModel { error, .. } = &mut dlg {
@@ -2300,7 +2303,9 @@ pub enum ConfirmStyle {
 
 pub fn confirm_style(dlg: &Dialog) -> ConfirmStyle {
     match dlg {
-        Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::DeleteEffects { .. } | Dialog::RemoveFolder { .. } => {
+        Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::DeleteEffects { .. } | Dialog::RemoveFolder { .. }
+        // (every several-rows action deletes or removes)
+        | Dialog::Several(_) => {
             ConfirmStyle::Plain
         }
         _ if only_shows(dlg) => ConfirmStyle::Plain,

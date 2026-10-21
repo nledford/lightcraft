@@ -60,7 +60,7 @@ fn info_from(p: &Value, base: KeywordInfo) -> KeywordInfo {
 }
 
 /// How many keywords one call may name (far more than a person chooses in a list).
-const MAX_KEYWORDS: usize = 10_000;
+const MAX_KEYWORDS: usize = 1000;
 
 /// The keywords a command names in `keywords`: a list of them, each once (whatever its case),
 /// none empty.

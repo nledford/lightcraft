@@ -1080,6 +1080,7 @@ impl Session {
             // its own order, Recently Added (how far back it reaches moves with every import), Missing Photos.
             let own_order = matches!(self.source, LibrarySource::Album(a) if self.sort.key == lightcraft_catalog::SortKey::CaptureDate
                 && self.filter == Filter::default()
+                && self.also_albums.is_empty()
                 && self.catalog.album(a).is_some_and(|al| !al.is_smart()));
             let whole = own_order || matches!(self.source, LibrarySource::RecentlyAdded | LibrarySource::Missing);
             // A view that asks about "the last N days" (itself, or through a smart album it looks into) changes

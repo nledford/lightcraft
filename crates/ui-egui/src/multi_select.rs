@@ -112,7 +112,11 @@ impl<K: Clone> ListRows<K> {
     }
     /// A click on `at` with `how`, among the rows drawn; remembers the anchor.
     pub fn click(&mut self, chosen: &[K], at: &K, how: Click, same: &dyn Fn(&K, &K) -> bool) -> Vec<K> {
-        let out = click(&self.rows, chosen, self.anchor.as_ref(), at, how, same);
+        // a range starts from a row that is chosen: the one last clicked while it still is, else
+        // the one chosen last (chosen by a menu, an agent or the last session, or after what was
+        // clicked stopped being shown)
+        let anchor = self.anchor.as_ref().filter(|a| chosen.iter().any(|c| same(c, a))).or(chosen.last());
+        let out = click(&self.rows, chosen, anchor, at, how, same);
         self.anchor = out.anchor;
         out.keys
     }
@@ -203,6 +207,11 @@ mod tests {
             l.saw(r); // c and d folded away, but this frame is not the one clicked on
         }
         assert_eq!(l.click(&["b"], &"d", Click::Range, &eq), vec!["b", "c", "d"]);
+        // the row clicked is not chosen any more (All Photos was shown since): a range does not
+        // start from it; it starts from what is chosen now, or the row is chosen alone
+        assert_eq!(l.click(&["f"], &"d", Click::Range, &eq), vec!["f", "e", "d"]);
+        assert_eq!(l.click(&[], &"c", Click::Range, &eq), vec!["c"]);
+        assert_eq!(l.click(&["c"], &"b", Click::Plain, &eq), vec!["b"]);
         l.begin_frame();
         assert_eq!(l.rows(), ["a", "b", "e", "f"]);
         assert_eq!(l.click(&["b"], &"e", Click::Range, &eq), vec!["b", "e"], "rows folded away are not taken");

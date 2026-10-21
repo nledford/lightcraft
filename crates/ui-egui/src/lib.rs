@@ -689,6 +689,17 @@ impl LightcraftApp {
         }
     }
 
+    /// [`Self::act`] for a caller that hands the refusal on (a dialog's confirm, which the control
+    /// channel answers with it): the toast says the reason, the `Err` is the whole error.
+    pub(crate) fn act_told(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        self.run_told(id, params).map_err(|refusal| {
+            // Native menu clicks can arrive before logic() updates last_time after an idle gap.
+            let now = self.tasks.repaint.as_ref().map(|ctx| ctx.input(|i| i.time)).unwrap_or(self.last_time);
+            self.ui.toast = Some((refusal.why, now + REFUSAL_SECONDS, None));
+            refusal.error
+        })
+    }
+
     /// [`Self::run`], keeping what a refusal says to a person apart from the whole error.
     fn run_told(&mut self, id: &str, params: Value) -> Result<Value, Refusal> {
         if let Some(result) = model_setup::intercept(self, id, &params) {

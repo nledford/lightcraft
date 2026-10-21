@@ -18,6 +18,11 @@
 //! - Given several albums shown, when the view is saved as a smart album, then that album shows
 //!   the same photos.
 //! - Several albums are still the source after the library is closed and opened again.
+//! - Given a smart album saved from a view of several albums, when its rules are replaced in
+//!   the rules dialog, then it is still limited to all of those albums.
+//! - Albums in the filter itself show as a chip that clears them, and are refused while an
+//!   album is the source (they would be ignored); the one album of the filter goes with it.
+//! - Given several folders in the filter, when one is renamed on disk, then the filter follows.
 
 use lightcraft_catalog::{AlbumId, Op, Photo, PhotoId, Source};
 use serde_json::{Value, json};
@@ -288,4 +293,97 @@ fn several_albums_are_still_the_source_after_reopening() {
     back.open_library(&dir, false).unwrap();
     assert_eq!(back.source_albums(), vec![AlbumId(a), AlbumId(b)]);
     assert_eq!(shown(&mut back), want);
+}
+
+#[test]
+fn replacing_the_rules_of_a_saved_view_keeps_all_its_albums() {
+    let mut s = Session::new();
+    let (ids, a, b) = two_albums(&mut s);
+    s.execute("library.source", &json!({"kind": "album", "ids": [a, b]})).unwrap();
+    let smart = s.execute("album.createSmart", &json!({"name": "Both"})).unwrap()["id"].as_u64().unwrap();
+    // what the rules dialog sends: its rules, in place of the ones before
+    s.execute("album.setRules", &json!({"id": smart, "replace": true, "rules": {"rating": 0}})).unwrap();
+    s.execute("library.source", &json!({"kind": "album", "id": smart})).unwrap();
+    assert_eq!(shown(&mut s), vec![ids[0], ids[1], ids[2]], "still both albums");
+    // …unless the call says to drop them
+    s.execute("album.setRules", &json!({"id": smart, "replace": true, "rules": {"albums": []}})).unwrap();
+    assert_eq!(shown(&mut s).len(), 2, "the one album left");
+}
+
+#[test]
+fn albums_in_the_filter_show_as_a_chip_and_are_refused_beside_an_album_source() {
+    let mut s = Session::new();
+    let (ids, a, b) = two_albums(&mut s);
+    s.execute("library.filter", &json!({"albums": [a, b]})).unwrap();
+    assert_eq!(shown(&mut s), vec![ids[0], ids[1], ids[2]]);
+    let chips = filter_chips(&s.filter, &s.catalog);
+    assert_eq!(chips.iter().map(|c| c.label.as_str()).collect::<Vec<_>>(), vec!["Album: Alps or Beach"]);
+    s.execute("library.filter", &chips[0].clear.clone()).unwrap();
+    assert_eq!(shown(&mut s).len(), 5);
+    // while an album is the source its albums are what is shown: more in the filter would be ignored
+    s.execute("library.source", &json!({"kind": "album", "id": a})).unwrap();
+    let e = s.execute("library.filter", &json!({"albums": [b]})).unwrap_err().to_string();
+    assert!(e.contains("already shown"), "{e}");
+    assert!(s.filter.albums.is_empty());
+    // albums left in the filter go when an album becomes the source, and other filters still work
+    s.execute("library.source", &json!({"kind": "all"})).unwrap();
+    s.execute("library.filter", &json!({"albums": [b]})).unwrap();
+    s.execute("library.source", &json!({"kind": "album", "id": a})).unwrap();
+    assert!(s.filter.albums.is_empty());
+    s.execute("library.filter", &json!({"rating": 0})).unwrap();
+    assert_eq!(shown(&mut s), vec![ids[0], ids[1]]);
+}
+
+#[test]
+fn several_folders_in_the_filter_and_as_the_source_follow_a_renamed_folder() {
+    /// Gone with the test, however it ends.
+    struct Scratch(std::path::PathBuf);
+    impl Drop for Scratch {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let dir = Scratch(std::env::temp_dir().join(format!("lc-multi-source-rename-{}", std::process::id())));
+    let _ = std::fs::remove_dir_all(&dir.0);
+    std::fs::create_dir_all(dir.0.join("trip")).unwrap();
+    std::fs::create_dir_all(dir.0.join("home")).unwrap();
+    let at = |rel: &str| dir.0.join(rel).to_string_lossy().to_string();
+    let key = lightcraft_catalog::query::folder_key;
+    let mut s = Session::new();
+    add_file(&mut s, &format!("{}/a.jpg", at("trip")));
+    add_file(&mut s, &format!("{}/b.jpg", at("home")));
+    // as a filter
+    s.execute("library.filter", &json!({"libraryFolders": [at("trip"), at("home")]})).unwrap();
+    s.execute("folder.rename", &json!({"path": at("trip"), "name": "holiday"})).unwrap();
+    assert_eq!(s.filter.library_folders.iter().map(|f| key(f)).collect::<Vec<_>>(), vec![key(&at("holiday")), key(&at("home"))]);
+    assert_eq!(s.visible().len(), 2, "still the photos of both");
+    // as the source
+    s.execute("library.clearFilter", &json!({})).unwrap();
+    s.execute("library.source", &json!({"kind": "libraryFolder", "paths": [at("holiday"), at("home")]})).unwrap();
+    s.execute("folder.rename", &json!({"path": at("holiday"), "name": "trip"})).unwrap();
+    assert_eq!(s.source_library_folders().iter().map(|f| key(f)).collect::<Vec<_>>(), vec![key(&at("trip")), key(&at("home"))]);
+    assert_eq!(s.visible().len(), 2);
+}
+
+#[test]
+fn several_albums_follow_a_small_edit_instead_of_being_worked_out_whole() {
+    let mut s = Session::new();
+    let (ids, a, b) = two_albums(&mut s);
+    s.execute("library.source", &json!({"kind": "album", "ids": [a, b]})).unwrap();
+    assert_eq!(shown(&mut s), vec![ids[0], ids[1], ids[2]]);
+    let (followed, whole) = (s.view_followed, s.view_worked_out);
+    s.selection.ids = [PhotoId(ids[1])].into_iter().collect();
+    s.execute("photo.rate", &json!({"ids": [ids[1]], "rating": 5})).unwrap();
+    s.selection.ids.clear();
+    assert_eq!(shown(&mut s), vec![ids[0], ids[1], ids[2]]);
+    assert_eq!((s.view_followed, s.view_worked_out), (followed + 1, whole), "several albums have no order of their own");
+}
+
+#[test]
+fn a_single_album_left_in_the_filter_does_not_outlive_an_album_source() {
+    let mut s = Session::new();
+    let (_, a, b) = two_albums(&mut s);
+    s.execute("library.filter", &json!({"album": a})).unwrap();
+    s.execute("library.source", &json!({"kind": "album", "id": b})).unwrap();
+    assert_eq!(s.filter.album, None, "no chip for an album that limits nothing");
 }
