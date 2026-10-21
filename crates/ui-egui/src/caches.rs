@@ -53,11 +53,28 @@ impl Caches {
     pub fn folder_tree(&mut self, cat: &lightcraft_catalog::Catalog, library: u64) -> std::sync::Arc<Vec<lightcraft_catalog::FolderNode>> {
         let Some(t) = self.library.current(cat, library) else { return std::sync::Arc::default() };
         let stamp = t.folders_stamp();
-        kept_tree(&mut self.folder_tree, cat, stamp).unwrap_or_else(|| {
-            let tree = std::sync::Arc::new(t.folder_tree(cat));
-            self.folder_tree = Some((stamp, cat.revision, tree.clone()));
-            tree
-        })
+        if let Some((s, r, tree)) = self.folder_tree.take()
+            // (a label or anything else of a folder changed besides photos: build again)
+            && (r == cat.revision || cat.aspects_since(r).is_some())
+        {
+            if s == stamp {
+                self.folder_tree = Some((s, cat.revision, tree.clone()));
+                return tree;
+            }
+            // photos came into or went from some folders (an import batch): only the rows on the way to
+            // them change, so the rows of every other folder of the library needn't be made again
+            let rows = std::sync::Arc::try_unwrap(tree).unwrap_or_else(|shared| (*shared).clone());
+            if let Some(rows) = t.patch_folder_tree(cat, rows, &mut self.folder_upkeep) {
+                let tree = std::sync::Arc::new(rows);
+                self.folder_tree = Some((stamp, cat.revision, tree.clone()));
+                return tree;
+            }
+        }
+        let (rows, upkeep) = t.folder_tree_kept(cat);
+        let tree = std::sync::Arc::new(rows);
+        self.folder_upkeep = upkeep;
+        self.folder_tree = Some((stamp, cat.revision, tree.clone()));
+        tree
     }
     /// The folder tree as last built, when it still holds (a read-only check cannot rebuild it). Not
     /// while the library's tally lags the catalog ([`library_work::LibraryWork::is_current`]): the

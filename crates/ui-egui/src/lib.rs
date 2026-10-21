@@ -567,6 +567,8 @@ pub struct Caches {
     /// The Keyword List's tick boxes, by library revision and selection.
     keyword_ticks: Option<(u64, u64, std::sync::Arc<panels::keyword_list::Ticks>)>,
     folder_tree: Option<(u64, u64, std::sync::Arc<Vec<lightcraft_catalog::FolderNode>>)>,
+    /// What the folder tree needs to be patched, not built again, when the library's counts change.
+    folder_upkeep: lightcraft_catalog::library_tally::FolderUpkeep,
     people: Option<(u64, lightcraft_catalog::Filter, std::sync::Arc<Vec<lightcraft_catalog::Person>>)>,
     suggestions: Option<(u64, std::sync::Arc<Vec<String>>)>,
     /// What the Add keyword box offers for the text typed in it, by library revision, the

@@ -12,7 +12,7 @@
 //! The trees are built from the counts by the code [`Catalog::folder_tree`],
 //! [`Catalog::date_groups`] and [`Catalog::keyword_tree`] build theirs with.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -109,17 +109,55 @@ pub struct LibraryTally {
     folders: u64,
     dates: u64,
     keywords: u64,
+    /// Which counting of every photo these counts come from (a tree kept from another one can't
+    /// be patched from the changes below).
+    epoch: u64,
+    /// The folders photos came into or went from since the counts were made, oldest first (the
+    /// last [`MAX_FOLDER_LOG`] or so): `+1` a photo came, `-1` one went.
+    folder_log: Vec<(Arc<str>, i8)>,
+    /// How many changes were let go from the front of `folder_log`.
+    folder_log_base: u64,
+    /// Whether counting every photo is under way (nothing is logged then).
+    counting: bool,
+}
+
+/// The most changes to the photos per folder a tally remembers for patching the folder tree
+/// ([`LibraryTally::patch_folder_tree`]); the oldest half goes when there are more.
+const MAX_FOLDER_LOG: usize = 8192;
+
+/// The most folders a patch of the folder tree is made for; past this, building it again costs
+/// no more.
+const MAX_PATCHED_FOLDERS: usize = 512;
+
+/// What a folder tree built from a tally ([`LibraryTally::folder_tree_kept`]) needs to be patched
+/// from it later ([`LibraryTally::patch_folder_tree`]).
+#[derive(Clone, Debug, Default)]
+pub struct FolderUpkeep {
+    epoch: u64,
+    /// How many changes to the folders of the tally the tree has.
+    seen: u64,
+    /// The folders written in more than one way (see [`Catalog::patch_folder_tree_of`]).
+    mixed: HashSet<String>,
 }
 
 impl LibraryTally {
     /// Counted from every photo.
     pub fn of(cat: &Catalog) -> LibraryTally {
-        let mut t = LibraryTally { revision: cat.revision, folders: stamp(), dates: stamp(), keywords: stamp(), ..Default::default() };
+        let mut t = LibraryTally {
+            revision: cat.revision,
+            folders: stamp(),
+            dates: stamp(),
+            keywords: stamp(),
+            epoch: stamp(),
+            counting: true,
+            ..Default::default()
+        };
         let mut chains = Chains::new();
         for p in cat.photos() {
             let part = t.part(p, &mut chains);
             t.replace(p.id, part);
         }
+        t.counting = false;
         t
     }
 
@@ -166,6 +204,38 @@ impl LibraryTally {
     /// [`Catalog::folder_tree`]: the folder labels are `cat`'s.
     pub fn folder_tree(&self, cat: &Catalog) -> Vec<FolderNode> {
         cat.folder_tree_of(self.dirs.iter().map(|(d, n)| (&**d, *n)))
+    }
+
+    /// [`LibraryTally::folder_tree`], with what [`LibraryTally::patch_folder_tree`] needs to bring
+    /// it up to date later.
+    pub fn folder_tree_kept(&self, cat: &Catalog) -> (Vec<FolderNode>, FolderUpkeep) {
+        let (tree, mixed) = cat.folder_tree_and_mixed_of(self.dirs.iter().map(|(d, n)| (&**d, *n)));
+        (tree, FolderUpkeep { epoch: self.epoch, seen: self.folder_log_base + self.folder_log.len() as u64, mixed })
+    }
+
+    /// `tree` (made by [`LibraryTally::folder_tree_kept`] from this tally, or patched by this
+    /// function, as of the `upkeep` it came with) brought up to date from the changes made to the
+    /// tally since: exactly what building the tree again gives, at the cost of the folders that
+    /// changed, not of every folder of the library. `None` when it can't be told apart cheaply
+    /// (counted whole again since, too many changes, a folder's spelling…): build it again. The
+    /// folder labels are as `cat`'s records were when `tree` was built.
+    pub fn patch_folder_tree(&self, cat: &Catalog, tree: Vec<FolderNode>, upkeep: &mut FolderUpkeep) -> Option<Vec<FolderNode>> {
+        let seen = usize::try_from(upkeep.seen.checked_sub(self.folder_log_base)?).ok()?;
+        if upkeep.epoch != self.epoch || seen > self.folder_log.len() {
+            return None;
+        }
+        let mut net: HashMap<&str, isize> = HashMap::new();
+        for (dir, d) in self.folder_log.get(seen..)? {
+            *net.entry(dir).or_default() += isize::from(*d);
+        }
+        net.retain(|_, d| *d != 0);
+        if net.len() > MAX_PATCHED_FOLDERS {
+            return None;
+        }
+        let changes: Vec<(&str, isize)> = net.into_iter().collect();
+        let tree = cat.patch_folder_tree_of(tree, &mut upkeep.mixed, &changes)?;
+        upkeep.seen = self.folder_log_base + self.folder_log.len() as u64;
+        Some(tree)
     }
 
     /// [`Catalog::date_groups`].
@@ -247,6 +317,15 @@ impl LibraryTally {
             od.inspect(|d| take_one(&mut self.dirs, d));
             nd.inspect(|d| *self.dirs.entry(Arc::clone(d)).or_default() += 1);
             self.folders = stamp();
+            if !self.counting {
+                self.folder_log.extend(od.map(|d| (Arc::clone(d), -1)));
+                self.folder_log.extend(nd.map(|d| (Arc::clone(d), 1)));
+                if self.folder_log.len() > MAX_FOLDER_LOG {
+                    let gone = self.folder_log.len() / 2;
+                    self.folder_log.drain(..gone);
+                    self.folder_log_base += gone as u64;
+                }
+            }
         }
         let (od, nd) = (o.and_then(|p| p.day.as_ref()), n.and_then(|p| p.day.as_ref()));
         if od != nd {

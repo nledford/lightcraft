@@ -1218,6 +1218,8 @@ mod tests_album_order;
 #[cfg(test)]
 mod tests_background;
 #[cfg(test)]
+mod tests_folder_patch;
+#[cfg(test)]
 mod tests_folder_records;
 #[cfg(test)]
 mod tests_folders;
