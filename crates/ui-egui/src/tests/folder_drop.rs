@@ -408,6 +408,7 @@ fn quit_anyway_quits_while_a_move_without_a_stop_button_runs() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn a_move_that_finished_as_the_app_exits_is_followed_by_the_library() {
     let (root, trip, home) = folders("exit");
