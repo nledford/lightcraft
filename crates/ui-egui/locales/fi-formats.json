@@ -297,5 +297,8 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "”{to}” on jo henkilö. Yhdistäminen tekee kahdesta yhden henkilön; Kumoa erottaa ne uudelleen.",
   "•  {assumption}": "•  {assumption}",
   "… and {more} more": "… ja {more} lisää",
-  "…and {more} more": "…ja {more} lisää"
+  "…and {more} more": "…ja {more} lisää",
+  "Exported contact sheet: {photos} photos, {pages} pages": "Kontaktivedos viety (kuvia: {photos}, sivuja: {pages})",
+  "Printed to PDF: {photos} photos, {pages} pages": "Tulostettu PDF-tiedostoon (kuvia: {photos}, sivuja: {pages})",
+  "{} import warning{}": "Tuontivaroituksia: {}{:.0}"
 }
