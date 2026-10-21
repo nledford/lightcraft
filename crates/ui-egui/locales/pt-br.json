@@ -46,6 +46,7 @@
   "Can't be moved here": "Não podem ser movidas para cá",
   "This row covers more than one disk: drop on a folder inside it": "Esta linha abrange mais de um disco: solte em uma pasta dentro dela",
   "Local photos aren't in the library yet: Add to My Photos first, then move them": "As fotos locais ainda não estão na biblioteca: primeiro Adicionar às Minhas fotos, depois mova-as",
+  "Demo photos have no file on disk, so they can't be moved": "As fotos de demonstração não têm arquivo no disco, então não podem ser movidas",
   "Add to Selected Photos": "Adicionar às fotos selecionadas",
   "Add to Target Album": "Adicionar ao álbum de destino",
   "Add to this mask": "Adicionar a esta máscara",

@@ -59,6 +59,7 @@
   "Can't be moved here": "Sem nelze přesunout",
   "This row covers more than one disk: drop on a folder inside it": "Tento řádek zahrnuje více disků: přetáhněte položky na některou ze složek v něm",
   "Local photos aren't in the library yet: Add to My Photos first, then move them": "Místní fotografie zatím nejsou v knihovně: nejprve použijte Přidat do mých fotografií a pak je přesuňte",
+  "Demo photos have no file on disk, so they can't be moved": "Ukázkové fotografie nemají soubor na disku, proto je nelze přesunout",
   "Add to My Photos First": "Nejprve přidat do mých fotografií",
   "Add to Selected Photos": "Přidat k vybraným fotografiím",
   "Add to Target Album": "Přidat do cílového alba",
