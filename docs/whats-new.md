@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### The Missing Photos count no longer checks the whole library after every change
+- The Missing Photos count used to check every file of the library again every few seconds and after every
+  change, which kept a library on a network share busy. Each file is now checked once when the library opens and
+  again every five minutes, one at a time and after what the window asks about; the files of photos that come in
+  or move are checked as they do. Edits that change no file (a rating, an album, a keyword) check nothing. Opening
+  another library drops the check of the one that was open.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
