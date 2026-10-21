@@ -83,7 +83,7 @@ impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(target_os = "macos")]
         if let Some(m) = self.2.as_mut()
-            && m.update(&mut self.0, ctx)
+            && m.update(&mut self.0)
             && lightcraft_ui_egui::panels::notices::may_close(&mut self.0)
         {
             // Quit from the menu bar: save exactly what closing the window saves (settings and

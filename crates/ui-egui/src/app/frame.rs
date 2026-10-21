@@ -270,6 +270,8 @@ impl LightcraftApp {
             return;
         }
         self.shown_library = Some(generation);
+        // a new library's welcome puts the keyboard on Import Photos… once for each library
+        self.welcome_focused = false;
         if let Some(l) = self.session.library.as_ref().filter(|l| l.on_disk) {
             let path = l.dir.to_string_lossy().into_owned();
             panels::settings::remember_library(&mut self.ui.settings.recent_libraries, &path);
@@ -401,6 +403,7 @@ impl LightcraftApp {
                 panels::notices::restore_prompt_pointer(self, &ctx);
             }
             (self.next_widgets, self.next_widget_hits) = widgets::take_registries(&ctx);
+            self.note_keyboard_owner(&ctx);
             self.end_frame(&ctx, t0);
             return;
         }
@@ -446,7 +449,7 @@ impl LightcraftApp {
             panels::notices::restore_prompt_pointer(self, &ctx);
         }
         (self.next_widgets, self.next_widget_hits) = widgets::take_registries(&ctx);
-        self.text_focus = ctx.egui_wants_keyboard_input();
+        self.note_keyboard_owner(&ctx);
         self.end_frame(&ctx, t0);
     }
 }

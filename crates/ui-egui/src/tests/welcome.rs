@@ -150,7 +150,7 @@ fn a_row_out_of_room_for_a_moment_keeps_its_thumbnails() {
 #[test]
 fn a_short_view_offers_the_button_instead_of_the_row() {
     // a wide but short window: the welcome's view is too low for the row under the message
-    let mut h = headless(library("short"), [1300.0, 440.0]);
+    let mut h = headless(library("short"), [1300.0, 380.0]);
     h.step();
     assert!(has(&h, "button:emptySamples"));
     assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("button:sample:")));

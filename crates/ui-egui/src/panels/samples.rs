@@ -106,6 +106,8 @@ pub fn banner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 for b in &buttons {
                     let resp = button(b).show(ui);
+                    // (a focused one keeps only the keys that press it, as the welcome's do)
+                    crate::widgets::plain_button(ui.ctx(), resp.id);
                     if resp.clicked() {
                         click = Some(b.3);
                     }

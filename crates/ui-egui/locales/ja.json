@@ -997,6 +997,7 @@
   "Hide": "隠す",
   "Photos you import show up here. Nothing is copied or moved unless you choose to.": "読み込んだ写真はここに表示されます。選択しない限り、コピーや移動は行われません。",
   "or drop photos and folders into this window": "または写真やフォルダーをこのウィンドウにドロップ",
+  "or look through a folder without importing it, under Local in the sidebar": "または、読み込まずにフォルダーを見る：サイドバーの「ローカル」から",
   "Import photos to get started": "写真を読み込んで始めましょう",
   "or drop photos into this window": "または写真をこのウィンドウにドロップ",
   "No photos found": "写真が見つかりません",

@@ -135,6 +135,22 @@ pub struct EmptyAction {
     pub widget: &'static str,
 }
 
+/// Painted text a screen reader can read: a node over `rect` with the words, a heading when
+/// `heading` (the welcome's title), plain text otherwise. Hover only: clicks pass through.
+pub(crate) fn readable(ui: &egui::Ui, rect: Rect, salt: &str, text: &str, heading: bool) {
+    let resp = ui.interact(rect, ui.scope_id().with(("readable", salt)), egui::Sense::hover());
+    // egui's way for text: the words as the node's value (as every other label in the app)
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, text));
+    if heading {
+        // a heading is read by its name: the words go there instead, not twice
+        ui.ctx().accesskit_node_builder(resp.id, |node| {
+            node.set_role(egui::accesskit::Role::Heading);
+            node.set_label(text.to_string());
+            node.clear_value();
+        });
+    }
+}
+
 /// One dim line, centred: a panel's quiet empty state beside a louder one elsewhere (the Tools
 /// panel next to the empty library's welcome), so the window has one headline.
 pub fn empty_note(ui: &egui::Ui, rect: Rect, text: &str) {
@@ -142,7 +158,9 @@ pub fn empty_note(ui: &egui::Ui, rect: Rect, text: &str) {
     let mut job = egui::text::LayoutJob::simple(crate::i18n::tr(text).to_string(), t.font(13.0), t.text_dim, (rect.width() - 32.0).max(60.0));
     job.halign = egui::Align::Center;
     let g = ui.painter().layout_job(job);
-    ui.painter().galley(pos2(rect.center().x, rect.center().y - g.size().y / 2.0), g, t.text_dim);
+    let at = pos2(rect.center().x, rect.center().y - g.size().y / 2.0);
+    readable(ui, g.rect.translate(at.to_vec2()), "empty-note", g.text(), false);
+    ui.painter().galley(at, g, t.text_dim);
 }
 
 /// The space an empty state leaves under its hint for more of it (the welcome's sample photos):
@@ -185,11 +203,68 @@ fn balanced_wrap(ui: &egui::Ui, text: &str, font: &egui::FontId, wrap: f32) -> f
 const EMPTY_BUTTONS_GAP: f32 = 20.0;
 const EMPTY_HINT_GAP: f32 = 12.0;
 
+/// What [`empty_state`] measures of its words and buttons in `wrap` points of width.
+struct EmptyLayout {
+    title: std::sync::Arc<egui::Galley>,
+    body: std::sync::Arc<egui::Galley>,
+    hint: Option<std::sync::Arc<egui::Galley>>,
+    /// Each button's width, their row's width, and whether they fit side by side (else one above
+    /// the other).
+    widths: Vec<f32>,
+    row_w: f32,
+    side_by_side: bool,
+    buttons_h: f32,
+    gap_above_buttons: f32,
+    hint_h: f32,
+}
+
+fn empty_layout(ui: &egui::Ui, wrap: f32, title: &str, body: &str, actions: &[EmptyAction], hint: Option<&str>) -> EmptyLayout {
+    let t = Tokens::get(ui.ctx());
+    let centred = |text: &str, font: egui::FontId, color: egui::Color32| {
+        let w = balanced_wrap(ui, text, &font, wrap);
+        let mut job = egui::text::LayoutJob::simple(text.to_string(), font, color, w);
+        job.halign = egui::Align::Center;
+        ui.painter().layout_job(job)
+    };
+    // the title in the brightest text: the first thing read, above the window's own headings
+    let title = centred(crate::i18n::tr(title), t.semibold(18.0), t.text);
+    let body = centred(crate::i18n::tr(body), t.font(13.0), t.text_dim);
+    let hint = hint.map(|h| centred(h, t.font(12.0), t.text_dim));
+    let widths: Vec<f32> = actions.iter().enumerate().map(|(i, a)| empty_button(i, a).desired_size(ui).x).collect();
+    let row_w = widths.iter().sum::<f32>() + EMPTY_BUTTON_GAP * widths.len().saturating_sub(1) as f32;
+    let side_by_side = row_w <= wrap;
+    let buttons_h = match (actions.len(), side_by_side) {
+        (0, _) => 0.0,
+        (_, true) => EMPTY_BUTTON_H,
+        (n, false) => n as f32 * EMPTY_BUTTON_H + (n - 1) as f32 * EMPTY_BUTTON_GAP,
+    };
+    let gap_above_buttons = if actions.is_empty() { 0.0 } else { EMPTY_BUTTONS_GAP };
+    let hint_h = hint.as_ref().map_or(0.0, |g| EMPTY_HINT_GAP + g.size().y);
+    EmptyLayout { title, body, hint, widths, row_w, side_by_side, buttons_h, gap_above_buttons, hint_h }
+}
+
+/// The height [`empty_state`] takes for this message, buttons and hint in `rect` (without the
+/// extra room below): what a caller checks before asking for that room.
+pub fn empty_state_height(ui: &egui::Ui, rect: Rect, title: &str, body: &str, actions: &[EmptyAction], hint: Option<&str>) -> f32 {
+    let wrap = (rect.width() - 48.0).max(80.0);
+    let l = empty_layout(ui, wrap, title, body, actions, hint);
+    l.title.size().y + EMPTY_TITLE_GAP + l.body.size().y + l.gap_above_buttons + l.buttons_h + l.hint_h
+}
+
+/// What [`empty_state`] gives besides the message and its buttons: `extra` points of room below
+/// the hint for more (0 for none), and whether the primary button takes the keyboard focus.
+#[derive(Clone, Copy, Default)]
+pub struct EmptyMore {
+    pub extra: f32,
+    pub focus_primary: bool,
+}
+
 /// [`empty_message`] with the next step under it: a row of buttons (the first is the primary
-/// one, filled with the accent), an optional dimmed hint line below them, and `extra` points of
-/// room below that for more (0 for none). The block is centred in `rect` as one. Returns the
-/// command of the button clicked this frame, and the room left for the extra (as wide as the
-/// text may run).
+/// one, filled with the accent), an optional dimmed hint line below them, and `more.extra` points of
+/// room below that for more (0 for none). The block is centred in `rect` as one. Its words are
+/// readable by screen readers (the title as a heading), a focused button shows a ring, and
+/// `more.focus_primary` gives the primary button the keyboard focus. Returns the command of the button
+/// clicked this frame, and the room left for the extra (as wide as the text may run).
 pub fn empty_state(
     ui: &mut egui::Ui,
     rect: Rect,
@@ -197,33 +272,15 @@ pub fn empty_state(
     body: &str,
     actions: &[EmptyAction],
     hint: Option<&str>,
-    extra: f32,
+    more: EmptyMore,
 ) -> (Option<&'static str>, Rect) {
+    let EmptyMore { extra, focus_primary } = more;
     let t = Tokens::get(ui.ctx());
     let wrap = (rect.width() - 48.0).max(80.0);
-    let centred = |ui: &egui::Ui, text: &str, font: egui::FontId, color: egui::Color32| {
-        let w = balanced_wrap(ui, text, &font, wrap);
-        let mut job = egui::text::LayoutJob::simple(text.to_string(), font, color, w);
-        job.halign = egui::Align::Center;
-        ui.painter().layout_job(job)
-    };
-    // the title in the brightest text: the first thing read, above the window's own headings
-    let title = centred(ui, crate::i18n::tr(title), t.semibold(18.0), t.text);
-    let body = centred(ui, crate::i18n::tr(body), t.font(13.0), t.text_dim);
-    let hint = hint.map(|h| centred(ui, h, t.font(12.0), t.text_dim));
-    // the buttons' widths, and whether they fit side by side (else one above the other)
+    let EmptyLayout { title, body, hint, widths, row_w, side_by_side, buttons_h, gap_above_buttons, hint_h } =
+        empty_layout(ui, wrap, title, body, actions, hint);
     const BUTTON_H: f32 = EMPTY_BUTTON_H;
     const GAP: f32 = EMPTY_BUTTON_GAP;
-    let widths: Vec<f32> = actions.iter().enumerate().map(|(i, a)| empty_button(i, a).desired_size(ui).x).collect();
-    let row_w = widths.iter().sum::<f32>() + GAP * widths.len().saturating_sub(1) as f32;
-    let side_by_side = row_w <= wrap;
-    let buttons_h = match (actions.len(), side_by_side) {
-        (0, _) => 0.0,
-        (_, true) => BUTTON_H,
-        (n, false) => n as f32 * BUTTON_H + (n - 1) as f32 * GAP,
-    };
-    let gap_above_buttons = if actions.is_empty() { 0.0 } else { EMPTY_BUTTONS_GAP };
-    let hint_h = hint.as_ref().map_or(0.0, |g| EMPTY_HINT_GAP + g.size().y);
     let extra_h = if extra > 0.0 { EMPTY_EXTRA_GAP + extra } else { 0.0 };
     let block = title.size().y + EMPTY_TITLE_GAP + body.size().y + gap_above_buttons + buttons_h + hint_h + extra_h;
     let top = rect.center().y - block / 2.0;
@@ -234,6 +291,8 @@ pub fn empty_state(
     crate::widgets::register(ui, "text:emptyTitle", title.rect.translate(title_at.to_vec2()));
     let body_at = pos2(rect.center().x, body_top);
     crate::widgets::register(ui, "text:emptyBody", body.rect.translate(body_at.to_vec2()));
+    readable(ui, title.rect.translate(title_at.to_vec2()), "empty-title", title.text(), true);
+    readable(ui, body.rect.translate(body_at.to_vec2()), "empty-body", body.text(), false);
     p.galley(title_at, title, t.text);
     p.galley(body_at, body, t.text_dim);
     let mut clicked = None;
@@ -247,13 +306,20 @@ pub fn empty_state(
             let w = widths.iter().copied().fold(0.0, f32::max).min(wrap);
             Rect::from_min_size(pos2(rect.center().x - w / 2.0, buttons_top + i as f32 * (BUTTON_H + GAP)), vec2(w, BUTTON_H))
         };
+        // (the button shows a ring where the keyboard is, as the sample thumbnails do)
         let resp = empty_button(i, a).show_at(ui, r);
+        crate::widgets::plain_button(ui.ctx(), resp.id);
+        if i == 0 && focus_primary {
+            resp.request_focus();
+        }
         if resp.clicked() {
             clicked = Some(a.command);
         }
     }
     if let Some(g) = hint {
-        p.galley(pos2(rect.center().x, buttons_top + buttons_h + EMPTY_HINT_GAP), g, t.text_dim);
+        let at = pos2(rect.center().x, buttons_top + buttons_h + EMPTY_HINT_GAP);
+        readable(ui, g.rect.translate(at.to_vec2()), "empty-hint", g.text(), false);
+        p.galley(at, g, t.text_dim);
     }
     let extra_top = buttons_top + buttons_h + hint_h + EMPTY_EXTRA_GAP;
     (clicked, Rect::from_min_size(pos2(rect.center().x - wrap / 2.0, extra_top), vec2(wrap, extra.max(0.0))))
