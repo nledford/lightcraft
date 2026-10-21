@@ -121,14 +121,30 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     let filter_id = egui::Id::unique("settings-filter");
     let pass = ui.ctx().cumulative_pass_nr();
     let kept: Option<Filter> = ui.data(|d| d.get_temp(filter_id));
-    let mut filter = kept.filter(|k| k.pass.checked_add(1) == Some(pass)).unwrap_or_default();
+    // (Settings shown anew: the filter starts empty, and nothing is marked as landed on)
+    let opened = !kept.as_ref().is_some_and(|k| k.pass.checked_add(1) == Some(pass));
+    if opened {
+        ui.data_mut(|d| d.remove::<(String, f64)>(egui::Id::unique(LANDED)));
+    }
+    let mut filter = kept.filter(|_| !opened).unwrap_or_default();
     filter.pass = pass;
+    // (the mark is for arriving at a section from the filter: a tab left, however, and come back
+    // to shows none. Arriving sets it again when the heading is drawn, further down this frame.)
+    if filter.tab != *tab {
+        ui.data_mut(|d| d.remove::<(String, f64)>(egui::Id::unique(LANDED)));
+    }
+    filter.tab.clone_from(tab);
     let had_text = !filter.text.is_empty();
     let typed = crate::text_field::TextField::singleline("field:settingsFilter", &mut filter.text)
         .hint(crate::i18n::tr("Filter settings"))
         .width(ui.available_width())
         .show(ui);
     let filter_row = ui.cursor().top() - top;
+    // The box is ready to type in when Settings opens: the filter reaches every section from
+    // wherever one is. (Not where typing brings up a keyboard over the window.)
+    if opened && !matches!(ui.ctx().os(), egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS) {
+        typed.response.request_focus();
+    }
     // Esc with something typed empties the filter and is used up by that, wherever the focus is
     // (in the box, or on a section that was found); the focus goes back to the box. Not while the
     // dialog is disabled behind a prompt or the library window: that owns the keys (`dialogs::show`).
@@ -244,13 +260,108 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
 /// Where the section to scroll to is kept between the click on a result and its page being drawn.
 const GOTO: &str = "settings-goto";
 
+/// Where the section landed on from the filter is kept while its heading is marked: its name
+/// and when.
+const LANDED: &str = "settings-landed";
+
+/// How long the heading of the section landed on stays marked, in seconds.
+const LANDED_FOR: f64 = 1.6;
+
+/// Words people type for a section that the section does not say itself: the tab, the heading's
+/// English name (empty for what a tab draws above its first heading) and the words, in lower
+/// case and in the spelling [`fold`] gives. They are English whatever language is shown (in the
+/// others a section is found by what it says), and count as much as a word in an explanation.
+pub const ALSO: &[(&str, &str, &str)] = &[
+    ("general", "", "locale translation translate"),
+    ("general", "Startup", "launch start"),
+    ("general", "Culling", "trash bin delete deleted"),
+    ("general", "Library", "catalog database"),
+    ("performance", "Smart previews", "proxy proxies offline"),
+    ("import", "Raw defaults", "preset develop"),
+    ("import", "Metadata", "iptc author credit"),
+    ("import", "Cameras and Cards", "memory card sd camera connected device"),
+    ("import", "Auto Import", "watch tether"),
+    ("import", "XMP sidecars", "metadata"),
+    ("general", "External Editing", "editor photoshop color space bit depth"),
+    ("performance", "Rendering", "graphics card speed resolution"),
+    ("performance", "Thumbnail cache", "disk space storage previews"),
+    ("display", "Monitor profile", "screen color management calibration calibrate"),
+    ("interface", "Appearance", "theme color scheme skin"),
+    ("slideshow", "Playback", "presentation autoplay crossfade"),
+    ("faces", "Face recognition", "people person"),
+    ("denoise", "AI Denoise", "noise reduction"),
+];
+
+/// Pairs of spellings of one word, the one [`fold`] gives first.
+const SPELLINGS: &[(&str, &str)] =
+    &[("color", "colour"), ("gray", "grey"), ("catalog", "catalogue"), ("favorite", "favourite"), ("center", "centre"), ("license", "licence")];
+
+/// `text` as the filter compares it: in lower case, and in one spelling of the words that have
+/// two (colour as color), so that either finds the other.
+fn fold(text: &str) -> String {
+    let mut folded = text.to_lowercase();
+    for (one, other) in SPELLINGS {
+        if folded.contains(other) {
+            folded = folded.replace(other, one);
+        }
+    }
+    folded
+}
+
+/// A word typed (in lower case) in the one spelling ([`fold`]), which a word still being typed
+/// in the other is brought to as well: "colou" is on the way to "colour" and is compared as
+/// "color", "catalogu" as "catalog". Only once it has gone past where the two spellings part,
+/// so that "colo" stays what it is.
+fn fold_typed(word: &str) -> String {
+    let folded = fold(word);
+    for (one, other) in SPELLINGS {
+        let shared = one.chars().zip(other.chars()).take_while(|(a, b)| a == b).count();
+        // (the longest start of the other spelling the word ends in, past what the two share)
+        let ends_in = other.char_indices().skip(shared + 1).filter_map(|(at, _)| other.get(..at)).filter(|start| folded.ends_with(start)).last();
+        if let Some(stem) = ends_in.and_then(|start| folded.strip_suffix(start)) {
+            return format!("{stem}{one}");
+        }
+    }
+    folded
+}
+
+/// A text as the filter compares it: in lower case, and in one spelling ([`fold`]).
+#[derive(Clone)]
+struct Compared {
+    lower: String,
+    folded: String,
+}
+
+impl Compared {
+    fn of(text: &str) -> Self {
+        let lower = text.to_lowercase();
+        Self { folded: fold(&lower), lower }
+    }
+
+    /// Whether the text has `word` (in lower case): as typed, or in the other spelling of it. As
+    /// typed counts too, so that a word is found all the way while it is typed ("colou" is on
+    /// the way to "colour", and is in no text once that is spelt "color").
+    fn has(&self, word: &str) -> bool {
+        self.lower.contains(word) || self.folded.contains(&fold_typed(word))
+    }
+}
+
+/// A text a section draws: as drawn, as the filter compares it, and whether it is in the small
+/// type of an explanation.
+#[derive(Clone)]
+struct Drawn {
+    text: String,
+    compared: Compared,
+    small: bool,
+}
+
 /// A section of Settings as the filter knows it: the tab it is on, its heading's English name
 /// (empty for what a tab draws above its first heading) and every piece of text it draws.
 #[derive(Clone)]
 struct Section {
     tab: &'static str,
     name: String,
-    texts: Vec<String>,
+    texts: Vec<Drawn>,
 }
 
 /// The filter's state between frames: what is typed, and the sections of every tab with their
@@ -260,11 +371,14 @@ struct Section {
 struct Filter {
     pass: u64,
     text: String,
+    /// The tab that was open on the frame before.
+    tab: String,
     sections: Option<(String, std::sync::Arc<Vec<Section>>)>,
 }
 
 impl Filter {
-    /// The sections that have every word of `words` (lower case), in the order of the tabs.
+    /// The sections that have every word of `words` (in lower case), the best match first
+    /// ([`Section::rank`]) and those that match alike in the order of the tabs.
     fn found(&mut self, app: &mut LightcraftApp, words: &str, now: f64) -> Vec<Section> {
         let of = format!(
             "{}|{}|{:?}",
@@ -281,20 +395,40 @@ impl Filter {
                 sections
             }
         };
-        sections.iter().filter(|section| section.has(words)).cloned().collect()
+        let mut found: Vec<(u32, &Section)> = sections.iter().filter_map(|section| Some((section.rank(words)?, section))).collect();
+        // (a stable sort: the order of the tabs is kept among equals)
+        found.sort_by_key(|(rank, _)| *rank);
+        found.into_iter().map(|(_, section)| section.clone()).collect()
     }
 }
 
 impl Section {
-    /// The name of the section's tab, in the language shown.
+    /// The name of the section's tab, as shown.
     fn tab_name(&self) -> &'static str {
         TABS.iter().find(|(id, _)| *id == self.tab).map_or("", |(_, label)| crate::i18n::tr(label))
     }
 
-    /// Whether the section, with the name of its tab, has every word of `words` (lower case).
-    fn has(&self, words: &str) -> bool {
-        let all = format!("{} {}", self.tab_name(), self.texts.join(" ")).to_lowercase();
-        words.split_whitespace().all(|word| all.contains(word))
+    /// How well the section matches `words` (in lower case), less being better, or `None` when one
+    /// of them is nowhere in it. Each word counts by the best place it is found in: 0 in the
+    /// name of the section or its tab, 1 in a label, choice or button, 2 in an explanation or
+    /// among the words people type for the section ([`ALSO`], from the start of one).
+    fn rank(&self, words: &str) -> Option<u32> {
+        let names = Compared::of(&format!("{} {}", self.tab_name(), crate::i18n::tr(&self.name)));
+        let also = || ALSO.iter().filter(|(tab, name, _)| *tab == self.tab && *name == self.name).flat_map(|(_, _, also)| also.split_whitespace());
+        words
+            .split_whitespace()
+            .map(|word| {
+                if names.has(word) {
+                    Some(0)
+                } else if self.texts.iter().any(|drawn| !drawn.small && drawn.compared.has(word)) {
+                    Some(1)
+                } else if self.texts.iter().any(|drawn| drawn.compared.has(word)) || also().any(|also| also.starts_with(&fold_typed(word))) {
+                    Some(2)
+                } else {
+                    None
+                }
+            })
+            .sum()
     }
 
     /// What the section is called in the list of what was found: its tab, then its heading.
@@ -302,6 +436,67 @@ impl Section {
         let tab = self.tab_name();
         if self.name.is_empty() { tab.to_string() } else { format!("{tab} › {}", crate::i18n::tr(&self.name)) }
     }
+}
+
+/// Where in `text` a word of `words` (in lower case) stands, as ranges of bytes of `text`, in
+/// the order they stand in and none inside another: in either case and either spelling.
+fn places(text: &str, words: &str) -> Vec<std::ops::Range<usize>> {
+    // each char of the text in lower case, with where it starts (a char that is several in lower
+    // case counts by its first: the ranges are of `text`, which `to_lowercase` would not keep)
+    let chars: Vec<(usize, char)> = text.char_indices().map(|(at, c)| (at, c.to_lowercase().next().unwrap_or(c))).collect();
+    let mut found: Vec<std::ops::Range<usize>> = Vec::new();
+    for word in words.split_whitespace() {
+        // (as typed, in the one spelling, and in the other)
+        let folded = fold_typed(word);
+        let other = SPELLINGS.iter().find(|(one, _)| folded.contains(one)).map(|(one, other)| folded.replace(one, other));
+        let mut spellings = vec![word.to_string()];
+        spellings.extend(std::iter::once(folded).chain(other).filter(|spelt| spelt != word));
+        for spelt in spellings {
+            let spelt: Vec<char> = spelt.chars().collect();
+            if spelt.is_empty() {
+                continue;
+            }
+            for start in 0..chars.len() {
+                let Some(run) = chars.get(start..start.saturating_add(spelt.len())) else { break };
+                if run.iter().map(|(_, c)| c).eq(spelt.iter()) {
+                    let from = run.first().map_or(0, |(at, _)| *at);
+                    let to = chars.get(start + spelt.len()).map_or(text.len(), |(at, _)| *at);
+                    found.push(from..to);
+                }
+            }
+        }
+    }
+    found.sort_by_key(|range| (range.start, std::cmp::Reverse(range.end)));
+    let mut apart: Vec<std::ops::Range<usize>> = Vec::new();
+    for range in found {
+        if apart.last().is_none_or(|last| range.start >= last.end) {
+            apart.push(range);
+        }
+    }
+    apart
+}
+
+/// How far into a line under a result the first word found may stand, in chars, before the
+/// line is started later so that the word is in sight.
+const SNIPPET_LEAD: usize = 40;
+
+/// The line shown under a result for `text`: `text` itself, or from a word's start shortly
+/// before the first word found with `…` before it when that word stands far in (the line is cut
+/// at its end by the room there is), and where the words found stand in what is given.
+fn snippet(text: &str, words: &str) -> (String, Vec<std::ops::Range<usize>>) {
+    let found = places(text, words);
+    let Some(first) = found.first().map(|range| range.start) else { return (text.to_string(), found) };
+    let before = text.get(..first).unwrap_or("");
+    if before.chars().count() <= SNIPPET_LEAD {
+        return (text.to_string(), found);
+    }
+    // (from the start of a word, a few words before the one found)
+    let lead = before.char_indices().rev().nth(SNIPPET_LEAD / 2).map_or(0, |(at, _)| at);
+    let from = before.get(lead..).and_then(|rest| rest.find(' ')).map_or(lead, |space| lead + space + 1).min(first);
+    let Some(shown) = text.get(from..) else { return (text.to_string(), found) };
+    let shift = '…'.len_utf8();
+    let found = found.into_iter().map(|range| range.start - from + shift..range.end - from + shift).collect();
+    (format!("…{shown}"), found)
 }
 
 /// The key [`sections`] sets in the context it reads the pages in.
@@ -324,9 +519,13 @@ pub(crate) fn reading_for_filter(ctx: &egui::Context) -> bool {
 /// changed by it, as nothing is clicked. What a page does not draw is not found: the choices of
 /// a closed list, tooltips, and rows scrolled out of a list inside a page.
 fn sections(app: &mut LightcraftApp, now: f64) -> Vec<Section> {
-    fn texts(shape: &egui::Shape, out: &mut Vec<(f32, String)>) {
+    fn texts(shape: &egui::Shape, out: &mut Vec<(egui::Pos2, String, bool)>) {
         match shape {
-            egui::Shape::Text(text) => out.push((text.pos.y, text.galley.job.text.clone())),
+            egui::Shape::Text(text) => {
+                // (an explanation is in 11 pt; a label, choice or button in 12 pt or more)
+                let small = text.galley.job.sections.first().is_some_and(|section| section.format.font_id.size < 12.0);
+                out.push((text.pos, text.galley.job.text.clone(), small));
+            }
             egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| texts(shape, out)),
             _ => {}
         }
@@ -348,25 +547,30 @@ fn sections(app: &mut LightcraftApp, now: f64) -> Vec<Section> {
         // (the font atlas this context made is for no screen: said so, or dropping it is an error)
         output.textures_delta.clear();
         // the page's headings, top to bottom, and each text under the last heading above it
-        let mut headings: Vec<(f32, String)> = crate::widgets::take_registry(&scratch)
-            .into_iter()
-            .filter_map(|(id, r)| Some((r.top(), id.strip_prefix("heading:")?.to_string())))
-            .collect();
+        let registry = crate::widgets::take_registry(&scratch);
+        let mut headings: Vec<(f32, String)> =
+            registry.iter().filter_map(|(id, r)| Some((r.top(), id.strip_prefix("heading:")?.to_string()))).collect();
+        // (where a folder or file is shown, [`path_label`], and what is in a text box: where a
+        // library, a cache or an editor happens to be, or the name someone typed, is not what a
+        // setting is called, and is not looked through)
+        let paths: Vec<egui::Rect> =
+            registry.iter().filter(|(id, _)| id.starts_with("path:") || id.starts_with("field:")).map(|(_, r)| r.expand(1.0)).collect();
         headings.sort_by(|a, b| a.0.total_cmp(&b.0));
         let mut drawn = Vec::new();
         output.shapes.iter().for_each(|clipped| texts(&clipped.shape, &mut drawn));
-        drawn.sort_by(|a, b| a.0.total_cmp(&b.0));
+        drawn.sort_by(|a, b| a.0.y.total_cmp(&b.0.y));
         let mut of_tab: Vec<Section> = std::iter::once(String::new())
             .chain(headings.iter().map(|(_, name)| name.clone()))
             .map(|name| Section { tab, name, texts: Vec::new() })
             .collect();
-        for (y, text) in drawn {
+        for (at, text, small) in drawn {
             // (a text counts as under a heading from a little above the heading's own top)
-            let under = headings.iter().take_while(|(top, _)| *top <= y + 1.0).count();
+            let under = headings.iter().take_while(|(top, _)| *top <= at.y + 1.0).count();
             if let Some(section) = of_tab.get_mut(under)
                 && !text.trim().is_empty()
+                && !paths.iter().any(|path| path.contains(at))
             {
-                section.texts.push(text);
+                section.texts.push(Drawn { compared: Compared::of(&text), text, small });
             }
         }
         all.extend(of_tab.into_iter().filter(|section| !section.texts.is_empty()));
@@ -375,7 +579,7 @@ fn sections(app: &mut LightcraftApp, now: f64) -> Vec<Section> {
 }
 
 /// The sections found, each a row to choose (`settingsFound:{tab}:{section}`): its tab and
-/// heading, and under them the first texts of it that have a word of `words`. Gives the section
+/// heading, and under them the first texts of it that have a word of `words` ([`snippet`]). Gives the section
 /// chosen, by a click, by Return or Space with the focus on it, or (`open_first`) by Return in
 /// the filter, which chooses the first. `focus_first` gives the first row the keyboard focus.
 fn results(ui: &mut egui::Ui, found: &[Section], words: &str, open_first: bool, focus_first: bool) -> Option<(&'static str, String)> {
@@ -397,15 +601,27 @@ fn results(ui: &mut egui::Ui, found: &[Section], words: &str, open_first: bool, 
                 ui.add(egui::Label::new(RichText::new(section.title()).font(t.semibold(13.0)).color(t.text)).selectable(false));
                 // (what of it has a word that was typed; its heading is in the line above already)
                 let heading = crate::i18n::tr(&section.name);
-                let with: Vec<&str> = section
+                let with = section
                     .texts
                     .iter()
-                    .map(String::as_str)
-                    .filter(|text| *text != heading && words.split_whitespace().any(|word| text.to_lowercase().contains(word)))
-                    .take(2)
-                    .collect();
-                for text in with {
-                    ui.add(egui::Label::new(RichText::new(text).size(11.0).color(t.text_dim)).selectable(false).truncate());
+                    .filter(|drawn| drawn.text != heading && words.split_whitespace().any(|word| drawn.compared.has(word)))
+                    .take(2);
+                for drawn in with {
+                    let dim = t.text_dim;
+                    // The word found is in sight and told apart: the line starts shortly before
+                    // it, and it is in the text colour and a heavier weight among dimmer words.
+                    let (line, found) = snippet(&drawn.text, words);
+                    let plain = egui::TextFormat { font_id: egui::FontId::proportional(11.0), color: dim, ..Default::default() };
+                    let strong = egui::TextFormat { font_id: t.semibold(11.0), color: t.text, ..Default::default() };
+                    let mut job = egui::text::LayoutJob::default();
+                    let mut at = 0;
+                    for range in found {
+                        job.append(line.get(at..range.start).unwrap_or(""), 0.0, plain.clone());
+                        job.append(line.get(range.clone()).unwrap_or(""), 0.0, strong.clone());
+                        at = range.end;
+                    }
+                    job.append(line.get(at..).unwrap_or(""), 0.0, plain);
+                    ui.add(egui::Label::new(job).selectable(false).truncate());
                 }
                 ui.add_space(3.0);
             })

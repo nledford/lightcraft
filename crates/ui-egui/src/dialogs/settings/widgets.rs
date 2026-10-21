@@ -1,4 +1,5 @@
-use super::{GOTO, LABEL_W, RichText, Tokens, register};
+use super::{GOTO, LABEL_W, LANDED, LANDED_FOR, RichText, Tokens, register};
+use crate::widgets::register_geometry;
 
 /// `path` shortened to fit `max` (as `width` measures it) by dropping leading folders, after
 /// either kind of separator, so that its end stays (`…/Pictures/Library`,
@@ -34,6 +35,11 @@ pub(super) fn path_label(ui: &mut egui::Ui, id: &str, path: &str, font: egui::Fo
     // (`truncate` is the last resort, for a room narrower than "…")
     let r = ui.add(egui::Label::new(RichText::new(&shown).font(font).color(color)).truncate().show_tooltip_when_elided(false));
     register(ui, format!("text:{id}"), r.rect);
+    // (what the filter leaves out of what it looks through; not what stands here in words when
+    // there is no folder to show)
+    if path.contains(['/', '\\']) {
+        register(ui, format!("path:{id}"), r.rect);
+    }
     if shown != path {
         r.on_hover_text(path);
     }
@@ -54,11 +60,32 @@ pub(crate) fn heading(ui: &mut egui::Ui, t: &Tokens, text: &str) {
     // `text` is the heading's English name (its message key). It is shown translated and
     // registered as `heading:{text}` whatever the language, where a section starts: for the
     // filter, scripts and tests that look for one.
+    let behind = ui.painter().add(egui::Shape::Noop);
     let r = ui.label(RichText::new(crate::i18n::tr(text)).font(t.semibold(12.5)).color(t.text));
-    register(ui, format!("heading:{text}"), r.rect);
-    // (chosen from what the filter found: the section is brought to the top of the page)
-    if ui.data(|d| d.get_temp::<(&'static str, String)>(egui::Id::unique(GOTO))).is_some_and(|(_, section)| section == text) {
+    let name = text;
+    register(ui, format!("heading:{name}"), r.rect);
+    // (chosen from what the filter found: the section is brought to the top of the page, and its
+    // heading is marked for a moment, so that the one chosen is told from its neighbours)
+    let now = ui.input(|i| i.time);
+    let landed_id = egui::Id::unique(LANDED);
+    if ui.data(|d| d.get_temp::<(&'static str, String)>(egui::Id::unique(GOTO))).is_some_and(|(_, section)| section == name) {
         r.scroll_to_me(Some(egui::Align::TOP));
+        ui.data_mut(|d| d.insert_temp(landed_id, (name.to_string(), now)));
+    }
+    if let Some((_, since)) = ui.data(|d| d.get_temp::<(String, f64)>(landed_id)).filter(|(landed, _)| *landed == name) {
+        // (full for the first half of its time, then fading out)
+        let left = (1.0 - (now - since) / LANDED_FOR).clamp(0.0, 1.0) as f32;
+        if left > 0.0 {
+            let strength = (left * 2.0).min(1.0);
+            let around = r.rect.expand2(egui::vec2(6.0, 2.0));
+            let outline = egui::Stroke::new(1.0, t.accent.gamma_multiply(strength));
+            ui.painter().set(behind, egui::Shape::rect_filled(around, egui::CornerRadius::same(4), t.hover.gamma_multiply(strength)));
+            ui.painter().rect_stroke(around, egui::CornerRadius::same(4), outline, egui::StrokeKind::Inside);
+            register_geometry(ui.ctx(), format!("settingsLanded:{name}"), around);
+            ui.ctx().request_repaint();
+        } else {
+            ui.data_mut(|d| d.remove::<(String, f64)>(landed_id));
+        }
     }
 }
 
