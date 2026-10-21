@@ -2186,5 +2186,12 @@
   "Suggests who is in a photo from the faces you have named. Everything stays on your computer.": "根据你已命名的人脸，推测照片中的人物。所有数据仅保存在本机。",
   "This build cannot run recognition models: they can be added and chosen, not used.": "此版本无法运行识别模型：可以添加和选择，但无法使用。",
   "Detect Faces (Photo menu) needs it: a small one-time download.": "“检测人脸”（照片菜单）依赖它：一次性小文件下载。",
-  "This build has nowhere to keep face models, so the model list is not available. (The desktop app has.)": "此版本无法存放人脸模型，因此模型列表不可用。（桌面版可以存放。）"
+  "This build has nowhere to keep face models, so the model list is not available. (The desktop app has.)": "此版本无法存放人脸模型，因此模型列表不可用。（桌面版可以存放。）",
+  "Show Parent Folder": "显示上级文件夹",
+  "Hide This Parent": "隐藏此上级文件夹",
+  "Hides this row. Nothing on disk or in the library changes": "隐藏此行。磁盘和资料库中不会有任何更改",
+  "Go Deeper": "继续深入",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "这么深的文件夹不在此处列出。点按可将此文件夹作为单独的位置添加到本地，以便继续展开",
+  "This folder stays listed while the grid shows its photos": "网格显示此文件夹的照片时，它会保留在列表中",
+  "Opens as its own place": "作为单独的位置打开"
 }

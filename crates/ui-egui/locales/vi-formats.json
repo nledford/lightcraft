@@ -297,5 +297,7 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}” is already a person. Combining them makes one person; Undo separates them again.",
   "•  {assumption}": "•  {assumption}",
   "… and {more} more": "… và {more} nữa",
-  "…and {more} more": "…and {more} more"
+  "…and {more} more": "…and {more} more",
+  "Lists “{name}”, the folder this one is in": "Hiển thị “{name}”, thư mục chứa thư mục này",
+  "“{name}” is now a place in Local: open it there": "“{name}” giờ là một vị trí trong Cục bộ: hãy mở ở đó"
 }

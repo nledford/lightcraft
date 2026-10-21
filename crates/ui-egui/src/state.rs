@@ -663,6 +663,10 @@ impl PanelWidth {
     }
 }
 
+/// The most folders [`UiState::folder_parents`] keeps: far more than anyone asks for by hand, and
+/// a bound on what a settings file can make the sidebar look up for every row.
+pub const MAX_FOLDER_PARENTS: usize = 256;
+
 /// The left sidebar (sources, albums, folders).
 pub const LEFT_WIDTH: PanelWidth = PanelWidth { min: 200.0, default: 268.0, max: 480.0 };
 /// The right panel (Edit, Masking, Info, …).
@@ -788,6 +792,10 @@ pub struct UiState {
     pub face_boxes: bool,
     /// The left sidebar's sections: their order, which are hidden and which are folded shut.
     pub sidebar: crate::sidebar::SidebarLayout,
+    /// Folders (as [`lightcraft_catalog::query::folder_key`] spells them) that only lead from a
+    /// disk to the library's first folder and were asked for with Show Parent Folder: the
+    /// sidebar's Folders lists them, where it otherwise passes them over.
+    pub folder_parents: std::collections::BTreeSet<String>,
     /// What settings files said before [`UiState::sidebar`]: the ids of the folded sections. Read
     /// so they stay folded ([`UiState::sanitized`] moves them over), never written.
     #[serde(skip_serializing)]
@@ -1405,6 +1413,7 @@ impl Default for UiState {
             show_counts: true,
             face_boxes: true,
             sidebar: Default::default(),
+            folder_parents: Default::default(),
             collapsed_sidebar: Vec::new(),
             name_edit: None,
             person_page: None,
@@ -1570,6 +1579,9 @@ impl UiState {
         self.right_width = RIGHT_WIDTH.clamp(self.right_width);
         self.brush_size = self.brush_size.clamp(0.002, 0.5);
         self.sidebar.adopt_collapsed(&std::mem::take(&mut self.collapsed_sidebar));
+        while self.folder_parents.len() > MAX_FOLDER_PARENTS {
+            self.folder_parents.pop_last();
+        }
         self.dialog = None;
         self.fullscreen = false;
         if !crate::state::PREVIEW_LIMITS.contains(&self.settings.preview_limit) {

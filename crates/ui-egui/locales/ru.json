@@ -2335,5 +2335,12 @@
   "Checking the GPU…": "Проверка ГП…",
   "CPU": "ЦП",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Модель лиц использует ГП, только если проверка показала, что он даёт те же результаты быстрее.",
-  "Checking the GPU for faces": "Проверка ГП для лиц"
+  "Checking the GPU for faces": "Проверка ГП для лиц",
+  "Show Parent Folder": "Показать родительскую папку",
+  "Hide This Parent": "Скрыть эту родительскую папку",
+  "Hides this row. Nothing on disk or in the library changes": "Скрывает эту строку. На диске и в библиотеке ничего не меняется",
+  "Go Deeper": "Глубже",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Папки на такой глубине здесь не показываются. Нажмите, чтобы добавить эту папку в «Локальное» как отдельное место и раскрывать её дальше",
+  "This folder stays listed while the grid shows its photos": "Эта папка остаётся в списке, пока сетка показывает её фотографии",
+  "Opens as its own place": "Открывается как отдельное место"
 }

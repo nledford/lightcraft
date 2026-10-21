@@ -297,5 +297,7 @@
   "Move {n} photo{} to “{}”": "Mover {n} foto{0} a “{1}”",
   "Move {n} photo{} to “{}”?": "¿Mover {n} foto{0} a “{1}”?",
   "Listing folders — folders: {folders}, files: {files}": "Listando carpetas — carpetas: {folders}, archivos: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n} foto{0} movida{0} a “{1}”. Editar → Deshacer las devuelve."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n} foto{0} movida{0} a “{1}”. Editar → Deshacer las devuelve.",
+  "Lists “{name}”, the folder this one is in": "Muestra “{name}”, la carpeta que contiene a esta",
+  "“{name}” is now a place in Local: open it there": "“{name}” ya es un lugar en Local: ábrela allí"
 }

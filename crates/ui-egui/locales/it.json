@@ -2346,5 +2346,12 @@
   "Use Defaults": "Usa predefiniti",
   "Dimensions": "Dimensioni",
   "Camera & Lens": "Fotocamera e obiettivo",
-  "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2."
+  "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2.",
+  "Show Parent Folder": "Mostra cartella superiore",
+  "Hide This Parent": "Nascondi questa cartella superiore",
+  "Hides this row. Nothing on disk or in the library changes": "Nasconde questa riga. Non cambia nulla sul disco né nella libreria",
+  "Go Deeper": "Vai più a fondo",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Le cartelle a questa profondità non sono elencate qui. Fai clic per aggiungere questa cartella a Locale come luogo a sé, così potrai aprirla ulteriormente",
+  "This folder stays listed while the grid shows its photos": "Questa cartella resta nell'elenco finché la griglia ne mostra le foto",
+  "Opens as its own place": "Si apre come luogo a sé"
 }

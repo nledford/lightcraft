@@ -2342,5 +2342,12 @@
   "Checking the GPU…": "GPU を確認中…",
   "CPU": "CPU",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "顔モデルが GPU を使うのは、同じ結果をより速く出せると確認できた場合だけです。",
-  "Checking the GPU for faces": "顔用の GPU を確認中"
+  "Checking the GPU for faces": "顔用の GPU を確認中",
+  "Show Parent Folder": "親フォルダを表示",
+  "Hide This Parent": "この親フォルダを隠す",
+  "Hides this row. Nothing on disk or in the library changes": "この行を隠します。ディスクとライブラリは何も変わりません",
+  "Go Deeper": "さらに深く",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "これより深いフォルダはここには表示されません。クリックするとこのフォルダを独立した場所としてローカルに追加し、そこでさらに開けます",
+  "This folder stays listed while the grid shows its photos": "グリッドがこのフォルダの写真を表示している間は、一覧に残ります",
+  "Opens as its own place": "独立した場所として開きます"
 }

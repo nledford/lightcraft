@@ -297,5 +297,7 @@
   "Move {n} photo{} to “{}”": "Переместить в «{1}» фото: {n}{0:.0}",
   "Move {n} photo{} to “{}”?": "Переместить в «{1}» фото: {n}{0:.0}?",
   "Listing folders — folders: {folders}, files: {files}": "Просмотр папок — папок: {folders}, файлов: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "В «{1}» перемещено фото: {n}{0:.0}. Правка → Отменить вернёт их."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "В «{1}» перемещено фото: {n}{0:.0}. Правка → Отменить вернёт их.",
+  "Lists “{name}”, the folder this one is in": "Показывает «{name}» — папку, в которой лежит эта",
+  "“{name}” is now a place in Local: open it there": "«{name}» теперь отдельное место в «Локальном»: откройте её там"
 }

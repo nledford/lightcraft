@@ -2220,5 +2220,12 @@
   "≥  at least": "≥  tối thiểu",
   "⌘-drag to straighten, ⇧G Guided Upright, a grid while transforming.": "⌘-kéo để chỉnh thẳng, ⇧G Chỉnh thẳng có hướng dẫn, lưới khi biến đổi.",
   "日本語": "日本語",
-  "繁體中文（台灣）": "繁體中文（台灣）"
+  "繁體中文（台灣）": "繁體中文（台灣）",
+  "Show Parent Folder": "Hiện thư mục cha",
+  "Hide This Parent": "Ẩn thư mục cha này",
+  "Hides this row. Nothing on disk or in the library changes": "Ẩn hàng này. Không có gì thay đổi trên đĩa hoặc trong thư viện",
+  "Go Deeper": "Đi sâu hơn",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Các thư mục sâu thế này không được liệt kê ở đây. Nhấp để thêm thư mục này vào Cục bộ như một vị trí riêng, để có thể mở sâu hơn",
+  "This folder stays listed while the grid shows its photos": "Thư mục này vẫn được liệt kê khi lưới hiển thị ảnh của nó",
+  "Opens as its own place": "Mở thành một vị trí riêng"
 }

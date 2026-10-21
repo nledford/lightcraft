@@ -2340,5 +2340,12 @@
   "Checking the GPU…": "Перевірка ГП…",
   "CPU": "ЦП",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Модель облич використовує ГП, лише якщо перевірка показала, що він дає ті самі результати швидше.",
-  "Checking the GPU for faces": "Перевірка ГП для облич"
+  "Checking the GPU for faces": "Перевірка ГП для облич",
+  "Show Parent Folder": "Показати батьківську теку",
+  "Hide This Parent": "Сховати цю батьківську теку",
+  "Hides this row. Nothing on disk or in the library changes": "Ховає цей рядок. На диску й у бібліотеці нічого не змінюється",
+  "Go Deeper": "Глибше",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Теки на такій глибині тут не показуються. Клацніть, щоб додати цю теку до локальних як окреме місце й розгортати її далі",
+  "This folder stays listed while the grid shows its photos": "Ця тека лишається у списку, доки сітка показує її фотографії",
+  "Opens as its own place": "Відкривається як окреме місце"
 }

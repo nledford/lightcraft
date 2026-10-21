@@ -2311,5 +2311,12 @@
   "− harder border · + softer border": "− terävämpi reuna · + pehmeämpi reuna",
   "≤  at most": "≤  enintään",
   "≥  at least": "≥  vähintään",
-  "★ Favorites": "★ Suosikit"
+  "★ Favorites": "★ Suosikit",
+  "Show Parent Folder": "Näytä yläkansio",
+  "Hide This Parent": "Piilota tämä yläkansio",
+  "Hides this row. Nothing on disk or in the library changes": "Piilottaa tämän rivin. Levyllä tai kirjastossa ei muutu mitään",
+  "Go Deeper": "Siirry syvemmälle",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Näin syviä kansioita ei listata tässä. Napsauta lisätäksesi tämän kansion Paikalliseen omaksi paikakseen, jolloin voit avata sen pidemmälle",
+  "This folder stays listed while the grid shows its photos": "Tämä kansio pysyy luettelossa, kun ruudukko näyttää sen kuvat",
+  "Opens as its own place": "Avautuu omana paikkanaan"
 }

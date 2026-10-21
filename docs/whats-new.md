@@ -2,6 +2,21 @@
 
 ## 2026-10-21
 
+### Folders opens at your photo folders
+- In the left panel's Folders, a disk now opens at the first folder that holds photos or branches. The folders
+  that only lead there (`Users` ▸ `me` ▸ …) no longer get a row each, so the folder you look for is at the top
+  and the same count is not repeated down a staircase. A row's tooltip still gives its whole path. When your
+  photos are in several places on a disk, it opens at the folder they share; below that, every folder is a row
+  as before.
+- Right-click a folder ▸ **Show Parent Folder** lists the folder above it, one level each time; **Hide This
+  Parent** on the topmost such row takes it away again. Nothing on disk or in the library changes. A folder you
+  gave a colour label always keeps its row, and so does the folder the grid is showing.
+- In a narrow panel, the count of a deeply nested row no longer prints over the folder's name: it follows the
+  name, past the panel's edge, and scrolling sideways reaches it.
+- In Local, a folder eight levels below its place used to open onto nothing. It now says **Go Deeper**: click
+  it to add that folder to Local as a place of its own (a message says so), where it opens further.
+- For agents: `view.folderParent` `{path, show?}`.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around

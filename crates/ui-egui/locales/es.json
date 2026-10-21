@@ -2342,5 +2342,12 @@
   "Checking the GPU…": "Comprobando la GPU…",
   "CPU": "CPU",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Un modelo de caras usa la GPU solo cuando una comprobación muestra que da los mismos resultados más rápido.",
-  "Checking the GPU for faces": "Comprobando la GPU para las caras"
+  "Checking the GPU for faces": "Comprobando la GPU para las caras",
+  "Show Parent Folder": "Mostrar carpeta superior",
+  "Hide This Parent": "Ocultar esta carpeta superior",
+  "Hides this row. Nothing on disk or in the library changes": "Oculta esta fila. No cambia nada en el disco ni en la biblioteca",
+  "Go Deeper": "Ir más adentro",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Las carpetas a esta profundidad no se muestran aquí. Haz clic para añadir esta carpeta a Local como un lugar propio y seguir abriéndola",
+  "This folder stays listed while the grid shows its photos": "Esta carpeta sigue en la lista mientras la cuadrícula muestre sus fotos",
+  "Opens as its own place": "Se abre como lugar propio"
 }

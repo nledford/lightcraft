@@ -2394,5 +2394,12 @@
   "End Slideshow": "Ukončit prezentaci",
   "Save Current Settings as New Effect Preset…": "Uložit aktuální nastavení jako nové přednastavení efektu…",
   "Manage Effect Presets…": "Spravovat přednastavení efektů…",
-  "Export Effect Presets…": "Exportovat přednastavení efektů…"
+  "Export Effect Presets…": "Exportovat přednastavení efektů…",
+  "Show Parent Folder": "Zobrazit nadřazenou složku",
+  "Hide This Parent": "Skrýt tuto nadřazenou složku",
+  "Hides this row. Nothing on disk or in the library changes": "Skryje tento řádek. Na disku ani v knihovně se nic nezmění",
+  "Go Deeper": "Jít hlouběji",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Takto hluboko vnořené složky se zde nezobrazují. Kliknutím přidáte tuto složku do Místních souborů jako samostatné místo, abyste ji mohli otevírat dál",
+  "This folder stays listed while the grid shows its photos": "Tato složka zůstane v seznamu, dokud mřížka zobrazuje její fotografie",
+  "Opens as its own place": "Otevře se jako samostatné místo"
 }

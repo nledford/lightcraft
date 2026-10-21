@@ -297,5 +297,7 @@
   "Move {n} photo{} to “{}”": "Sposta foto in “{1}” ({n}){0:.0}",
   "Move {n} photo{} to “{}”?": "Spostare le foto in “{1}” ({n})?{0:.0}",
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Foto spostate in “{1}”: {n}{0:.0}. Modifica → Annulla le riporta indietro.",
-  "Listing folders — folders: {folders}, files: {files}": "Elenco delle cartelle — cartelle: {folders}, file: {files}"
+  "Listing folders — folders: {folders}, files: {files}": "Elenco delle cartelle — cartelle: {folders}, file: {files}",
+  "Lists “{name}”, the folder this one is in": "Elenca “{name}”, la cartella in cui si trova questa",
+  "“{name}” is now a place in Local: open it there": "“{name}” ora è un luogo in Locale: aprilo lì"
 }

@@ -297,5 +297,7 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "”{to}” on jo henkilö. Yhdistäminen tekee kahdesta yhden henkilön; Kumoa erottaa ne uudelleen.",
   "•  {assumption}": "•  {assumption}",
   "… and {more} more": "… ja {more} lisää",
-  "…and {more} more": "…ja {more} lisää"
+  "…and {more} more": "…ja {more} lisää",
+  "Lists “{name}”, the folder this one is in": "Näyttää kansion “{name}”, jonka sisällä tämä on",
+  "“{name}” is now a place in Local: open it there": "“{name}” on nyt paikka Paikallisessa: avaa se siellä"
 }

@@ -3422,5 +3422,12 @@
   "favourites across restarts (issue #328).": "über Neustarts hinweg Favoriten (Issue #328).",
   "Optional remote SAM 3: keep the native editor local and run Object, Describe, and detail": "Optionales entferntes SAM 3: Der native Editor bleibt lokal, und Objekt-, Beschreibungs- und Detail-",
   "inference on a Mac through SSH. Saved masks still render and export offline.": "Inferenz laufen über SSH auf einem Mac. Gespeicherte Masken werden weiterhin offline gerendert und exportiert.",
-  "See [remote Metal inference](ai-masks.md#remote-metal-inference).": "Siehe [remote Metal inference](ai-masks.md#remote-metal-inference)."
+  "See [remote Metal inference](ai-masks.md#remote-metal-inference).": "Siehe [remote Metal inference](ai-masks.md#remote-metal-inference).",
+  "Show Parent Folder": "Übergeordneten Ordner anzeigen",
+  "Hide This Parent": "Diesen übergeordneten Ordner ausblenden",
+  "Hides this row. Nothing on disk or in the library changes": "Blendet diese Zeile aus. Auf dem Datenträger und in der Bibliothek ändert sich nichts",
+  "Go Deeper": "Tiefer gehen",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "So tief liegende Ordner werden hier nicht aufgelistet. Klicken, um diesen Ordner als eigenen Ort zu „Lokal“ hinzuzufügen und ihn dort weiter zu öffnen",
+  "This folder stays listed while the grid shows its photos": "Dieser Ordner bleibt aufgelistet, solange das Raster seine Fotos zeigt",
+  "Opens as its own place": "Öffnet sich als eigener Ort"
 }

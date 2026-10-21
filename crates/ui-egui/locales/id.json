@@ -2325,5 +2325,12 @@
   "≤  at most": "≤  maksimal",
   "≥  at least": "≥  minimal",
   "日本語": "日本語",
-  "繁體中文（台灣）": "繁體中文（台灣）"
+  "繁體中文（台灣）": "繁體中文（台灣）",
+  "Show Parent Folder": "Tampilkan folder induk",
+  "Hide This Parent": "Sembunyikan folder induk ini",
+  "Hides this row. Nothing on disk or in the library changes": "Menyembunyikan baris ini. Tidak ada yang berubah di disk atau di pustaka",
+  "Go Deeper": "Masuk lebih dalam",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Folder sedalam ini tidak dicantumkan di sini. Klik untuk menambahkan folder ini ke Lokal sebagai lokasi tersendiri, sehingga bisa dibuka lebih jauh",
+  "This folder stays listed while the grid shows its photos": "Folder ini tetap tercantum selama grid menampilkan fotonya",
+  "Opens as its own place": "Terbuka sebagai lokasi tersendiri"
 }

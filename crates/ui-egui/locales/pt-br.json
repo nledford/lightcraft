@@ -2188,5 +2188,12 @@
   "Color Overlay on B&W": "Sobreposição de cor em P&B",
   "Image on Black": "Imagem sobre preto",
   "Image on White": "Imagem sobre branco",
-  "White on Black": "Branco sobre preto"
+  "White on Black": "Branco sobre preto",
+  "Show Parent Folder": "Mostrar pasta superior",
+  "Hide This Parent": "Ocultar esta pasta superior",
+  "Hides this row. Nothing on disk or in the library changes": "Oculta esta linha. Nada muda no disco nem na biblioteca",
+  "Go Deeper": "Ir mais fundo",
+  "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further": "Pastas tão profundas não são listadas aqui. Clique para adicionar esta pasta a Local como um lugar próprio e abri-la mais",
+  "This folder stays listed while the grid shows its photos": "Esta pasta continua listada enquanto a grade mostra as fotos dela",
+  "Opens as its own place": "Abre como um lugar próprio"
 }
