@@ -1129,6 +1129,14 @@ impl LightcraftApp {
         }
     }
 
+    /// Called as the app exits, before the library is saved and closed: a move whose worker has
+    /// already finished (its result waiting for the next frame) is applied now, so the catalog
+    /// matches the files. A worker still running is abandoned, as quitting always did.
+    pub fn finish_ready_move(&mut self) {
+        let ctx = self.tasks.repaint.clone().unwrap_or_default();
+        move_task::poll(self, &ctx);
+    }
+
     /// The process is about to end (settings and library are saved by then): make sure nothing is
     /// inside the GPU driver when it does (issue #620: a render running on a worker thread while
     /// the process exits crashes in the driver). No GPU work starts from here on; the render
