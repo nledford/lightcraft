@@ -12,7 +12,7 @@ pub(crate) fn can_switch_library(app: &LightcraftApp) -> Result<(), String> {
         return Err("wait for the import to finish before switching libraries".into());
     }
     if app.move_run.is_some() {
-        return Err("wait for the photos being moved to arrive before switching libraries".into());
+        return Err("wait for the photos being moved to arrive (or stop the move) before switching libraries".into());
     }
     Ok(())
 }

@@ -299,7 +299,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Move to Folder",
             [],
             None,
-            "{folder, ids?} — move the photos' files (default: the selection) with their XMP sidecars into `folder` on disk and relink them; virtual copies follow their master; across volumes the file is copied, verified and only then removed; never overwrites (a name taken in `folder` refuses the whole move); missing/offline and Local photos are refused; one undo step (undo moves them back). In the desktop app `background: true` moves the files on a worker thread (`activity.list` kind `move`; `ui.inspect` → `move`) → {moved, folder}",
+            "{folder, ids?} — move the photos' files (default: the selection) with their XMP sidecars into `folder` on disk and relink them; virtual copies follow their master; across volumes the file is copied, verified and only then removed; never overwrites (a name taken in `folder` refuses the whole move); missing/offline and Local photos are refused; one undo step (undo moves them back). In the desktop app `background: true` moves the files on a worker thread (`activity.list` kind `move`, `activity.cancel` stops it after the file in hand; `ui.inspect` → `move`) → {moved, of, folder, stopped}",
             always,
             move_to_folder
         ),
@@ -420,8 +420,8 @@ fn create_folder(s: &mut Session, p: &Value) -> Result<Value> {
 /// already taken in `folder` refuses the whole move. Here it waits for the files; the app runs
 /// the same job on a worker thread ([`crate::move_job`]).
 fn move_to_folder(s: &mut Session, p: &Value) -> Result<Value> {
-    let Some((work, finish)) = crate::move_job::start(s, p)? else {
-        return Ok(json!({"moved": 0, "folder": folder_param(p, "folder")}));
+    let Some((work, finish)) = crate::move_job::start(s, p, false)? else {
+        return Ok(json!({"moved": 0, "of": 0, "folder": folder_param(p, "folder"), "stopped": false}));
     };
     let out = work.run();
     finish.finish(s, out)

@@ -2,6 +2,10 @@
 
 ## 2026-10-24
 
+### Stop a move that is under way
+- ✕ on the "Moving photos" row stops the move after the file in hand. The photos that moved stay moved, as one step
+  Edit ▸ Undo takes back, and the rest stay where they were. A toast says how far it got.
+
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
   minute, even when no catalog edit occurred. This fixes stale photos remaining in the grid and stale counts for
@@ -114,13 +118,13 @@
   Permanently, Empty Recently Deleted, importing a file again as a new photo over its trashed record, Convert to DNG,
   Find Missing Photos, Locate and the Undo of those steps. A message pops up saying how many photos are moving, and
   nothing is changed; try again once the move is done.
-- Quitting while photos are moving asks first. Quitting anyway cuts the move short: the files that had already
-  moved stay in the new folder while the library still points at the old places, so use File ▸ Find Missing Photos…
-  and choose the new folder to relink them. A file that was half copied to another disk leaves a hidden
-  `.lc-partial` file there, which you can delete. A file caught mid-move can end up at both places: the library keeps
-  the old one, and the copy in the new folder makes the next move there refuse that name until you delete it. Edits
-  made during the move stay in the library, but their XMP sidecar writes are lost; write them again with
-  Photo ▸ Save Metadata to File.
+- Quitting while photos are moving asks first, also while a stopped move is finishing its file. Quitting anyway cuts
+  the move short: the files that had already moved stay in the new folder while the library still points at the old
+  places, so use File ▸ Find Missing Photos… and choose the new folder to relink them. A file that was half copied to
+  another disk leaves a hidden `.lc-partial` file there, which you can delete. A file caught mid-move can end up at
+  both places: the library keeps the old one, and the copy in the new folder makes the next move there refuse that
+  name until you delete it. Edits made during the move stay in the library, but their XMP sidecar writes are lost;
+  write them again with Photo ▸ Save Metadata to File.
 
 ### Settings window
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own

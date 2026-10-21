@@ -165,7 +165,7 @@ pub struct LightcraftApp {
     pub(crate) notice_input: panels::notices::PromptInput,
     /// Quit Anyway was chosen: the window may close with unsaved changes.
     pub quit_confirmed: bool,
-    /// Quit Anyway was chosen while photos were moving: the move (which has no ✕) is cut short.
+    /// Quit Anyway was chosen while a move was still finishing the file in hand: quitting doesn't wait for it.
     pub quit_cuts_move: bool,
     control_rx: Option<Receiver<ControlRequest>>,
     pending_screenshots: Vec<PendingShot>,

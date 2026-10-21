@@ -1,8 +1,8 @@
 //! Moving photos to another folder in the app (a drop on a Folders row, Move Selected Photos Here,
 //! Move to Folder…): the files move on a worker thread, so a large move to a slow NAS doesn't
-//! freeze the window. The activity stack shows it ("Moving photos", k of N, the file in hand). The
-//! library follows the files between frames ([`poll`]), as one undo step; see
-//! `lightcraft_engine::move_job`.
+//! freeze the window. The activity stack shows it ("Moving photos", k of N, the file in hand) with
+//! ✕, which stops it after the file in hand: what moved stays moved, as one undo step. The library
+//! follows the files between frames ([`poll`]); see `lightcraft_engine::move_job`.
 
 use std::sync::mpsc::{Receiver, TryRecvError};
 
@@ -35,7 +35,7 @@ impl MoveRun {
 #[cfg(test)]
 pub(crate) fn stalled(app: &mut LightcraftApp) -> (std::sync::mpsc::Sender<MoveOutcome>, lightcraft_engine::activity::TaskGuard) {
     let (tx, rx) = std::sync::mpsc::channel();
-    let guard = app.session.activity.start("move", "Moving photos", lightcraft_engine::activity::Cancel::No);
+    let guard = app.session.activity.start("move", "Moving photos", lightcraft_engine::activity::Cancel::Yes);
     app.move_run = Some(MoveRun {
         rx,
         finish: None,
@@ -55,7 +55,8 @@ fn name_of(path: &str) -> String {
 
 /// Start moving photos into a folder on disk: `params` as `photo.moveToFolder` takes them
 /// (`{folder, ids?}`; the selection by default). Returns at once: `{background: true, files}`
-/// while it runs, or `{moved: 0, folder}` when every photo is there already (said in a toast). An error when the move can't begin (Local photos, another move
+/// while it runs, or `{moved: 0, of: 0, folder, stopped: false}` when every photo is there
+/// already (said in a toast). An error when the move can't begin (Local photos, another move
 /// running…), also logged, shown in the status line as `LightcraftApp::run` does, and told in an error toast
 /// (a menu, key or button caller drops the returned error, so the toast is what tells the person why nothing moved).
 pub fn start(app: &mut LightcraftApp, ctx: &egui::Context, params: &Value) -> Result<Value, String> {
@@ -70,10 +71,10 @@ fn start_inner(app: &mut LightcraftApp, ctx: &egui::Context, params: &Value) -> 
     let raw = params.get("folder").and_then(Value::as_str).unwrap_or_default();
     let path = raw.trim_end_matches(['/', '\\']).to_string();
     let name = name_of(raw);
-    let started = lightcraft_engine::move_job::start(&mut app.session, params).map_err(|e| e.to_string())?;
+    let started = lightcraft_engine::move_job::start(&mut app.session, params, true).map_err(|e| e.to_string())?;
     let Some((work, finish)) = started else {
         app.toast(ctx, crate::panels::left::moved_text(0, &name));
-        return Ok(json!({"moved": 0, "folder": path}));
+        return Ok(json!({"moved": 0, "of": 0, "folder": path, "stopped": false}));
     };
     let files = finish.files();
     let (tx, rx) = std::sync::mpsc::channel();
@@ -138,13 +139,31 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
         sel.active = sel.ids.first().copied();
     }
     match &result {
-        Ok(r) => app.toast(ctx, crate::panels::left::moved_text(r["moved"].as_u64().unwrap_or(0), &run.name)),
+        Ok(r) => {
+            let moved = r["moved"].as_u64().unwrap_or(0);
+            let of = r["of"].as_u64().unwrap_or(moved);
+            let text = if r["stopped"].as_bool() == Some(true) {
+                stopped_text(moved, of, &run.name)
+            } else {
+                crate::panels::left::moved_text(moved, &run.name)
+            };
+            app.toast(ctx, text);
+        }
         Err(e) => app.toast_for(ctx, e.clone(), 12.0),
     }
     app.last_move = Some(match result {
         Ok(r) => r,
         Err(e) => json!({"error": e, "folder": run.folder}),
     });
+}
+
+/// What a move stopped part-way says.
+pub(crate) fn stopped_text(moved: u64, of: u64, name: &str) -> String {
+    if moved == 0 {
+        crate::i18n::tr("Stopped: no photo was moved").to_string()
+    } else {
+        crate::i18n::tr_format!("Stopped: moved {} of {} photos to “{}”. Edit → Undo moves them back.", moved, of, name)
+    }
 }
 
 /// Wait for a running move and bring the library along (tests, and commands asked to wait).

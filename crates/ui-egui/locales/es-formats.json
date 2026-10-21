@@ -304,5 +304,6 @@
   "Could not read {name}: {e}": "No se pudo leer {name}: {e}",
   "Added {n} photo{}": "{n} foto{0} añadida{0}",
   "Where should the Lightroom catalog “{catalog}” go?": "¿Dónde debe ir el catálogo de Lightroom “{catalog}”?",
-  "Merge into the open library “{library}” ({count} photo{})": "Combinar con la biblioteca abierta “{library}” ({count} foto{})"
+  "Merge into the open library “{library}” ({count} photo{})": "Combinar con la biblioteca abierta “{library}” ({count} foto{})",
+  "Stopped: moved {} of {} photos to “{}”. Edit → Undo moves them back.": "Detenido: {0} de {1} fotos movidas a “{2}”. Editar → Deshacer las devuelve."
 }

@@ -358,16 +358,16 @@ fn a_question_left_open_while_another_library_opens_moves_nothing() {
 }
 
 #[test]
-fn a_background_move_shows_its_progress_and_holds_back_other_moves_until_it_ends() {
+fn a_background_move_has_a_cancellable_row_and_holds_back_other_moves_until_it_ends() {
     let (root, trip, home) = folders("background");
     let mut h = app(&[(trip.join("beach.png"), false), (home.join("garden.png"), false)]);
     let (beach, garden) = (id_of(&h, "beach.png"), id_of(&h, "garden.png"));
     // When an agent asks for the move in the background, the call comes back at once
     let r = h.app.run("photo.moveToFolder", json!({"ids": [beach], "folder": home.to_string_lossy(), "background": true})).unwrap();
     assert_eq!(r, json!({"background": true, "files": 1}));
-    // Then the activity stack shows it, with how far it has got and no ✕ (it can't be stopped)
+    // Then the activity stack shows it, with ✕
     let row = h.app.session.activity.list().into_iter().find(|t| t.kind == "move").expect("a row for the move");
-    assert_eq!((row.label.as_str(), row.total, row.cancellable), ("Moving photos", 1, false));
+    assert_eq!((row.label.as_str(), row.total, row.cancellable), ("Moving photos", 1, true));
     let inspect = crate::control::inspect(&h.app, &h.view.ctx);
     assert_eq!(inspect["move"]["running"]["files"], 1, "{}", inspect["move"]);
     // and, until it ends, another move waits for it, and Quit asks first
@@ -393,7 +393,7 @@ fn a_background_move_shows_its_progress_and_holds_back_other_moves_until_it_ends
     assert!(toast(&h).starts_with("Moved 1 photo to “home”."), "{}", toast(&h));
     let inspect = crate::control::inspect(&h.app, &h.view.ctx);
     assert_eq!(inspect["move"]["running"], serde_json::Value::Null);
-    assert_eq!(inspect["move"]["last"], json!({"moved": 1, "folder": home.to_string_lossy()}));
+    assert_eq!(inspect["move"]["last"], json!({"moved": 1, "of": 1, "folder": home.to_string_lossy(), "stopped": false}));
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -447,7 +447,7 @@ fn a_move_refused_when_the_question_is_answered_stays_up_as_long_as_an_error() {
     assert!(matches!(h.app.ui.dialog, Some(crate::state::Dialog::MovePhotos { .. })), "{:?}", h.app.ui.dialog);
     // another move starts while the question is up: the answer is refused
     // (started on the engine and never run: it holds the library as a move on a worker would)
-    let _held = lightcraft_engine::move_job::start(&mut h.app.session, &json!({"ids": [dunes], "folder": home.to_string_lossy()})).unwrap();
+    let _held = lightcraft_engine::move_job::start(&mut h.app.session, &json!({"ids": [dunes], "folder": home.to_string_lossy()}), true).unwrap();
     h.app.ui.toast = None;
     click(&mut h, "button:dialogOk");
     let (text, until, _) = h.app.ui.toast.clone().expect("the refusal is told");
@@ -458,21 +458,36 @@ fn a_move_refused_when_the_question_is_answered_stays_up_as_long_as_an_error() {
 }
 
 #[test]
-fn quit_anyway_quits_while_a_move_without_a_stop_button_runs() {
-    let (root, _trip, _home) = folders("quit");
+fn a_stopped_move_says_how_far_it_got() {
+    assert_eq!(crate::move_task::stopped_text(0, 3, "home"), "Stopped: no photo was moved");
+    assert_eq!(crate::move_task::stopped_text(2, 6, "Porto"), "Stopped: moved 2 of 6 photos to “Porto”. Edit → Undo moves them back.");
+}
+
+/// ✕ stops a move after the file in hand, and the library follows the files that moved only when the worker
+/// ends: Quit asks until then (Quit Anyway quits, Cancel keeps working and the next Quit asks again).
+#[test]
+fn quit_asks_while_a_stopped_move_finishes_its_file() {
+    let (root, _trip, _home) = folders("quit-stopping");
     let mut h = app(&[]);
-    let _stalled = crate::move_task::stalled(&mut h.app);
-    assert!(!crate::panels::notices::may_close(&mut h.app), "Quit asks while the move runs");
-    for _ in 0..3 {
-        h.step();
-    }
-    assert!(h.app.widgets.iter().any(|(w, _)| w == "button:quitAnyway"), "the prompt is shown");
-    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:quitAnyway"}), std::time::Duration::from_secs(10))["ok"], true);
-    assert!(h.quit_requested(), "Quit Anyway quits instead of asking again");
+    let (_tx, guard) = crate::move_task::stalled(&mut h.app);
+    h.app.session.activity.cancel(guard.id()).unwrap();
+    assert!(h.app.session.activity.running_cancellable().is_empty(), "the row is stopping");
+    assert!(!crate::panels::notices::may_close(&mut h.app), "Quit asks while the stopped move finishes its file");
+    assert!(format!("{:?}", h.app.quit_prompt).contains("1 task is still running: Moving photos."), "listed once: {:?}", h.app.quit_prompt);
+    let click = |h: &mut crate::headless::Headless, id: &str| {
+        for _ in 0..3 {
+            h.step();
+        }
+        assert!(h.app.widgets.iter().any(|(w, _)| w == id), "{id} is shown");
+        assert_eq!(h.request("ui.clickWidget", json!({"id": id}), std::time::Duration::from_secs(10))["ok"], true);
+    };
     // Cancel keeps working, and the next quit asks again
-    h.app.ui.quit = false;
-    h.app.quit_cuts_move = false;
-    assert!(!crate::panels::notices::may_close(&mut h.app));
+    click(&mut h, "button:quitCancel");
+    assert!(!h.quit_requested());
+    assert!(!h.app.quit_cuts_move);
+    assert!(!crate::panels::notices::may_close(&mut h.app), "the next Quit asks again");
+    click(&mut h, "button:quitAnyway");
+    assert!(h.quit_requested(), "Quit Anyway quits instead of asking again");
     let _ = std::fs::remove_dir_all(&root);
 }
 

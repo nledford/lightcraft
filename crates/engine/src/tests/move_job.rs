@@ -1,17 +1,21 @@
 //! Moving photos to another folder as a job the app runs off the UI thread (`move_job`):
 //!
-//! * the activity row shows how far it has got;
+//! * the activity row shows how far it has got, and its ✕ stops the move after the file in hand:
+//!   the photos that moved stay moved (one undo step brings them back), the rest stay where they
+//!   were;
 //! * while a move runs, nothing else moves files or opens another library, and the moving photos'
 //!   sidecars are written once they arrive, at the new place;
 //! * the checks that read the disk refuse on the worker, before anything moves;
 //! * a worker that dies leaves the library following the files that had arrived.
 
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 use lightcraft_catalog::{Op, Photo, PhotoId, Source};
 use serde_json::{Value, json};
 
 use crate::Session;
+use crate::rename::{MoveFs, RealFs};
 
 /// A scratch folder with a library, `local/` and `share/`, gone with the test.
 struct Scratch(PathBuf);
@@ -73,9 +77,9 @@ fn the_activity_row_shows_progress_and_the_move_is_one_undo_step() {
     std::fs::write(dir.path("local/a.xmp"), "<edits/>").unwrap();
     let b = add(&mut s, &dir.path("local/b.jpg"), "B");
     let steps = s.undo.len();
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     let row = s.activity.list().into_iter().find(|t| t.kind == "move").unwrap();
-    assert_eq!((row.label.as_str(), row.done, row.total, row.cancellable), ("Moving photos", 0, 2, false));
+    assert_eq!((row.label.as_str(), row.done, row.total, row.cancellable), ("Moving photos", 0, 2, true));
     // the files move while the session isn't asked for anything; the row has caught up when they are done
     let out = work.run();
     let row = s.activity.list().into_iter().find(|t| t.kind == "move").unwrap();
@@ -83,7 +87,7 @@ fn the_activity_row_shows_progress_and_the_move_is_one_undo_step() {
     // the library only follows when the session finishes the move
     assert_eq!(file_of(&s, a), dir.path("local/a.jpg"));
     let r = s.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).unwrap();
-    assert_eq!(r, json!({"moved": 2, "folder": dir.path("share")}));
+    assert_eq!(r, json!({"moved": 2, "of": 2, "folder": dir.path("share"), "stopped": false}));
     assert_eq!(file_of(&s, a), dir.path("share/a.jpg"));
     assert_eq!(file_of(&s, b), dir.path("share/b.jpg"));
     assert!(Path::new(&dir.path("share/a.xmp")).is_file() && !Path::new(&dir.path("local/a.xmp")).exists(), "the sidecar goes along");
@@ -96,6 +100,98 @@ fn the_activity_row_shows_progress_and_the_move_is_one_undo_step() {
     assert!(Path::new(&dir.path("local/a.xmp")).is_file() && Path::new(&dir.path("local/b.jpg")).is_file());
 }
 
+/// The disk, stopping the move (its activity row's ✕) once `after` photo files have moved.
+struct StopAfter<'a> {
+    s: &'a crate::activity::Activity,
+    task: u64,
+    after: Cell<usize>,
+}
+
+impl MoveFs for StopAfter<'_> {
+    fn exists(&self, p: &Path) -> bool {
+        RealFs.exists(p)
+    }
+    fn is_file(&self, p: &Path) -> bool {
+        RealFs.is_file(p)
+    }
+    fn same_file(&self, a: &Path, b: &Path) -> bool {
+        RealFs.same_file(a, b)
+    }
+    fn rename_no_replace(&self, a: &Path, b: &Path) -> std::io::Result<()> {
+        RealFs.rename_no_replace(a, b)?;
+        if a.extension().is_some_and(|x| x == "jpg") {
+            let left = self.after.get().saturating_sub(1);
+            self.after.set(left);
+            if left == 0 {
+                self.s.cancel(self.task).unwrap();
+            }
+        }
+        Ok(())
+    }
+    fn copy_no_replace(&self, a: &Path, b: &Path) -> std::io::Result<()> {
+        RealFs.copy_no_replace(a, b)
+    }
+    fn remove_file(&self, p: &Path) -> std::io::Result<()> {
+        RealFs.remove_file(p)
+    }
+    fn stem_sibling(&self, sidecar: &Path) -> Option<String> {
+        RealFs.stem_sibling(sidecar)
+    }
+}
+
+#[test]
+fn a_stopped_move_keeps_what_moved_and_one_undo_moves_it_back() {
+    let dir = Scratch::new("stop");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    std::fs::write(dir.path("local/a.xmp"), "<edits/>").unwrap();
+    let b = add(&mut s, &dir.path("local/b.jpg"), "B");
+    let c = add(&mut s, &dir.path("local/c.jpg"), "C");
+    let steps = s.undo.len();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0, c.0], "folder": dir.path("share")}), true).unwrap().unwrap();
+    let row = s.activity.list().into_iter().find(|t| t.kind == "move").unwrap();
+    assert!(row.cancellable, "the row has ✕");
+    let activity = s.activity.clone();
+    let out = work.run_with(&StopAfter { s: &activity, task: finish.task_id(), after: Cell::new(2) });
+    let r = s.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).unwrap();
+    assert_eq!(r, json!({"moved": 2, "of": 3, "folder": dir.path("share"), "stopped": true}));
+    // the two that moved point at the share, with a's sidecar; c never left
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"));
+    assert_eq!(file_of(&s, b), dir.path("share/b.jpg"));
+    assert_eq!(file_of(&s, c), dir.path("local/c.jpg"));
+    assert!(Path::new(&dir.path("share/a.xmp")).is_file() && !Path::new(&dir.path("local/a.xmp")).exists());
+    assert!(Path::new(&dir.path("local/c.jpg")).is_file() && !Path::new(&dir.path("share/c.jpg")).exists());
+    assert!(s.activity.list().is_empty(), "the row is gone");
+    assert!(!s.move_running());
+    // one step, for what moved
+    assert_eq!(s.undo.len(), steps + 1);
+    assert_eq!(s.undo.last().unwrap().label, "Move 2 Photos to “share”");
+    s.execute("edit.undo", &json!({})).unwrap();
+    for (id, f) in [(a, "a"), (b, "b"), (c, "c")] {
+        assert_eq!(file_of(&s, id), dir.path(&format!("local/{f}.jpg")));
+        assert!(Path::new(&file_of(&s, id)).is_file());
+    }
+    assert!(Path::new(&dir.path("local/a.xmp")).is_file());
+}
+
+#[test]
+fn a_move_stopped_before_the_first_file_moves_nothing_and_adds_no_undo_step() {
+    let dir = Scratch::new("stop-first");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let b = add(&mut s, &dir.path("local/b.jpg"), "B");
+    let steps = s.undo.len();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")}), true).unwrap().unwrap();
+    s.activity.cancel(finish.task_id()).unwrap();
+    let out = work.run();
+    let r = s.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).unwrap();
+    assert_eq!(r, json!({"moved": 0, "of": 2, "folder": dir.path("share"), "stopped": true}));
+    assert_eq!(file_of(&s, a), dir.path("local/a.jpg"));
+    assert!(Path::new(&dir.path("local/b.jpg")).is_file() && !Path::new(&dir.path("share/b.jpg")).exists());
+    assert_eq!(s.undo.len(), steps, "nothing moved, nothing to undo");
+    assert!(!s.move_running() && s.activity.list().is_empty());
+}
+
 #[test]
 fn a_running_move_holds_back_other_file_moves_and_another_library() {
     let dir = Scratch::new("busy");
@@ -104,7 +200,7 @@ fn a_running_move_holds_back_other_file_moves_and_another_library() {
     let b = add(&mut s, &dir.path("local/b.jpg"), "B");
     // a step that moved files, to undo while the next move runs
     s.execute("photo.moveToFolder", &json!({"ids": [b.0], "folder": dir.path("share")})).unwrap();
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     assert!(s.move_running());
     let busy = |r: crate::Result<Value>| {
         let e = r.unwrap_err().to_string();
@@ -137,7 +233,7 @@ fn undoing_the_import_of_a_moving_photo_waits_for_the_move() {
     let dir = Scratch::new("busy-remove");
     let mut s = open(&dir);
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     let e = s.execute("edit.undo", &json!({})).unwrap_err().to_string();
     assert_eq!(e, "1 photo is being moved to another folder: wait for the move to finish");
     assert!(s.catalog.photo(a).is_some(), "the photo stays while its file moves");
@@ -166,7 +262,7 @@ fn undoing_a_relink_of_a_moving_photo_waits_for_the_move() {
     })
     .unwrap();
     assert_eq!(file_of(&s, a), to);
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     let e = s.execute("edit.undo", &json!({})).unwrap_err().to_string();
     assert!(e.contains("being moved"), "{e}");
     assert_eq!(file_of(&s, a), to, "the photo keeps pointing at the file that moves");
@@ -182,7 +278,7 @@ fn moving_one(tag: &str) -> (Scratch, Session, PhotoId, crate::move_job::MoveWor
     let dir = Scratch::new(tag);
     let mut s = open(&dir);
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     (dir, s, a, work, finish)
 }
 
@@ -199,7 +295,7 @@ fn delete_permanently_waits_for_the_move_of_the_photos_it_would_remove() {
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
     let b = add(&mut s, &dir.path("local/b.jpg"), "B");
     let c = add(&mut s, &dir.path("local/c.jpg"), "C");
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     s.selection = crate::Selection::single(a);
     let steps = s.undo.len();
     let err = s.execute("photo.deletePermanently", &json!({"ids": [a.0]})).unwrap_err();
@@ -246,7 +342,7 @@ fn the_imports_purge_of_a_trashed_photo_waits_for_its_move() {
     let imported = s.execute("library.import", &json!({"paths": [path]})).unwrap();
     let a = PhotoId(imported["imported"][0].as_u64().unwrap());
     s.execute("photo.delete", &json!({"ids": [a.0]})).unwrap();
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     // importing the same file as new would delete the trashed record its file belongs to
     let e = s.execute("library.import", &json!({"paths": [path], "onDeleted": "fresh"})).unwrap_err().to_string();
     assert_eq!(e, "1 photo is being moved to another folder: wait for the move to finish");
@@ -271,7 +367,7 @@ fn convert_to_dng_waits_for_the_move_of_the_raw() {
         Ok(Value::Null)
     })
     .unwrap();
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     s.selection = crate::Selection::single(a);
     let e = s.execute("photo.convertToDng", &json!({"ids": [a.0]})).unwrap_err().to_string();
     assert!(e.contains("1 photo is being moved to another folder"), "{e}");
@@ -302,7 +398,7 @@ fn a_running_move_refuses_opening_before_touching_the_target() {
     let dir = Scratch::new("busy-open");
     let mut s = open(&dir);
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     // a target that doesn't exist yet: refused without creating its folder or lock file
     let missing = dir.0.join("not-yet");
     let e = s.open_library(&missing, false).map(|_| ()).unwrap_err().to_string();
@@ -327,7 +423,7 @@ fn a_moving_photos_sidecar_is_written_once_it_arrives_where_it_arrives() {
     let mut s = open(&dir);
     s.xmp.auto_write = true;
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     s.selection = crate::Selection::single(a);
     s.execute("photo.rate", &json!({"ids": [a.0], "rating": 4})).unwrap();
     assert_eq!(s.catalog.photo(a).unwrap().rating, 4, "the edit is kept");
@@ -348,7 +444,7 @@ fn a_move_whose_worker_dies_is_followed_and_its_held_sidecars_are_written() {
     s.xmp.auto_write = true;
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
     let b = add(&mut s, &dir.path("local/b.jpg"), "B");
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     s.selection = crate::Selection::single(a);
     s.execute("photo.rate", &json!({"ids": [a.0], "rating": 5})).unwrap();
     // the worker died after the first file, with the second half-copied: no outcome reaches the session
@@ -356,7 +452,7 @@ fn a_move_whose_worker_dies_is_followed_and_its_held_sidecars_are_written() {
     std::fs::write(dir.path("share/b.jpg"), "B (partial)").unwrap();
     drop(work);
     let r = s.execute_fn("photo.moveToFolder", |s| finish.abandon(s)).unwrap();
-    assert_eq!(r, json!({"moved": 1, "folder": dir.path("share")}));
+    assert_eq!(r, json!({"moved": 1, "of": 2, "folder": dir.path("share"), "stopped": true}));
     assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the library follows the file that arrived");
     assert_eq!(file_of(&s, b), dir.path("local/b.jpg"), "and leaves the one that did not");
     let xmp = std::fs::read_to_string(dir.path("share/a.xmp")).expect("the held sidecar is written where the photo is");
@@ -371,7 +467,7 @@ fn checks_that_read_the_disk_refuse_on_the_worker_before_anything_moves() {
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
     let b = add(&mut s, &dir.path("local/b.jpg"), "B");
     // the name is taken after the move was planned: the worker sees it
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     std::fs::write(dir.path("share/b.jpg"), "someone else's").unwrap();
     let out = work.run();
     let e = s.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).unwrap_err().to_string();
@@ -388,7 +484,7 @@ fn held_sidecars_are_not_written_when_auto_write_was_switched_off_during_the_mov
     let mut s = open(&dir);
     s.xmp.auto_write = true;
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")}), true).unwrap().unwrap();
     s.selection = crate::Selection::single(a);
     s.execute("photo.rate", &json!({"ids": [a.0], "rating": 4})).unwrap();
     s.xmp.auto_write = false;

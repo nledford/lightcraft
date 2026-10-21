@@ -2392,5 +2392,6 @@
   "Open a library first, then drop the presets again": "Ouvrez d'abord une bibliothèque, puis déposez à nouveau les préréglages",
   "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :",
   "Moving photos": "Déplacement des photos",
-  "Moving was stopped by an error (see the log). The library follows the files that had moved; an XMP sidecar may have stayed at the old place.": "Une erreur a arrêté le déplacement (voir le journal). La bibliothèque suit les fichiers déjà déplacés ; un fichier annexe XMP peut être resté à l’ancien emplacement."
+  "Moving was stopped by an error (see the log). The library follows the files that had moved; an XMP sidecar may have stayed at the old place.": "Une erreur a arrêté le déplacement (voir le journal). La bibliothèque suit les fichiers déjà déplacés ; un fichier annexe XMP peut être resté à l’ancien emplacement.",
+  "Stopped: no photo was moved": "Arrêté : aucune photo n’a été déplacée"
 }
