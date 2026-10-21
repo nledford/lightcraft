@@ -487,6 +487,8 @@ pub struct LightcraftApp {
     pub activity_open: bool,
     /// `view.tasks` asked for the list to be opened or closed; the top bar does it on its next frame.
     pub(crate) activity_set: Option<bool>,
+    /// The finished task whose failed files the list shows ("Show failed" was clicked).
+    pub(crate) activity_failures: Option<u64>,
 }
 
 impl LightcraftApp {
@@ -566,6 +568,7 @@ impl LightcraftApp {
             library_problem: None,
             activity_open: false,
             activity_set: None,
+            activity_failures: None,
             model_setup: Default::default(),
         }
     }
