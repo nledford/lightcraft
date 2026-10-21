@@ -2329,5 +2329,10 @@
   "cancelled": "peruttu",
   "Imports, exports and other long jobs show here while they run.": "Tuonnit, viennit ja muut pitkät työt näkyvät tässä, kun ne ovat käynnissä.",
   "No tasks are running": "Ei käynnissä olevia tehtäviä",
-  "Tasks": "Tehtävät"
+  "Tasks": "Tehtävät",
+  "Copy all": "Kopioi kaikki",
+  "Dismiss": "Hylkää",
+  "Finished": "Valmistuneet",
+  "Needs attention": "Vaatii huomiota",
+  "Running": "Käynnissä"
 }

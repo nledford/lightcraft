@@ -10,6 +10,16 @@ tooltip. A click on the bell or the line opens
 the list (Window ▸ Tasks, `view.tasks`): each task has a row with its name, a progress bar, the count and what it's
 working on, and ✕ if it can stop, the task started last at the top. "No tasks are running" when none is. Esc, a click
 elsewhere or a dialog closes it. Nothing floats over the panels: the list covers them only while it is open.
+A task that says how it ended stays in the list after it: what it did ("Exported 4,963 of 5,000 photos"), what else
+needs reading and how long it took, "Show failed (37)" for the files it could not do, each with its reason (the
+first five in the row, all that were kept through Copy all, with a line saying how many more there were), and "Show
+in Finder" (Explorer, File Manager) for one of the files it made. It stays until its ✕ or "Clear all" lets go of it,
+for this session. The toast that says how a job went still shows, as before: the row is what stays after it. A clean
+end leaves a row only when the task ran 10 s or more (a shorter one was watched to its end); one that did not go
+well always does: done with problems, failed, stopped, or stopped unexpectedly (its worker died). Those come first
+in the list, under "Needs attention", and put a mark on the bell until they are dismissed. With nothing running, a
+task that just ended is named beside the bell for a few seconds. Which jobs report this way is listed under "Say
+how it ended" below.
 Quitting asks first while a task that can stop is running. Agents see the same list through `activity.list` /
 `activity.cancel`, and `ui.inspect` reports it as `activity` (and whether the list is open as `activityOpen`); the tasks that ended and left a row are `activity.finished` / `activity.dismiss` and `activityFinished`.
 
@@ -94,3 +104,5 @@ the bell), and its row is on screen only while the list is open: tests that clic
 (`view.tasks` with `{"show": true}`, or a click on `icon:bell`) and wait for `activity:cancel:<id>`.
 For a job that reports how it ended, assert `session.activity.finished()` (ending, summary, failures);
 `session.activity.keep_after(0)` keeps a clean end's row however short the test's job.
+Ended rows are `activity:done:<id>` with `activity:dismiss:<id>`, `activity:failures:<id>`, `activity:copy:<id>` and
+`activity:reveal:<id>`; `activity:clear` is Clear all and `activity:attention` the mark on the bell.

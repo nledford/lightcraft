@@ -2341,5 +2341,10 @@
   "cancelled": "dibatalkan",
   "Imports, exports and other long jobs show here while they run.": "Impor, ekspor, dan tugas panjang lainnya ditampilkan di sini selama berjalan.",
   "No tasks are running": "Tidak ada tugas yang berjalan",
-  "Tasks": "Tugas"
+  "Tasks": "Tugas",
+  "Copy all": "Salin semua",
+  "Dismiss": "Abaikan",
+  "Finished": "Selesai",
+  "Needs attention": "Perlu perhatian",
+  "Running": "Berjalan"
 }

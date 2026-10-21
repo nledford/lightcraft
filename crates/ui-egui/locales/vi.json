@@ -2237,5 +2237,10 @@
   "cancelled": "đã hủy",
   "Imports, exports and other long jobs show here while they run.": "Nhập, xuất và các tác vụ dài khác hiển thị tại đây khi đang chạy.",
   "No tasks are running": "Không có tác vụ nào đang chạy",
-  "Tasks": "Tác vụ"
+  "Tasks": "Tác vụ",
+  "Copy all": "Sao chép tất cả",
+  "Dismiss": "Bỏ qua",
+  "Finished": "Đã xong",
+  "Needs attention": "Cần chú ý",
+  "Running": "Đang chạy"
 }

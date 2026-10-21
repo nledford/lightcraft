@@ -348,6 +348,8 @@ pub struct LightcraftApp {
     pub activity_open: bool,
     /// `view.tasks` asked for the list to be opened or closed; the top bar does it on its next frame.
     pub(crate) activity_set: Option<bool>,
+    /// The finished task whose failed files the list shows ("Show failed" was clicked).
+    pub(crate) activity_failures: Option<u64>,
 }
 
 /// How long a screenshot waits for in-flight renders before it is captured anyway (and the

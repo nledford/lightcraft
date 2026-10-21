@@ -146,6 +146,24 @@ pub struct Finished {
     pub age_ms: u64,
 }
 
+impl Finished {
+    fn clone_without_failures(&self) -> Finished {
+        Finished {
+            id: self.id,
+            kind: self.kind,
+            label: self.label.clone(),
+            ending: self.ending,
+            summary: self.summary.clone(),
+            detail: self.detail.clone(),
+            failures: Vec::new(),
+            failed: self.failed,
+            path: self.path.clone(),
+            ran_ms: self.ran_ms,
+            age_ms: self.age_ms,
+        }
+    }
+}
+
 struct Kept {
     row: Finished,
     ended: web_time::Instant,
@@ -329,6 +347,13 @@ impl Activity {
         lock(&self.inner.finished).iter().rev().map(|k| Finished { age_ms: millis(k.ended.elapsed()), ..k.row.clone() }).collect()
     }
 
+    /// The task that ended last, without its failed files: cheap enough to ask for every frame.
+    pub fn last_finished(&self) -> Option<Finished> {
+        let finished = lock(&self.inner.finished);
+        let k = finished.last()?;
+        Some(Finished { age_ms: millis(k.ended.elapsed()), failures: Vec::new(), ..k.row.clone_without_failures() })
+    }
+
     /// Let go of the row of the ended task `id`. An unknown id (it may have been dismissed already) is an error.
     pub fn dismiss(&self, id: u64) -> Result<(), String> {
         let mut finished = lock(&self.inner.finished);
@@ -343,6 +368,12 @@ impl Activity {
         let n = finished.len();
         finished.clear();
         n
+    }
+
+    /// How many tasks that did not end well (or were stopped) still have their row: they ask for attention until
+    /// they are dismissed.
+    pub fn problems(&self) -> usize {
+        lock(&self.inner.finished).iter().filter(|k| k.row.ending.needs_attention()).count()
     }
 
     /// How long a task has to run for a clean end to leave a row ([`KEEP_AFTER_MS`] unless set).
@@ -531,11 +562,6 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    /// How many ended tasks did not end well.
-    fn problems(a: &Activity) -> usize {
-        a.finished().iter().filter(|f| f.ending.needs_attention()).count()
-    }
-
     #[test]
     fn an_outcome_about_a_job_names_it_and_keeps_the_reason() {
         assert_eq!(Outcome::default().about("Model A").detail, "Model A");
@@ -571,9 +597,9 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!((rows[0].id, rows[0].kind, rows[0].ending, rows[0].summary.as_str()), (id, "export", Ending::Done, "Exported 5,000 photos"));
         assert_eq!(rows[0].path.as_deref(), Some("/out/a.jpg"));
-        assert_eq!(a.finished().first().map(|f| (f.id, f.summary.clone())), Some((id, "Exported 5,000 photos".to_string())));
+        assert_eq!(a.last_finished().map(|f| (f.id, f.summary)), Some((id, "Exported 5,000 photos".to_string())));
         // And a clean end asks for nobody's attention
-        assert_eq!(problems(&a), 0);
+        assert_eq!(a.problems(), 0);
     }
 
     #[test]
@@ -582,16 +608,16 @@ mod tests {
         for (ending, n) in [(Ending::Problems, 1), (Ending::Failed, 2), (Ending::Stopped, 3)] {
             let g = a.start("import", "Importing", Cancel::Yes);
             assert!(g.finish(Outcome { ending, ..Default::default() }), "{ending:?} is kept however short the task");
-            assert_eq!(problems(&a), n);
+            assert_eq!(a.problems(), n);
         }
         // newest first
         let rows = a.finished();
         assert_eq!(rows.iter().map(|f| f.ending).collect::<Vec<_>>(), vec![Ending::Stopped, Ending::Failed, Ending::Problems]);
         // each asks until it is dismissed, not until it has been looked at
         a.dismiss(rows[1].id).unwrap();
-        assert_eq!(problems(&a), 2);
+        assert_eq!(a.problems(), 2);
         a.dismiss_all();
-        assert_eq!(problems(&a), 0);
+        assert_eq!(a.problems(), 0);
     }
 
     #[test]
@@ -633,6 +659,7 @@ mod tests {
         assert_eq!((row.failed, row.failures.len()), (MAX_FAILURES + 40, MAX_FAILURES), "all counted, the first kept");
         assert_eq!((row.summary.chars().count(), row.detail.chars().count()), (MAX_SENTENCE, MAX_SENTENCE));
         assert_eq!(row.path.as_ref().map(|p| p.chars().count()), Some(MAX_PATH));
+        assert!(a.last_finished().is_some_and(|f| f.failures.is_empty() && f.failed == MAX_FAILURES + 40), "the cheap look leaves the files out");
         // a job that only counts what failed (an import) is believed
         let counted = a.start("import", "Importing", Cancel::Yes);
         counted.finish(Outcome { ending: Ending::Problems, failed: 3, ..Default::default() });
@@ -667,7 +694,7 @@ mod tests {
         let rows = a.finished();
         assert_eq!(rows.len(), 1);
         assert_eq!((rows[0].kind, rows[0].label.as_str(), rows[0].ending), ("previews", "Building previews", Ending::Died));
-        assert_eq!(problems(&a), 1);
+        assert_eq!(a.problems(), 1);
         // a guard that is simply dropped (a job that does not report yet) leaves nothing, as before
         drop(a.start("faces", "Finding faces", Cancel::No));
         assert_eq!(a.finished().len(), 1);
