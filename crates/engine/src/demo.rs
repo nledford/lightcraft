@@ -18,6 +18,28 @@ pub fn load(s: &mut Session) {
     select_first(s);
 }
 
+/// The sample scenes the empty library's welcome shows, as (scene id, title): five landscapes of
+/// different colours (a lake at dawn, dunes, an aurora, lavender, a beach). None of them comes
+/// edited ([`ops`] edits a few others): the one opened is as its thumbnail showed it, and the
+/// first slider dragged is the first change.
+pub fn welcome_scenes() -> Vec<(u32, String)> {
+    let scenes = lightcraft_scenes::demo_library();
+    [1u32, 2, 14, 6, 18].iter().filter_map(|id| scenes.iter().find(|s| s.id == *id).map(|s| (s.id, s.name.clone()))).collect()
+}
+
+/// How many sample photos [`ops`] adds.
+pub fn sample_count() -> usize {
+    lightcraft_scenes::demo_library().len()
+}
+
+/// A sample scene drawn small for the welcome (`max_edge` on its long side), as it looks before
+/// any edit. About 25 ms for one at 320 px on all cores: call it off the UI thread.
+pub fn scene_preview(scene: u32, max_edge: usize) -> Option<lightcraft_raster::Rgba8> {
+    let scenes = lightcraft_scenes::demo_library();
+    let s = scenes.iter().find(|s| s.id == scene)?;
+    Some(s.render_fit(max_edge.clamp(16, 1024)).to_srgb8())
+}
+
 /// Select the first photo shown, so there is one to look at.
 pub fn select_first(s: &mut Session) {
     if let Some(first) = s.visible_cloned().first() {

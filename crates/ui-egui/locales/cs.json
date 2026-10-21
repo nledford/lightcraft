@@ -1230,6 +1230,7 @@
   "new keyword": "nové klíčové slovo",
   "Return creates this keyword and gives it to the selected photos": "Klávesou Return vytvoříte toto klíčové slovo a přiřadíte je vybraným fotografiím",
   "Separate several keywords with commas. Return gives them to the selected photos.": "Více klíčových slov oddělte čárkami. Klávesou Return je přiřadíte vybraným fotografiím.",
+  "Albums, dates, folders and keywords appear here as photos arrive": "Alba, data, složky a klíčová slova se tu objeví, jakmile přibudou fotografie",
   "No lens data embedded in this file (DNG lens opcodes only).": "V tomto souboru nejsou vložena data objektivu (pouze operační kódy objektivu DNG).",
   "Export to": "Exportovat do",
   "Specific folder": "Konkrétní složka",

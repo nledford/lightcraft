@@ -2060,6 +2060,7 @@
   "new keyword": "нове ключове слово",
   "Return creates this keyword and gives it to the selected photos": "Клавіша Enter створить це ключове слово й додасть його вибраним фото",
   "Separate several keywords with commas. Return gives them to the selected photos.": "Кілька ключових слів розділяйте комами. Клавіша Enter додасть їх вибраним фото.",
+  "Albums, dates, folders and keywords appear here as photos arrive": "Альбоми, дати, теки та ключові слова з’являться тут, коли буде додано фотографії",
   "No keywords match": "Немає відповідних ключових слів",
   "Keyword Name": "Назва ключового слова",
   "Synonyms": "Синоніми",

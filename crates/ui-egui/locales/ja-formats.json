@@ -47,6 +47,8 @@
   "Move {what} to Recently Deleted?": "{what}を「最近削除した写真」に移動しますか？",
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n}枚を「{1}」に移動しました。編集 → 取り消す で元に戻せます。{0:.0}",
   "Named ({named_n})": "名前付き（{named_n}）",
+  "Open the sample photo “{title}”": "サンプル写真「{title}」を開く",
+  "Or explore LightCraft with {n} sample photos": "または、{n} 枚のサンプル写真で LightCraft を試す",
   "Paste into {n} photo{} — only settings that were copied are pasted": "{n}枚に貼り付け{:.0}（コピーされた設定だけを適用）",
   "Preset: {name}": "プリセット：{name}",
   "Preview only — editing the camera's embedded JPEG ({})": "プレビューのみ：カメラ内蔵のJPEGを編集中（{}）",

@@ -1866,6 +1866,7 @@
   "new keyword": "nouveau mot-clé",
   "Return creates this keyword and gives it to the selected photos": "Entrée crée ce mot-clé et l'attribue aux photos sélectionnées",
   "Separate several keywords with commas. Return gives them to the selected photos.": "Séparez plusieurs mots-clés par des virgules. Entrée les attribue aux photos sélectionnées.",
+  "Albums, dates, folders and keywords appear here as photos arrive": "Les albums, dates, dossiers et mots-clés apparaîtront ici à mesure que les photos arrivent",
   "No keywords match": "Aucun mot-clé ne correspond",
   "Keyword Name": "Nom du mot-clé",
   "Synonyms": "Synonymes",

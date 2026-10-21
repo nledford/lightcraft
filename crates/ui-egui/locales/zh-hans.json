@@ -1870,6 +1870,7 @@
   "new keyword": "新关键字",
   "Return creates this keyword and gives it to the selected photos": "按回车键创建此关键字并添加到所选照片",
   "Separate several keywords with commas. Return gives them to the selected photos.": "用逗号分隔多个关键字。按回车键将它们添加到所选照片。",
+  "Albums, dates, folders and keywords appear here as photos arrive": "添加照片后，相册、日期、文件夹和关键字会显示在这里",
   "No keywords match": "没有匹配的关键字",
   "Keyword Name": "关键字名称",
   "Synonyms": "同义词",

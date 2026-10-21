@@ -28,6 +28,12 @@ fn headless(session: lightcraft_engine::Session) -> Headless {
     h
 }
 
+/// The first of the welcome's sample thumbnails, once drawn (a worker draws them).
+fn first_sample(h: &mut Headless) -> String {
+    h.step_until(T, |h| h.app.widgets.iter().any(|(w, _)| w.starts_with("button:sample:")));
+    h.app.widgets.iter().find(|(w, _)| w.starts_with("button:sample:")).map(|(w, _)| w.clone()).unwrap_or_else(|| panic!("no sample thumbnails"))
+}
+
 fn click(h: &mut Headless, id: &str) {
     assert_eq!(h.request("ui.clickWidget", json!({"id": id}), T)["ok"], true, "{id}");
     h.step();
@@ -67,16 +73,15 @@ fn a_new_library_welcomes_and_offers_the_sample_photos() {
     assert_eq!(empty_library::title(&s, false), "Welcome to LightCraft");
     assert_eq!(empty_library::title(&s, true), "Your library is empty", "a temporary session isn't welcomed");
     let mut h = headless(s);
-    for b in ["button:emptyImportPhotos", "button:emptySamples"] {
-        assert!(has(&h, b), "{b}");
-    }
-    // When the person chooses the sample photos
-    click(&mut h, "button:emptySamples");
+    assert!(has(&h, "button:emptyImportPhotos"));
+    // When the person chooses a sample photo
+    let sample = first_sample(&mut h);
+    click(&mut h, &sample);
     // Then they are in the library, one is selected, and the banner says what they are
     assert!(h.app.session.has_samples());
     assert!(h.app.session.active().is_some());
     assert!(has(&h, "banner:samples"));
-    assert!(!has(&h, "button:emptySamples"));
+    assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("button:sample:")));
 }
 
 #[test]
@@ -137,7 +142,8 @@ fn adding_the_samples_again_brings_the_banner_back() {
     let mut h = Headless::new(a, [1300.0, 900.0], 1.0);
     h.step();
     h.step();
-    click(&mut h, "button:emptySamples");
+    let sample = first_sample(&mut h);
+    click(&mut h, &sample);
     assert!(!h.app.ui.samples_banner_hidden);
     assert!(has(&h, "banner:samples"));
 }
@@ -152,6 +158,7 @@ fn samples_in_recently_deleted_are_not_offered_again() {
     let h = headless(s);
     assert!(has(&h, "button:emptyImportPhotos"));
     assert!(!has(&h, "button:emptySamples"));
+    assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("button:sample:")), "no row of sample photos either");
 }
 
 #[test]

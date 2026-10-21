@@ -1878,6 +1878,7 @@
   "new keyword": "新しいキーワード",
   "Return creates this keyword and gives it to the selected photos": "Return キーでこのキーワードを作成し、選択した写真に付けます",
   "Separate several keywords with commas. Return gives them to the selected photos.": "複数のキーワードはカンマで区切ります。Return キーで選択した写真に付けます。",
+  "Albums, dates, folders and keywords appear here as photos arrive": "写真を追加すると、アルバム、日付、フォルダ、キーワードがここに表示されます",
   "No keywords match": "一致するキーワードはありません",
   "Keyword Name": "キーワード名",
   "Synonyms": "同義語",

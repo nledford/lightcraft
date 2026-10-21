@@ -53,6 +53,9 @@ pub struct UiState {
     /// The right panel F8 (`view.rightPanel`) hid, which the next F8 shows again.
     #[serde(skip)]
     pub right_hidden: RightPanel,
+    /// The Tools panel the empty library's welcome put aside, to bring back once photos arrive
+    /// (kept here so quitting while the library is empty doesn't lose it).
+    pub right_before_welcome: Option<RightPanel>,
     /// Widths of the left sidebar and of the right panel in points (dragging their inner edge
     /// resizes them; within [`LEFT_WIDTH`] / [`RIGHT_WIDTH`]).
     pub left_width: f32,
@@ -371,6 +374,7 @@ impl Default for UiState {
             view: ViewMode::Detail,
             left_panel: false,
             samples_banner_hidden: false,
+            right_before_welcome: None,
             left_width: LEFT_WIDTH.default,
             right_width: RIGHT_WIDTH.default,
             right: RightPanel::Edit,

@@ -129,6 +129,9 @@ impl LightcraftApp {
             alt_asks_for_library: false,
             recent_checks: Default::default(),
             samples_present: None,
+            welcome_seen: None,
+            welcome_samples: None,
+            welcome_drawn: false,
             activity_expanded: false,
             model_setup: Default::default(),
         }

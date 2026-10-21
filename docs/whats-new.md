@@ -177,6 +177,22 @@
   Undo brings them back. Screen readers read out the banner's words, and every message (toast) as it appears.
 - A ghost button (the banner's Hide and Keep Them) shows an edge while it is pointed at or pressed.
 
+### The welcome has the window
+- While the library is empty, the welcome is the one thing asking for attention: the Tools panel steps aside (it comes
+  back as it was once photos arrive, an editing tool such as Crop as the Edit panel; opening it meanwhile keeps it
+  open), and the bottom bar's rating, flags and Copy Edit Settings wait until there is a photo to use them on. The grid's
+  photo count, the bottom bar and Detail's empty filmstrip are not drawn, and the sidebar's empty Albums, By Date,
+  Folders and Keywords sections fold into one line ("Albums, dates, folders and keywords appear here as photos
+  arrive"). The welcome is centred below the grid's header and its Filter Bar.
+- The welcome's message reads as a short paragraph: its title in the brightest text, its words at most 540 points wide
+  and wrapped evenly, not one long line over a short one. The other empty states keep their one line, with the brighter title.
+- Under the welcome's buttons, a row of up to five sample photos (all of them unedited; three or four in a narrow
+  window), with "Or explore LightCraft with 24 sample photos" over them: click one to add the samples and open it in
+  Detail, ready to edit (the panel put aside comes back). Where the row doesn't fit, and in the web build, Try Sample
+  Photos is a button as before. A session whose library couldn't be opened offers no Try Sample Photos there (Help ▸ Add
+  Sample Photos still adds them).
+- The welcome's buttons are drawn by the button component: Import Photos… is primary, the others secondary.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around

@@ -1585,6 +1585,7 @@
   "new keyword": "новое ключевое слово",
   "Return creates this keyword and gives it to the selected photos": "Клавиша Enter создаст это ключевое слово и добавит его выбранным фото",
   "Separate several keywords with commas. Return gives them to the selected photos.": "Несколько ключевых слов разделяйте запятыми. Клавиша Enter добавит их выбранным фото.",
+  "Albums, dates, folders and keywords appear here as photos arrive": "Альбомы, даты, папки и ключевые слова появятся здесь, когда будут добавлены фотографии",
   "No keywords match": "Подходящих ключевых слов нет",
   "Keyword Name": "Название ключевого слова",
   "Synonyms": "Синонимы",

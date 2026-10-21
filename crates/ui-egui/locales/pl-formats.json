@@ -294,6 +294,8 @@
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "Dodano scalenie {what} w rozdzielczości {mp}, największej możliwej dla panoramy (pełny rozmiar: {full})",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "Przestrzeń kolorów: Rec. 2020 {curve} (HDR AVIF)",
   "{n} selected photos · {pages} pages": "Zaznaczone zdjęcia: {n} · strony: {pages}",
+  "Open the sample photo “{title}”": "Otwórz przykładowe zdjęcie „{title}”",
+  "Or explore LightCraft with {n} sample photos": "Albo poznaj LightCraft na przykładowych zdjęciach ({n})",
   "Removed {n} sample photos. Edit → Undo brings them back.": "Usunięto przykładowe zdjęcia ({n}). Edytuj → Cofnij je przywróci.",
   "Already in “{}”": "Już w „{}”",
   "Move {n} photo{} to “{}”": "Przenieś do „{1}” — zdjęcia: {n}{0:.0}",

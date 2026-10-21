@@ -64,6 +64,8 @@
   "Move {what} to Recently Deleted?": "Mover {what} para Excluídos recentemente?",
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n} foto{0} movida{0} para “{1}”. Editar → Desfazer as traz de volta.",
   "Named ({named_n})": "Nomeadas ({named_n})",
+  "Open the sample photo “{title}”": "Abrir a foto de exemplo “{title}”",
+  "Or explore LightCraft with {n} sample photos": "Ou explore o LightCraft com {n} fotos de exemplo",
   "Paste into {n} photo{} — only settings that were copied are pasted": "Colar em {n} foto{} — somente os ajustes copiados são colados",
   "Preset: {name}": "Predefinição: {name}",
   "Preview only — editing the camera's embedded JPEG ({})": "Somente pré-visualização — editando o JPEG incorporado da câmera ({})",

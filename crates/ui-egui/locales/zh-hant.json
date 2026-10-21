@@ -1876,6 +1876,7 @@
   "new keyword": "新關鍵字",
   "Return creates this keyword and gives it to the selected photos": "按 Return 鍵建立此關鍵字並加到選取的照片",
   "Separate several keywords with commas. Return gives them to the selected photos.": "以逗號分隔多個關鍵字。按 Return 鍵將它們加到選取的照片。",
+  "Albums, dates, folders and keywords appear here as photos arrive": "加入照片後，相簿、日期、資料夾和關鍵字會顯示在這裡",
   "No keywords match": "沒有符合的關鍵字",
   "Keyword Name": "關鍵字名稱",
   "Synonyms": "同義詞",
