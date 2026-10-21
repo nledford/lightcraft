@@ -1352,6 +1352,8 @@ mod tests_albums_local;
 #[cfg(test)]
 mod tests_backup;
 #[cfg(test)]
+mod tests_backup_list;
+#[cfg(test)]
 mod tests_backup_prune;
 #[cfg(test)]
 mod tests_backup_schedule;
