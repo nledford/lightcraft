@@ -414,18 +414,11 @@ fn a_move_that_finished_as_the_app_exits_is_followed_by_the_library() {
     let mut h = app(&[(trip.join("beach.png"), false), (home.join("garden.png"), false)]);
     let beach = id_of(&h, "beach.png");
     h.app.run("photo.moveToFolder", json!({"ids": [beach], "folder": home.to_string_lossy(), "background": true})).unwrap();
-    // the worker moves the file; no frame runs `poll`, so its result is still waiting
-    let t0 = std::time::Instant::now();
-    while !home.join("beach.png").is_file() {
-        assert!(t0.elapsed() < std::time::Duration::from_secs(20), "the worker moved the file");
-        std::thread::sleep(std::time::Duration::from_millis(2));
-    }
-    // (the exit path never waits: it applies a result that is there; the worker sends it a moment later)
-    while h.app.move_run.is_some() {
-        assert!(t0.elapsed() < std::time::Duration::from_secs(20), "the result arrived");
-        h.app.finish_ready_move();
-        std::thread::sleep(std::time::Duration::from_millis(2));
-    }
+    // no frame runs `poll`: wait until the worker has finished (so its result is sent), then the
+    // exit path gets exactly one look
+    h.app.move_run.as_mut().unwrap().worker.take().unwrap().join().unwrap();
+    assert!(home.join("beach.png").is_file());
+    h.app.finish_ready_move();
     let photo = h.app.session.catalog.photo(lightcraft_catalog::PhotoId(beach)).unwrap();
     assert!(matches!(&photo.source, lightcraft_catalog::Source::File { path } if Path::new(path) == home.join("beach.png")), "{:?}", photo.source);
     assert!(h.app.move_run.is_none());

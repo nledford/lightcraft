@@ -18,6 +18,9 @@ pub struct MoveRun {
     folder: String,
     /// The folder's name, as the toast says it.
     name: String,
+    /// The worker, so a test can wait until it has sent its result.
+    #[cfg(test)]
+    pub(crate) worker: Option<std::thread::JoinHandle<()>>,
 }
 
 impl MoveRun {
@@ -33,7 +36,14 @@ impl MoveRun {
 pub(crate) fn stalled(app: &mut LightcraftApp) -> (std::sync::mpsc::Sender<MoveOutcome>, lightcraft_engine::activity::TaskGuard) {
     let (tx, rx) = std::sync::mpsc::channel();
     let guard = app.session.activity.start("move", "Moving photos", lightcraft_engine::activity::Cancel::No);
-    app.move_run = Some(MoveRun { rx, finish: None, folder: String::new(), name: String::new() });
+    app.move_run = Some(MoveRun {
+        rx,
+        finish: None,
+        folder: String::new(),
+        name: String::new(),
+        #[cfg(test)]
+        worker: None,
+    });
     (tx, guard)
 }
 
@@ -75,10 +85,18 @@ fn start_inner(app: &mut LightcraftApp, ctx: &egui::Context, params: &Value) -> 
         repaint.request_repaint();
     };
     #[cfg(not(target_arch = "wasm32"))]
-    std::thread::Builder::new().name("lc-move".into()).spawn(job).map_err(|e| format!("can't start the move: {e}"))?;
+    #[cfg_attr(not(test), allow(unused_variables))]
+    let worker = std::thread::Builder::new().name("lc-move".into()).spawn(job).map_err(|e| format!("can't start the move: {e}"))?;
     #[cfg(target_arch = "wasm32")]
     job();
-    app.move_run = Some(MoveRun { rx, finish: Some(finish), folder: path, name });
+    app.move_run = Some(MoveRun {
+        rx,
+        finish: Some(finish),
+        folder: path,
+        name,
+        #[cfg(all(test, not(target_arch = "wasm32")))]
+        worker: Some(worker),
+    });
     Ok(json!({"background": true, "files": files}))
 }
 
