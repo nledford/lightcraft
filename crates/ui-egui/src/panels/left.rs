@@ -94,7 +94,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     let _ = app.run("library.source", json!({"kind": id}));
                 }
             }
-            // photos whose files can't be found (checked every few seconds, not every frame)
+            // photos whose files can't be found (the background checks of each file)
             let missing = missing_count(app, ui);
             if (missing > 0 || src == LibrarySource::Missing)
                 && row(app, ui, "missing", Icon::Folder, "Missing Photos", Some(missing), src == LibrarySource::Missing, 0.0).clicked()

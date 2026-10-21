@@ -388,6 +388,18 @@ impl Headless {
         }
     }
 
+    /// Whether the background checks of the library's files (Missing Photos) are done: the list
+    /// of the files, the sweep, what was asked meanwhile and the count of what was found gone. Not part of [`Headless::busy`]: on a
+    /// large library on a share they take minutes, and a snapshot doesn't wait for them. A test
+    /// that needs the Missing Photos row where it will be waits for them.
+    pub fn file_checks_done(&self) -> bool {
+        let files = &self.app.session.media.availability;
+        files.sweeping() == 0
+            && files.pending() == 0
+            && !self.app.caches.files_listing.load(std::sync::atomic::Ordering::Acquire)
+            && !self.app.caches.missing.busy()
+    }
+
     /// Is anything still in progress (renders, file-system checks the sidebar waits for, queued
     /// input)?
     pub fn busy(&self) -> bool {
