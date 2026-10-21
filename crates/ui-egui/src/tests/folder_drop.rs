@@ -407,3 +407,27 @@ fn quit_anyway_quits_while_a_move_without_a_stop_button_runs() {
     assert!(!crate::panels::notices::may_close(&mut h.app));
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_move_that_finished_as_the_app_exits_is_followed_by_the_library() {
+    let (root, trip, home) = folders("exit");
+    let mut h = app(&[(trip.join("beach.png"), false), (home.join("garden.png"), false)]);
+    let beach = id_of(&h, "beach.png");
+    h.app.run("photo.moveToFolder", json!({"ids": [beach], "folder": home.to_string_lossy(), "background": true})).unwrap();
+    // the worker moves the file; no frame runs `poll`, so its result is still waiting
+    let t0 = std::time::Instant::now();
+    while !home.join("beach.png").is_file() {
+        assert!(t0.elapsed() < std::time::Duration::from_secs(20), "the worker moved the file");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    // (the exit path never waits: it applies a result that is there; the worker sends it a moment later)
+    while h.app.move_run.is_some() {
+        assert!(t0.elapsed() < std::time::Duration::from_secs(20), "the result arrived");
+        h.app.finish_ready_move();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    let photo = h.app.session.catalog.photo(lightcraft_catalog::PhotoId(beach)).unwrap();
+    assert!(matches!(&photo.source, lightcraft_catalog::Source::File { path } if Path::new(path) == home.join("beach.png")), "{:?}", photo.source);
+    assert!(h.app.move_run.is_none());
+    let _ = std::fs::remove_dir_all(&root);
+}
