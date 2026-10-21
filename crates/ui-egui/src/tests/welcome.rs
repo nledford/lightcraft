@@ -46,6 +46,20 @@ fn thumbnails_shown(h: &mut Headless) -> bool {
     arrived(h) && h.app.widgets.iter().any(|(w, _)| w.starts_with("button:sample:"))
 }
 
+/// A photo of the person's own comes into the library, and the window shows it.
+fn import_own_photo(h: &mut Headless, tag: &str) {
+    let dir = std::env::temp_dir().join(format!("lc-ui-welcome-{tag}-photo-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let img = lightcraft_raster::Rgba8 { width: 8, height: 8, data: vec![[90, 120, 160, 255]; 64] };
+    let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
+    std::fs::write(dir.join("own.png"), png).unwrap();
+    h.app.session.execute("library.import", &json!({"paths": [dir.join("own.png").to_string_lossy()]})).unwrap();
+    h.step();
+    h.step();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn an_empty_library_puts_the_tools_panel_aside_until_photos_arrive() {
     // Given an empty library opened with the Edit panel out
@@ -53,10 +67,8 @@ fn an_empty_library_puts_the_tools_panel_aside_until_photos_arrive() {
     // Then the welcome has the window: the panel is put aside, remembered
     assert_eq!(h.app.ui.right, RightPanel::None);
     assert_eq!(h.app.ui.right_before_welcome, Some(RightPanel::Edit));
-    // When photos arrive, it is back as it was
-    h.app.run("library.addSamples", json!({})).unwrap();
-    h.step();
-    h.step();
+    // When photos of the person's own arrive (samples open the Edit panel anyway), it is back as it was
+    import_own_photo(&mut h, "aside");
     assert_eq!(h.app.ui.right, RightPanel::Edit);
     assert_eq!(h.app.ui.right_before_welcome, None);
 }
@@ -103,9 +115,8 @@ fn a_panel_opened_and_closed_during_the_welcome_stays_closed() {
     h.step();
     h.app.ui.right = RightPanel::None;
     h.step();
-    h.app.run("library.addSamples", json!({})).unwrap();
-    h.step();
-    h.step();
+    // photos of the person's own arrive (samples instead open the Edit panel, to edit one)
+    import_own_photo(&mut h, "closed");
     assert_eq!(h.app.ui.right, RightPanel::None, "closing it was the person's choice");
 }
 
@@ -179,7 +190,8 @@ fn the_welcome_shows_sample_photos_that_open_the_one_clicked() {
     let mut h = headless(library("strip"), [1600.0, 1000.0]);
     assert!(thumbnails_shown(&mut h), "the sample thumbnails render and show");
     assert!(!has(&h, "button:emptySamples"), "the row replaces the button");
-    let id = h.app.widgets.iter().find(|(w, _)| w.starts_with("button:sample:")).map(|(w, _)| w.clone()).unwrap();
+    // (a later one than the first, which adding the samples opens anyway)
+    let id = h.app.widgets.iter().filter(|(w, _)| w.starts_with("button:sample:")).nth(2).map(|(w, _)| w.clone()).unwrap();
     let scene: u32 = id.trim_start_matches("button:sample:").parse().unwrap();
     // When one is clicked
     assert_eq!(h.request("ui.clickWidget", json!({"id": id}), T)["ok"], true);

@@ -309,5 +309,7 @@
   "Merge into the open library “{library}” ({count} photo{})": "Yhdistä avoimeen kirjastoon ”{library}” (kuvia: {count}{:.0})",
   "Removed {n} sample photos. Edit → Undo brings them back.": "Poistetut esimerkkikuvat: {n}. Muokkaa → Kumoa palauttaa ne.",
   "Open the sample photo “{title}”": "Avaa esimerkkikuva ”{title}”",
-  "Or explore LightCraft with {n} sample photos": "Tai tutustu LightCraftiin {n} esimerkkikuvalla"
+  "Or explore LightCraft with {n} sample photos": "Tai tutustu LightCraftiin {n} esimerkkikuvalla",
+  "Press {key} to compare before and after.": "Paina {key} verrataksesi ennen ja jälkeen.",
+  "Press {key} to see it beside the original.": "Paina {key} nähdäksesi sen alkuperäisen vieressä."
 }

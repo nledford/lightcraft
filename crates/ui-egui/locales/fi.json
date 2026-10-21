@@ -2339,5 +2339,9 @@
   "Keep Them": "Säilytä ne",
   "Hide": "Piilota",
   "Albums, dates, folders and keywords appear here as photos arrive": "Albumit, päivämäärät, kansiot ja avainsanat ilmestyvät tähän, kun kuvia saapuu",
-  "or look through a folder without importing it, under Local in the sidebar": "tai selaa kansiota tuomatta sitä, sivupalkin kohdassa Paikallinen"
+  "or look through a folder without importing it, under Local in the sidebar": "tai selaa kansiota tuomatta sitä, sivupalkin kohdassa Paikallinen",
+  "Drag any slider: the original never changes.": "Vedä mitä tahansa liukusäädintä: alkuperäinen ei muutu koskaan.",
+  "That's your first edit.": "Tämä on ensimmäinen muokkauksesi.",
+  "View → Before/After Side by Side shows it beside the original.": "Näytä → Ennen/jälkeen vierekkäin näyttää sen alkuperäisen vieressä.",
+  "The original beside your edit: the file itself never changes.": "Alkuperäinen muokkauksesi vieressä: itse tiedosto ei muutu koskaan."
 }

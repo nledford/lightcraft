@@ -93,7 +93,8 @@ const IMPORT_LIGHTROOM: EmptyAction =
 /// is remembered (in `ui.json` too, so quitting while empty doesn't lose it). Once the welcome
 /// goes (photos arrive, or a folder under Local or Recently Deleted is shown, whose photos can be
 /// edited) it comes back as it was: an editing tool (Crop, Masking…) as the Edit panel, as the
-/// photo it was used on is gone. Only the welcome coming puts it aside: a panel the person opens
+/// photo it was used on is gone. Samples that land from the welcome open the Edit panel instead
+/// ([`land_on_samples`]). Only the welcome coming puts it aside: a panel the person opens
 /// meanwhile is theirs, and so is closing it again.
 pub fn follow(app: &mut LightcraftApp) {
     // the welcome wasn't drawn last frame (another view, a filter's message, photos in): its
@@ -222,18 +223,38 @@ fn strip_height(width: f32) -> f32 {
     strip_layout(width).map_or(0.0, |(_, w)| CAPTION_H + w * 2.0 / 3.0)
 }
 
-/// Add the samples and open the one clicked in Detail, ready to edit (the Tools panel comes back
-/// with the photos).
-fn open_sample(app: &mut LightcraftApp, ctx: &egui::Context, scene: u32) {
-    if let Err(e) = app.run("library.addSamples", json!({})) {
-        app.toast_error(ctx, e);
-        return;
+/// Samples just came into an empty library (the welcome's button or thumbnails, Help ▸ Add
+/// Sample Photos, an agent): open the first of the welcome's in Detail, ready to edit, so every
+/// way in lands in the same place; and note the library it happened in, so the samples banner
+/// invites a first change there.
+pub fn land_on_samples(app: &mut LightcraftApp) {
+    let first = lightcraft_engine::demo::welcome_scenes().first().map(|(id, _)| *id);
+    if let Some(scene) = first {
+        select_sample(app, scene);
     }
+    // the sliders beside it: the banner invites dragging one
+    app.ui.right = RightPanel::Edit;
+    app.samples_landed = Some(app.session.library_generation());
+    app.samples_tour = super::samples::Tour::Invited;
+}
+
+/// Select the sample photo of `scene` and show it in Detail.
+fn select_sample(app: &mut LightcraftApp, scene: u32) {
     let photo = app.session.catalog.photos().find(|p| matches!(p.source, lightcraft_catalog::Source::Demo { scene: s } if s == scene)).map(|p| p.id);
     if let Some(id) = photo {
         app.session.selection = lightcraft_engine::Selection::single(id);
     }
     app.ui.view = ViewMode::Detail;
+}
+
+/// Add the samples and open the one clicked in Detail, ready to edit (with the Edit panel).
+fn open_sample(app: &mut LightcraftApp, ctx: &egui::Context, scene: u32) {
+    if let Err(e) = app.run("library.addSamples", json!({})) {
+        app.toast_error(ctx, e);
+        return;
+    }
+    // (adding them landed on the first: this one was clicked)
+    select_sample(app, scene);
 }
 
 /// The row of sample thumbnails in `area`, under a caption. Returns the scene clicked.

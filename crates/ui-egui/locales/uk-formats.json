@@ -70,6 +70,8 @@
   "The XMP sidecars of {n} photos couldn't be written (is their folder offline?). LightCraft keeps trying.": "Не вдалося записати XMP-файли {n} фото (папка недоступна?). LightCraft продовжує спроби.",
   "Open the sample photo “{title}”": "Відкрити зразок фото «{title}»",
   "Or explore LightCraft with {n} sample photos": "Або спробуйте LightCraft на зразках фото ({n})",
+  "Press {key} to compare before and after.": "Натисніть {key}, щоб порівняти до і після.",
+  "Press {key} to see it beside the original.": "Натисніть {key}, щоб побачити його поруч з оригіналом.",
   "Removed {n} sample photos. Edit → Undo brings them back.": "Вилучено зразків фото: {n}. Редагування → Скасувати поверне їх.",
   "XMP profile \"{profile}\" was not applied for {path}; colors may differ from Lightroom.": "Профіль XMP «{profile}» не застосовано до {path}; кольори можуть відрізнятися від Lightroom.",
   "Lightroom geometry was not preserved for {path}; {mode} will be recalculated.": "Геометрію Lightroom для {path} не збережено; режим {mode} буде перераховано.",

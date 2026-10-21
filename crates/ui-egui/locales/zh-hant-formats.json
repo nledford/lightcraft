@@ -65,6 +65,8 @@
   "Or explore LightCraft with {n} sample photos": "或者用 {n} 張範例照片體驗 LightCraft",
   "Paste into {n} photo{} — only settings that were copied are pasted": "貼上至 {n} 張照片{:.0} — 只貼上已複製的設定",
   "Preset: {name}": "預設集：{name}",
+  "Press {key} to compare before and after.": "按 {key} 比較編輯前後。",
+  "Press {key} to see it beside the original.": "按 {key} 與原始照片並排查看。",
   "Preview only — editing the camera's embedded JPEG ({})": "僅供預覽 — 正在編輯相機內嵌的 JPEG（{}）",
   "Preview only — {}": "僅供預覽 — {}",
   "Profile: {}": "描述檔：{}",

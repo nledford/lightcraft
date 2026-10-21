@@ -297,6 +297,8 @@
   "{n} selected photos · {pages} pages": "Vybrané fotografie: {n} · stránky: {pages}",
   "Open the sample photo “{title}”": "Otevřít ukázkovou fotografii „{title}“",
   "Or explore LightCraft with {n} sample photos": "Nebo si LightCraft vyzkoušejte s ukázkovými fotografiemi ({n})",
+  "Press {key} to compare before and after.": "Stisknutím {key} porovnáte stav před a po.",
+  "Press {key} to see it beside the original.": "Stisknutím {key} ji uvidíte vedle originálu.",
   "Removed {n} sample photos. Edit → Undo brings them back.": "Odebráno ukázkových fotografií: {n}. Úpravy → Zpět je vrátí.",
   "Already in “{}”": "Již v „{}“",
   "Move {n} photo{} to “{}”": "Přesunout do „{1}“ fotografie: {n}{0:.0}",

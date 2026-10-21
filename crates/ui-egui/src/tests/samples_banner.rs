@@ -60,10 +60,10 @@ fn the_band_stands_apart_and_its_words_read_on_it() {
 #[test]
 fn a_long_message_takes_a_second_line_before_it_is_shortened() {
     let wide = landed("wide", 1600.0);
-    let text = samples::message(&wide.app).unwrap_or_default();
-    assert!(text.starts_with("These are sample photos"), "{text}");
+    let text = samples::message(&wide.app, true).unwrap_or_default();
+    assert!(text.starts_with("Drag any slider"), "{text}");
     assert_eq!(banner(&wide).height(), 34.0, "one line where there is room");
-    let narrow = landed("narrow", 520.0);
+    let narrow = landed("narrow", 760.0);
     assert_eq!(banner(&narrow).height(), 50.0, "two lines where there isn't");
 }
 
@@ -71,7 +71,7 @@ fn a_long_message_takes_a_second_line_before_it_is_shortened() {
 fn screen_readers_hear_the_banner_and_toasts_as_they_come() {
     let mut app = LightcraftApp::new(library("live"), Services::default());
     app.run("library.addSamples", json!({})).unwrap();
-    let words = samples::message(&app).unwrap();
+    let words = samples::message(&app, true).unwrap();
     app.canvas_rect = Some(Rect::from_min_size(pos2(0.0, 40.0), vec2(1200.0, 700.0)));
     let ctx = egui::Context::default();
     crate::theme::install_fonts(&ctx);

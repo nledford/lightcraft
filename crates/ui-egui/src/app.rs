@@ -134,6 +134,9 @@ impl LightcraftApp {
             welcome_samples: None,
             welcome_drawn: false,
             welcome_focused: false,
+            samples_landed: None,
+            samples_tour: Default::default(),
+            samples_tour_base: None,
             activity_expanded: false,
             model_setup: Default::default(),
         }
@@ -222,7 +225,13 @@ impl LightcraftApp {
         } else {
             params
         };
+        // samples coming into an empty library, however they are asked for, land on one in Detail
+        // (the welcome showing: not a Local folder or Recently Deleted of an otherwise empty library)
+        let landing = id == "library.addSamples" && panels::empty_library::shown(&self.session);
         let r = self.session.execute(id, &params).map_err(CommandError::from);
+        if r.is_ok() && landing {
+            panels::empty_library::land_on_samples(self);
+        }
         if r.is_ok() && matches!(id, "crop.aspect" | "crop.rotateAspect") {
             self.ui.crop_default_aspect = if id == "crop.aspect" && params.get("aspect").and_then(Value::as_str) == Some("original") {
                 Some(serde_json::json!("original"))

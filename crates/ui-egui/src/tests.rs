@@ -69,6 +69,7 @@ mod rules_editor;
 mod sam_setup;
 mod samples;
 mod samples_banner;
+mod samples_landing;
 mod scroll;
 mod slider_reset;
 mod slideshow;

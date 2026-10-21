@@ -66,6 +66,8 @@
   "The XMP sidecars of {n} photos couldn't be written (is their folder offline?). LightCraft keeps trying.": "No se pudieron escribir los archivos XMP de {n} fotos (¿su carpeta está desconectada?). LightCraft lo sigue intentando.",
   "Open the sample photo “{title}”": "Abrir la foto de muestra «{title}»",
   "Or explore LightCraft with {n} sample photos": "O explora LightCraft con {n} fotos de muestra",
+  "Press {key} to compare before and after.": "Pulsa {key} para comparar el antes y el después.",
+  "Press {key} to see it beside the original.": "Pulsa {key} para verla junto al original.",
   "Removed {n} sample photos. Edit → Undo brings them back.": "Fotos de muestra quitadas: {n}. Editar → Deshacer las recupera.",
   "XMP profile \"{profile}\" was not applied for {path}; colors may differ from Lightroom.": "El perfil XMP \"{profile}\" no se aplicó a {path}; los colores pueden diferir de Lightroom.",
   "Lightroom geometry was not preserved for {path}; {mode} will be recalculated.": "La geometría de Lightroom no se conservó para {path}; {mode} se recalculará.",

@@ -51,6 +51,8 @@
   "Or explore LightCraft with {n} sample photos": "または、{n} 枚のサンプル写真で LightCraft を試す",
   "Paste into {n} photo{} — only settings that were copied are pasted": "{n}枚に貼り付け{:.0}（コピーされた設定だけを適用）",
   "Preset: {name}": "プリセット：{name}",
+  "Press {key} to compare before and after.": "{key} を押すと編集前と編集後を比較できます。",
+  "Press {key} to see it beside the original.": "{key} を押すと元の写真と並べて表示できます。",
   "Preview only — editing the camera's embedded JPEG ({})": "プレビューのみ：カメラ内蔵のJPEGを編集中（{}）",
   "Preview only — {}": "プレビューのみ：{}",
   "Profile: {}": "プロファイル：{}",
