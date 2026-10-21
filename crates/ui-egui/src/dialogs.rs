@@ -475,14 +475,8 @@ fn confirmed(app: &mut LightcraftApp, ctx: &egui::Context, dlg: &mut Dialog) -> 
             crate::panels::grid::toast_skipped(app, ctx, &r);
             closed = true;
         }
-        // a move says how it went, or why nothing moved
-        Ok(r) if matches!(dlg, Dialog::MovePhotos { .. }) => {
-            if let Dialog::MovePhotos { name, .. } = dlg {
-                let text = crate::panels::left::moved_text(r["moved"].as_u64().unwrap_or(0), name);
-                app.toast(ctx, text);
-            }
-            closed = true;
-        }
+        // a move that began says how it went when it ends (`move_task`); one that can't, why now
+        Ok(_) if matches!(dlg, Dialog::MovePhotos { .. }) => closed = true,
         Err(e) if matches!(dlg, Dialog::MovePhotos { .. }) => {
             app.toast(ctx, e);
             closed = true;
