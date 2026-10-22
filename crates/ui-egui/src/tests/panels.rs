@@ -2220,7 +2220,9 @@ fn what_is_shown_is_named_as_its_row_names_it() {
     assert_eq!(said(&h, S::Albums), None);
     exec(&mut h, "library.source", json!({"kind": "all"}));
     exec(&mut h, "library.filter", json!({"date": "2026-01"}));
-    assert_eq!(said(&h, S::ByDate), Some(crate::i18n::date_group_label("2026-01", false)), "not the key");
+    // the month as its row says it ("January", as `date_rows` names it), not the key and not the dated header form
+    assert_eq!(said(&h, S::ByDate), Some(crate::i18n::date_group_label("2026-01", true)), "as the row says it");
+    assert_ne!(said(&h, S::ByDate), Some(crate::i18n::date_group_label("2026-01", false)), "not the longer form the row does not use");
     exec(&mut h, "library.filter", json!({"date": null, "keyword": "travel|lisbon"}));
     assert_eq!(said(&h, S::Keywords).as_deref(), Some("lisbon"), "the keyword's own name, not its path");
     // a keyword of any length (they come from files) is cut to what a panel can show, at once
