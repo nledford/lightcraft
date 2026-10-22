@@ -121,7 +121,7 @@ pub(crate) fn cancel(app: &mut LightcraftApp, id: u64) {
 
 /// What ✕ on `task`'s row is called, for screen readers and its tooltip.
 pub(crate) fn cross_name(task: &TaskInfo) -> String {
-    if task.waiting { tr_format!("Remove from Queue: {label}", label = tr(&task.label)) } else { tr("Cancel").to_string() }
+    if task.waiting { tr_format!("Remove from Queue: {label}", label = waiting_name(task)) } else { tr("Cancel").to_string() }
 }
 
 /// One task: name and ✕, the bar, the detail line (a waiting one: name and ✕, when it starts). True when ✕ was clicked.
@@ -168,4 +168,9 @@ pub(crate) fn bar(ui: &mut egui::Ui, task: &TaskInfo, width: f32) -> egui::Respo
     let response = crate::progress::Progress::new(fraction).width(width).dimmed(task.cancelling).show(ui);
     crate::widgets::screen_reader_name(ui.ctx(), response.id, tr(&task.label));
     response
+}
+
+/// A waiting task as the ✕ announces it: its label, and what it is about if it says ("Synchronizing folder: Trip").
+fn waiting_name(task: &TaskInfo) -> String {
+    if task.detail.is_empty() { tr(&task.label).to_string() } else { format!("{}: {}", tr(&task.label), task.detail) }
 }

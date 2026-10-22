@@ -328,5 +328,12 @@
   "…and {n} more": "…a dalších {n}",
   "{n} keywords": "Klíčová slova: {n}",
   "{n} albums": "Alba: {n}",
-  "{n} folders": "Složky: {n}"
+  "{n} folders": "Složky: {n}",
+  "Synchronizing {n} folders one after another: see them under the bell": "Synchronizace složek ({n}) jedné po druhé: najdete je pod zvonkem",
+  "Too many tasks are waiting: only {n} more can wait in line": "Čeká příliš mnoho úloh: do fronty se vejde už jen {n}",
+  "Synchronize {n} Folders…": "Synchronizovat složky ({n})…",
+  "{n} new": "nové: {n}",
+  "{n} moved": "přesunuté: {n}",
+  "{n} missing": "chybějící: {n}",
+  "{n} with changed sidecars": "se změněným přidruženým souborem: {n}"
 }

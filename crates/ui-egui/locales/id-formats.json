@@ -328,5 +328,12 @@
   "…and {n} more": "…dan {n} lagi",
   "{n} keywords": "{n} kata kunci",
   "{n} albums": "{n} album",
-  "{n} folders": "{n} folder"
+  "{n} folders": "{n} folder",
+  "Synchronizing {n} folders one after another: see them under the bell": "Menyinkronkan {n} folder satu per satu: lihat di bawah lonceng",
+  "Too many tasks are waiting: only {n} more can wait in line": "Terlalu banyak tugas menunggu: hanya {n} lagi yang bisa menunggu dalam antrean",
+  "Synchronize {n} Folders…": "Sinkronkan {n} folder…",
+  "{n} new": "{n} baru",
+  "{n} moved": "{n} dipindahkan",
+  "{n} missing": "{n} hilang",
+  "{n} with changed sidecars": "{n} dengan sidecar berubah"
 }

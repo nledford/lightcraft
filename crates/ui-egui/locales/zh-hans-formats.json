@@ -328,5 +328,12 @@
   "…and {n} more": "…以及另外 {n} 个",
   "{n} keywords": "{n} 个关键字",
   "{n} albums": "{n} 个相册",
-  "{n} folders": "{n} 个文件夹"
+  "{n} folders": "{n} 个文件夹",
+  "Synchronizing {n} folders one after another: see them under the bell": "正在依次同步 {n} 个文件夹：可在铃铛下查看",
+  "Too many tasks are waiting: only {n} more can wait in line": "等待的任务过多：队列中只能再加入 {n} 个",
+  "Synchronize {n} Folders…": "同步 {n} 个文件夹…",
+  "{n} new": "新增 {n}",
+  "{n} moved": "已移动 {n}",
+  "{n} missing": "缺失 {n}",
+  "{n} with changed sidecars": "附属文件已更改 {n}"
 }

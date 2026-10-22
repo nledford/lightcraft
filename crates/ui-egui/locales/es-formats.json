@@ -328,5 +328,12 @@
   "…and {n} more": "…y {n} más",
   "{n} keywords": "{n} palabras clave",
   "{n} albums": "{n} álbumes",
-  "{n} folders": "{n} carpetas"
+  "{n} folders": "{n} carpetas",
+  "Synchronizing {n} folders one after another: see them under the bell": "Sincronizando {n} carpetas una tras otra: puedes verlo bajo la campana",
+  "Too many tasks are waiting: only {n} more can wait in line": "Hay demasiadas tareas esperando: solo caben {n} más en la cola",
+  "Synchronize {n} Folders…": "Sincronizar {n} carpetas…",
+  "{n} new": "{n} nuevas",
+  "{n} moved": "{n} movidas",
+  "{n} missing": "{n} que faltan",
+  "{n} with changed sidecars": "{n} con archivo complementario cambiado"
 }

@@ -49,10 +49,13 @@ impl Lane {
 
 /// What a job was asked: the command and its parameters, with everything that depends on the moment (the
 /// selection, the photos in view) written out, so that running it later does the same work.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Request {
     pub command: String,
     pub params: Value,
+    /// What it is about, for its row while it waits (a folder's name…; empty: nothing more than its label). It goes
+    /// with the request, so a task retried says it again.
+    pub subject: String,
 }
 
 /// A task waiting in line ([`Activity::enqueue`]), as [`Activity::take_ready`] hands it over to be started.
@@ -75,7 +78,7 @@ impl Waiting {
             done: 0,
             total: 0,
             unit: Unit::Count,
-            detail: String::new(),
+            detail: capped(&self.request.subject),
             cancellable: true,
             cancelling: false,
             age_ms: millis(self.queued.elapsed()),
@@ -622,7 +625,7 @@ mod tests {
     }
 
     fn request(command: &str) -> Request {
-        Request { command: command.into(), params: serde_json::json!({}) }
+        Request { command: command.into(), params: serde_json::json!({}), ..Default::default() }
     }
 
     #[test]
@@ -715,8 +718,8 @@ mod tests {
     #[test]
     fn each_frontend_starts_only_what_it_can_run_and_no_task_jumps_its_line() {
         let a = Activity::default();
-        let app = |p: u64| Request { command: "app:import".into(), params: serde_json::json!({ "n": p }) };
-        let engine = |p: u64| Request { command: "library.import".into(), params: serde_json::json!({ "n": p }) };
+        let app = |p: u64| Request { command: "app:import".into(), params: serde_json::json!({ "n": p }), ..Default::default() };
+        let engine = |p: u64| Request { command: "library.import".into(), params: serde_json::json!({ "n": p }), ..Default::default() };
         let (first, _) = a.enqueue("import", "Importing", app(1)).unwrap();
         let (second, _) = a.enqueue("import", "Importing", engine(2)).unwrap();
         let (previews, _) = a.enqueue("previews", "Building previews", request("library.buildPreviews")).unwrap();
