@@ -527,8 +527,9 @@ pub(crate) fn shown_in(app: &LightcraftApp, section: SidebarSection) -> Option<S
         }
         SidebarSection::Folders if s.source == LibrarySource::LibraryFolder => s.library_folder.as_deref().map(folder_label),
         SidebarSection::Folders => None,
-        // as their rows say them: "September", not `2026-09`; a keyword's own name, not its path
-        SidebarSection::ByDate => s.filter.date.as_deref().map(|d| crate::i18n::date_group_label(d, true)),
+        // the date in its dated form ("September 2026", as the Date chip and the grid header say it), not `2026-09`:
+        // the year and month rows that give a short label its context are folded away; a keyword by its own name, not its path
+        SidebarSection::ByDate => s.filter.date.as_deref().map(|d| crate::i18n::date_group_label(d, false)),
         SidebarSection::Keywords => s.filter.keyword.as_deref().map(|k| k.rsplit('|').next().unwrap_or(k).to_string()),
     })
 }
