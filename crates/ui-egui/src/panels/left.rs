@@ -140,7 +140,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
             // the folder Show in Folders went to: Folders is shown and opened, and so are the
             // folders above it, also when it was already the one shown and one was folded by hand…
-            if let Some(path) = app.ui.reveal_folder.take() {
+            let reveal_folder = app.ui.reveal_folder.take();
+            if let Some(path) = &reveal_folder {
                 app.ui.sidebar.reveal(SidebarSection::Folders);
                 ui.data_mut(|d| d.remove::<Option<String>>(egui::Id::unique(LIBFOLDER_REVEALED)));
                 // …and the sidebar scrolls to it
@@ -167,7 +168,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     SidebarSection::Folders => {
                         let tree = app.caches.folder_tree(&app.session.catalog);
                         section(app, ui, s, tree.len(), |app, ui| {
-                            reveal_chosen(app, ui, &tree);
+                            reveal_chosen(app, ui, &tree, reveal_folder.is_some());
                             folder_rows(app, ui, &tree, 0.0);
                         })
                     }

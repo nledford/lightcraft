@@ -326,10 +326,10 @@ fn as_opened(ctx: &egui::Context) -> AsOpened {
 /// Whenever the shown folder changes (a click, an agent, a rename or its undo), open the rows
 /// above it so it is on screen; folding one by hand afterwards sticks until the choice changes.
 /// The folder the library opened with is no change: a row above it that was left folded stays
-/// folded.
-pub(super) fn reveal_chosen(app: &mut LightcraftApp, ui: &egui::Ui, tree: &[FolderNode]) {
+/// folded, unless `forced` (Show in Folders asked for it: a choice of now).
+pub(super) fn reveal_chosen(app: &mut LightcraftApp, ui: &egui::Ui, tree: &[FolderNode], forced: bool) {
     let shown = app.session.library_folder.clone().filter(|_| app.session.source == LibrarySource::LibraryFolder);
-    let as_left = shown.is_some() && shown == as_opened(ui.ctx()).folder;
+    let as_left = !forced && shown.is_some() && shown == as_opened(ui.ctx()).folder;
     let chosen = shown.filter(|c| !lightcraft_catalog::query::folder_key(c).is_empty());
     let seen = egui::Id::unique(LIBFOLDER_REVEALED);
     let now = chosen.as_deref().map(lightcraft_catalog::query::folder_key);
