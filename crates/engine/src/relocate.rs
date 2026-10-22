@@ -605,9 +605,9 @@ pub(crate) fn follow_located(s: &mut Session, from: &str, to: &str) {
     }
 }
 
-/// The three parts in one go, on the calling thread, for a caller whose thread is its own to
-/// spend: the `folder.updateLocation` command of the CLI and headless MCP (registered with the
-/// app's part of this feature, which does the looking on a worker thread instead).
+/// `folder.updateLocation` in one go, on the calling thread: the CLI and headless MCP, where
+/// that thread is the caller's own. The app never runs this: it does the looking on a worker
+/// thread, for an agent's call too (see `lightcraft_ui_egui::relocate`).
 pub fn relocate(s: &mut Session, path: &str, to: &str, disk: bool, incomplete: bool) -> Result<Value> {
     let plan = Relocation::new(s, path, to, disk)?;
     let task = s.activity.start("relocate", "Locating folder", crate::activity::Cancel::No);

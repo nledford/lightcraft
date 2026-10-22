@@ -86,21 +86,13 @@ fn files(s: &Session) -> Vec<String> {
     v
 }
 
-/// [`crate::relocate::relocate`] with the parameters named as an agent would give them
-/// (`{folder, path, disk?, incomplete?}`).
-fn update_location(s: &mut Session, params: &Value) -> crate::Result<Value> {
-    let flag = |key: &str| params.get(key).and_then(Value::as_bool).unwrap_or(false);
-    let text = |key: &str| params[key].as_str().unwrap().to_string();
-    crate::relocate::relocate(s, &text("folder"), &text("path"), flag("disk"), flag("incomplete"))
-}
-
 fn relocate(s: &mut Session, from: &str, to: &str) -> Value {
-    update_location(s, &json!({"folder": from, "path": to})).unwrap()
+    s.execute("folder.updateLocation", &json!({"folder": from, "path": to})).unwrap()
 }
 
 fn refused(s: &mut Session, params: Value) -> String {
     let (before, steps) = (files(s), s.undo.len());
-    let e = update_location(s, &params).unwrap_err().to_string();
+    let e = s.execute("folder.updateLocation", &params).unwrap_err().to_string();
     assert_eq!(files(s), before, "a refusal changes nothing");
     assert_eq!(s.undo.len(), steps, "and leaves no undo step");
     e
@@ -190,7 +182,7 @@ fn a_whole_disk_is_located_only_on_request() {
     let e = refused(&mut s, json!({"folder": "D:\\", "path": dir.path("")}));
     assert!(e.contains("disk: true"), "{e}");
 
-    let r = update_location(&mut s, &json!({"folder": "D:\\", "path": dir.path(""), "disk": true})).unwrap();
+    let r = s.execute("folder.updateLocation", &json!({"folder": "D:\\", "path": dir.path(""), "disk": true})).unwrap();
     assert_eq!(r["relinked"], json!(2), "{r}");
     assert_eq!(files(&s), [dir.path("trip/a.png"), dir.path("trip/day1/b.png")]);
 }
@@ -300,7 +292,7 @@ fn a_folder_that_holds_only_some_is_located_only_on_request() {
     let e = refused(&mut s, json!({"folder": dir.path("trip"), "path": now}));
     assert!(e.contains("1 of the 2 files") && e.contains("incomplete: true"), "{e}");
 
-    let r = update_location(&mut s, &json!({"folder": dir.path("trip"), "path": now, "incomplete": true})).unwrap();
+    let r = s.execute("folder.updateLocation", &json!({"folder": dir.path("trip"), "path": now, "incomplete": true})).unwrap();
     assert_eq!((r["relinked"].as_u64(), r["found"].as_u64(), r["notFound"].as_u64()), (Some(2), Some(1), Some(1)), "{r}");
     // the one that isn't there is missing at the new place, where Synchronize Folder finds it
     let missing = s.execute("library.missing", &json!({})).unwrap();
@@ -330,6 +322,8 @@ fn only_a_missing_or_moved_library_folder_and_a_real_folder_are_taken() {
     std::fs::create_dir_all(dir.0.join("empty")).unwrap();
 
     for (params, why) in [
+        (json!({"path": trip}), "missing `folder`"),
+        (json!({"folder": trip}), "missing `path`"),
         (json!({"folder": trip, "path": trip}), "already looks"),
         (json!({"folder": trip, "path": format!("{trip}{}", std::path::MAIN_SEPARATOR)}), "already looks"),
         (json!({"folder": trip, "path": dir.path("nowhere")}), "is not a folder"),
@@ -386,9 +380,11 @@ fn hostile_parameters_are_refused_not_crashed_on() {
     let dir = Scratch::new("hostile");
     let mut s = library(&dir);
     for params in [
+        json!({"folder": 5, "path": []}),
         json!({"folder": "", "path": ""}),
         json!({"folder": "..", "path": "."}),
         json!({"folder": dir.path("trip"), "path": "\0"}),
+        json!({"folder": dir.path("trip"), "path": dir.path("trip"), "incomplete": "yes"}),
         json!({"folder": "\\\\?\\", "path": dir.path("trip"), "disk": true}),
     ] {
         refused(&mut s, params);
@@ -721,7 +717,7 @@ fn a_file_of_another_size_is_not_counted_as_found() {
     );
 
     // on request it is taken: the file was changed where it lies, as files are
-    let r = update_location(&mut s, &json!({"folder": dir.path("trip"), "path": now, "incomplete": true})).unwrap();
+    let r = s.execute("folder.updateLocation", &json!({"folder": dir.path("trip"), "path": now, "incomplete": true})).unwrap();
     assert_eq!(
         (r["relinked"].as_u64(), r["found"].as_u64(), r["different"].as_u64(), r["notFound"].as_u64()),
         (Some(2), Some(1), Some(1), Some(0)),
