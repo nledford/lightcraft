@@ -113,6 +113,15 @@ impl Refusal {
     }
 }
 
+/// What a refused command says to the person: the reason, behind the toast the command made
+/// itself (a partial import report) when there is one. A toast that is the raw error, or holds
+/// the reason already, is not repeated.
+fn refusal_toast(made: Option<String>, refusal: &Refusal) -> String {
+    let Some(made) = made else { return refusal.why.clone() };
+    let made = if refusal.error.is_empty() { made } else { made.replace(&refusal.error, &refusal.why) };
+    if made.to_lowercase().contains(&refusal.why.to_lowercase()) { made } else { format!("{made} · {}", refusal.why) }
+}
+
 /// A sentence starts with a capital, whatever the command wrote. Only when it starts with a word:
 /// a file name or a path ("img_0012.jpg is a virtual copy", "photos/a.jpg: …") is someone's
 /// spelling and stays as it is, and so does a letter whose capital is not one letter (ß).
