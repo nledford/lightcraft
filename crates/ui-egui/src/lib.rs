@@ -27,6 +27,7 @@ pub mod menu_level;
 pub mod menubar;
 pub mod menus;
 pub mod merge;
+mod missing_sweep;
 mod model_setup;
 pub mod panels;
 pub mod pick;
@@ -132,6 +133,8 @@ mod tests_masking;
 mod tests_masking_layout;
 #[cfg(test)]
 mod tests_menubar;
+#[cfg(test)]
+mod tests_missing_sweep;
 #[cfg(test)]
 mod tests_offline;
 #[cfg(test)]
@@ -387,6 +390,9 @@ pub struct LightcraftApp {
     pub copied: Option<String>,
     /// Native file dialogs up for commands (`pick`): each command runs again when its closes.
     pub(crate) pending_picks: Vec<pick::Pending>,
+    /// `library.missing` requests from the control channel and the check that answers them on a
+    /// worker thread ([`missing_sweep`]).
+    pub(crate) missing: missing_sweep::State,
     /// Modifiers announced for synthetic input (held from a button down to its release).
     synthetic_mods: egui::Modifiers,
     /// Clear `synthetic_mods` on the next frame.
@@ -516,6 +522,7 @@ impl LightcraftApp {
             synthetic: vec![],
             copied: None,
             pending_picks: vec![],
+            missing: Default::default(),
             synthetic_mods: egui::Modifiers::NONE,
             synthetic_mods_release: false,
             styled: false,
@@ -937,6 +944,7 @@ impl LightcraftApp {
                 control::Outcome::Done(v) => {
                     let _ = reply.send(v);
                 }
+                control::Outcome::Later => {}
                 control::Outcome::Screenshot { path, headless } => {
                     self.screenshot_token += 1;
                     let now = now_ms();

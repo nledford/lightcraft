@@ -31,6 +31,14 @@
   stay available in All Metadata; PSD edit copies keep their capture date. Original exports with Remove Location Info enabled
   are refused when a PSD or PSB embeds GPS, since LightCraft cannot strip metadata from a byte-for-byte original copy.
 
+### Asking for the missing photos no longer freezes the window
+- `library.missing` (the control channel and `mcp --connect`) looked at every photo's file on the thread that draws
+  the window, so on a library of hundreds of thousands of photos on a network share the app stopped answering for
+  minutes. The files are now checked in the background: a "Missing Photos" row in the activity stack counts them and
+  its ✕ stops the check, and the request is answered with the same list when the check ends. A second request meanwhile
+  shares the running check. A caller that stops waiting (the control server gives a request 60 s) gets the answer of
+  that check when it asks again within ten minutes, instead of another walk of the share.
+
 ## 2026-10-22
 
 ### Reliability
