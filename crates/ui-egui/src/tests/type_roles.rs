@@ -56,11 +56,13 @@ fn the_text_styles_a_control_takes_are_roles() {
     let t = tokens();
     let ctx = egui::Context::default();
     crate::theme::apply_kind(&ctx, ThemeKind::Charcoal);
-    // When a label, a button and small text take their style's font
+    // When a label, a button, small text and a window's title take their style's font
     let style = ctx.global_style();
     let font = |s: egui::TextStyle| style.text_styles.get(&s).cloned();
     // Then each is a named size, in the regular face
     assert_eq!(font(egui::TextStyle::Body), Some(t.body()));
     assert_eq!(font(egui::TextStyle::Button), Some(t.body()));
     assert_eq!(font(egui::TextStyle::Small), Some(t.caption()));
+    // And a window's title is the panel's name, in semibold
+    assert_eq!(font(egui::TextStyle::Heading), Some(t.panel_title_strong()));
 }
