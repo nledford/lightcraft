@@ -77,6 +77,7 @@ mod tallies;
 mod temp_slider;
 mod titlebar;
 mod tool_overlay;
+mod type_roles;
 mod unsaved;
 mod view_cost;
 mod wb_selector;
