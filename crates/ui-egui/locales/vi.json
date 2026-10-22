@@ -2263,5 +2263,14 @@
   "Back up the library before LightCraft quits?": "Sao lưu thư viện trước khi LightCraft thoát?",
   "Backing up before quitting": "Đang sao lưu trước khi thoát",
   "Backing up the library. LightCraft quits when the backup is made.": "Đang sao lưu thư viện. LightCraft sẽ thoát khi bản sao lưu hoàn tất.",
-  "Quit without a backup?": "Thoát mà không sao lưu?"
+  "Quit without a backup?": "Thoát mà không sao lưu?",
+  "Keep backups": "Giữ bản sao lưu",
+  "Forever": "Mãi mãi",
+  "1 month": "1 tháng",
+  "3 months": "3 tháng",
+  "6 months": "6 tháng",
+  "1 year": "1 năm",
+  "Days": "Ngày",
+  "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Các bản sao lưu cũ hơn của thư viện này sẽ bị xóa sau khi tạo bản mới. Ba bản mới nhất luôn được giữ lại.",
+  "Removing old backups": "Đang xóa các bản sao lưu cũ"
 }

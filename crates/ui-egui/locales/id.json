@@ -2367,5 +2367,14 @@
   "Back up the library before LightCraft quits?": "Cadangkan pustaka sebelum LightCraft ditutup?",
   "Backing up before quitting": "Mencadangkan sebelum keluar",
   "Backing up the library. LightCraft quits when the backup is made.": "Mencadangkan pustaka. LightCraft akan keluar setelah pencadangan selesai.",
-  "Quit without a backup?": "Keluar tanpa cadangan?"
+  "Quit without a backup?": "Keluar tanpa cadangan?",
+  "Keep backups": "Simpan cadangan",
+  "Forever": "Selamanya",
+  "1 month": "1 bulan",
+  "3 months": "3 bulan",
+  "6 months": "6 bulan",
+  "1 year": "1 tahun",
+  "Days": "Hari",
+  "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Cadangan pustaka ini yang lebih lama dihapus setelah cadangan baru dibuat. Tiga yang terbaru selalu disimpan.",
+  "Removing old backups": "Menghapus cadangan lama"
 }

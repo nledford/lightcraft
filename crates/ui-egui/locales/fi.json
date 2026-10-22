@@ -2355,5 +2355,14 @@
   "Back up the library before LightCraft quits?": "Varmuuskopioidaanko kirjasto ennen kuin LightCraft sulkeutuu?",
   "Backing up before quitting": "Varmuuskopioidaan ennen lopettamista",
   "Backing up the library. LightCraft quits when the backup is made.": "Kirjastoa varmuuskopioidaan. LightCraft sulkeutuu, kun varmuuskopio on valmis.",
-  "Quit without a backup?": "Lopetetaanko ilman varmuuskopiota?"
+  "Quit without a backup?": "Lopetetaanko ilman varmuuskopiota?",
+  "Keep backups": "Säilytä varmuuskopiot",
+  "Forever": "Ikuisesti",
+  "1 month": "1 kuukausi",
+  "3 months": "3 kuukautta",
+  "6 months": "6 kuukautta",
+  "1 year": "1 vuosi",
+  "Days": "Päivää",
+  "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Tämän kirjaston vanhemmat varmuuskopiot poistetaan uuden varmuuskopion tekemisen jälkeen. Kolme uusinta säilytetään aina.",
+  "Removing old backups": "Poistetaan vanhoja varmuuskopioita"
 }
