@@ -39,7 +39,10 @@ Some jobs must not run side by side: they share a **lane** (`activity::Lane`). T
   requests are the app's (`app:import`, `app:synchronize`): the app starts them (`LightcraftApp::start_waiting`,
   every frame), the engine leaves them alone (`Activity::take_ready_if`). Auto Import waits until nothing runs, rescans
   or waits in this lane. A waiting Synchronize that is still scanning when another library is opened stops without
-  doing anything.
+  doing anything. Synchronize N Folders (several Folders rows) scans its folders one after another under one
+  "Looking for changes" row, then puts one Synchronize per folder with something to do in this line, in the
+  sidebar's order, each acting only on what its scan found; a waiting row names its folder
+  (`Request::subject`, which a Retry keeps).
 
 One asked for while its lane is busy waits in line instead of being refused: its row is
 listed under "Waiting", below the running tasks, saying when it starts ("Starts next", "Starts after 2 more"), with

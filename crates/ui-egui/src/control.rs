@@ -388,7 +388,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
         "ui.dialog.confirm" => match app.ui.dialog.take() {
             Some(d) => {
                 let r = crate::panels::dialogs::confirm_dialog(app, &d);
-                // the import review and the rule editor stay open on an error, as with their buttons
+                // the import review, the rule editor and the folders' Synchronize stay open on an error, as with their buttons
                 if (r.is_err()
                     && matches!(
                         d,
@@ -396,6 +396,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
                             | crate::state::Dialog::SamModel { .. }
                             | crate::state::Dialog::SmartRules { .. }
                             | crate::state::Dialog::SaveEffect { .. }
+                            | crate::state::Dialog::SynchronizeFolders { .. }
                     ))
                     || (r.is_ok() && crate::panels::dialogs::keeps_open(app, &d))
                 {

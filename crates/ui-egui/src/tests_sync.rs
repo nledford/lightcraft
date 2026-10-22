@@ -540,3 +540,175 @@ fn while_the_folder_is_listed_its_row_says_what_was_listed_and_its_bar_moves_on_
     p.checked.store(10, Relaxed);
     assert_eq!(crate::sync::scan_row(&p, "photos/Various"), (10, 64085, "photos/Various".to_string()));
 }
+
+// ---- Synchronize N Folders
+
+/// Which folders Synchronize N Folders goes through: in the sidebar's order as drawn (a folder's insides before the
+/// next folder, whatever the names' characters), each once; a folder inside another chosen one is taken in by it, and
+/// a whole disk is listed but left out, saying why.
+#[test]
+fn several_folders_go_in_the_sidebars_order_without_those_inside_another() {
+    let sidebar = ["/pics", "/pics/2024", "/pics/2024/Jan", "/pics/2024-02", "/pics/Archive", "/pics/home", "/pics/home/garden", "/Volumes/Card"];
+    let chosen = ["/pics/2024-02", "/pics/home/garden", "/pics/2024/Jan", "/pics/home", "/pics/Archive", "/pics/home", "/Volumes/Card"];
+    let (folders, covered) = crate::sync::many_folders(&chosen.map(String::from), &sidebar.map(String::from));
+    let listed: Vec<(&str, bool)> = folders.iter().map(|f| (f.path.as_str(), f.skipped.is_some())).collect();
+    assert_eq!(
+        listed,
+        vec![("/pics/2024/Jan", false), ("/pics/2024-02", false), ("/pics/Archive", false), ("/pics/home", false), ("/Volumes/Card", true)]
+    );
+    assert_eq!(folders[3].name, "pics/home");
+    assert_eq!(covered.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), vec!["/pics/home/garden"]);
+}
+
+/// Given a folder taken in by another chosen one, when that one can't be synchronized after all (it holds disks, its
+/// scan died), then the folder comes back into the dialog right after it, to be scanned itself.
+#[test]
+fn a_folder_taken_in_by_one_that_cant_be_synchronized_comes_back() {
+    let chosen = ["/mnt", "/mnt/card/2024", "/mnt/card/2024/day 1", "/pics"].map(String::from);
+    let (mut folders, mut covered) = crate::sync::many_folders(&chosen, &chosen);
+    assert_eq!(folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), vec!["/mnt", "/pics"]);
+    crate::sync::skip(&mut folders, &mut covered, 0, "holds disks".into());
+    assert_eq!(folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), vec!["/mnt", "/mnt/card/2024", "/pics"]);
+    assert_eq!(covered.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), vec!["/mnt/card/2024/day 1"], "still taken in by 2024");
+}
+
+/// `trip` (c new, b missing), `home` (g new), `still` (unchanged) and `gone` (its folder deleted), all imported.
+fn changed_folders(dir: &Scratch) -> Headless {
+    write_png(&dir.path("trip/a.png"), 1);
+    write_png(&dir.path("trip/b.png"), 2);
+    write_png(&dir.path("home/f.png"), 6);
+    write_png(&dir.path("still/s.png"), 9);
+    write_png(&dir.path("gone/x.png"), 12);
+    let mut session = lightcraft_engine::Session::new().with_fs();
+    let dirs: Vec<String> = ["trip", "home", "still", "gone"].iter().map(|d| dir.path(d)).collect();
+    session.execute("library.import", &json!({"paths": dirs})).unwrap();
+    write_png(&dir.path("trip/c.png"), 3);
+    std::fs::remove_file(dir.path("trip/b.png")).unwrap();
+    write_png(&dir.path("home/g.png"), 7);
+    std::fs::remove_dir_all(dir.path("gone")).unwrap();
+    let app = LightcraftApp::new(session, Services { png: None, ..Default::default() });
+    let mut h = Headless::new(app, [1400.0, 1200.0], 1.0);
+    let r = h.request("ui.set", json!({"view": "photoGrid", "leftPanel": true}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    h
+}
+
+/// Choose `folders` in the sidebar, right-click the first one's row and pick Synchronize N Folders…; wait for the
+/// dialog's scans.
+fn open_many_and_scan(h: &mut Headless, folders: &[String]) {
+    let r = h.request("engine.execute", json!({"command": "library.source", "params": {"kind": "libraryFolder", "paths": folders}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let row = format!("source:libfolder:{}", folders[0]);
+    assert!(h.step_until(T, |h| h.app.widgets.iter().any(|(w, _)| *w == row)), "no row {row}");
+    let c = h.app.widgets.iter().find(|(w, _)| *w == row).map(|(_, r)| r.center()).unwrap();
+    let r = h.request("ui.click", json!({"x": c.x, "y": c.y, "button": "right"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    let r = h.request("ui.clickWidget", json!({"id": "sideMenu:folders:synchronize"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(matches!(h.app.ui.dialog, Some(Dialog::SynchronizeFolders { .. })), "the dialog opens at once: {:?}", h.app.ui.dialog);
+    assert!(h.step_until(T, |h| h.app.ui.dialog.as_ref().is_some_and(crate::sync::many_scanned)), "every folder was scanned");
+}
+
+fn many_folders_of(h: &Headless) -> Vec<crate::state::SyncFolder> {
+    match &h.app.ui.dialog {
+        Some(Dialog::SynchronizeFolders { folders, .. }) => folders.clone(),
+        other => panic!("not the folders' dialog: {other:?}"),
+    }
+}
+
+/// Given four folders chosen in the sidebar (two changed, one unchanged, one gone), when Synchronize 4 Folders… is
+/// picked, then one dialog scans them one after another and says what changed in each; and Synchronize (with Remove
+/// missing ticked) puts the two changed ones in line, in the sidebar's order, each named in its row, and they run one
+/// after another: the new photos come in, the missing one goes, and the unchanged and gone folders are left alone.
+#[test]
+fn several_folders_are_scanned_in_one_dialog_and_synchronized_one_after_another() {
+    let dir = Scratch::new("many");
+    let mut h = changed_folders(&dir);
+    let chosen: Vec<String> = ["trip", "still", "gone", "home"].iter().map(|d| dir.path(d)).collect();
+    open_many_and_scan(&mut h, &chosen);
+    let folders = many_folders_of(&h);
+    let found: Vec<(String, Option<(bool, usize, usize)>)> = folders
+        .iter()
+        .map(|f| (f.path.rsplit('/').next().unwrap_or("").to_string(), f.counts.as_ref().map(|c| (c.offline, c.new, c.missing))))
+        .collect();
+    assert_eq!(
+        found,
+        vec![
+            ("gone".to_string(), Some((true, 0, 0))),
+            ("home".to_string(), Some((false, 1, 0))),
+            ("still".to_string(), Some((false, 0, 0))),
+            ("trip".to_string(), Some((false, 1, 1))),
+        ]
+    );
+    if let Some(Dialog::SynchronizeFolders { remove_missing, .. }) = &mut h.app.ui.dialog {
+        *remove_missing = true;
+    }
+    let dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    let r = crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).expect("it synchronizes");
+    assert_eq!(r["queued"].as_array().map(Vec::len), Some(2), "home and trip only: {r}");
+    let waiting: Vec<(&str, String)> = h.app.session.activity.waiting().iter().map(|t| (t.kind, t.detail.clone())).collect();
+    assert_eq!(waiting, vec![("sync", folders[1].name.clone()), ("sync", folders[3].name.clone())], "in the sidebar's order, named");
+    assert!(h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("2 folders")), "{:?}", h.app.ui.toast);
+    assert!(h.step_until(SETTLE, idle), "both ran");
+    assert_eq!(in_library(&h), vec!["a.png", "c.png", "f.png", "g.png", "s.png", "x.png"], "b went; the gone folder's x stays");
+}
+
+/// Given several folders that were all scanned and are up to date, then the dialog only says so (no choices) and its
+/// one button, Close, starts nothing; confirming it from the control channel answers `upToDate`.
+#[test]
+fn folders_that_are_all_up_to_date_are_only_reported() {
+    let dir = Scratch::new("many-uptodate");
+    write_png(&dir.path("one/a.png"), 1);
+    write_png(&dir.path("two/b.png"), 2);
+    let mut session = lightcraft_engine::Session::new().with_fs();
+    session.execute("library.import", &json!({"paths": [dir.path("one"), dir.path("two")]})).unwrap();
+    let mut h = Headless::new(LightcraftApp::new(session, Services { png: None, ..Default::default() }), [1400.0, 1200.0], 1.0);
+    let r = h.request("ui.set", json!({"view": "photoGrid", "leftPanel": true}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    open_many_and_scan(&mut h, &[dir.path("one"), dir.path("two")]);
+    h.step();
+    assert!(shown(&h, "button:dialogOk"), "one button, to close it");
+    for gone in ["button:dialogCancel", "syncImportNew", "syncRelinkMoved", "syncRemoveMissing", "syncReadMetadata"] {
+        assert!(!shown(&h, gone), "nothing to choose: {gone}");
+    }
+    let r = h.request("ui.dialog.confirm", json!({}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(r["result"]["upToDate"], true, "{r}");
+    assert!(h.app.ui.dialog.is_none() && h.app.session.activity.waiting().is_empty(), "closed, and nothing waits");
+}
+
+/// Given the folders' dialog scanned in one library, when another library is opened before Synchronize, then it does
+/// nothing: the photos it found are the other library's.
+#[test]
+fn the_folders_dialog_acts_only_in_the_library_it_was_opened_in() {
+    let dir = Scratch::new("many-switch");
+    let mut h = changed_folders(&dir);
+    open_many_and_scan(&mut h, &[dir.path("trip"), dir.path("home")]);
+    let dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    h.app.session.open_library(dir.path("other"), false).unwrap();
+    let r = crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg);
+    assert!(r.is_err(), "{r:?}");
+    assert!(h.app.session.activity.waiting().is_empty(), "nothing waits");
+}
+
+/// The folders' scans have one row; its ✕ stops them and closes the dialog, which then opens nothing later.
+#[test]
+fn the_folders_scans_row_cross_closes_their_dialog() {
+    let dir = Scratch::new("many-cross");
+    let mut h = changed_folders(&dir);
+    crate::sync::open_many(&mut h.app, &[dir.path("trip"), dir.path("home")]).unwrap();
+    let rows = h.app.session.activity.list();
+    assert_eq!((rows.len(), rows[0].kind, rows[0].label.as_str()), (1, "scan", "Looking for changes"), "{rows:?}");
+    h.app.session.activity.cancel(rows[0].id).unwrap();
+    h.step();
+    assert!(h.app.sync_scans.is_none() && h.app.ui.dialog.is_none());
+    let row = h.app.session.activity.last_finished().expect("a stopped scan leaves a row");
+    assert_eq!(row.ending, lightcraft_engine::activity::Ending::Stopped);
+    h.settle(SETTLE);
+    assert!(h.app.ui.dialog.is_none(), "a stopped scan opens nothing later");
+}

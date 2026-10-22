@@ -336,5 +336,12 @@
   "…and {n} more": "…і ще {n}",
   "{n} keywords": "Ключові слова: {n}",
   "{n} albums": "Альбоми: {n}",
-  "{n} folders": "Теки: {n}"
+  "{n} folders": "Теки: {n}",
+  "Synchronizing {n} folders one after another: see them under the bell": "Теки ({n}) синхронізуються по черзі: дивіться під дзвоником",
+  "Too many tasks are waiting: only {n} more can wait in line": "Забагато завдань у черзі: поміститься ще лише {n}",
+  "Synchronize {n} Folders…": "Синхронізувати теки ({n})…",
+  "{n} new": "нових: {n}",
+  "{n} moved": "переміщених: {n}",
+  "{n} missing": "відсутніх: {n}",
+  "{n} with changed sidecars": "зі зміненим файлом XMP: {n}"
 }

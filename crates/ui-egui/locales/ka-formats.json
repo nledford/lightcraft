@@ -336,5 +336,12 @@
   "…and {n} more": "…და კიდევ {n}",
   "{n} keywords": "საკვანძო სიტყვები: {n}",
   "{n} albums": "ალბომები: {n}",
-  "{n} folders": "საქაღალდეები: {n}"
+  "{n} folders": "საქაღალდეები: {n}",
+  "Synchronizing {n} folders one after another: see them under the bell": "{n} საქაღალდის სინქრონიზაცია სათითაოდ: იხილეთ ზარის ქვეშ",
+  "Too many tasks are waiting: only {n} more can wait in line": "ძალიან ბევრი დავალება ელოდება: რიგში მხოლოდ კიდევ {n} ჩაეტევა",
+  "Synchronize {n} Folders…": "{n} საქაღალდის სინქრონიზაცია…",
+  "{n} new": "ახალი: {n}",
+  "{n} moved": "გადატანილი: {n}",
+  "{n} missing": "დაკარგული: {n}",
+  "{n} with changed sidecars": "შეცვლილი თანმხლები ფაილით: {n}"
 }

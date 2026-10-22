@@ -336,5 +336,12 @@
   "…and {n} more": "…以及另外 {n} 個",
   "{n} keywords": "{n} 個關鍵字",
   "{n} albums": "{n} 個相簿",
-  "{n} folders": "{n} 個資料夾"
+  "{n} folders": "{n} 個資料夾",
+  "Synchronizing {n} folders one after another: see them under the bell": "正在依序同步 {n} 個資料夾：可在鈴鐺下查看",
+  "Too many tasks are waiting: only {n} more can wait in line": "等待中的工作過多：佇列中只能再加入 {n} 個",
+  "Synchronize {n} Folders…": "同步 {n} 個資料夾…",
+  "{n} new": "新增 {n}",
+  "{n} moved": "已移動 {n}",
+  "{n} missing": "遺失 {n}",
+  "{n} with changed sidecars": "附屬檔案已變更 {n}"
 }

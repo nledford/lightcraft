@@ -336,5 +336,12 @@
   "…and {n} more": "…och {n} till",
   "{n} keywords": "{n} nyckelord",
   "{n} albums": "{n} album",
-  "{n} folders": "{n} mappar"
+  "{n} folders": "{n} mappar",
+  "Synchronizing {n} folders one after another: see them under the bell": "Synkroniserar {n} mappar en i taget: se dem under klockan",
+  "Too many tasks are waiting: only {n} more can wait in line": "För många uppgifter väntar: bara {n} till får plats i kön",
+  "Synchronize {n} Folders…": "Synkronisera {n} mappar…",
+  "{n} new": "{n} nya",
+  "{n} moved": "{n} flyttade",
+  "{n} missing": "{n} saknas",
+  "{n} with changed sidecars": "{n} med ändrade sidofiler"
 }

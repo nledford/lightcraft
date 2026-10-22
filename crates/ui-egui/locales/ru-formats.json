@@ -336,5 +336,12 @@
   "…and {n} more": "…и ещё {n}",
   "{n} keywords": "Ключевые слова: {n}",
   "{n} albums": "Альбомы: {n}",
-  "{n} folders": "Папки: {n}"
+  "{n} folders": "Папки: {n}",
+  "Synchronizing {n} folders one after another: see them under the bell": "Папки ({n}) синхронизируются по очереди: смотрите под колокольчиком",
+  "Too many tasks are waiting: only {n} more can wait in line": "Слишком много задач в очереди: поместится ещё только {n}",
+  "Synchronize {n} Folders…": "Синхронизировать папки ({n})…",
+  "{n} new": "новых: {n}",
+  "{n} moved": "перемещённых: {n}",
+  "{n} missing": "отсутствующих: {n}",
+  "{n} with changed sidecars": "с изменённым XMP-файлом: {n}"
 }

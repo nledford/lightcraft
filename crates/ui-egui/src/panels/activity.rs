@@ -687,19 +687,26 @@ fn waiting_row(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) -> bo
                 ui.add(egui::Label::new(RichText::new(tr(&task.label)).font(t.font(12.5)).color(t.text_label)).truncate());
             });
             let (rect, resp) = ui.allocate_exact_size(vec2(CROSS, CROSS), Sense::click());
-            crate::widgets::announce(&resp, format!("{}: {}", tr("Remove from Queue"), tr(&task.label)));
+            crate::widgets::announce(&resp, format!("{}: {}", tr("Remove from Queue"), waiting_name(task)));
             paint(ui.painter(), rect.shrink(2.0), Icon::Close, if resp.hovered() || resp.has_focus() { t.text } else { t.icon });
             if ui.is_rect_visible(rect) {
                 register(ui.ctx(), format!("activity:cancel:{}", task.id), rect);
             }
             clicked = resp.on_hover_text(tr("Remove from Queue")).clicked();
         });
-        ui.add(egui::Label::new(RichText::new(starts_text(task.place)).font(t.font(11.0)).color(t.text_dim)).truncate());
+        let when = starts_text(task.place);
+        let line = if task.detail.is_empty() { when } else { format!("{} · {when}", task.detail) };
+        ui.add(egui::Label::new(RichText::new(line).font(t.font(11.0)).color(t.text_dim)).truncate());
     });
     if ui.is_rect_visible(r.response.rect) {
         register(ui.ctx(), format!("activity:row:{}", task.id), r.response.rect);
     }
     clicked
+}
+
+/// A waiting task as the ✕ announces it: its label, and what it is about if it says ("Synchronizing folder: Trip").
+fn waiting_name(task: &TaskInfo) -> String {
+    if task.detail.is_empty() { tr(&task.label).to_string() } else { format!("{}: {}", tr(&task.label), task.detail) }
 }
 
 /// When a task waiting at `place` in its lane's line starts: "Starts next", "Starts after 2 more".

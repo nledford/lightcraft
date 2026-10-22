@@ -336,5 +336,12 @@
   "…and {n} more": "…ja {n} muuta",
   "{n} keywords": "{n} avainsanaa",
   "{n} albums": "{n} albumia",
-  "{n} folders": "{n} kansiota"
+  "{n} folders": "{n} kansiota",
+  "Synchronizing {n} folders one after another: see them under the bell": "Synkronoidaan {n} kansiota yksi kerrallaan: katso ne kellon alta",
+  "Too many tasks are waiting: only {n} more can wait in line": "Liian monta tehtävää odottaa: jonoon mahtuu vielä vain {n}",
+  "Synchronize {n} Folders…": "Synkronoi {n} kansiota…",
+  "{n} new": "{n} uutta",
+  "{n} moved": "{n} siirretty",
+  "{n} missing": "{n} puuttuu",
+  "{n} with changed sidecars": "{n} muuttunutta sivutiedostoa"
 }

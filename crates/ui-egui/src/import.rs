@@ -465,7 +465,7 @@ fn scan_guard(app: &LightcraftApp, progress: &ScanProgress, browse: bool) -> lig
 pub const IMPORT_REQUEST: &str = "app:import";
 
 fn import_request(paths: &[String], params: &Value, sources: &[String]) -> Request {
-    Request { command: IMPORT_REQUEST.into(), params: json!({"paths": paths, "params": params, "sources": sources}) }
+    Request { command: IMPORT_REQUEST.into(), params: json!({"paths": paths, "params": params, "sources": sources}), ..Default::default() }
 }
 
 /// The library lane is taken: an import (or the reading of a Local folder) or a Synchronize Folder runs, or waits

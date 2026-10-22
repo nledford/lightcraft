@@ -2430,7 +2430,6 @@
   "A keyword can't go inside itself": "Ett nyckelord kan inte läggas i sig självt",
   "Choose one album to rename it": "Välj ett album för att byta namn på det",
   "Choose one folder to rename it": "Välj en mapp för att byta namn på den",
-  "Choose one folder to synchronize it": "Välj en mapp för att synkronisera den",
   "Choose one keyword to create a keyword inside it": "Välj ett nyckelord för att skapa ett nyckelord i det",
   "Choose one keyword to edit it": "Välj ett nyckelord för att redigera det",
   "Choose one keyword to rename it": "Välj ett nyckelord för att byta namn på det",
@@ -2451,5 +2450,16 @@
   "Paste at Top Level": "Klistra in på översta nivån",
   "Remove Folders from Library": "Ta bort mappar från biblioteket",
   "That includes the photos in the folders inside them.": "Det omfattar fotona i mapparna inuti dem.",
-  "The photos stay in All Photos. Undo brings the albums back.": "Fotona finns kvar i Alla foton. Ångra tar tillbaka albumen."
+  "The photos stay in All Photos. Undo brings the albums back.": "Fotona finns kvar i Alla foton. Ångra tar tillbaka albumen.",
+  "A whole disk: synchronize it by itself": "En hel disk: synkronisera den för sig",
+  "Bring the library up to date with these folders and the folders inside them, one after another:": "Uppdatera biblioteket med de här mapparna och mapparna i dem, en i taget:",
+  "Waiting to be scanned": "Väntar på att skannas",
+  "Up to date": "Uppdaterad",
+  "Nothing to do: the library is up to date with these folders": "Inget att göra: biblioteket är uppdaterat med de här mapparna",
+  "Synchronizing the folder: see it under the bell": "Synkroniserar mappen: se den under klockan",
+  "Find what changed in each of these folders on disk, then bring the library up to date with them one after another": "Sök efter vad som har ändrats i var och en av de här mapparna på disken och uppdatera sedan biblioteket med dem, en i taget",
+  "Synchronize Folders": "Synkronisera mappar",
+  "Can't be synchronized with the others: synchronize it by itself": "Kan inte synkroniseras med de andra: synkronisera den för sig",
+  "Nothing to do with the choices ticked": "Inget att göra med de ikryssade valen",
+  "Nothing was synchronized": "Inget synkroniserades"
 }

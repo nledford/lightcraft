@@ -1204,7 +1204,11 @@ fn a_build_that_did_not_go_well_offers_retry() {
     let mut h = demo();
     let photo = h.app.session.catalog.photos().next().map(|p| p.id.0).unwrap();
     let g = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
-    let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({"ids": [photo], "edge": 256}) };
+    let request = lightcraft_engine::activity::Request {
+        command: "library.buildPreviews".into(),
+        params: json!({"ids": [photo], "edge": 256}),
+        ..Default::default()
+    };
     g.set_request(request);
     let failed = g.id();
     g.finish(Outcome::failed("The disk is full"));
@@ -1223,14 +1227,18 @@ fn a_refused_retry_says_why_without_the_command() {
     let mut h = demo();
     let photo = h.app.session.catalog.photos().next().map(|p| p.id.0).unwrap();
     let g = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
-    g.set_request(lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({"ids": [photo], "edge": 256}) });
+    g.set_request(lightcraft_engine::activity::Request {
+        command: "library.buildPreviews".into(),
+        params: json!({"ids": [photo], "edge": 256}),
+        ..Default::default()
+    });
     let failed = g.id();
     g.finish(Outcome::failed("The disk is full"));
     open_list(&mut h);
     // (a build holds the lane, so nothing in line starts and frees a place)
     let _running = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
     for _ in 0..lightcraft_engine::activity::MAX_WAITING {
-        let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({}) };
+        let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({}), ..Default::default() };
         h.app.session.activity.enqueue("previews", "Building previews", request).unwrap();
     }
     click(&mut h, &format!("activity:retry:{failed}"));

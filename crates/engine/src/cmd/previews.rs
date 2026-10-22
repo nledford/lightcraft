@@ -117,7 +117,7 @@ fn request_for(command: &str, p: &Value, ids: &[lightcraft_catalog::PhotoId]) ->
         params.remove(key);
     }
     params.insert("ids".into(), ids.iter().map(|id| id.0).collect());
-    Request { command: command.into(), params: Value::Object(params) }
+    Request { command: command.into(), params: Value::Object(params), ..Default::default() }
 }
 
 /// A build running, or one waiting in line for the lane (it is about to start, once `start_waiting` gets to it): a
