@@ -28,6 +28,7 @@ pub mod menubar;
 pub mod menus;
 pub mod merge;
 mod model_setup;
+pub mod multi_select;
 pub mod panels;
 pub mod pick;
 pub mod print_view;
@@ -130,6 +131,8 @@ mod tests_masking;
 mod tests_masking_layout;
 #[cfg(test)]
 mod tests_menubar;
+#[cfg(test)]
+mod tests_multi_select;
 #[cfg(test)]
 mod tests_offline;
 #[cfg(test)]
@@ -696,15 +699,18 @@ impl LightcraftApp {
     /// `let _ = app.session.execute(…)`, which goes round this), out of the interface: a widget
     /// says which of `act`, [`Self::quiet`] and [`Self::run`] it means.
     pub fn act(&mut self, id: &str, params: Value) -> Option<Value> {
-        match self.run_told(id, params) {
-            Ok(v) => Some(v),
-            Err(refusal) => {
-                // Native menu clicks can arrive before logic() updates last_time after an idle gap.
-                let now = self.tasks.repaint.as_ref().map(|ctx| ctx.input(|i| i.time)).unwrap_or(self.last_time);
-                self.ui.toast = Some((refusal.why, now + REFUSAL_SECONDS, None));
-                None
-            }
-        }
+        self.act_told(id, params).ok()
+    }
+
+    /// [`Self::act`] for a caller that hands the refusal on (a dialog's confirm, which the control
+    /// channel answers with it): the toast says the reason, the `Err` is the whole error.
+    pub(crate) fn act_told(&mut self, id: &str, params: Value) -> Result<Value, String> {
+        self.run_told(id, params).map_err(|refusal| {
+            // Native menu clicks can arrive before logic() updates last_time after an idle gap.
+            let now = self.tasks.repaint.as_ref().map(|ctx| ctx.input(|i| i.time)).unwrap_or(self.last_time);
+            self.ui.toast = Some((refusal.why, now + REFUSAL_SECONDS, None));
+            refusal.error
+        })
     }
 
     /// Run a command whose refusal is expected here and means nothing to the person (it is
@@ -1398,6 +1404,7 @@ impl LightcraftApp {
         focus_scan::pump(self, ctx);
         self.collect_screenshots(ctx);
         self.issue_screenshots(ctx);
+        panels::side_select::keys_frame(self, ctx);
         if self.fonts_ready {
             shortcuts::handle(self, ctx);
         }

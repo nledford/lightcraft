@@ -235,6 +235,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         Dialog::KeywordTag { editing: None, .. } => "Create Keyword Tag",
         Dialog::KeywordTag { .. } => "Edit Keyword Tag",
         Dialog::DeleteKeyword { .. } => "Delete Keyword",
+        Dialog::Several(s) => super::side_select::several_title(s),
         Dialog::MoveKeyword { .. } => "Merge Keywords",
         Dialog::KeywordSet { .. } => "Edit Keyword Set",
         Dialog::MergeKeywords { .. } => "Merge Keywords",
@@ -1194,6 +1195,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     };
                     ui.label(egui::RichText::new(crate::i18n::tr("Their photos and the keywords below them come together under one keyword.")).color(t.text_dim));
                 }
+                Dialog::Several(s) => super::side_select::several_body(ui, s),
                 Dialog::DeleteKeyword { keyword, count } => {
                     let name = keyword.replace('|', " › ");
                     ui.label(crate::i18n::tr_format!("Delete the keyword “{name}”?", name = name));
@@ -1367,6 +1369,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::KeywordTag { editing: None, .. } => "Create",
                     Dialog::KeywordTag { .. } => "Save",
                     Dialog::RemoveFolder { .. } => "Remove",
+                    Dialog::Several(s) => super::side_select::several_button(s),
                     Dialog::LightroomCatalog { .. } => "Import Lightroom Catalog…",
                     Dialog::SynchronizeFolder { .. } if informational => "Close",
                     Dialog::SynchronizeFolder { .. } => "Synchronize",
@@ -1477,6 +1480,9 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             {
                 app.toast(ctx, e)
             }
+            // several rows: one that can't be deleted or removed refuses them all; `several_run`
+            // already toasted the reason, which says which
+            Err(_) if matches!(dlg, Dialog::Several(_)) => close = true,
             // the SAM 3 dialog stays open to show the download (or why it can't start)
             Err(e) if matches!(dlg, Dialog::SamModel { .. }) => {
                 if let Dialog::SamModel { error, .. } = &mut dlg {
@@ -1838,6 +1844,7 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
             }
         }
         Dialog::DeleteKeyword { keyword, .. } => app.run("keyword.delete", json!({"keyword": keyword})),
+        Dialog::Several(s) => super::side_select::several_run(app, s),
         Dialog::KeywordSet { replaces, name, slots, as_new } => {
             use lightcraft_catalog::keywords::same;
             let name = name.trim();
@@ -2304,7 +2311,9 @@ pub enum ConfirmStyle {
 
 pub fn confirm_style(dlg: &Dialog) -> ConfirmStyle {
     match dlg {
-        Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::DeleteEffects { .. } | Dialog::RemoveFolder { .. } => {
+        Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::DeleteEffects { .. } | Dialog::RemoveFolder { .. }
+        // (every several-rows action deletes or removes)
+        | Dialog::Several(_) => {
             ConfirmStyle::Plain
         }
         _ if only_shows(dlg) => ConfirmStyle::Plain,

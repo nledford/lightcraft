@@ -587,6 +587,10 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                     R::RedEye => continue,
                     _ => {}
                 }
+                // several sidebar rows just chosen with Cmd/Shift+click: it asks about them
+                if crate::panels::side_select::delete_asked(app, ctx) {
+                    continue;
+                }
                 // in an album, Delete takes the photos out of the album only, as in Lightroom: they
                 // stay in the library and their folder (issue #1805)
                 if crate::menus::delete_in_album(app, ctx) {

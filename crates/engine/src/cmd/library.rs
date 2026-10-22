@@ -386,6 +386,10 @@ fn move_albums(s: &mut Session, p: &Value) -> Result<Value> {
         false
     };
     let moving: Vec<AlbumId> = ids.iter().copied().filter(|id| !inside_another(*id)).collect();
+    // each inside another of them (a ring of folders, in a damaged library): nothing to move
+    if moving.is_empty() {
+        return Err(bad(C, "cycle in album folders"));
+    }
     for id in &moving {
         let name = s.catalog.album(*id).map(|a| a.name.clone()).unwrap_or_default();
         if above.contains(id) {
@@ -396,6 +400,116 @@ fn move_albums(s: &mut Session, p: &Value) -> Result<Value> {
     let label = if moving.len() == 1 { "Move Album".to_string() } else { format!("Move {} Albums", moving.len()) };
     s.commit(&label, Op::Batch { ops })?;
     Ok(json!({"moved": moving.len()}))
+}
+
+/// `album.duplicate`: everything is checked first, then the copies are made as one undo step.
+fn duplicate_albums(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "album.duplicate";
+    /// How many albums one call may make (folders are copied with everything inside them).
+    const MAX_COPIES: usize = 10_000;
+    /// Where a copy goes: a folder that is there, or the copy of a folder being copied.
+    enum Place {
+        Final(Option<AlbumId>),
+        CopyOf(AlbumId),
+    }
+    let ids = match p.get("ids") {
+        Some(v) if !v.is_null() => album_ids(v, C)?,
+        _ => vec![album_param(p, "id", C)?],
+    };
+    if ids.is_empty() {
+        return Err(bad(C, "`ids` names no album"));
+    }
+    if let Some(gone) = ids.iter().find(|a| s.catalog.album(**a).is_none()) {
+        return Err(bad(C, format!("no such album {}", gone.0)));
+    }
+    // where the copies go: `parent` when given (null: the top level), else beside each original
+    let into = if p.get("parent").is_some() { Some(opt_album_param(p, "parent", C)?) } else { None };
+    if let Some(Some(folder)) = into
+        && !s.catalog.album(folder).is_some_and(|a| a.folder)
+    {
+        return Err(bad(C, format!("album {} is not a folder of albums", folder.0)));
+    }
+    // of a folder and what is inside it, the folder is copied
+    let inside_another = |id: AlbumId| {
+        let mut seen: Vec<AlbumId> = Vec::new();
+        let mut cur = s.catalog.album(id).and_then(|a| a.parent);
+        while let Some(c) = cur.filter(|c| !seen.contains(c)) {
+            if ids.contains(&c) {
+                return true;
+            }
+            seen.push(c);
+            cur = s.catalog.album(c).and_then(|a| a.parent);
+        }
+        false
+    };
+    let tops: Vec<AlbumId> = ids.iter().copied().filter(|id| !inside_another(*id)).collect();
+    if tops.is_empty() {
+        return Err(bad(C, "cycle in album folders"));
+    }
+    let mut children = std::collections::BTreeMap::<AlbumId, Vec<AlbumId>>::new();
+    for album in s.catalog.albums() {
+        if let Some(parent) = album.parent {
+            children.entry(parent).or_default().push(album.id);
+        }
+    }
+    // parent first: the original, where its copy goes, and whether the copy is named as one
+    let mut plan: Vec<(AlbumId, Place, bool)> = Vec::new();
+    for top in &tops {
+        let Some(original) = s.catalog.album(*top) else { continue };
+        let target = into.unwrap_or(original.parent);
+        // beside the original it says what it is; elsewhere it keeps its name
+        plan.push((*top, Place::Final(target), target == original.parent));
+        let mut pending = vec![*top];
+        let mut seen = std::collections::BTreeSet::new();
+        while let Some(next) = pending.pop() {
+            if !seen.insert(next) {
+                return Err(bad(C, "cycle in album folders"));
+            }
+            for child in children.get(&next).into_iter().flatten() {
+                plan.push((*child, Place::CopyOf(next), false));
+                pending.push(*child);
+            }
+            if plan.len() > MAX_COPIES {
+                return Err(bad(C, format!("more than {MAX_COPIES} albums to copy")));
+            }
+        }
+    }
+    let mut copy_of = std::collections::BTreeMap::<AlbumId, AlbumId>::new();
+    for (original, _, _) in &plan {
+        copy_of.insert(*original, s.catalog.alloc_album_id());
+    }
+    let mut ops = Vec::with_capacity(plan.len());
+    let mut made = Vec::new();
+    for (original, place, renamed) in plan {
+        let (Some(from), Some(id)) = (s.catalog.album(original).cloned(), copy_of.get(&original).copied()) else { continue };
+        let (parent, top) = match place {
+            Place::Final(parent) => {
+                made.push(id.0);
+                (parent, true)
+            }
+            Place::CopyOf(folder) => (copy_of.get(&folder).copied(), false),
+        };
+        let name = if renamed { format!("{} copy", from.name) } else { from.name.clone() };
+        // a place by hand: kept inside a copied folder; the copy itself is among other
+        // neighbours, where its original's place means nothing
+        let order = if top { None } else { from.order };
+        // a smart album limited to an album that is copied with it goes by that album's copy
+        let smart = from.smart.clone().map(|mut rules| {
+            rules.album = rules.album.map(|a| copy_of.get(&a).copied().unwrap_or(a));
+            for a in &mut rules.albums {
+                *a = copy_of.get(a).copied().unwrap_or(*a);
+            }
+            if let Some(set) = rules.rule_set.as_mut() {
+                set.remap_albums(&|a| copy_of.get(&a).copied().unwrap_or(a));
+            }
+            rules
+        });
+        // (there is one Quick Collection)
+        ops.push(Op::AddAlbum { album: Album { id, name, parent, quick: false, order, smart, ..from } });
+    }
+    let label = if made.len() == 1 { "Duplicate Album".to_string() } else { format!("Duplicate {} Albums", made.len()) };
+    s.commit(&label, Op::Batch { ops })?;
+    Ok(json!({"ids": made}))
 }
 
 /// How many albums or folders one `library.source` call may name: far more than a person
@@ -587,8 +701,7 @@ pub fn specs() -> Vec<CommandSpec> {
                     return Err(bad(C, "`paths` names no folder"));
                 }
                 // every folder is checked before a photo leaves; a photo in two of them leaves once
-                let mut ids: Vec<PhotoId> = Vec::new();
-                let mut seen = std::collections::HashSet::new();
+                // (one pass over the library for the checks, one for the photos, however many folders)
                 for path in &paths {
                     let path = path.as_str();
                     if path.trim().is_empty() || lightcraft_catalog::query::folder_key(path).is_empty() {
@@ -600,16 +713,17 @@ pub fn specs() -> Vec<CommandSpec> {
                     if lightcraft_catalog::folders::is_disk_root(path) && !bool_or(p, "disk", false) {
                         return Err(bad(C, format!("{path} is a whole disk or share: pass `disk: true` to remove everything on it")));
                     }
-                    let f = Filter { library_folder: Some(path.to_string()), ..Default::default() };
-                    let found = s.catalog.query(&f, &Sort::default());
-                    if found.is_empty() {
+                }
+                for (path, found) in paths.iter().zip(s.catalog.folders_scan(&paths)) {
+                    if !found.holds {
                         return Err(bad(C, format!("{path}: no photo in the library was imported from it")));
                     }
-                    if covers_other_disks(s, path, &found) && !bool_or(p, "disk", false) {
+                    if found.other_disks && !bool_or(p, "disk", false) {
                         return Err(bad(C, format!("{path} holds whole disks: pass `disk: true` to remove everything on them")));
                     }
-                    ids.extend(found.into_iter().filter(|id| seen.insert(*id)));
                 }
+                let f = Filter { library_folders: paths.clone(), ..Default::default() };
+                let ids = s.catalog.query(&f, &Sort::default());
                 let label =
                     if paths.len() == 1 { "Remove Folder from Library".to_string() } else { format!("Remove {} Folders from Library", paths.len()) };
                 mark_deleted(s, &ids, &label)?;
@@ -654,15 +768,15 @@ pub fn specs() -> Vec<CommandSpec> {
                     return Err(bad(C, "`paths` names no folder"));
                 }
                 let mut ops = Vec::new();
+                if paths.iter().any(|path| path.trim().is_empty()) {
+                    return Err(bad(C, "missing `path`"));
+                }
+                // taking a label off always works, also once the folder's photos are gone
+                let found = if label.is_some() { s.catalog.folders_scan(&paths) } else { Vec::new() };
+                if let Some((path, _)) = paths.iter().zip(&found).find(|(_, f)| !f.holds) {
+                    return Err(bad(C, format!("{path}: no photo in the library was imported from it")));
+                }
                 for path in &paths {
-                    if path.trim().is_empty() {
-                        return Err(bad(C, "missing `path`"));
-                    }
-                    // taking a label off always works, also once the folder's photos are gone
-                    let f = Filter { library_folder: Some(path.clone()), ..Default::default() };
-                    if label.is_some() && s.catalog.query(&f, &Sort::default()).is_empty() {
-                        return Err(bad(C, format!("{path}: no photo in the library was imported from it")));
-                    }
                     if label.is_some() || s.catalog.folder_record(path).is_some() {
                         ops.push(s.catalog.folder_label_op(path, label));
                     }
@@ -1395,6 +1509,15 @@ pub fn specs() -> Vec<CommandSpec> {
                 }
                 if several { Ok(json!({"deleted": ids.len()})) } else { ok() }
             }
+        ),
+        cmd!(
+            "album.duplicate",
+            "Duplicate Album",
+            [],
+            None,
+            "{id | ids: [albumId], parent?: folderId|null} → {ids: the copies} — a copy of each album (the same photos; a smart album: the same rules; a folder: copies of everything inside it), beside the original as “name copy”, or in `parent` (null: the top level) under its own name; one undo step. Of a folder and an album inside it the folder is copied; one that can't be copied there refuses the whole call",
+            always,
+            duplicate_albums
         ),
         cmd!(
             "album.move",
