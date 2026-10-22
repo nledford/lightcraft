@@ -773,7 +773,7 @@ fn interface_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
 /// as they are made.
 pub(super) fn view_options(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     use crate::state::{InfoOverlay as I, LoupeInfo, LoupeInfoField as F};
-    heading(ui, t, crate::i18n::tr("Loupe View"));
+    heading(ui, t, "Loupe View");
     let mut show = app.ui.info_overlay != I::Off;
     if check(ui, "viewOptions.showInfo", &mut show, "Show Info Overlay") {
         app.ui.info_overlay = if show { I::Basic } else { I::Off };
@@ -784,7 +784,7 @@ pub(super) fn view_options(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Token
         });
     });
     for (n, title, defaults) in [(1, "Loupe Info 1", LoupeInfo::INFO1), (2, "Loupe Info 2", LoupeInfo::INFO2)] {
-        heading(ui, t, crate::i18n::tr(title));
+        heading(ui, t, title);
         let lines = if n == 1 { &mut app.ui.settings.loupe_info.info1 } else { &mut app.ui.settings.loupe_info.info2 };
         for (i, line) in lines.iter_mut().enumerate() {
             let id = format!("viewOptionsInfo{n}Line{}", i + 1);
