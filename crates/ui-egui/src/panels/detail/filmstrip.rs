@@ -44,10 +44,11 @@ pub(super) fn navigator(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect
 
 // ------------------------------------------------------------------------ filmstrip
 
-/// A filmstrip cell's file-name label: names longer than 14 characters are cut to 13 and an
-/// ellipsis. Counts characters, not bytes, so a CJK name is never cut inside a character (#266).
-pub(super) fn film_label(name: &str) -> String {
-    if name.chars().nth(14).is_some() { format!("{}…", name.chars().take(13).collect::<String>()) } else { name.to_string() }
+/// A file name over a filmstrip cell, in the room left of the format: shortened in the middle
+/// when it is too long, so that the number at its end stays ("IMG_20…_153012"). It lost its end
+/// after 13 characters, however wide they were.
+pub(super) fn film_label(name: &str, room: f32, width: impl Fn(&str) -> f32) -> String {
+    crate::readout::elide_middle(name, room, width)
 }
 
 /// Draw the horizontal filmstrip in `r`: selectable thumbnail cells with names and format when
@@ -117,8 +118,10 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             let names = app.ui.settings.film_names;
             if let Some(ph) = app.session.catalog.photo(*id).filter(|_| names) {
                 let name = ph.file_name.rsplit_once('.').map(|(n, _)| n).unwrap_or(&ph.file_name);
-                p.text(pos2(cr.left() + 8.0, cr.top() + 10.0), Align2::LEFT_CENTER, film_label(name), t.micro(), dim);
-                p.text(pos2(cr.right() - 8.0, cr.top() + 10.0), Align2::RIGHT_CENTER, &ph.format, t.micro_strong(), dim);
+                let format = p.text(pos2(cr.right() - 8.0, cr.top() + 10.0), Align2::RIGHT_CENTER, &ph.format, t.micro_strong(), dim);
+                let room = format.left() - 6.0 - (cr.left() + 8.0);
+                let shown = film_label(name, room, |s| p.layout_no_wrap(s.to_string(), t.micro(), dim).size().x);
+                p.text(pos2(cr.left() + 8.0, cr.top() + 10.0), Align2::LEFT_CENTER, shown, t.micro(), dim);
             }
             let img_area = Rect::from_min_max(cr.min + vec2(10.0, 22.0), cr.max - vec2(10.0, 8.0));
             crate::panels::grid::request_thumb(app, *id, (256.0 * ppp.min(2.0) / 2.0) as usize * 2, 8);

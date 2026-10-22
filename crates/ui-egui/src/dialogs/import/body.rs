@@ -437,7 +437,8 @@ fn candidate_cell(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDial
         p.rect_filled(br, 3.0, Color32::from_rgba_unmultiplied(170, 60, 50, 220));
         p.galley(br.min + vec2(4.0, 2.0), g, Color32::WHITE);
     }
-    let name = if c.name.chars().count() > 18 { format!("{}…", c.name.chars().take(17).collect::<String>()) } else { c.name.clone() };
+    // (shortened in the middle to the cell's width: the end of a name is the number of the frame)
+    let name = crate::readout::elide_middle(&c.name, rect.width() - 4.0, |s| p.layout_no_wrap(s.to_string(), t.caption(), t.text_label).size().x);
     p.text(pos2(rect.left() + 2.0, img.bottom() + 9.0), Align2::LEFT_CENTER, name, t.caption(), if ok { t.text_label } else { t.text_dim });
     let tip = format!(
         "{}\n{} × {} · {} · {:.1} MB{}",

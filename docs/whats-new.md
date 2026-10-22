@@ -149,6 +149,21 @@
 - Left as they were: the virtual-copy tag, "Preview" and a stack's count, which were white on dark pills of their
   own already.
 
+### Numbers
+- What a photo was taken with reads the same wherever it is shown: "1/250 sec · f/2.8 · ISO 100 · 35 mm" under the
+  histogram, over a square cell of the grid and in the info overlay, and the same words on the rows of Info. One
+  photo used to read "f / 2.8", "f/11.0" and "f/11", "35 mm" and "35mm", "1/250 sec", "1/250 s" and "1/250", in
+  three different orders.
+- A slider's negative value has a minus (−1.25), not a hyphen; either can be typed, and the field a slider's value opens
+  in for typing has the hyphen, so that what is copied from it pastes anywhere.
+- A value can be typed in the digits an Arabic or Persian keyboard gives (١٫٥, ۲۰٪), with the Arabic decimal
+  sign, comma or percent sign; they used to be no number, and the slider kept its value.
+- A slider's value stands in a column of figures: it begins and ends where any other value of as many figures does,
+  and no longer shifts while it is dragged. The counts on the rows of the left sidebar's lists (My Photos, Albums,
+  Folders) are set in the same figures.
+- A long file name on the filmstrip or in the Import grid is shortened in the middle to the room it has, so the
+  number of the frame stays (`IMG_20…_153012` where it was `IMG_20240712_…`).
+
 ### Settings window
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own
   size and the tabs moved under the pointer. The tabs stay in place while a long page scrolls (in a very short

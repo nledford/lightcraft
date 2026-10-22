@@ -246,9 +246,9 @@ fn camera_card(ui: &mut egui::Ui, p: &lightcraft_catalog::Photo) {
             });
         });
         let rows = [
-            ("Focal length", m.focal_mm.map(|f| format!("{f:.1} mm").replace(".0 mm", " mm"))),
-            ("Shutter speed", (!m.shutter.is_empty()).then(|| crate::i18n::tr_format!("{} sec", m.shutter))),
-            ("Aperture", m.aperture.map(|f| format!("f / {f:.1}").replace(".0", ""))),
+            ("Focal length", m.focal_mm.and_then(crate::readout::focal)),
+            ("Shutter speed", crate::readout::shutter(&m.shutter)),
+            ("Aperture", m.aperture.and_then(crate::readout::aperture)),
             ("ISO", m.iso.map(|i| i.to_string())),
         ];
         if rows.iter().any(|r| r.1.is_some()) {
