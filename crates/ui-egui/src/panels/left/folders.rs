@@ -439,8 +439,8 @@ fn folder_drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::R
         return;
     }
     if spring_open(ui, n, open) {
-        // kept with the other open rows, as a click on its triangle would
-        app.ui.sidebar_trees.set(branch, true);
+        // open for the session, not a choice kept (as the folders above the browsed one); a row folded by hand opens for good
+        app.ui.sidebar_trees.show(branch);
     }
     let name = std::path::Path::new(&n.path).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| n.name.clone());
     let photos: Vec<_> = ids.iter().filter_map(|id| app.session.catalog.photo(lightcraft_catalog::PhotoId(*id))).collect();

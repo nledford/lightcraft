@@ -163,7 +163,7 @@
   now every tree started over at each launch (Albums with every folder open, a disk in Folders open down to where
   the library branches, the rest folded).
 - Nothing changes until you fold or open something: each tree starts as it always has.
-- Rows that open by themselves to show where the grid is (the folders above the one you browse) do so in each
+- Rows that open by themselves (the folders above the one you browse, and a Folders row you hold photos over while dragging) do so in each
   session, as before, and are not kept. One you had folded by hand and that opened this way stays open.
 - A folder you folded stays folded when LightCraft starts, or a library opens, on a folder inside it. Choosing
   another folder inside it opens it, as before.
