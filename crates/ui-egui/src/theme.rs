@@ -18,9 +18,10 @@ pub const FONT_SEMIBOLD: &str = "semibold";
 pub enum TextSize {
     /// A badge or a pill on a thumbnail or an icon.
     Micro,
-    /// An explanation, the caption over a field, a line of status.
+    /// An explanation, the caption over a field, a line of status; in semibold, a small button or
+    /// a choice.
     Caption,
-    /// What stands by something larger: a count, a chip, the title of a tab.
+    /// What stands by something larger: a count, the title of a tab, a control of the filter bar.
     Label,
     /// Controls, rows, values and menus.
     Body,
@@ -48,6 +49,24 @@ impl TextSize {
             TextSize::PanelTitle => 15.0,
             TextSize::Display => 18.0,
         }
+    }
+
+    /// The size nearest a number of points; of two equally near, the one nearer [`TextSize::Body`]
+    /// (12.5 is 13 and so is 13.5). Anything past the ends is the end: a huge number or infinity
+    /// the largest, a negative one the smallest. Not a number: the size of a control.
+    pub fn nearest(points: f32) -> TextSize {
+        // (far from the scale every size is as near as the next in an f32)
+        let points = points.clamp(0.0, 1000.0);
+        let body = TextSize::Body.points();
+        let mut best = TextSize::Body;
+        let mut least = f32::INFINITY;
+        for size in TextSize::ALL {
+            let off = (size.points() - points).abs();
+            if off < least || (off == least && (size.points() - body).abs() < (best.points() - body).abs()) {
+                (best, least) = (size, off);
+            }
+        }
+        best
     }
 }
 
@@ -297,11 +316,14 @@ impl Tokens {
     pub fn get(ctx: &egui::Context) -> Tokens {
         ctx.data(|d| d.get_temp::<Tokens>(egui::Id::NULL)).unwrap_or_default()
     }
+    /// The regular face at the size of the scale nearest `size` ([`TextSize::nearest`]): text
+    /// asked for by a number is on the scale too. New code names the size (`t.body()`, …).
     pub fn font(&self, size: f32) -> FontId {
-        FontId::proportional(size)
+        self.regular(TextSize::nearest(size))
     }
+    /// The semibold face at the size of the scale nearest `size`.
     pub fn semibold(&self, size: f32) -> FontId {
-        FontId::new(size, FontFamily::Name(FONT_SEMIBOLD.into()))
+        self.strong(TextSize::nearest(size))
     }
     /// The regular face at a size of the scale.
     pub fn regular(&self, size: TextSize) -> FontId {
@@ -319,7 +341,7 @@ impl Tokens {
     pub fn micro_strong(&self) -> FontId {
         self.strong(TextSize::Micro)
     }
-    /// Caption: an explanation, the caption over a field, a line of status.
+    /// Caption: an explanation, the caption over a field, a line of status; in semibold, a small button.
     pub fn caption(&self) -> FontId {
         self.regular(TextSize::Caption)
     }
@@ -327,7 +349,7 @@ impl Tokens {
     pub fn caption_strong(&self) -> FontId {
         self.strong(TextSize::Caption)
     }
-    /// Label: what stands by something larger: a count, a chip, the title of a tab.
+    /// Label: what stands by something larger: a count, the title of a tab.
     pub fn label(&self) -> FontId {
         self.regular(TextSize::Label)
     }
@@ -555,7 +577,7 @@ pub fn apply_kind(ctx: &egui::Context, kind: ThemeKind) {
         s.text_styles.insert(egui::TextStyle::Body, t.body());
         s.text_styles.insert(egui::TextStyle::Button, t.body());
         s.text_styles.insert(egui::TextStyle::Small, t.caption());
-        s.text_styles.insert(egui::TextStyle::Heading, FontId::new(16.0, FontFamily::Name(FONT_SEMIBOLD.into())));
+        s.text_styles.insert(egui::TextStyle::Heading, t.panel_title_strong());
         s.animation_time = 0.08;
     });
 }
