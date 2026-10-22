@@ -1012,6 +1012,86 @@ mod tests {
         assert!(preview_only_explanation("unsupported CR3").contains("unsupported CR3"));
     }
 
+    /// Given a narrow photo with five stars and a flag, then the stars close up so the flag ends inside the bar; on a
+    /// wide one they keep their spacing.
+    #[test]
+    fn stars_close_up_to_leave_the_flag_inside_a_narrow_bar() {
+        // grid: 6 in from the left, 3 to spare at the right; the flag is 18 wide with its gap
+        let (stars, flag_w, full) = (5, 18.0, 13.0);
+        for width in [40.0_f32, 51.0, 60.0, 75.0, 90.0] {
+            let room = width - 9.0;
+            let pitch = star_pitch(room, stars, flag_w, full);
+            let flag_right = 6.0 + stars as f32 * pitch + 4.0 + 14.0;
+            assert!(flag_right <= width, "width {width}: the flag ends at {flag_right}");
+            assert!(pitch <= full && pitch >= 3.0);
+        }
+        assert_eq!(star_pitch(400.0, stars, flag_w, full), full, "a wide bar keeps the spacing");
+        assert_eq!(star_pitch(10.0, 0, flag_w, full), full, "no stars, nothing to close up");
+        assert_eq!(star_pitch(1.0, stars, flag_w, full), 3.0, "never closer than 3 pt");
+    }
+
+    /// Given a square cell narrow enough that the stars and flag at the left and the marks at the right cannot all fit,
+    /// When the badge bar is laid out,
+    /// Then no mark at the left reaches the shade under the marks at the right, whatever the width and the marks.
+    #[test]
+    fn the_marks_of_a_narrow_badge_bar_never_lie_on_each_other() {
+        for width in (30..=200).map(|w| w as f32) {
+            for stars in 0..=5_usize {
+                for flag_w in [0.0_f32, 18.0] {
+                    for (edited, label) in [(false, false), (true, false), (false, true), (true, true)] {
+                        let marks = badge_marks(width, stars, flag_w, edited, label);
+                        let at = format!("width {width}, {stars} stars, flag {flag_w}, edited {edited}, label {label}: {marks:?}");
+                        assert!(marks.pitch >= 3.0 && marks.pitch <= 13.0, "{at}");
+                        assert!((!marks.edited || edited) && (!marks.label || label), "{at}: only marks that were asked for");
+                        let left_end = 9.0 + stars as f32 * marks.pitch + flag_w;
+                        let right_w = if marks.edited { 20.0 } else { 0.0 } + if marks.label { 20.0 } else { 0.0 };
+                        // (with no mark at the left there is nothing to keep apart)
+                        if right_w > 0.0 && (stars > 0 || flag_w > 0.0) {
+                            assert!(left_end <= width - right_w - 6.0, "{at}: the left marks end at {left_end}");
+                        }
+                    }
+                }
+            }
+        }
+        // a wide bar keeps every mark it was given
+        assert_eq!(badge_marks(400.0, 5, 18.0, true, true), BadgeMarks { pitch: 13.0, edited: true, label: true });
+        // a narrow bar gives up the label's dot before the "edited" mark, which has no other sign
+        let marks = badge_marks(80.0, 5, 18.0, true, true);
+        assert!(marks.edited && !marks.label, "{marks:?}");
+        // a bar with nothing at the left keeps the marks at the right that fit in it (the label's dot sat
+        // 2 points outside a 30 point bar, clipped away)
+        assert_eq!(badge_marks(40.0, 0, 0.0, true, true), BadgeMarks { pitch: 13.0, edited: true, label: true });
+        assert_eq!(badge_marks(30.0, 0, 0.0, true, true), BadgeMarks { pitch: 13.0, edited: true, label: false });
+        assert_eq!(badge_marks(30.0, 0, 0.0, false, true), BadgeMarks { pitch: 13.0, edited: false, label: true });
+    }
+
+    /// Given a filmstrip cell narrow enough that its stars, flag and "edited" mark cannot all fit,
+    /// When its badge bar is laid out,
+    /// Then the stars and the flag end before the "edited" mark, or the mark is left out.
+    #[test]
+    fn the_marks_of_a_narrow_filmstrip_cell_never_lie_on_each_other() {
+        for width in (20..=120).map(|w| w as f32) {
+            for stars in 0..=5_usize {
+                for flag_w in [0.0_f32, 12.0] {
+                    let marks = film_marks(width, stars, flag_w, true);
+                    let at = format!("width {width}, {stars} stars, flag {flag_w}: {marks:?}");
+                    assert!(marks.pitch >= 3.0 && marks.pitch <= 9.0, "{at}");
+                    let left_end = 3.0 + stars as f32 * marks.pitch + flag_w;
+                    if marks.edited && (stars > 0 || flag_w > 0.0) {
+                        assert!(left_end <= width - 16.0, "{at}: the left marks end at {left_end}");
+                    }
+                }
+            }
+        }
+        // a wide cell keeps every mark, and so does a narrow one with no stars and no flag
+        assert_eq!(film_marks(200.0, 5, 12.0, true), FilmMarks { pitch: 9.0, edited: true });
+        assert!(film_marks(30.0, 0, 0.0, true).edited);
+        // a cell with room for the stars but not for the "edited" mark beside them gives up the mark, not the flag
+        let marks = film_marks(37.0, 5, 12.0, true);
+        assert!(!marks.edited && marks.pitch >= 3.0, "{marks:?}");
+        assert!(3.0 + 5.0 * marks.pitch + 12.0 <= 37.0 - 3.0 || marks.pitch == 3.0, "{marks:?}");
+    }
+
     #[test]
     fn nudges_are_a_sensible_step() {
         let spec = |id, min, max, step| ControlSpec {
@@ -1180,6 +1260,73 @@ pub(crate) fn one_line(painter: &egui::Painter, text: &str, font: egui::FontId, 
     let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), font, color);
     job.wrap = egui::text::TextWrapping::truncate_at_width(max.max(1.0));
     painter.layout_job(job)
+}
+
+/// How far apart the `stars` of a rating on a photo are set, in a bar with `room` for the stars and the flag after
+/// them (`flag_w`, 0 for no flag): `full` where all fit, closer where the photo is narrow (its marks are clipped to
+/// it, and the flag is the last mark: it was the first to go). The star drawn is one less than the pitch, as at `full`.
+pub(crate) fn star_pitch(room: f32, stars: usize, flag_w: f32, full: f32) -> f32 {
+    if stars == 0 {
+        return full;
+    }
+    ((room - flag_w) / stars as f32).clamp(3.0, full)
+}
+
+/// How the stars of a filmstrip cell are spaced, and whether its "edited" mark is drawn ([`film_marks`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FilmMarks {
+    /// [`star_pitch`] of the stars.
+    pub pitch: f32,
+    /// Whether the "edited" mark at the right is drawn.
+    pub edited: bool,
+}
+
+/// What a filmstrip cell's badge bar `bar_w` wide holds: the stars (closed up as far as [`star_pitch`] lets them) and the
+/// flag (`flag_w`) from the left, the "edited" mark (16 wide with its shade) at the right. Where the stars and the flag still
+/// would end under that shade, the mark goes and they have the whole bar.
+pub(crate) fn film_marks(bar_w: f32, stars: usize, flag_w: f32, edited: bool) -> FilmMarks {
+    let pitch_with = |edited: bool| star_pitch(bar_w - 6.0 - if edited { 16.0 } else { 0.0 }, stars, flag_w, 9.0);
+    let pitch = pitch_with(edited);
+    if edited && (stars > 0 || flag_w > 0.0) && 3.0 + stars as f32 * pitch + flag_w > bar_w - 16.0 {
+        return FilmMarks { pitch: pitch_with(false), edited: false };
+    }
+    FilmMarks { pitch, edited }
+}
+
+/// Which marks a thumbnail's badge bar has room for, and how its stars are spaced ([`badge_marks`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct BadgeMarks {
+    /// [`star_pitch`] of the stars.
+    pub pitch: f32,
+    /// Whether the "edited" mark at the right is drawn.
+    pub edited: bool,
+    /// Whether the color label's dot at the right is drawn.
+    pub label: bool,
+}
+
+/// What a badge bar `bar_w` wide holds: the stars and the flag (`flag_w`) from the left, and at the right the "edited"
+/// mark (20 wide) and the label's dot (20 wide), a 6 point gap between the two groups. The stars close up as far as
+/// [`star_pitch`] lets them; when they and the flag still do not fit beside the marks at the right, those marks go, the
+/// label's dot first (a labeled cell is tinted by its label as well, and the "edited" mark has no other sign), so that no
+/// mark lies on another. With nothing at the left there is nothing to keep apart: the marks at the right need only be in the bar.
+pub(crate) fn badge_marks(bar_w: f32, stars: usize, flag_w: f32, edited: bool, label: bool) -> BadgeMarks {
+    let right = |edited: bool, label: bool| {
+        let w = if edited { 20.0 } else { 0.0 } + if label { 20.0 } else { 0.0 };
+        (w, if w > 0.0 { 6.0 } else { 0.0 })
+    };
+    // (with nothing at the left there is nothing to keep apart, but the marks at the right must still be in the bar)
+    let fits = |room: f32, w: f32| if stars == 0 && flag_w == 0.0 { w <= bar_w } else { stars as f32 * 3.0 + flag_w <= room };
+    let layout = |edited: bool, label: bool| {
+        let (w, gap) = right(edited, label);
+        let room = bar_w - 9.0 - w - gap;
+        (BadgeMarks { pitch: star_pitch(room, stars, flag_w, 13.0), edited, label }, fits(room, w))
+    };
+    // (the last resort, no marks at the right, is what a bar too narrow for anything is left with)
+    [(edited, label), (edited, false)]
+        .into_iter()
+        .map(|(edited, label)| layout(edited, label))
+        .find_map(|(marks, fits)| fits.then_some(marks))
+        .unwrap_or_else(|| layout(false, false).0)
 }
 
 /// `text` shortened to fit `max` (as `width` measures it): leading folders drop first

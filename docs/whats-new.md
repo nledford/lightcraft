@@ -131,6 +131,24 @@
   not the colour of what cannot be used.
 - Left as it was: a count of nothing in the sidebar ("0") is fainter than the other counts on purpose.
 
+### Marks and words over a picture
+- What is written or marked over a photo on a thumbnail or a filmstrip cell, in a toast and in "Before" is in one
+  light ink on a dark shade of its own, the same in every theme: a picture has no theme. In Silver and Paper the stars, the pick flag and the "edited" mark on a thumbnail or a
+  filmstrip cell were the theme's dark greys on a dark bar, and next to invisible; the toast wrote the theme's
+  near-black text on its black shade.
+- The marks on a thumbnail or filmstrip cell (rating stars and the pick or reject flag, and the "edited" mark and
+  colour label at the other side) are each on a small shade, only as wide as they are, wherever they show: before,
+  they lay on the bare photo and went out on a bright one. Which thumbnails show marks is as it was (a rated, flagged
+  or labelled one, or one under the pointer or chosen). The band along the lower edge of a photo under the pointer or
+  a chosen one is as it was; the dark bar across a marked filmstrip cell is gone, its marks being on their shades. On
+  a thumbnail or a filmstrip cell narrower than its marks they end where the photo ends, and the stars close up and
+  get smaller to leave room for the flag, and an "edited" mark or a label's dot with no room left beside them is not drawn.
+- The flag of a rejected photo on a thumbnail or a filmstrip cell is a lighter red, which stands out from its shade in every theme, and
+  a rejected thumbnail is dimmed under its marks, not over them.
+- "Before", over a photo shown as it was before its edits, and the label of a hover preview are on a darker shade.
+- Left as they were: the virtual-copy tag, "Preview" and a stack's count, which were white on dark pills of their
+  own already.
+
 ### Settings window
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own
   size and the tabs moved under the pointer. The tabs stay in place while a long page scrolls (in a very short

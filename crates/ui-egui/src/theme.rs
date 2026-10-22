@@ -330,6 +330,25 @@ impl Tokens {
         self.surfaces().into_iter().fold(color, |c, on| self.legible(c, on, 4.5))
     }
 
+    /// What is written or marked over a picture: a picture has no theme, so this is the same
+    /// light ink in every theme, on [`Self::photo_shade`].
+    pub const fn on_photo() -> Color32 {
+        Color32::from_rgb(0xf2, 0xf2, 0xf2)
+    }
+
+    /// The flag of a rejected photo over a picture: a red light enough to stand 3:1 on the shade
+    /// whatever is under it (a theme's own red is made for its panels: 2.3 to 3:1 here).
+    pub const fn on_photo_reject() -> Color32 {
+        Color32::from_rgb(0xff, 0x6b, 0x6b)
+    }
+
+    /// The shade under what is written or marked over a picture.
+    /// (Black at 200 of 255: over white it is a grey the ink stands about 10.6:1 against, and
+    /// [`Self::on_photo_reject`] 4:1.)
+    pub fn photo_shade() -> Color32 {
+        Color32::from_black_alpha(200)
+    }
+
     /// The accent as text: a link, "in use", what Auto Sync is doing. (The accent itself is
     /// for fills and outlines: as text it is 2.56:1 on a panel in Charcoal.)
     pub fn text_link(&self) -> Color32 {
