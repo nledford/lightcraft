@@ -387,9 +387,9 @@ pub(super) fn missing_count(app: &mut LightcraftApp, ui: &mut egui::Ui) -> usize
     let (library, now) = (app.session.library_generation(), app.tick_now());
     let s = &app.session;
     let checking = app.caches.check_files(&s.catalog, library, &s.media.availability, now);
-    let n = app.caches.missing_count(&s.catalog, library, &s.media.availability, now);
-    if app.caches.missing_waiting() {
-        ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+    let n = app.caches.missing_count(&s.catalog, library, &s.media.availability);
+    if app.caches.missing_walking() {
+        ui.ctx().request_repaint();
     } else if checking {
         // (a check that ends wakes nobody when every file is there: a frame now and then notes when it ended)
         ui.ctx().request_repaint_after(std::time::Duration::from_secs(2));

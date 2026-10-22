@@ -44,15 +44,10 @@ fn there(path: &str) -> bool {
     !path.contains("gone")
 }
 
-fn now() -> f64 {
-    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
-    START.get_or_init(std::time::Instant::now).elapsed().as_secs_f64()
-}
-
 fn missing(h: &mut Headless) -> usize {
     let library = h.app.session.library_generation();
     let s = &h.app.session;
-    h.app.caches.missing_count(&s.catalog, library, &s.media.availability, now())
+    h.app.caches.missing_count(&s.catalog, library, &s.media.availability)
 }
 
 /// Frames until the count is `n` (the sidebar draws every frame: it starts the checks).
@@ -157,22 +152,22 @@ fn a_rating_or_an_album_asks_about_no_file_and_a_photo_moved_to_a_missing_file_i
 }
 
 #[test]
-fn a_batch_into_a_large_library_with_a_file_gone_is_followed_without_a_pass_over_every_photo() {
+fn a_batch_into_a_large_library_with_a_file_gone_is_followed_without_a_walk_over_every_photo() {
     let mut h = app(20_000, 1, Arc::new(there));
     assert_eq!(reach(&mut h, 1), 1);
     assert!(h.step_until(T, |h| h.file_checks_done()));
     // (the count settles: whatever is still to be found gone is found)
     std::thread::sleep(Duration::from_millis(400));
     assert_eq!(reach(&mut h, 1), 1);
-    let passes = h.app.caches.missing.passes();
+    let passes = h.app.caches.missing.walks();
     for b in 0..10 {
         batch(&mut h, 16, "LG/007", usize::from(b == 0));
         let expect = 2;
         assert_eq!(reach(&mut h, expect), expect);
     }
     assert!(h.step_until(T, |h| h.file_checks_done()));
-    let more = h.app.caches.missing.passes() - passes;
-    assert!(more <= 3, "a pass over every photo when a file is found gone, not once per batch: {more} passes in 10 batches");
+    let more = h.app.caches.missing.walks() - passes;
+    assert_eq!(more, 0, "no walk over every photo for a batch, or for a file found gone: {more} walks in 10 batches");
 }
 
 #[test]

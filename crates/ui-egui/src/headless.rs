@@ -402,7 +402,7 @@ impl Headless {
         files.sweeping() == 0
             && files.pending() == 0
             && !self.app.caches.files_listing.load(std::sync::atomic::Ordering::Acquire)
-            && !self.app.caches.missing.busy()
+            && !self.app.caches.missing.walking()
     }
 
     /// Is anything still in progress (renders, file-system checks the sidebar waits for, queued

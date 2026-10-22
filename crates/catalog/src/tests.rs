@@ -1092,3 +1092,23 @@ fn a_batch_that_cannot_be_rolled_back_whole_makes_earlier_changes_unknown() {
     assert_eq!(c.touched_since(start), None, "so nothing is said of what changed");
     assert_eq!(c.touched_since(c.revision), Some(vec![]), "from after it, it is known again");
 }
+
+#[test]
+fn photos_after_walks_the_library_in_id_order_from_where_it_stopped() {
+    let mut c = Catalog::default();
+    let ids: Vec<PhotoId> = (0..5)
+        .map(|i| {
+            let id = c.alloc_photo_id();
+            c.apply(Op::AddPhoto {
+                photo: Box::new(Photo::new(id, Source::File { path: format!("/p/{i}.jpg") }, "n.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00")),
+            })
+            .unwrap();
+            id
+        })
+        .collect();
+    let of = |after: Option<PhotoId>| c.photos_after(after).map(|p| p.id).collect::<Vec<_>>();
+    assert_eq!(of(None), ids);
+    assert_eq!(of(Some(ids[1])), ids[2..].to_vec(), "after the photo, not from it");
+    assert_eq!(of(Some(ids[4])), vec![]);
+    assert_eq!(of(Some(PhotoId(99))), vec![]);
+}

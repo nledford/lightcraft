@@ -10,6 +10,8 @@
   keyword) check nothing. Opening another library drops the check of the one that was open.
   While an import, an import review scan, a Synchronize Folder or a Local folder listing is reading the same
   files, the check waits and then goes on where it stopped, so it no longer slows them down.
+  The count follows each file found gone or back by itself instead of going through every photo again, so the
+  window stays smooth on a library of hundreds of thousands of photos while a share is being checked.
 
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new

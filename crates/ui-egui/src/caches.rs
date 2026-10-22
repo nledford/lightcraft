@@ -220,23 +220,17 @@ impl Caches {
     /// (see [`missing_count::MissingCount`]). The files of photos that came in or moved are asked
     /// about at once; every file is handed to the checks when the library opens and every
     /// [`SWEEP_SECONDS`] (see [`Caches::check_files`]), and again when changes to the library
-    /// couldn't be followed photo by photo; never once per edit. `now` is egui's time.
-    pub fn missing_count(
-        &mut self,
-        cat: &lightcraft_catalog::Catalog,
-        library: u64,
-        files: &lightcraft_engine::availability::Availability,
-        now: f64,
-    ) -> usize {
-        let (n, lost) = self.missing.update(cat, library, files, now);
+    /// couldn't be followed photo by photo; never once per edit.
+    pub fn missing_count(&mut self, cat: &lightcraft_catalog::Catalog, library: u64, files: &lightcraft_engine::availability::Availability) -> usize {
+        let (n, lost) = self.missing.update(cat, library, files);
         // photos changed while nobody followed them: a check of every file covers them, unless
         // the last one started after them
         self.files_unchecked |= lost && self.files_swept.is_none_or(|(of, revision, _)| of != library || revision < cat.revision);
         n
     }
-    /// Whether the Missing Photos count has a pass to make soon (the panel asks for a frame then).
-    pub fn missing_waiting(&self) -> bool {
-        self.missing.waiting()
+    /// Whether the Missing Photos count is walking over the photos in steps (the panel asks for the next frame).
+    pub fn missing_walking(&self) -> bool {
+        self.missing.walking()
     }
     /// Hand every library photo's file to the background checks (one at a time, after what is
     /// asked) when the library is new here, files came in that no check was asked for, or
