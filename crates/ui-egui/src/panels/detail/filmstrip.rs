@@ -142,7 +142,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                 if app.ui.settings.film_badges
                     && let Some(ph) = app.session.catalog.photo(*id)
                 {
-                    film_badges(p, &t, fr, ph);
+                    film_badges(p, fr, ph);
                 }
                 if let Some(st) = app.session.catalog.stack_of(*id) {
                     let collapsed = st.collapsed;
@@ -209,24 +209,42 @@ pub(crate) fn film_spoken(file_name: &str, failed: bool) -> String {
 }
 
 /// Rating, flag and edited badges along a filmstrip thumbnail's bottom edge (Settings → Interface).
-fn film_badges(p: &egui::Painter, t: &Tokens, fr: Rect, ph: &lightcraft_catalog::Photo) {
+fn film_badges(p: &egui::Painter, fr: Rect, ph: &lightcraft_catalog::Photo) {
     use crate::icons::{Icon, paint};
     use lightcraft_catalog::Flag;
-    let edited = ph.is_edited();
-    if ph.rating == 0 && ph.flag == Flag::None && !edited {
+    if ph.rating == 0 && ph.flag == Flag::None && !ph.is_edited() {
         return;
     }
     let bar = Rect::from_min_max(pos2(fr.left(), fr.bottom() - 15.0), fr.right_bottom());
-    p.rect_filled(bar, 0.0, Color32::from_black_alpha(130));
+    // (a picture has no theme: its marks are in one light ink on a shade as wide as they are,
+    // not in the theme's star and label colours, which are dark in the light themes)
+    let ink = Tokens::on_photo();
+    let clipped = p.with_clip_rect(bar.intersect(p.clip_rect()));
+    let p = &clipped;
+    let shade = |from: f32, to: f32| {
+        if to > from {
+            p.rect_filled(Rect::from_min_max(pos2(from, bar.top() + 1.0), pos2(to, bar.bottom() - 1.0)), 3.0, Tokens::photo_shade());
+        }
+    };
+    let flag_w = if ph.flag == Flag::None { 0.0 } else { 12.0 };
+    // (on a narrow thumbnail the stars close up, so that the flag after them is still inside the bar it is clipped to)
+    let crate::widgets::FilmMarks { pitch, edited } = crate::widgets::film_marks(bar.width(), ph.rating as usize, flag_w, ph.is_edited());
+    let marks_w = ph.rating as f32 * pitch + flag_w;
+    if marks_w > 0.0 {
+        shade(bar.left() + 1.0, (bar.left() + 5.0 + marks_w).min(bar.right()));
+    }
+    if edited {
+        shade((bar.right() - 16.0).max(bar.left()), bar.right() - 1.0);
+    }
     let y = bar.center().y;
     let mut x = bar.left() + 3.0;
-    x += crate::rating::paint_rating(p, pos2(x, y), ph.rating, crate::rating::RatingSize::Small, t.star) + 2.0;
+    x += crate::rating::paint_rating_spaced(p, pos2(x, y), ph.rating, crate::rating::RatingSize::Small, pitch, ink) + 2.0;
     match ph.flag {
-        Flag::Pick => paint(p, Rect::from_min_size(pos2(x, y - 5.0), vec2(10.0, 10.0)), Icon::FlagPickFilled, t.pick),
-        Flag::Reject => paint(p, Rect::from_min_size(pos2(x, y - 5.0), vec2(10.0, 10.0)), Icon::FlagReject, t.reject),
+        Flag::Pick => paint(p, Rect::from_min_size(pos2(x, y - 5.0), vec2(10.0, 10.0)), Icon::FlagPickFilled, ink),
+        Flag::Reject => paint(p, Rect::from_min_size(pos2(x, y - 5.0), vec2(10.0, 10.0)), Icon::FlagReject, Tokens::on_photo_reject()),
         Flag::None => {}
     }
     if edited {
-        paint(p, Rect::from_min_size(pos2(bar.right() - 13.0, y - 5.0), vec2(10.0, 10.0)), Icon::Sliders, t.text_label);
+        paint(p, Rect::from_min_size(pos2(bar.right() - 13.0, y - 5.0), vec2(10.0, 10.0)), Icon::Sliders, ink);
     }
 }
