@@ -313,5 +313,6 @@
   "Older backups removed: {}": "Äldre säkerhetskopior borttagna: {}",
   "Older backups that could not be removed: {}": "Äldre säkerhetskopior som inte kunde tas bort: {}",
   "Folders of what restores replaced, removed: {}": "Mappar med det som återställningar ersatt, borttagna: {}",
-  "Folders of what restores replaced that could not be removed: {}": "Mappar med det som återställningar ersatt som inte kunde tas bort: {}"
+  "Folders of what restores replaced that could not be removed: {}": "Mappar med det som återställningar ersatt som inte kunde tas bort: {}",
+  "Not available right now: {}": "Inte tillgängligt just nu: {}"
 }

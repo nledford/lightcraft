@@ -313,5 +313,6 @@
   "Older backups removed: {}": "Cadangan lama dihapus: {}",
   "Older backups that could not be removed: {}": "Cadangan lama yang tidak dapat dihapus: {}",
   "Folders of what restores replaced, removed: {}": "Folder berisi hasil yang digantikan pemulihan, dihapus: {}",
-  "Folders of what restores replaced that could not be removed: {}": "Folder berisi hasil yang digantikan pemulihan yang tidak dapat dihapus: {}"
+  "Folders of what restores replaced that could not be removed: {}": "Folder berisi hasil yang digantikan pemulihan yang tidak dapat dihapus: {}",
+  "Not available right now: {}": "Saat ini tidak tersedia: {}"
 }

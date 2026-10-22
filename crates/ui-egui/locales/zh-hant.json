@@ -2046,8 +2046,6 @@
   "Removing old backups": "正在移除舊備份",
   "What restores replaced (Replaced in the library folder) goes by the same rule.": "還原時被取代的內容（照片庫資料夾中的 Replaced）適用相同的規則。",
   "Choose a Folder": "選擇資料夾",
-  "There are no backups in this folder.": "此資料夾中沒有備份。",
-  "The library becomes what it was when the backup was made. What it holds now is kept in Replaced in the library folder.": "照片庫將回復為建立備份時的狀態。目前的內容會保留在照片庫檔案夾的 Replaced 中。",
   "a restore of this library is under way": "正在回復此照片庫",
   "a backup of this library is running": "正在備份此照片庫",
   "a restore of this library stopped part-way; open the library again": "此照片庫的還原中途停止；請重新打開照片庫",

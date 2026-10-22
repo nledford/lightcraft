@@ -2467,5 +2467,13 @@
   "Days": "Dagar",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Äldre säkerhetskopior av det här biblioteket tas bort när en ny har gjorts. De tre senaste behålls alltid.",
   "Removing old backups": "Tar bort gamla säkerhetskopior",
-  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Det som återställningar har ersatt (Replaced i biblioteksmappen) följer samma regel."
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Det som återställningar har ersatt (Replaced i biblioteksmappen) följer samma regel.",
+  "Choose a Folder": "Välj en mapp",
+  "a restore of this library is under way": "en återställning av det här biblioteket pågår",
+  "a backup of this library is running": "en säkerhetskopiering av det här biblioteket pågår",
+  "a restore of this library stopped part-way; open the library again": "en återställning av det här biblioteket avbröts halvvägs; öppna biblioteket igen",
+  "the library is not a folder on disk": "biblioteket är inte en mapp på disken",
+  "the library was closed or opened again before the backup was moved into place; it is as it was": "biblioteket stängdes eller öppnades igen innan säkerhetskopian flyttades på plats; det är som det var",
+  "the backup was cancelled": "säkerhetskopieringen avbröts",
+  "the restore was stopped; the library is as it was": "återställningen stoppades; biblioteket är som det var"
 }

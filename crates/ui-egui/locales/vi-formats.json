@@ -313,5 +313,6 @@
   "Older backups removed: {}": "Đã xóa các bản sao lưu cũ: {}",
   "Older backups that could not be removed: {}": "Các bản sao lưu cũ không thể xóa: {}",
   "Folders of what restores replaced, removed: {}": "Đã xóa các thư mục chứa những gì lần khôi phục đã thay thế: {}",
-  "Folders of what restores replaced that could not be removed: {}": "Các thư mục chứa những gì lần khôi phục đã thay thế không thể xóa: {}"
+  "Folders of what restores replaced that could not be removed: {}": "Các thư mục chứa những gì lần khôi phục đã thay thế không thể xóa: {}",
+  "Not available right now: {}": "Hiện không khả dụng: {}"
 }

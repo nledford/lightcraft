@@ -2377,5 +2377,13 @@
   "Days": "Hari",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Cadangan pustaka ini yang lebih lama dihapus setelah cadangan baru dibuat. Tiga yang terbaru selalu disimpan.",
   "Removing old backups": "Menghapus cadangan lama",
-  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Apa yang digantikan oleh pemulihan (Replaced di folder pustaka) mengikuti aturan yang sama."
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Apa yang digantikan oleh pemulihan (Replaced di folder pustaka) mengikuti aturan yang sama.",
+  "Choose a Folder": "Pilih folder",
+  "a restore of this library is under way": "pemulihan pustaka ini sedang berlangsung",
+  "a backup of this library is running": "pencadangan pustaka ini sedang berjalan",
+  "a restore of this library stopped part-way; open the library again": "pemulihan pustaka ini terhenti di tengah jalan; buka pustaka lagi",
+  "the library is not a folder on disk": "pustaka ini bukan folder di disk",
+  "the library was closed or opened again before the backup was moved into place; it is as it was": "pustaka ditutup atau dibuka lagi sebelum cadangan dipindahkan ke tempatnya; pustaka tidak berubah",
+  "the backup was cancelled": "pencadangan dibatalkan",
+  "the restore was stopped; the library is as it was": "pemulihan dihentikan; pustaka tidak berubah"
 }
