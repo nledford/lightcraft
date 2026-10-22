@@ -2246,7 +2246,7 @@
   "Choose a Folder": "Ordner wählen",
   "a restore of this library is under way": "diese Bibliothek wird gerade wiederhergestellt",
   "a backup of this library is running": "eine Sicherung dieser Bibliothek läuft gerade",
-  "a restore of this library stopped part-way; open the library again": "eine Wiederherstellung dieser Bibliothek wurde mittendrin unterbrochen; öffnen Sie die Bibliothek erneut",
+  "a restore of this library stopped part-way; open the library again": "eine Wiederherstellung dieser Bibliothek wurde mittendrin unterbrochen; öffne die Bibliothek erneut",
   "the library is not a folder on disk": "die Bibliothek ist kein Ordner auf dem Datenträger",
   "the library was closed or opened again before the backup was moved into place; it is as it was": "die Bibliothek wurde geschlossen oder erneut geöffnet, bevor die Sicherung an ihren Platz verschoben wurde; sie ist unverändert",
   "the backup was cancelled": "die Sicherung wurde abgebrochen",
