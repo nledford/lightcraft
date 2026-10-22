@@ -41,7 +41,7 @@ pub(super) fn display_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens
         }
     });
     if let Some(e) = &app.display_error {
-        ui.label(RichText::new(e).font(t.caption()).color(t.reject));
+        ui.label(RichText::new(e).font(t.caption()).color(t.text_error()));
     }
     if let Some(d) = &current {
         let info = d.describe();

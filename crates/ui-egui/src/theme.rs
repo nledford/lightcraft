@@ -228,7 +228,7 @@ impl Tokens {
     pub fn for_kind(kind: ThemeKind) -> Tokens {
         let rgb = |v: u32| Color32::from_rgb((v >> 16) as u8, (v >> 8) as u8, v as u8);
         let base = Tokens::default();
-        match kind {
+        let t = match kind {
             ThemeKind::Charcoal => base,
             ThemeKind::Midnight => Tokens {
                 chrome: rgb(0x1e1e1e),
@@ -310,7 +310,74 @@ impl Tokens {
                 caution: rgb(0xb0761a),
                 ..base
             },
+        };
+        // The dim text of captions, counts and explanations is read like any other: it stands
+        // 4.5:1 against every surface it is written on (as observed it was 4.20:1 on a panel in
+        // Charcoal, and 3.3 to 4.3:1 on the light themes' surfaces).
+        Tokens { text_dim: t.on_surfaces(t.text_dim), ..t }
+    }
+
+    /// The surfaces text is written on at rest: panels, the canvas, the grid and its cells,
+    /// insets, text boxes and buttons. (A hovered, pressed or selected surface is passing or
+    /// marked otherwise: text there is made legible against it where it is drawn.)
+    fn surfaces(&self) -> [Color32; 7] {
+        [self.chrome, self.canvas, self.grid_bg, self.cell, self.inset, self.field, self.button]
+    }
+
+    /// `color`, brought as far toward the text colour as it takes to stand 4.5:1 against every
+    /// surface of [`Self::surfaces`]: a colour that says something as text.
+    fn on_surfaces(&self, color: Color32) -> Color32 {
+        self.surfaces().into_iter().fold(color, |c, on| self.legible(c, on, 4.5))
+    }
+
+    /// The accent as text: a link, "in use", what Auto Sync is doing. (The accent itself is
+    /// for fills and outlines: as text it is 2.56:1 on a panel in Charcoal.)
+    pub fn text_link(&self) -> Color32 {
+        self.on_surfaces(self.accent)
+    }
+
+    /// The caution colour as text. (3.09:1 on a panel in Silver as it is.)
+    pub fn text_caution(&self) -> Color32 {
+        self.on_surfaces(self.caution)
+    }
+
+    /// The colour of a rejection or an error as text.
+    pub fn text_error(&self) -> Color32 {
+        self.on_surfaces(self.reject)
+    }
+
+    /// What is written on a filled mark (a count on the accent, "!" on the error colour): black
+    /// or white, whichever stands out more.
+    pub fn ink_on(&self, fill: Color32) -> Color32 {
+        let white = self.legible(Color32::WHITE, fill, 4.5) == Color32::WHITE;
+        let black = self.legible(Color32::BLACK, fill, 4.5) == Color32::BLACK;
+        match (white, black) {
+            (true, false) => Color32::WHITE,
+            (false, true) => Color32::BLACK,
+            // both stand 4.5:1 or neither does: the farther from the fill
+            _ if Self::lightness(fill) < 0.18 => Color32::WHITE,
+            _ => Color32::BLACK,
         }
+    }
+
+    /// Relative luminance (WCAG), 0 black to 1 white.
+    fn lightness(c: Color32) -> f32 {
+        let linear = |v: u8| {
+            let v = f32::from(v) / 255.0;
+            if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * linear(c.r()) + 0.7152 * linear(c.g()) + 0.0722 * linear(c.b())
+    }
+
+    /// The fill behind what is chosen (a chosen chip): the accent mixed into the
+    /// panel as strongly as leaves the label colour 4.5:1 on it.
+    pub fn selection_fill(&self) -> Color32 {
+        const STEPS: u8 = 12;
+        (0..=STEPS)
+            .rev()
+            .map(|step| self.chrome.lerp_to_gamma(self.accent, 0.6 * f32::from(step) / f32::from(STEPS)))
+            .find(|fill| self.legible(self.text_label, *fill, 4.5) == self.text_label)
+            .unwrap_or(self.chrome)
     }
 
     pub fn get(ctx: &egui::Context) -> Tokens {
@@ -516,6 +583,32 @@ fn theme_id() -> egui::Id {
     egui::Id::unique("lightcraft-theme")
 }
 
+impl Tokens {
+    /// `color` as it is where it stands `ratio`:1 or more against `on`, as WCAG measures it (4.5
+    /// for text, 3 for a line or a mark that says where something is); else moved toward the text
+    /// colour, which stands furthest from every surface, in small steps until it does, and the
+    /// text colour itself when nothing on the way does (or `ratio` is no number).
+    ///
+    /// For text and marks drawn in a token chosen for its hue or its quietness (the dim text, the
+    /// accent, the caution and reject colours, a border) on a surface where a theme's value for it
+    /// is too close to read: the token keeps its value for everything else that uses it.
+    pub fn legible(&self, color: Color32, on: Color32, ratio: f32) -> Color32 {
+        fn luminance(c: Color32) -> f32 {
+            let linear = |v: u8| {
+                let v = f32::from(v) / 255.0;
+                if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+            };
+            0.2126 * linear(c.r()) + 0.7152 * linear(c.g()) + 0.0722 * linear(c.b())
+        }
+        let stands = |c: Color32| {
+            let (a, b) = (luminance(c), luminance(on));
+            (a.max(b) + 0.05) / (a.min(b) + 0.05) >= ratio
+        };
+        const STEPS: u8 = 32;
+        (0..STEPS).map(|step| color.lerp_to_gamma(self.text, f32::from(step) / f32::from(STEPS))).find(|c| stands(*c)).unwrap_or(self.text)
+    }
+}
+
 /// The theme `ctx` is styled with (none before the first [`apply_kind`]).
 pub fn current(ctx: &egui::Context) -> Option<ThemeKind> {
     ctx.data(|d| d.get_temp::<ThemeKind>(theme_id()))
@@ -553,9 +646,12 @@ pub fn apply_kind(ctx: &egui::Context, kind: ThemeKind) {
     v.window_stroke = Stroke::new(1.0, t.button_border);
     v.window_corner_radius = CornerRadius::same(6);
     v.menu_corner_radius = CornerRadius::same(6);
-    v.selection.bg_fill = t.accent.gamma_multiply(0.6);
+    v.selection.bg_fill = t.selection_fill();
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.override_text_color = Some(t.text_label);
+    // (egui's own: the label colour at 60 %, under 4.1:1 in every theme, and a bright blue)
+    v.weak_text_color = Some(t.text_dim);
+    v.hyperlink_color = t.text_link();
     let (popup, window) = if dark { (140, 160) } else { (50, 60) };
     v.popup_shadow = egui::epaint::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(popup) };
     v.window_shadow = egui::epaint::Shadow { offset: [0, 8], blur: 30, spread: 0, color: Color32::from_black_alpha(window) };

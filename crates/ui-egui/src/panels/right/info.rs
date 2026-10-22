@@ -210,7 +210,7 @@ pub(super) fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                     _ => "Smart preview available",
                 };
                 ui.add_space(6.0);
-                ui.label(egui::RichText::new(crate::i18n::tr(text)).color(if online { t.text_dim } else { t.accent }));
+                ui.label(egui::RichText::new(crate::i18n::tr(text)).color(if online { t.text_dim } else { t.text_link() }));
             }
         }
         ui.add_space(10.0);

@@ -116,7 +116,7 @@ fn template_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, tpl: &Te
     }
     if pending(&ctx) == Some(Pending::Delete(tpl.id.clone())) {
         ui.horizontal(|ui| {
-            ui.label(RichText::new(crate::i18n::tr_format!("Delete “{name}”?", name = name)).color(t.caution));
+            ui.label(RichText::new(crate::i18n::tr_format!("Delete “{name}”?", name = name)).color(t.text_caution()));
             if crate::widgets::text_button(ui, "slideshowTemplateDeleteConfirm", "Delete", false).clicked() {
                 set_pending(&ctx, None);
                 act(app, &ctx, "slideshow.templates.delete", json!({"id": tpl.id}), |_| String::new());
@@ -265,10 +265,10 @@ pub fn section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     }
     // files that couldn't be read
     for p in listing.problems.iter().take(4) {
-        ui.label(RichText::new(crate::i18n::tr_format!("Skipped {problem}", problem = p)).font(t.caption()).color(t.caution));
+        ui.label(RichText::new(crate::i18n::tr_format!("Skipped {problem}", problem = p)).font(t.caption()).color(t.text_caution()));
     }
     if listing.problems.len() > 4 {
         let more = listing.problems.len() - 4;
-        ui.label(RichText::new(crate::i18n::tr_format!("…and {more} more", more = more)).font(t.caption()).color(t.caution));
+        ui.label(RichText::new(crate::i18n::tr_format!("…and {more} more", more = more)).font(t.caption()).color(t.text_caution()));
     }
 }

@@ -32,7 +32,7 @@ pub(crate) fn unknown_tags_warning(ui: &mut egui::Ui, template: &str) {
             if unknown.len() == 1 { "s" } else { "" },
             s = s
         );
-        ui.label(egui::RichText::new(text).color(Tokens::get(ui.ctx()).caution));
+        ui.label(egui::RichText::new(text).color(Tokens::get(ui.ctx()).text_caution()));
     }
 }
 

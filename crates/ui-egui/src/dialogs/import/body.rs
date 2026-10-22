@@ -166,7 +166,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             }
             _ => "Add in place: the library references the files where they are; nothing is copied or moved.",
         }))
-        .color(if d.copy && d.move_files { t.caution } else { t.text_dim })
+        .color(if d.copy && d.move_files { t.text_caution() } else { t.text_dim })
         .small(),
     );
     register(ui, "label:importModeHelp", r.rect);
@@ -224,7 +224,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             let t = Tokens::get(ui.ctx());
             match lightcraft_engine::rename::folder_template_error(&d.folder_template) {
                 Some(e) => {
-                    ui.label(egui::RichText::new(e).color(t.caution));
+                    ui.label(egui::RichText::new(e).color(t.text_caution()));
                 }
                 None => unknown_tags_warning(ui, &d.folder_template),
             }

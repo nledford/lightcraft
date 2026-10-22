@@ -1034,7 +1034,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
                 ui.label(RichText::new(crate::i18n::tr("LightCraft couldn't open the library at")).color(t.text_label));
                 ui.label(RichText::new(&problem.path).font(t.body_strong()).color(t.text));
             }
-            ui.add(egui::Label::new(RichText::new(&problem.error).color(t.caution)).wrap());
+            ui.add(egui::Label::new(RichText::new(&problem.error).color(t.text_caution())).wrap());
             ui.label(
                 RichText::new(
                     "Your photos and edits in it are untouched. You can try again (e.g. after closing another program that has it open \
@@ -1161,7 +1161,7 @@ fn show_chooser(app: &mut LightcraftApp, ctx: &egui::Context, problem: &LibraryP
                 }
             });
             if !problem.error.is_empty() {
-                ui.add(egui::Label::new(RichText::new(&problem.error).color(t.caution)).wrap());
+                ui.add(egui::Label::new(RichText::new(&problem.error).color(t.text_caution())).wrap());
             }
             let selected = chooser.selected.and_then(|i| chooser.libraries.get(i));
             let mut button = |ui: &mut egui::Ui, id: &str, label: &str, enabled: bool, c: Choice| {
@@ -1231,7 +1231,7 @@ fn recent_row(ui: &mut egui::Ui, t: &Tokens, i: usize, library: &RecentLibrary, 
         });
         ui.add(egui::Label::new(RichText::new(parent).size(11.0).color(dim)).truncate().selectable(false));
         if let Some(why) = &library.unavailable {
-            ui.add(egui::Label::new(RichText::new(why).size(11.0).color(t.caution)).wrap().selectable(false));
+            ui.add(egui::Label::new(RichText::new(why).size(11.0).color(t.text_caution())).wrap().selectable(false));
         } else if library.checking {
             let text =
                 if library.slow { crate::i18n::tr("Not answering yet: the drive may be asleep or offline") } else { crate::i18n::tr("Checking…") };
@@ -1260,6 +1260,10 @@ pub fn banner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     }
     let t = Tokens::get(ui.ctx());
     let mut reopen = false;
+    // what is written on the caution colour is black or white, whichever stands out more; the button's veil goes the
+    // other way, so that it never takes the ink's contrast down
+    let ink = t.ink_on(t.caution);
+    let veil = if ink == egui::Color32::WHITE { egui::Color32::from_black_alpha(40) } else { egui::Color32::from_white_alpha(40) };
     egui::Panel::top("library-problem-banner")
         .exact_size(30.0)
         .frame(egui::Frame::NONE.fill(t.caution).inner_margin(egui::Margin::symmetric(12, 0)))
@@ -1268,12 +1272,10 @@ pub fn banner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 let r = ui.label(
                     RichText::new(crate::i18n::tr("Temporary session — your library isn't open, and nothing you do here is saved."))
                         .font(t.body_strong())
-                        .color(t.canvas),
+                        .color(ink),
                 );
                 register(ui, "indicator:temporarySession", r.rect);
-                let b = ui.add(
-                    egui::Button::new(RichText::new(crate::i18n::tr("Open Library…")).color(t.canvas)).fill(egui::Color32::from_black_alpha(40)),
-                );
+                let b = ui.add(egui::Button::new(RichText::new(crate::i18n::tr("Open Library…")).color(ink)).fill(veil));
                 register(ui, "button:libraryReopen", b.rect);
                 reopen = b.clicked();
             });
