@@ -2,12 +2,32 @@
 
 ## 2026-10-25
 
-### Move Files to Trash (agents)
+### Move Files to Trash
+- **Photo ▸ Move Files to Trash…** (also in a photo's menu in the grid) takes the selected photos out of the library
+  and moves their files to the system Trash, with their XMP sidecars. It always asks first and lists the files.
+  It works on photos in the library and in Recently Deleted; from Recently Deleted all of them can go at once
+  (right-click a photo there ▸ Move All Files in Recently Deleted to Trash…). Not on Windows or in the browser yet.
+- With "Confirm before moving photos to Recently Deleted" on, the Delete question now has Move Files to Trash… as a second answer. Delete
+  itself still moves photos to Recently Deleted and leaves their files.
+- Once the question is answered it closes at once, and the files move in the background under **Moving files to
+  the Trash** in the activity stack. Its ✕ stops after the file in hand: the photos not reached stay in the library,
+  and the notice says how many. Choosing hundreds of photos on a network share no longer freezes the window.
+- On a disk without a Trash (many network shares) a second question asks whether their files may be erased for
+  good (its button waits a moment before it can be pressed). Where the disk says so beforehand, as on macOS, that
+  question comes before any file moves, and what goes to the Trash and what is erased is one undo step; Cancel there
+  keeps those photos and their files, the others still go, and nothing more is asked. A disk found to have no Trash
+  only as its files are tried (as on Linux) gets the question afterwards, as a step of its own, once no other dialog
+  is open. Only those files are erased; sidecars beside them stay. That cannot be undone as far as the files go;
+  Undo brings the photos back, shown as missing, with their edits and keywords.
+- While files move, renaming or moving files, Locate Missing File…, Convert to DNG, Duplicate, Create Virtual Copy,
+  Edit in PhotoCraft, Edit in Other Editor, Undo and Redo wait (they say why), and so does a second Move Files to
+  Trash…. Quitting waits for the file in hand and keeps what moved.
+
+### Move Files to Trash: the command for agents
 - `photo.trashFiles {ids?, noTrash?: keep|delete}` takes the photos (the selection, or `ids`; in the library or in
   Recently Deleted) out of the library for good and moves their files, with their XMP sidecars, to the system Trash.
-  `library.emptyRecentlyDeleted {files: "trash"}` does it for everything in Recently Deleted. There is no menu item
-  or question in the app yet: this is the command layer (control channel, MCP). Like every command it is listed in
-  Help ▸ Keyboard Shortcuts, and a key bound to it moves the selected photos' files to the Trash at once, without asking.
+  `library.emptyRecentlyDeleted {files: "trash"}` does it for everything in Recently Deleted. The app asks first
+  (see above); this is the command itself, for the control channel and MCP.
 - Nothing else changed: Delete still moves photos to Recently Deleted, and Delete Permanently, Empty Recently
   Deleted and Remove Folder from Library still leave every file where it is.
 - Undo brings the photos back and moves the files back out of the Trash, as long as they are still there. It
