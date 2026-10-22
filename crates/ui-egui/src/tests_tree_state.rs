@@ -251,6 +251,34 @@ fn a_folder_folded_above_the_shown_one_is_still_folded_after_a_restart() {
     assert!(shown(&h, &folder_row("/pics/trip/raw/x")), "nothing was left folded: revealed at the start");
 }
 
+/// Given the grid opened on a folder of the library with a folder above it folded by hand, when
+/// Show in Folders is asked for a photo of that same folder, then the folders above it open: the
+/// action is a choice of now, not what the library opened with.
+#[test]
+fn show_in_folders_opens_the_folders_above_the_folder_the_library_opened_with() {
+    let paths = ["/pics/trip/raw/x/1.jpg", "/pics/trip/raw/y/2.jpg", "/pics/trip/3.jpg", "/pics/home/4.jpg"];
+    let mut h = folders_app(&paths, None, None);
+    show_folder(&mut h.app.session, "/pics/trip/raw/x");
+    h.settle(SETTLE);
+    click(&mut h, "libraryFolderToggle:/pics/trip");
+    assert!(!shown(&h, &folder_row("/pics/trip/raw/x")), "folded by hand");
+
+    let mut h = folders_app(&paths, Some(settings(&h)), Some("/pics/trip/raw/x"));
+    assert!(!shown(&h, &folder_row("/pics/trip/raw/x")), "still folded after a restart");
+    let id = h
+        .app
+        .session
+        .catalog
+        .photos()
+        .find(|p| matches!(&p.source, lightcraft_catalog::Source::File { path } if path == "/pics/trip/raw/x/1.jpg"))
+        .unwrap()
+        .id;
+    h.app.run("library.select", json!({"ids": [id.0], "active": id.0})).unwrap();
+    h.app.run("app.showInFolders", json!({})).unwrap();
+    h.settle(SETTLE);
+    assert!(shown(&h, &folder_row("/pics/trip/raw/x")), "asked for: the folders above open");
+}
+
 /// Given a folder on disk browsed in Local and a folder above it folded by hand, when the app
 /// is started again still browsing that folder, then the folder above is still folded.
 #[test]

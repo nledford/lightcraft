@@ -163,8 +163,9 @@
   now every tree started over at each launch (Albums with every folder open, a disk in Folders open down to where
   the library branches, the rest folded).
 - Nothing changes until you fold or open something: each tree starts as it always has.
-- Rows that open by themselves (the folders above the one you browse, and a Folders row you hold photos over while dragging) do so in each
-  session, as before, and are not kept. One you had folded by hand and that opened this way stays open.
+- Rows that open by themselves (the folders above the one you browse, and the rows you hold photos over while
+  dragging) do so in each session, as before, and are not kept. One you had folded by hand and that opened this way
+  stays open. Photo ▸ Show in Folders also opens the folders above the photo's folder, even when you folded one.
 - A folder you folded stays folded when LightCraft starts, or a library opens, on a folder inside it. Choosing
   another folder inside it opens it, as before.
 - Kept with the app's settings, the same for every library: a folder of albums is remembered by its number, so

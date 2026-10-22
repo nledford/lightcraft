@@ -728,7 +728,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
             // the folder Show in Folders went to: Folders is shown and opened, and so are the
             // folders above it, also when it was already the one shown and one was folded by hand…
-            if let Some(path) = app.ui.reveal_folder.take() {
+            let reveal_folder = app.ui.reveal_folder.take();
+            if let Some(path) = &reveal_folder {
                 app.ui.sidebar.reveal(SidebarSection::Folders);
                 ui.data_mut(|d| d.remove::<Option<String>>(egui::Id::new(LIBFOLDER_REVEALED)));
                 // …and the sidebar scrolls to it
@@ -755,7 +756,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     SidebarSection::Folders => {
                         let tree = app.caches.folder_tree(&app.session.catalog);
                         section(app, ui, s, tree.len(), |app, ui| {
-                            reveal_chosen(app, ui, &tree);
+                            reveal_chosen(app, ui, &tree, reveal_folder.is_some());
                             folder_rows(app, ui, &tree, 0.0);
                         })
                     }
@@ -1860,10 +1861,10 @@ fn as_opened(ctx: &egui::Context) -> AsOpened {
 /// Whenever the shown folder changes (a click, an agent, a rename or its undo), open the rows
 /// above it so it is on screen; folding one by hand afterwards sticks until the choice changes.
 /// The folder the library opened with is no change: a row above it that was left folded stays
-/// folded.
-fn reveal_chosen(app: &mut LightcraftApp, ui: &egui::Ui, tree: &[FolderNode]) {
+/// folded, unless `forced` (Show in Folders asked for it: a choice of now).
+fn reveal_chosen(app: &mut LightcraftApp, ui: &egui::Ui, tree: &[FolderNode], forced: bool) {
     let shown = app.session.library_folder.clone().filter(|_| app.session.source == LibrarySource::LibraryFolder);
-    let as_left = shown.is_some() && shown == as_opened(ui.ctx()).folder;
+    let as_left = !forced && shown.is_some() && shown == as_opened(ui.ctx()).folder;
     let chosen = shown.filter(|c| !lightcraft_catalog::query::folder_key(c).is_empty());
     let seen = egui::Id::new(LIBFOLDER_REVEALED);
     let now = chosen.as_deref().map(lightcraft_catalog::query::folder_key);
