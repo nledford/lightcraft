@@ -680,6 +680,9 @@ pub fn apply_kind(ctx: &egui::Context, kind: ThemeKind) {
         CornerRadius::same(4),
         Stroke::new(1.0, t.text_label),
     );
+    // (what is marked strong is in the text colour: egui takes it from here, and as the label
+    // colour it was no different from plain text; so are the icons of a control being pressed)
+    w.active.fg_stroke = Stroke::new(1.0, t.text);
     w.noninteractive.bg_stroke = Stroke::new(1.0, t.divider);
     w.inactive.bg_stroke = Stroke::new(1.0, t.button_border);
     ctx.set_visuals_of(egui::Theme::Dark, v.clone());

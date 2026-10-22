@@ -241,7 +241,7 @@ fn camera_card(ui: &mut egui::Ui, p: &lightcraft_catalog::Photo) {
             ui.label(dim(&format!("{} × {}  ·  {}", p.width, p.height, human_size(p.file_size))));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 egui::Frame::NONE.fill(t.chrome).corner_radius(3.0).inner_margin(egui::Margin::symmetric(5, 1)).show(ui, |ui| {
-                    ui.label(egui::RichText::new(p.format.to_uppercase()).font(t.caption()).color(t.text_label));
+                    ui.label(egui::RichText::new(p.format.to_uppercase()).font(t.caption()).extra_letter_spacing(0.5).color(t.text_label));
                 });
             });
         });
