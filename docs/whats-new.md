@@ -846,6 +846,28 @@
   is a larger target that lights up on its own, and taking a keyword off several photos at once now says which
   keyword left how many photos, and that Edit ▸ Undo puts it back.
 
+### Several albums, folders, keywords or dates at once
+- In the left panel, Cmd+click (Ctrl+click on Windows and Linux) adds an album, a folder, a keyword or a date to the
+  ones chosen, or takes it away; Shift+click takes every row between the last one clicked and this one. The grid
+  shows the photos of any of them, each once. A plain click chooses one row alone, as before.
+- In the Keyword List (right panel ▸ Keywords) the same clicks pick several keywords.
+- Right-click one of several rows chosen to act on them all, as one step to undo: move albums into a folder, export
+  them, or delete them; give folders a colour label or remove them from the library; give keywords to the selected
+  photos, take them away, merge them or delete them. Deleting or removing several asks first and says what goes.
+  Right-click a row that is not among them and you get that row's own menu; the others stay chosen.
+- Dragging one of several albums or keywords moves them all (albums go into the folder they are dropped in or
+  beside; placing by hand among its neighbours stays one album's).
+- Right after choosing several rows with Cmd or Shift, the Delete key asks about those rows. Click anywhere else,
+  or select photos or change what is shown in any other way, and Delete is about the photos again; after a plain
+  click on an album it always was.
+- Cut, Copy and Paste in the albums' and keywords' menus: cut albums move into the folder where you choose Paste
+  (the Albums + menu pastes at the top level), copied albums are duplicated there with their photos; cut keywords
+  are nested inside the keyword where you choose Paste; copied keywords are text you can paste in a keyword box.
+- For agents: `library.source` takes `ids` (albums) or `paths` (folders), `library.filter` takes `keywords` and
+  `dates`; `album.delete`, `album.move` and the new `album.duplicate` take `ids`, `keyword.delete` and
+  `keyword.move` take `keywords`, `library.removeFolder` and `folder.label` take `paths`. `library.state` lists
+  `albums` and `libraryFolders`.
+
 ### HDR and panorama merges of CR2 keep their colour
 - Photo Merge of Canon CR2 (and other raws whose colour LightCraft fits from the camera's own JPEG, such as NEF and
   ARW) gives the merged DNG the colour each photo has when opened alone (issue #965). An HDR merge of CR2s used to come

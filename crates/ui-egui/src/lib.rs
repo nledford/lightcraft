@@ -31,6 +31,7 @@ pub mod menubar;
 pub mod menus;
 pub mod merge;
 mod model_setup;
+pub mod multi_select;
 pub mod panels;
 pub mod pick;
 pub mod print_view;
@@ -156,6 +157,8 @@ mod tests_masking_layout;
 mod tests_menubar;
 #[cfg(test)]
 mod tests_merge_preview;
+#[cfg(test)]
+mod tests_multi_select;
 #[cfg(test)]
 mod tests_offline;
 #[cfg(test)]
@@ -941,19 +944,22 @@ impl LightcraftApp {
     /// not drop `run`'s result (`let _ = app.run(…)`), nor `let _ = app.session.execute(…)`, which
     /// goes round this, unless a comment says why: `// refusal expected: <reason>`.
     pub fn act(&mut self, id: &str, params: Value) -> Option<Value> {
+        self.act_told(id, params).ok()
+    }
+
+    /// [`Self::act`] for a caller that hands the whole error on (a dialog's confirmation answers the control channel
+    /// with it): the person is told the reason by a toast all the same.
+    pub(crate) fn act_told(&mut self, id: &str, params: Value) -> Result<Value, String> {
         let before = self.ui.toast.clone();
-        match self.run_told(id, params) {
-            Ok(v) => Some(v),
-            Err(refusal) => {
-                let now = self.tick_now();
-                // A toast the command made itself (a partial import report) says what did happen:
-                // keep it ahead of the reason rather than replacing it.
-                let made = self.ui.toast.take().filter(|t| Some(t) != before.as_ref()).map(|t| t.0);
-                let said = refusal_toast(made, &refusal);
-                self.ui.toast = Some((said, now + REFUSAL_SECONDS, None));
-                None
-            }
-        }
+        self.run_told(id, params).map_err(|refusal| {
+            let now = self.tick_now();
+            // A toast the command made itself (a partial import report) says what did happen:
+            // keep it ahead of the reason rather than replacing it.
+            let made = self.ui.toast.take().filter(|t| Some(t) != before.as_ref()).map(|t| t.0);
+            let said = refusal_toast(made, &refusal);
+            self.ui.toast = Some((said, now + REFUSAL_SECONDS, None));
+            refusal.error
+        })
     }
 
     /// Run a command whose refusal is expected here and means nothing to the person (it is
@@ -2282,6 +2288,8 @@ impl LightcraftApp {
         // Recent-library checks and launch-list keys read focus/time/keys: they belong to the UI
         // phase, not the hidden-capable `logic` tick (plan §4.5 / migration input contract).
         panels::library_problem::logic(self, ctx);
+        // (what the sidebar lists took over of the keys is given back before the shortcuts look at them)
+        panels::side_select::keys_frame(self, ctx);
         if self.fonts_ready && !updates_ui::blocks_input(self) {
             shortcuts::handle(self, ctx);
         }
