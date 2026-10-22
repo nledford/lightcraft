@@ -431,6 +431,26 @@ fn naming_only_photos_that_are_gone_adds_nothing_and_records_nothing() {
     assert!(s.catalog.album(AlbumId(album)).unwrap().photos.is_empty());
 }
 
+/// The photos selected are gone but the active one is there and not among them: the commands act on the selection,
+/// which is empty, so they are not available either.
+#[test]
+fn a_live_active_photo_does_not_stand_in_for_a_selection_that_is_gone() {
+    let mut s = Session::new();
+    photos(&mut s, 2);
+    let late = s.catalog.alloc_photo_id();
+    let p = Photo::new(late, Source::Demo { scene: 1 }, "late.jpg", "JPEG", 60, 40, "2026-02-01T10:00:00");
+    s.commit("Add Photo", Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    s.selection.ids = vec![late];
+    s.selection.active = Some(PhotoId(1));
+    assert!(crate::cmd::has_selection(&s).is_ok());
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.selected().is_empty(), "the command would act on nothing");
+    assert!(crate::cmd::has_selection(&s).is_err(), "so it is not available");
+    // nothing selected but the active photo: it is the selection
+    s.selection.ids.clear();
+    assert!(crate::cmd::has_selection(&s).is_ok());
+}
+
 #[test]
 fn a_shown_album_that_only_changes_stays_shown() {
     let mut s = Session::new();
