@@ -131,6 +131,30 @@ fn a_running_move_holds_back_other_file_moves_and_another_library() {
 }
 
 #[test]
+fn a_running_move_refuses_opening_before_touching_the_target() {
+    let dir = Scratch::new("busy-open");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    // a target that doesn't exist yet: refused without creating its folder or lock file
+    let missing = dir.0.join("not-yet");
+    let e = s.open_library(&missing, false).map(|_| ()).unwrap_err().to_string();
+    assert!(e.contains("being moved"), "{e}");
+    assert!(!missing.exists(), "the refused open left nothing behind");
+    // a target another holder has locked: the move is what's reported, not the lock
+    let held = dir.0.join("held");
+    let _lock = {
+        let mut other = Session::new();
+        other.open_library(&held, false).unwrap();
+        other
+    };
+    let e = s.open_library(&held, false).map(|_| ()).unwrap_err().to_string();
+    assert!(e.contains("being moved"), "{e}");
+    let out = work.run();
+    s.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).unwrap();
+}
+
+#[test]
 fn a_moving_photos_sidecar_is_written_once_it_arrives_where_it_arrives() {
     let dir = Scratch::new("sidecar");
     let mut s = open(&dir);
