@@ -49,10 +49,8 @@ cited here still exists. Formerly docs/parity.md.
 | U. Map & location (MAP) | 0 | 1 | 1 | 0 | — | 0/1 (0%) |
 | V. Preferences (PREF) | 6 | 2 | 2 | 2 | 1/1 (100%) | 4/5 (80%) |
 | W. Cloud & AI infrastructure (CLOUD / AI) | 1 | 0 | 1 | 2 | — | — |
-| X. Cross-cutting behaviours (BEHAV) | 23 | 6 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
-| Y. Menus | 85 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | X. Cross-cutting behaviours (BEHAV) | 24 | 6 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
-| Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
+| Y. Menus | 85 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 78 | 4 | 2 | 1 | 49/52 (94%) | 24/26 (92%) |
 | Lightroom Classic extras | 41 | 25 | 21 | 8 | — | 24/26 (92%) |
 | **Total** | 421 | 65 | 57 | 35 | 196/203 (97%) | 146/161 (91%) |

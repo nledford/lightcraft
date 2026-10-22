@@ -563,9 +563,15 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             if on && app.ui.fullscreen {
                 return Some(Err(format!("{id}: the sidebar is not on screen in full screen; leave full screen first")));
             }
-            // (coming in starts at the row shown, not where the keys were left last time)
+            // (coming in starts at the row shown, not where the keys were left last time; and a field that
+            // still has the focus lets it go: `side_keys::begin` ends the mode for a focused field)
             if on && !app.ui.sidebar_keys {
                 app.ui.sidebar_cursor = None;
+                ctx.memory_mut(|m| {
+                    if let Some(focused) = m.focused() {
+                        m.surrender_focus(focused);
+                    }
+                });
             }
             app.ui.sidebar_keys = on;
             if on {
