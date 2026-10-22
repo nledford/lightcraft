@@ -399,6 +399,24 @@ fn asking_for_the_mode_while_a_field_is_focused_lets_the_field_go() {
     assert!(said.contains("Esc"), "the mode said how it ends: {said:?}");
 }
 
+/// Given a dialog is open with its field focused, asking for the mode (the native menu delivers it
+/// meanwhile) leaves the dialog's field its focus: a field that saves on blur must not save half a value.
+#[test]
+fn asking_for_the_mode_with_a_dialog_open_keeps_the_dialogs_focus() {
+    let mut h = app();
+    let keyword = h.app.caches.keyword_tree(&h.app.session.catalog).first().map(|k| k.path.clone()).expect("a demo keyword");
+    h.app.ui.dialog = Some(Dialog::RenameKeyword { from: keyword.clone(), to: keyword });
+    h.step();
+    h.step();
+    h.step();
+    assert!(h.view.ctx.egui_wants_keyboard_input(), "the dialog's field has the focus");
+    // the command's own effect, before the dialog draws its field again (it asks for the focus back each frame)
+    let r = crate::menus::run_ui_command(&mut h.app, "view.sidebarKeys", &json!({"on": true}));
+    assert!(matches!(r, Some(Ok(_))), "{r:?}");
+    assert!(h.view.ctx.memory(|m| m.focused()).is_some(), "the dialog's field kept the focus");
+    assert!(h.app.ui.dialog.is_some(), "the dialog is still open");
+}
+
 /// Two folders in one Local place, one of them named like the other with `#2` after it: F2 on
 /// each renames that folder (the keys' own mark of a row drawn twice is no part of a name).
 #[test]
