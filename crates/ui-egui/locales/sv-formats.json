@@ -299,5 +299,7 @@
   "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "{skipped} catalog images were not imported because their records in the catalog are incomplete.",
   "Listing folders — folders: {folders}, files: {files}": "Listing folders — folders: {folders}, files: {files}",
   "Backed up the library to {}": "Biblioteket säkerhetskopierades till {}",
-  "The library was not backed up: {}": "Biblioteket säkerhetskopierades inte: {}"
+  "The library was not backed up: {}": "Biblioteket säkerhetskopierades inte: {}",
+  "Restored the library. What it held before is in {}": "Biblioteket återställdes. Det som fanns i det tidigare finns i {}",
+  "The library was not restored: {}": "Biblioteket återställdes inte: {}"
 }
