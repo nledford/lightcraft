@@ -1513,7 +1513,7 @@ fn folders_app_with_services(paths: &[&str], size: [f32; 2], services: Services)
     // is made on it (a loaded machine took longer than the quiet frames `settle` waits for).
     if paths.iter().any(|p| !std::path::Path::new(p).exists()) {
         assert!(h.step_until(T, |h| has(h, "source:missing")), "the Missing Photos row is drawn");
-        h.settle(SETTLE);
+        assert!(h.settle(SETTLE), "the sidebar did not settle after the Missing Photos row was drawn");
     }
     h
 }
