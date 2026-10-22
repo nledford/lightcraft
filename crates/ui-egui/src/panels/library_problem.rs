@@ -1173,7 +1173,7 @@ fn show_chooser(app: &mut LightcraftApp, ctx: &egui::Context, problem: &LibraryP
             };
             ui.horizontal(|ui| {
                 button(ui, "libraryForget", "Remove from List", selected.is_some(), Choice::Remove);
-                ui.label(RichText::new(crate::i18n::tr("The library itself stays where it is.")).size(11.0).color(t.text_dim));
+                ui.label(RichText::new(crate::i18n::tr("The library itself stays where it is.")).font(t.caption()).color(t.text_dim));
             });
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -1225,17 +1225,17 @@ fn recent_row(ui: &mut egui::Ui, t: &Tokens, i: usize, library: &RecentLibrary, 
             };
             if let Some(when) = when {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add(egui::Label::new(RichText::new(when).size(11.0).color(dim)).selectable(false));
+                    ui.add(egui::Label::new(RichText::new(when).font(t.caption()).color(dim)).selectable(false));
                 });
             }
         });
-        ui.add(egui::Label::new(RichText::new(parent).size(11.0).color(dim)).truncate().selectable(false));
+        ui.add(egui::Label::new(RichText::new(parent).font(t.caption()).color(dim)).truncate().selectable(false));
         if let Some(why) = &library.unavailable {
-            ui.add(egui::Label::new(RichText::new(why).size(11.0).color(t.text_caution())).wrap().selectable(false));
+            ui.add(egui::Label::new(RichText::new(why).font(t.caption()).color(t.text_caution())).wrap().selectable(false));
         } else if library.checking {
             let text =
                 if library.slow { crate::i18n::tr("Not answering yet: the drive may be asleep or offline") } else { crate::i18n::tr("Checking…") };
-            ui.add(egui::Label::new(RichText::new(text).size(11.0).color(dim)).wrap().selectable(false));
+            ui.add(egui::Label::new(RichText::new(text).font(t.caption()).color(dim)).wrap().selectable(false));
         }
     });
     let r = ui.interact(inner.response.rect, egui::Id::unique(("library-recent", i)), egui::Sense::click());
