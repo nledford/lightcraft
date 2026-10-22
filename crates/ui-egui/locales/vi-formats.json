@@ -297,5 +297,8 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}” is already a person. Combining them makes one person; Undo separates them again.",
   "•  {assumption}": "•  {assumption}",
   "… and {more} more": "… và {more} nữa",
-  "…and {more} more": "…and {more} more"
+  "…and {more} more": "…and {more} more",
+  "Changes found: {n}": "Thay đổi tìm thấy: {n}",
+  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "«{name}» vẫn đang được quét: hãy đợi, hoặc dừng bằng × trên dòng của nó",
+  "Look at the changes found in “{name}” first, or dismiss them": "Hãy xem trước các thay đổi tìm thấy trong «{name}», hoặc bỏ qua chúng"
 }

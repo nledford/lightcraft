@@ -2325,5 +2325,11 @@
   "≤  at most": "≤  maksimal",
   "≥  at least": "≥  minimal",
   "日本語": "日本語",
-  "繁體中文（台灣）": "繁體中文（台灣）"
+  "繁體中文（台灣）": "繁體中文（台灣）",
+  "Continue in Background": "Lanjutkan di Latar Belakang",
+  "Folder not found": "Folder tidak ditemukan",
+  "Dismiss": "Tutup",
+  "Review…": "Tinjau…",
+  "Open Synchronize Folder with what the scan found": "Buka Sinkronkan Folder dengan hasil pemindaian",
+  "You can go on working: a notice at the top left says when the scan is done.": "Anda dapat terus bekerja: pemberitahuan di kiri atas memberi tahu saat pemindaian selesai."
 }

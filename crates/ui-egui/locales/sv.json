@@ -2414,5 +2414,11 @@
   "⌘-drag to straighten, ⇧G Guided Upright, a grid while transforming.": "⌘-dra för att räta upp, ⇧G guidad upprätning, ett rutnät under transformering.",
   "★ Favorites": "★ Favoriter",
   "日本語": "日本語",
-  "繁體中文（台灣）": "繁體中文（台灣）"
+  "繁體中文（台灣）": "繁體中文（台灣）",
+  "Continue in Background": "Fortsätt i bakgrunden",
+  "Folder not found": "Mappen hittades inte",
+  "Dismiss": "Avfärda",
+  "Review…": "Granska…",
+  "Open Synchronize Folder with what the scan found": "Öppna Synkronisera mapp med det genomsökningen hittade",
+  "You can go on working: a notice at the top left says when the scan is done.": "Du kan fortsätta arbeta: en avisering uppe till vänster berättar när genomsökningen är klar."
 }

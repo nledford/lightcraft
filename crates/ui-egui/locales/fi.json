@@ -2311,5 +2311,11 @@
   "− harder border · + softer border": "− terävämpi reuna · + pehmeämpi reuna",
   "≤  at most": "≤  enintään",
   "≥  at least": "≥  vähintään",
-  "★ Favorites": "★ Suosikit"
+  "★ Favorites": "★ Suosikit",
+  "Continue in Background": "Jatka taustalla",
+  "Folder not found": "Kansiota ei löytynyt",
+  "Dismiss": "Hylkää",
+  "Review…": "Tarkista…",
+  "Open Synchronize Folder with what the scan found": "Avaa Synkronoi kansio skannauksen löytämillä muutoksilla",
+  "You can go on working: a notice at the top left says when the scan is done.": "Voit jatkaa työskentelyä: vasemmassa yläkulmassa oleva ilmoitus kertoo, kun skannaus on valmis."
 }

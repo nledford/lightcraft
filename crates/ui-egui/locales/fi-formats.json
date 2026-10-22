@@ -297,5 +297,8 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "”{to}” on jo henkilö. Yhdistäminen tekee kahdesta yhden henkilön; Kumoa erottaa ne uudelleen.",
   "•  {assumption}": "•  {assumption}",
   "… and {more} more": "… ja {more} lisää",
-  "…and {more} more": "…ja {more} lisää"
+  "…and {more} more": "…ja {more} lisää",
+  "Changes found: {n}": "Löydettyjä muutoksia: {n}",
+  "“{name}” is still being scanned: wait for it, or stop it with ✕ on its row": "Kohdetta ”{name}” skannataan vielä: odota tai pysäytä se rivin ×-painikkeella",
+  "Look at the changes found in “{name}” first, or dismiss them": "Katso ensin kohteesta ”{name}” löydetyt muutokset tai hylkää ne"
 }
