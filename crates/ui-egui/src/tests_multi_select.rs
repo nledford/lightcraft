@@ -171,17 +171,27 @@ fn shift_click_takes_the_albums_between_and_a_plain_click_one_alone() {
 fn shift_click_does_not_take_albums_inside_a_closed_folder() {
     let mut h = app("info");
     let ids: Vec<u64> = h.app.session.visible_cloned().iter().take(2).map(|p| p.0).collect();
-    let folder = run(&mut h, "album.create", json!({"name": "Sel Folder", "folder": true}))["id"].as_u64().unwrap();
-    let inside = album(&mut h, "Sel Inside", Some(folder), &[ids[0]]);
-    let after = album(&mut h, "Sel Z", None, &[ids[1]]);
+    // folders are listed above albums, so the range has to run from a row inside the first folder, across
+    // the second, to an album at the top level
+    let first = run(&mut h, "album.create", json!({"name": "Sel A Folder", "folder": true}))["id"].as_u64().unwrap();
+    let anchor = album(&mut h, "Sel A", Some(first), &[ids[0]]);
+    let second = run(&mut h, "album.create", json!({"name": "Sel B Folder", "folder": true}))["id"].as_u64().unwrap();
+    let inside = album(&mut h, "Sel Inside", Some(second), &[ids[0]]);
+    let last = album(&mut h, "Sel Z", None, &[ids[1]]);
+    // open, the range takes the album inside the second folder...
     assert!(has(&h, &row(inside)), "a folder starts open");
-    click(&mut h, &format!("albumToggle:{folder}"));
+    click(&mut h, &row(anchor));
+    shift_click(&mut h, &row(last));
+    let open = shown(&h);
+    assert!(open.contains(&anchor) && open.contains(&inside) && open.contains(&last), "{open:?}");
+    // ...closed, it does not: a row that is not in sight is not taken
+    click(&mut h, &format!("albumToggle:{second}"));
     assert!(!has(&h, &row(inside)), "closed");
-    click(&mut h, &format!("source:folder:{folder}"));
-    shift_click(&mut h, &row(after));
-    let chosen = shown(&h);
-    assert!(chosen.contains(&folder) && chosen.contains(&after), "{chosen:?}");
-    assert!(!chosen.contains(&inside), "a row that is not in sight is not taken: {chosen:?}");
+    click(&mut h, &row(anchor));
+    shift_click(&mut h, &row(last));
+    let closed = shown(&h);
+    assert!(closed.contains(&anchor) && closed.contains(&last), "{closed:?}");
+    assert!(!closed.contains(&inside), "a row that is not in sight is not taken: {closed:?}");
 }
 
 #[test]
