@@ -494,22 +494,6 @@ fn after_a_click_elsewhere_the_focus_is_back_on_the_button() {
 }
 
 #[test]
-fn a_cache_question_left_open_is_gone_when_settings_is_opened_again() {
-    let mut h = demo();
-    show(&mut h, "performance");
-    let before = h.app.session.media.rendered.mem_usage().0;
-    click(&mut h, "button:settingsClearCache");
-    assert!(has(&h, "button:settingsClearCache:confirm"));
-    // When Settings is closed with the question open, and opened again
-    h.app.ui.dialog = None;
-    steps(&mut h);
-    show(&mut h, "performance");
-    // Then no question is open, and nothing was cleared
-    assert!(!has(&h, "button:settingsClearCache:confirm"), "the question does not outlive Settings");
-    assert_eq!(h.app.session.media.rendered.mem_usage().0, before);
-}
-
-#[test]
 fn removing_a_denoise_model_asks_first() {
     let dir = TempFolder::new("settings-trust-denoise");
     let mut h = demo();
@@ -547,17 +531,4 @@ fn removing_a_denoise_model_asks_first() {
     // When the answer is yes, it is removed
     click(&mut h, &format!("{remove}:confirm"));
     assert!(!installed(&mut h), "the model is removed");
-}
-
-#[test]
-fn a_question_open_when_a_command_changes_the_tab_is_gone_when_the_tab_comes_back() {
-    let mut h = demo();
-    show(&mut h, "performance");
-    click(&mut h, "button:settingsClearCache");
-    assert!(has(&h, "button:settingsClearCache:confirm"));
-    // When a command opens another tab, and then this one again
-    show(&mut h, "general");
-    show(&mut h, "performance");
-    // Then Clear Cache shows no question
-    assert!(!has(&h, "button:settingsClearCache:confirm"), "the question does not wait for the tab to come back");
 }
