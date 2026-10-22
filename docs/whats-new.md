@@ -4,8 +4,9 @@
 
 ### Settings window
 - Settings asks before it does what is slow or impossible to take back. Clear Cache says that thumbnails and
-  previews are made again as you browse, and a model's Remove that its file is deleted, each with the action and
-  Keep under the button. Keep has the focus, so Return alone changes nothing; Esc or a click elsewhere answers no.
+  previews are made again as you browse. The prompt for removing a model says that the model's file is deleted.
+  Each prompt opens under its button with the action and a Keep button. Keep has the focus, so Return alone changes
+  nothing; Esc or a click elsewhere answers no.
 - Changing the smart previews folder with "Delete them" chosen no longer deletes at the press of Choose Folder: with
   the new folder chosen, it says how many smart previews would go and what they are for, and waits for Delete and
   Change Folder or Cancel. The choice goes back to "Move them" afterwards, and neither it nor the question is
@@ -61,7 +62,6 @@
   or "doesn't contain" rule took about 17 ms per pass instead of about 62 ms, around 3.5 times faster, with the same
   photos matched; about 6 ms of that is only reading the paths. Paths and rule text with letters beyond A–Z are
   compared as before.
-
 
 ## 2026-10-19
 
