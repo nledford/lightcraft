@@ -214,18 +214,7 @@ pub(super) fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId)
         p.text(pos2(r.left() + r.width() / 2.0, r.bottom() - 13.0), Align2::CENTER_CENTER, text, t.font(12.5), t.text_label);
     } else if let Some(ph) = app.session.catalog.photo(id) {
         let m = &ph.meta;
-        let parts: Vec<String> = [
-            m.iso.map(|i| format!("ISO {i}")),
-            m.focal_mm.map(|f| format!("{f:.0}mm")),
-            m.aperture.map(|a| format!("f/{a:.1}")),
-            if m.shutter.is_empty() { None } else { Some(m.shutter.clone()) },
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-
-        if !parts.is_empty() {
-            let text = parts.join(" · ");
+        if let Some(text) = crate::readout::exposure_line(m) {
             let y = r.bottom() - 13.0;
             let x = r.left() + r.width() / 2.0;
             p.text(pos2(x, y), Align2::CENTER_CENTER, text, t.body(), t.text_label);

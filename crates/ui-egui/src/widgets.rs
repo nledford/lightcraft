@@ -317,11 +317,29 @@ pub struct SliderOut {
 }
 
 /// What a value typed into a slider asks for (issue #322): a number such as `0.5`, `+12`, `-1,5`
-/// (comma or point) or `5600 K`, on the control's steps and clamped to its range. `None` when it
-/// isn't a finite number, so the slider keeps its value.
+/// (comma or point), `5600 K` or `5°`, on the control's steps and clamped to its range. The digits may
+/// be the Arabic-Indic or Persian ones (`١٫٥`, `۲۰٪`), as an Arabic or Persian keyboard gives
+/// them. `None` when it isn't a finite number, so the slider keeps its value.
 pub fn typed_value(spec: &ControlSpec, text: &str) -> Option<f64> {
-    let t = text.trim().replace(',', ".");
-    let t = t.trim_end_matches(|c: char| c == '%' || c == 'K' || c == 'k' || c.is_whitespace());
+    let t: String = text
+        .chars()
+        // (the marks a keyboard or a paste puts around a number to say which way it reads: the
+        // direction marks, and the embeddings and isolates an app wraps a number in)
+        .filter(|c| !matches!(c, '\u{200e}' | '\u{200f}' | '\u{61c}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'))
+        .map(|c| match c {
+            // (Arabic-Indic digits, and their Persian forms)
+            '\u{660}'..='\u{669}' => char::from_digit(c as u32 - 0x660, 10).unwrap_or(c),
+            '\u{6f0}'..='\u{6f9}' => char::from_digit(c as u32 - 0x6f0, 10).unwrap_or(c),
+            // (a decimal comma, the Arabic comma, or the Arabic decimal sign)
+            ',' | '\u{60c}' | '\u{66b}' => '.',
+            '\u{66a}' => '%',
+            // (a minus as the value is shown with, or the hyphen of a keyboard)
+            crate::readout::MINUS => '-',
+            c => c,
+        })
+        .collect();
+    let t = t.trim();
+    let t = t.trim_end_matches(|c: char| c == '%' || c == '°' || c == 'K' || c == 'k' || c.is_whitespace());
     let v: f64 = t.parse().ok().filter(|v: &f64| v.is_finite())?;
     let step = spec.step.max(1e-9);
     Some(((v / step).round() * step).clamp(spec.min, spec.max))
@@ -330,7 +348,7 @@ pub fn typed_value(spec: &ControlSpec, text: &str) -> Option<f64> {
 /// A slider's value as shown next to its label.
 pub(crate) fn shown_value(spec: &ControlSpec, v: f64) -> String {
     let shown = if spec.id == "wb.temp" { format!("{v:.0}") } else { spec.format(v).replace("+0.00", "0").replace("-0.00", "0") };
-    if shown == "+0" || shown == "-0" { "0".to_string() } else { shown }
+    if shown == "+0" || shown == "-0" { "0".to_string() } else { crate::readout::signed(&shown) }
 }
 
 /// Pointer travel (points, sideways from the press) that turns a press on a slider's value into a
@@ -384,6 +402,12 @@ fn update_wheel_arming(ui: &mut Ui, id: egui::Id, resp: &egui::Response, row: Re
 
 /// The radius of a slider's hollow ring thumb.
 const THUMB_RING: f32 = 7.0;
+
+/// A slider's value as the text its field opens with: no plus, and the hyphen of a keyboard
+/// for the minus it is shown with, so that what is copied from the field pastes anywhere.
+pub(crate) fn draft_value(spec: &ControlSpec, v: f64) -> String {
+    shown_value(spec, v).trim_start_matches('+').replace(crate::readout::MINUS, "-")
+}
 
 /// A Lightroom slider row (label + value above a track with a hollow ring thumb).
 /// Double-click the label or thumb to reset (hovering either says so). Shift-drag = fine adjustment.
@@ -458,8 +482,8 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     let p = ui.painter();
     p.text(label_rect.left_center(), Align2::LEFT_CENTER, crate::i18n::tr(label_override.unwrap_or(spec.label)), t.body(), text_c);
     if typing.is_none() {
-        p.text(label_rect.right_center(), Align2::RIGHT_CENTER, shown_value(spec, v), t.body(), text_c);
-        // the scrub pointer, as over Lightroom's values: a drag here changes the value
+        // (in a column of figures: the value keeps its place while it changes)
+        crate::readout::value(p, label_rect.right_center(), &shown_value(spec, v), t.body(), text_c);
         if enabled && (value_resp.hovered() || scrub.is_some()) {
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
         }
@@ -595,7 +619,7 @@ fn update_typing_gesture(ui: &mut Ui, g: &SliderLayout, value_resp: &Response, t
     let value_pressed = value_resp.is_pointer_button_down_on() && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Primary));
     // Focus on the owned primary press before fast typing; retain the readout's click activation.
     if g.enabled && typing.is_none() && (value_resp.clicked() || value_pressed) {
-        *typing = Some((shown_value(g.spec, g.value).trim_start_matches('+').to_string(), 0, value_pressed));
+        *typing = Some((draft_value(g.spec, g.value), 0, value_pressed));
     }
     let value_released = ui.input(|i| i.pointer.button_released(egui::PointerButton::Primary));
     // A release over the value keeps the field the press opened, however long the button was held

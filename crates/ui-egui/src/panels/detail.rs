@@ -1212,14 +1212,17 @@ mod tests {
 
     #[test]
     fn film_labels_cut_on_characters_not_bytes() {
-        // the name from #266: byte 13 falls inside '限'
-        assert_eq!(film_label("202407層三限定訂閱圖(4)"), "202407層三限定訂閱圖…");
-        assert_eq!(film_label("写真"), "写真");
+        // (a character is a unit wide here; the cell has room for 14)
+        let label = |name: &str| film_label(name, 14.0, |s| s.chars().count() as f32);
+        // the name from #266: no cut falls inside a character
+        assert_eq!(label("202407層三限定訂閱圖(4)"), "202407…定訂閱圖(4)");
+        assert_eq!(label("写真"), "写真");
         // exactly 14 characters (42 bytes) is shown whole
-        assert_eq!(film_label("一二三四五六七八九十一二三四"), "一二三四五六七八九十一二三四");
-        assert_eq!(film_label("IMG_20240712_153012"), "IMG_20240712_…");
-        assert_eq!(film_label("DSC_0001"), "DSC_0001");
-        assert_eq!(film_label(""), "");
+        assert_eq!(label("一二三四五六七八九十一二三四"), "一二三四五六七八九十一二三四");
+        // the number of the frame stays
+        assert_eq!(label("IMG_20240712_153012"), "IMG_20…_153012");
+        assert_eq!(label("DSC_0001"), "DSC_0001");
+        assert_eq!(label(""), "");
     }
 
     /// With the photo flipped, the crop box's corners reach the screen mirrored; the dimming
