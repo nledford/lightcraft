@@ -2,6 +2,14 @@
 
 ## 2026-10-21
 
+### Several albums, folders, keywords or dates shown at once (agents)
+- `library.source` takes `ids` (albums) or `paths` (folders) and shows the photos of any of them, each once;
+  `library.filter` takes `keywords`, `dates`, `libraryFolders` and `albums`. The single fields stay and count as one
+  more of them. `library.state` lists `albums` and `libraryFolders`. Nothing on screen changes yet: the sidebars'
+  Cmd+click and Shift+click that use this come in a later change.
+- `album.setRules` with `replace` keeps a smart album's album, as it already kept its folder (`album: null` drops
+  it), so editing a smart album saved from a view of several albums no longer loses them.
+
 ### Imports and Synchronize Folder wait for each other
 - An import confirmed (or photos dropped on the window) while a Synchronize Folder runs, or a Synchronize Folder
   confirmed while an import runs, now waits in line and starts by itself when the other ends. Before, it was refused

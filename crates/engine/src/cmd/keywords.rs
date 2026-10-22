@@ -32,6 +32,14 @@ fn commit_keywords(s: &mut Session, label: &str, op: lightcraft_catalog::Op, fol
     if let Some(k) = s.filter.keyword.clone() {
         s.filter.keyword = follow(&k);
     }
+    // several keywords filtered by: each follows, one that is gone leaves
+    let mut kept: Vec<String> = Vec::new();
+    for k in s.filter.keywords.iter().filter_map(|k| follow(k)) {
+        if !kept.iter().any(|o| lightcraft_catalog::keywords::same(o, &k)) {
+            kept.push(k);
+        }
+    }
+    s.filter.keywords = kept;
     Ok(json!({"changed": photos, "listed": listed}))
 }
 
