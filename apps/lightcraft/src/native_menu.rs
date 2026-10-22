@@ -509,7 +509,7 @@ impl NativeMenu {
         let bar = menu_bar(app);
         if structure_of(&bar, &app.ui.settings.keymap) != self.structure {
             // (no early return: a rebuild installs every accelerator and resets the state they were synced
-            // to, so the sync below runs in this same frame and no key reaches the menu in between)
+            // to, so the sync below runs in this same frame: F2 must not reach the menu while the sidebar has the keys)
             self.rebuild(app);
         }
         /// Synchronize live labels and states; accelerator ownership changes already triggered a rebuild.
