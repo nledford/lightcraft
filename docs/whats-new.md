@@ -2,6 +2,19 @@
 
 ## 2026-10-21
 
+### Large libraries
+- The catalog on disk is several times smaller: a photo's record states only what was set (no empty fields, no default
+  develop settings), about 0.4 to 0.6 kB for an unedited photo where it was 3.4 to 3.7 kB. Edits, history steps and
+  versions are stored as what differs from the defaults.
+- Saving follows what changed, not the size of the library: the catalog file is rewritten when the changes since the
+  last rewrite have grown to a quarter of its size, where it used to be rewritten every 2000 changes. Importing 100,000
+  photos rewrote it 50 times (9.4 GB written); it is now 15 times (0.25 GB). Quitting no longer rewrites a large
+  catalog for a handful of changes.
+- Libraries are upgraded when first opened (catalog format 10) and can't be opened by earlier versions afterwards.
+  The library as it was is kept beside it (`catalog.snap.v<format>-<seq>`, `catalog.log.v<format>-<seq>`): to go back, see
+  `docs/catalog-persistence.md`.
+  Numbers and the measurements behind them: `docs/catalog-persistence.md`.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around
@@ -646,18 +659,6 @@
   files, the same files as `library.import` (issue #1080). They used to be skipped without a word.
 - Compare and Reference View panes say "Rendering…" (or that the photo can't be opened) the same way, so a
   magnified preview isn't taken for the photo when checking focus at 1:1.
-### Large libraries
-- The catalog on disk is several times smaller: a photo's record states only what was set (no empty fields, no default
-  develop settings), about 0.4 to 0.6 kB for an unedited photo where it was 3.4 to 3.7 kB. Edits, history steps and
-  versions are stored as what differs from the defaults.
-- Saving follows what changed, not the size of the library: the catalog file is rewritten when the changes since the
-  last rewrite have grown to a quarter of its size, where it used to be rewritten every 2000 changes. Importing 100,000
-  photos rewrote it 50 times (9.4 GB written); it is now 15 times (0.25 GB). Quitting no longer rewrites a large
-  catalog for a handful of changes.
-- Libraries are upgraded when first opened (catalog format 10) and can't be opened by earlier versions afterwards.
-  The library as it was is kept beside it (`catalog.snap.v<format>-<seq>`, `catalog.log.v<format>-<seq>`): to go back, see
-  `docs/catalog-persistence.md`.
-  Numbers and the measurements behind them: `docs/catalog-persistence.md`.
 
 ### Lens corrections
 - Sony A7R VI (ILCE-7RM6) raws are corrected for lens distortion from the table the camera records in each file,
