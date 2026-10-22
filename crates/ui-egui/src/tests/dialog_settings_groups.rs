@@ -230,3 +230,27 @@ fn the_tab_bar_shows_the_names_people_read() {
     }
     assert!(!texts.iter().any(|text| text == "Display" || text == "Interface"), "and not the names from before");
 }
+
+/// View Options' headings go by their English names too, whatever the language (they used to be
+/// translated before being registered, so `heading:Vista lente` stood for `heading:Loupe View`).
+#[test]
+fn view_options_headings_are_registered_under_their_english_names_in_every_language() {
+    use crate::i18n::Locale;
+    struct Restore(Locale);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            crate::i18n::set_language(self.0);
+        }
+    }
+    let _restore = Restore(crate::i18n::language());
+    let mut h = demo();
+    for locale in Locale::ALL {
+        h.app.ui.language = *locale;
+        crate::i18n::set_language(*locale);
+        h.app.ui.dialog = Some(Dialog::ViewOptions);
+        for _ in 0..4 {
+            h.step();
+        }
+        assert_eq!(headings(&h), ["Loupe View", "Loupe Info 1", "Loupe Info 2"], "{}", locale.name());
+    }
+}
