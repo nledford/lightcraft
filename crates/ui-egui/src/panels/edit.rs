@@ -137,7 +137,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             // a long name is cut short before Browse Profiles: a wider row would widen the whole panel's
             // content, and the sliders below would run past its edge
             let max = ui.available_width() - 28.0 - ui.spacing().item_spacing.x;
-            let r = crate::widgets::dropdown_within(ui, "profile", crate::i18n::profile_label(&d.profile.id, name), t.font(15.0), t.text_label, max);
+            let r = crate::widgets::dropdown_within(ui, "profile", crate::i18n::profile_label(&d.profile.id, name), t.body(), t.text_label, max);
             let below = r.rect.bottom();
             egui::Popup::menu(&r).show(|ui| profile_menu(app, ui, &d, below));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -207,7 +207,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 2, bottom: 2 }).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(crate::i18n::tr("White Balance")).font(t.font(13.0)).color(t.text_dim));
-                let r = crate::widgets::dropdown(ui, "wbMode", crate::i18n::tr(d.wb.mode.label()), t.font(14.0), t.text_label);
+                let r = crate::widgets::dropdown(ui, "wbMode", crate::i18n::tr(d.wb.mode.label()), t.body(), t.text_label);
                 egui::Popup::menu(&r).show(|ui| {
                     for m in WbMode::ALL {
                         if m == WbMode::Custom {
