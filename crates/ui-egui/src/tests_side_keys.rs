@@ -380,6 +380,25 @@ fn a_field_that_takes_the_focus_takes_the_keys() {
     assert_eq!(cursor_row(&h), None);
 }
 
+/// Given a field has the focus (Find), asking for the mode by command (the palette, the control
+/// channel) takes the keys: the focus is let go, the mode stays on, and it says how it works.
+#[test]
+fn asking_for_the_mode_while_a_field_is_focused_lets_the_field_go() {
+    let mut h = app();
+    exec(&mut h, "view.focusSearch", json!({}));
+    h.step();
+    h.step();
+    assert!(h.view.ctx.egui_wants_keyboard_input(), "the search box has the focus");
+    h.app.ui.toast = None;
+    exec(&mut h, "view.sidebarKeys", json!({"on": true}));
+    h.step();
+    h.step();
+    assert!(h.app.ui.sidebar_keys, "the field did not end the mode at once");
+    assert!(!h.view.ctx.egui_wants_keyboard_input(), "the field let the focus go");
+    let said = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
+    assert!(said.contains("Esc"), "the mode said how it ends: {said:?}");
+}
+
 /// Two folders in one Local place, one of them named like the other with `#2` after it: F2 on
 /// each renames that folder (the keys' own mark of a row drawn twice is no part of a name).
 #[test]
