@@ -740,7 +740,7 @@ fn smart_rules_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, dlg:
             .color(t.text_dim),
         );
     } else {
-        ui.label(egui::RichText::new(crate::i18n::tr("Fix the marked rules to save this album.")).color(t.caution));
+        ui.label(egui::RichText::new(crate::i18n::tr("Fix the marked rules to save this album.")).color(t.text_caution()));
     }
 }
 
@@ -952,7 +952,7 @@ fn rename_person_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, co
         *confirm = true;
     }
     if let Some(why) = plan.block {
-        ui.label(egui::RichText::new(crate::i18n::tr(why)).color(t.caution));
+        ui.label(egui::RichText::new(crate::i18n::tr(why)).color(t.text_caution()));
     } else {
         ui.label(
             egui::RichText::new(crate::i18n::tr_format!(
@@ -969,7 +969,7 @@ fn rename_person_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, co
                 "“{to}” is already a person. Combining them makes one person; Undo separates them again.",
                 to = to.trim()
             ))
-            .color(t.caution),
+            .color(t.text_caution()),
         );
         let r = ui.checkbox(merge, crate::i18n::tr("Combine with the existing person"));
         crate::widgets::register(ui, "check:personMerge", r.rect);

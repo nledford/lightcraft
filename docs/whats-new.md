@@ -117,6 +117,20 @@
 - For those who write code: name the size (`t.caption()`, `t.body_strong()`, … in `theme.rs`); a number asked of
   the theme (`t.font(12.5)`) is drawn at the nearest size.
 
+### Text that can be read
+- The dim text of captions, counts, file names and explanations stands 4.5:1 against every panel, the grid, a
+  cell, a text box and a button, in all four themes. It was 4.20:1 on a panel in Charcoal, 3.3 to 4.4:1 on the
+  surfaces of Silver and Paper. It stays dimmer than a label.
+- So do a placeholder in a text box and anything else written faintly (they were the label colour at 60 %, under
+  4.1:1 on a panel in every theme), a link (the accent as text was 2.56:1 on a panel in Charcoal, and links in About a bright blue
+  at 2.4 to 2.8:1 in the light themes), and a caution or an error written as text (3.09:1 in Silver).
+- A chosen chip keeps its label 4.5:1 on the accent behind it; the count on the filter button and the "!" on the
+  cloud button (while changes can't be saved) are in black or white, whichever stands out from the circle; the name
+  on a selected filmstrip cell or square grid cell, or one tinted by a colour label, is made readable on that cell,
+  and the format over a square cell is light on its dark chip in the light themes too; a hidden mask's name is dim,
+  not the colour of what cannot be used.
+- Left as it was: a count of nothing in the sidebar ("0") is fainter than the other counts on purpose.
+
 ### Settings window
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own
   size and the tabs moved under the pointer. The tabs stay in place while a long page scrolls (in a very short

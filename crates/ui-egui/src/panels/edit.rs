@@ -110,7 +110,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     if app.session.auto_sync && n > 1 {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 0, bottom: 10 }).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(crate::i18n::tr_format!("Auto Sync: edits apply to {n} photos", n = n)).color(t.accent).font(t.label()));
+                ui.label(
+                    egui::RichText::new(crate::i18n::tr_format!("Auto Sync: edits apply to {n} photos", n = n)).color(t.text_link()).font(t.label()),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if text_button(ui, "autoSyncOff", crate::i18n::tr("Turn Off"), false).clicked() {
                         let _ = app.run("develop.autoSync", json!({"on": false}));

@@ -95,7 +95,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             if hidden > 0 || (app.activity_expanded && tasks.len() > MAX_ROWS) {
                 ui.add_space(4.0);
                 let text = if hidden > 0 { tr_format!("+{n} more", n = hidden) } else { tr("Show less").to_string() };
-                let r = ui.add(egui::Label::new(RichText::new(text).font(t.font(11.0)).color(t.accent)).sense(Sense::click()));
+                let r = ui.add(egui::Label::new(RichText::new(text).font(t.font(11.0)).color(t.text_link())).sense(Sense::click()));
                 register(ui, "activity:more", r.rect);
                 toggle = r.clicked();
             }
