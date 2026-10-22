@@ -513,6 +513,8 @@ pub fn example_destination(app: &LightcraftApp, d: &ImportDialog) -> Option<Stri
     // the probe's metadata, so {camera}, {title}… preview as they will import
     if let Some(info) = app.session.import_probes.get(&c.path) {
         q.meta = info.meta.clone();
+        // what is not read names no file or folder either, as in the import itself
+        d.read.of_the_file(&mut q.meta);
     }
     let name = if d.rename.trim().is_empty() { c.name.clone() } else { lightcraft_engine::rename::expand(d.rename.trim(), &q, 1) };
     let root = if d.destination.trim().is_empty() {
