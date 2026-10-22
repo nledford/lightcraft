@@ -1,8 +1,10 @@
-//! The work of `photo.trashFiles` (see [`crate::trash`]), in steps, so that the files can be moved
-//! without the session in hand (the command runs them one after the other):
+//! The work of `photo.trashFiles` (see [`crate::trash`]), in steps that let the app run it off its
+//! own thread, with a row in the activity stack:
 //!
 //! 1. [`TrashPlan::new`] (session): the checks, and what stays in the library that may be one of
 //!    the files: the photos in each file's own folder, and the photos of the same name elsewhere.
+//!    It takes the session's Trash lease, so the commands that move files wait
+//!    ([`Session::refuse_while_trashing`]).
 //! 2. [`TrashPlan::survey`] (any thread): each folder's real path, and whether its disk has a
 //!    Trash, before any file moves, so the person can be asked about erasing first.
 //! 3. [`TrashPlan::resolve`] (session): the photos recorded under a folder's real path count as
@@ -10,7 +12,7 @@
 //! 4. [`TrashPlan::work`] (any thread, never the catalog): the files go, one by one, until it is
 //!    cancelled; then the sidecars of those that went.
 //! 5. [`TrashWork::finish`] (session): the photos whose files went leave the library, as one undo
-//!    step.
+//!    step; [`TrashWork::put_back`] instead puts every file back.
 //!
 //! Whether a file is another photo's too is asked only of the photos in its own folder (any
 //! letter case, and that folder reached through a link), so a name that is common across a big
@@ -42,6 +44,22 @@ const LIST_FOLDER_AT: usize = 8;
 
 /// What a panic in the work is reported as.
 const WHAT: &str = "move files to the Trash";
+
+/// The session's Trash lease: while one is held, another trash job is refused and so are the
+/// commands that move files ([`Session::refuse_while_trashing`]). Dropped, it is free again.
+pub(crate) struct TrashLease(Arc<AtomicBool>);
+
+impl TrashLease {
+    fn take(flag: &Arc<AtomicBool>) -> Option<TrashLease> {
+        flag.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).ok().map(|_| TrashLease(flag.clone()))
+    }
+}
+
+impl Drop for TrashLease {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
 
 /// What stays in the library, by folder (its folder-index key): the names and the stems (name
 /// without the last extension) of its photos' files, lower-cased. A sidecar one of them may use
@@ -86,6 +104,7 @@ struct Planned {
     /// [`file_name_index_key`] of `path`.
     name: String,
 }
+
 /// The path of photo `id`'s file (`None`: no such photo, or no file).
 fn file_of(s: &Session, id: PhotoId) -> Option<&str> {
     match &s.catalog.photo(id)?.source {
@@ -95,8 +114,9 @@ fn file_of(s: &Session, id: PhotoId) -> Option<&str> {
 }
 
 /// The plan of one Move Files to Trash: made on the session's thread, then surveyed and worked off
-/// it.
+/// it. Dropping it (or the [`TrashWork`] it becomes) frees the session's Trash lease.
 pub struct TrashPlan {
+    command: String,
     named: Vec<Planned>,
     /// Named photos without a file (demo scenes): they just leave.
     no_file: Vec<PhotoId>,
@@ -106,10 +126,14 @@ pub struct TrashPlan {
     /// (folder key, lower-cased name) → the files of photos that stay in that folder (or in it
     /// reached through a link) with that name.
     near: HashMap<(String, String), Vec<PathBuf>>,
+    /// The photos put in `near` while planning.
+    near_ids: HashSet<PhotoId>,
     /// Lower-cased name → the files of photos that stay, with their folder key, wherever they are.
     far: HashMap<String, Vec<(PathBuf, String)>>,
     beside: Kept,
+    library: Arc<()>,
     bin: Arc<dyn Bin>,
+    lease: TrashLease,
 }
 
 /// What [`TrashPlan::survey`] found out about each folder, before any file moved.
@@ -126,10 +150,17 @@ impl Survey {
     fn trash_of(&self, folder: &Path) -> TrashHere {
         self.folders.get(folder).map_or(TrashHere::Unknown, |f| f.trash)
     }
+
+    /// The photos of `plan` with a file whose folder's disk says it has no Trash, in plan order:
+    /// the ones to ask about erasing before anything moves.
+    pub fn no_trash_ids(&self, plan: &TrashPlan) -> Vec<u64> {
+        plan.named.iter().filter(|p| self.trash_of(&p.folder) == TrashHere::No).map(|p| p.id.0).collect()
+    }
 }
 
 impl TrashPlan {
-    /// The checks `photo.trashFiles` makes before anything (in its words), and what stays.
+    /// The checks `photo.trashFiles` makes before anything (in its words), and what stays. Takes
+    /// the session's Trash lease: a second plan is refused while this one (or its work) lives.
     pub fn new(s: &Session, ids: &[PhotoId], c: &str) -> Result<TrashPlan> {
         if !s.trash.works_here() {
             return Err(bad(c, "moving files to the Trash is not available here yet: nothing was changed"));
@@ -157,6 +188,7 @@ impl TrashPlan {
         if named_ids.is_empty() {
             return Err(bad(c, "photos browsed in Local are not in the library: add them to My Photos first"));
         }
+        let lease = TrashLease::take(&s.trash_busy).ok_or_else(|| bad(c, "files are already being moved to the Trash: wait for that to finish"))?;
         let going: HashSet<PhotoId> = named_ids.iter().copied().collect();
         let (mut named, mut no_file) = (Vec::new(), Vec::new());
         for id in &named_ids {
@@ -174,7 +206,7 @@ impl TrashPlan {
         }
         // what stays in each file's own folder (every other record, browsed ones too): a file one
         // of them is stays with it, and so does a stem sidecar one of them may share
-        let (mut near, mut beside) = (HashMap::new(), Kept::default());
+        let (mut near, mut near_ids, mut beside) = (HashMap::new(), HashSet::new(), Kept::default());
         let mut keys: HashSet<&str> = HashSet::new();
         for p in &named {
             if !keys.insert(&p.key) {
@@ -186,6 +218,7 @@ impl TrashPlan {
                 }
                 let Some(path) = file_of(s, id) else { continue };
                 near.entry((p.key.clone(), file_name_index_key(path).unwrap_or_default())).or_insert_with(Vec::new).push(PathBuf::from(path));
+                near_ids.insert(id);
                 beside.add_under(&p.key, Path::new(path));
             }
         }
@@ -207,7 +240,29 @@ impl TrashPlan {
                 .collect();
             far.insert(p.name.clone(), list);
         }
-        Ok(TrashPlan { named, no_file, browsed, going, near, far, beside, bin: s.trash.clone() })
+        Ok(TrashPlan {
+            command: c.to_string(),
+            named,
+            no_file,
+            browsed,
+            going,
+            near,
+            near_ids,
+            far,
+            beside,
+            library: s.library_identity.clone(),
+            bin: s.trash.clone(),
+            lease,
+        })
+    }
+
+    /// How many photos named have a file to move.
+    pub fn len(&self) -> usize {
+        self.named.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.named.is_empty()
     }
 
     /// The photos named that have a file (for erasing all of them that are on a disk without a
@@ -248,7 +303,10 @@ impl TrashPlan {
     /// The photos recorded under a folder's real path (the folder named through a link) count as
     /// being in that folder too. (A photo recorded through a link while the real path is named is
     /// not looked for: the file goes to the Trash, from where Undo brings it back.)
-    pub fn resolve(&mut self, s: &Session, survey: &Survey) {
+    pub fn resolve(&mut self, s: &Session, survey: &Survey) -> Result<()> {
+        if !Arc::ptr_eq(&self.library, &s.library_identity) {
+            return Err(bad(&self.command, "another library was opened meanwhile: nothing was moved to the Trash"));
+        }
         let mut done: HashSet<&Path> = HashSet::new();
         for p in &self.named {
             if !done.insert(&p.folder) {
@@ -265,16 +323,23 @@ impl TrashPlan {
                 }
                 let Some(path) = file_of(s, id) else { continue };
                 self.near.entry((p.key.clone(), file_name_index_key(path).unwrap_or_default())).or_default().push(PathBuf::from(path));
+                self.near_ids.insert(id);
                 self.beside.add_under(&p.key, Path::new(path));
             }
         }
+        Ok(())
+    }
+
+    /// [`TrashPlan::work`] on the real disk.
+    pub fn work_real(self, survey: Survey, erase: &HashSet<PhotoId>, cancel: &AtomicBool, row: Option<&TaskHandle>) -> TrashWork {
+        self.work(survey, erase, cancel, row, &crate::rename::RealFs)
     }
 
     /// Move the files, one by one: to the Trash, or erased when their photo is in `erase` and
     /// their disk has none. Stops after the file in hand when `cancel` is set. Never touches the
     /// catalog, and always returns (a panic is one photo's failure).
     pub(crate) fn work(self, survey: Survey, erase: &HashSet<PhotoId>, cancel: &AtomicBool, row: Option<&TaskHandle>, fs: &dyn MoveFs) -> TrashWork {
-        let TrashPlan { named, no_file, browsed, going: _, near, far, mut beside, bin } = self;
+        let TrashPlan { command: _, named, no_file, browsed, going: _, near, near_ids, far, mut beside, library, bin, lease } = self;
         let mut w = Worker {
             bin: bin.as_ref(),
             fs,
@@ -333,9 +398,10 @@ impl TrashPlan {
                 group.append(&mut found);
             }
         }
+        let planned = named.into_iter().map(|p| (p.id, (p.path, p.key))).collect();
         TrashWork {
             removed: w.removed,
-            groups: w.groups,
+            moved: Moved { groups: w.groups, bin: Arc::clone(&bin) },
             missing: w.missing,
             shared: w.shared,
             sidecars_left: sidecars.left,
@@ -343,7 +409,11 @@ impl TrashPlan {
             failed: w.failed,
             stopped: w.stopped,
             browsed,
-            bin,
+            planned,
+            near_ids,
+            library,
+            // (before the lease: the files are back when another run may start)
+            _lease: lease,
         }
     }
 }
@@ -638,12 +708,34 @@ impl Sidecars<'_> {
     }
 }
 
-/// What [`TrashPlan::work`] did with the files, for the session to commit
-/// ([`TrashWork::finish`]) or undo (the files are put back when it fails).
-pub struct TrashWork {
-    removed: Vec<PhotoId>,
+/// The files [`TrashPlan::work`] moved, until the session takes them over. Dropped with files in
+/// it (a job whose result nobody collected, a panic), they are put back where they were.
+struct Moved {
     /// The files each photo took along (its own first, then its sidecars).
     groups: Vec<(PhotoId, Vec<Trashed>)>,
+    bin: Arc<dyn Bin>,
+}
+
+impl Moved {
+    fn take(&mut self) -> Vec<(PhotoId, Vec<Trashed>)> {
+        std::mem::take(&mut self.groups)
+    }
+}
+
+impl Drop for Moved {
+    fn drop(&mut self) {
+        if !self.groups.is_empty() {
+            TrashStep::PutBack(self.take().into_iter().flat_map(|(_, g)| g).collect()).run(self.bin.as_ref());
+        }
+    }
+}
+
+/// What [`TrashPlan::work`] did with the files, for the session to commit
+/// ([`TrashWork::finish`]) or undo ([`TrashWork::put_back`]). Dropping it puts the files back.
+#[must_use = "dropping it puts the files back"]
+pub struct TrashWork {
+    removed: Vec<PhotoId>,
+    moved: Moved,
     /// Photos that leave without a file moved (counted in the answer while they leave).
     missing: HashSet<PhotoId>,
     shared: HashSet<PhotoId>,
@@ -652,16 +744,124 @@ pub struct TrashWork {
     failed: Vec<Value>,
     stopped: usize,
     browsed: usize,
-    bin: Arc<dyn Bin>,
+    /// Photo → the path and folder key its file had when it was planned.
+    planned: HashMap<PhotoId, (String, String)>,
+    near_ids: HashSet<PhotoId>,
+    library: Arc<()>,
+    /// Last, so that it is freed after the files above are back, when they have to be.
+    _lease: TrashLease,
+}
+
+/// " (note)" after a sentence, when there is one.
+fn with_note(note: Option<String>) -> String {
+    note.map(|n| format!(" ({n})")).unwrap_or_default()
 }
 
 impl TrashWork {
+    /// How many photos were not reached (the job was cancelled).
+    pub fn stopped(&self) -> usize {
+        self.stopped
+    }
+
     /// Take the photos whose files went out of the library, as one undo step that puts the files
-    /// back, and say what happened (`photo.trashFiles`'s answer).
+    /// back, and say what happened (`photo.trashFiles`'s answer). Files of photos that are gone or
+    /// changed meanwhile, or whose file another photo now is, are put back first (a file that
+    /// cannot come back stays in the Trash with its sidecars and its undo record).
     pub fn finish(self, s: &mut Session, c: &str) -> Result<Value> {
-        let TrashWork { removed, groups, missing, shared, sidecars_left, no_trash, failed, stopped, browsed, bin } = self;
+        let TrashWork {
+            mut removed,
+            mut moved,
+            mut missing,
+            mut shared,
+            sidecars_left,
+            no_trash,
+            mut failed,
+            stopped,
+            browsed,
+            planned,
+            near_ids,
+            library,
+            _lease,
+        } = self;
+        let groups = moved.take();
+        let bin = Arc::clone(&moved.bin);
         let bin = bin.as_ref();
+        if !Arc::ptr_eq(&library, &s.library_identity) {
+            let (_, note) = TrashStep::PutBack(groups.into_iter().flat_map(|(_, g)| g).collect()).run(bin);
+            return Err(EngineError::Other(format!(
+                "another library was opened while the files were being moved: they were put back{}",
+                with_note(note)
+            )));
+        }
         let mut groups: HashMap<PhotoId, Vec<Trashed>> = groups.into_iter().collect();
+        let put_back = |groups: &mut HashMap<PhotoId, Vec<Trashed>>, id: PhotoId| groups.remove(&id).and_then(|g| TrashStep::PutBack(g).run(bin).1);
+        // gone from the library meanwhile (nothing to take out), or pointed at another file
+        let mut kept = Vec::with_capacity(removed.len());
+        for id in removed.drain(..) {
+            let Some(p) = s.catalog.photo(id) else {
+                put_back(&mut groups, id);
+                // (not taken out by this: it is not counted as such)
+                missing.remove(&id);
+                shared.remove(&id);
+                continue;
+            };
+            if let Some((path, _)) = planned.get(&id)
+                && !matches!(&p.source, Source::File { path: now } if now == path)
+            {
+                let had = groups.contains_key(&id);
+                let note = put_back(&mut groups, id).map(|n| format!("; {n}")).unwrap_or_default();
+                let why = if had {
+                    format!("{path}: the photo changed while its file was being moved, so its file was put back{note}")
+                } else {
+                    format!("{path}: the photo changed while it was being taken out, so it stays")
+                };
+                failed.push(json!({"id": id.0, "path": path, "why": why}));
+                // (it stays: only its failure is counted)
+                missing.remove(&id);
+                shared.remove(&id);
+                continue;
+            }
+            kept.push(id);
+        }
+        removed = kept;
+        // a photo of that file was added to its folder meanwhile: the file stays with it. (The
+        // folders are read once each: a run of thousands of photos in one folder must not scan
+        // it once per photo.)
+        let leaving: HashSet<PhotoId> = removed.iter().copied().collect();
+        let mut others: HashMap<&str, HashSet<String>> = HashMap::new();
+        for id in &removed {
+            let (Some((path, key)), Some(group)) = (planned.get(id), groups.get(id)) else { continue };
+            if group.first().is_none_or(|t| t.now == Whereabouts::Erased || t.from != *path) {
+                continue;
+            }
+            let at = others.entry(key.as_str()).or_insert_with(|| {
+                s.catalog
+                    .photos_in_folder_any_case(key)
+                    .into_iter()
+                    .filter(|o| !leaving.contains(o) && !near_ids.contains(o))
+                    .filter_map(|o| file_of(s, o).map(str::to_lowercase))
+                    .collect()
+            });
+            if !at.contains(&path.to_lowercase()) {
+                continue;
+            }
+            let Some(mut group) = groups.remove(id) else { continue };
+            // the file first: while it cannot come back (a new file was written at its path
+            // meanwhile: a denoise or merge output), its sidecars stay with it in the Trash, not
+            // beside that file, and the whole group keeps its undo record
+            let rest = group.split_off(1);
+            let (_, note) = TrashStep::PutBack(group.clone()).run(bin);
+            if note.is_some() {
+                group.extend(rest);
+                groups.insert(*id, group);
+                continue;
+            }
+            // (its sidecars follow; one that cannot stays in the Trash with its undo record)
+            shared.insert(*id);
+            if let (TrashStep::Again { still_out, .. }, Some(_)) = TrashStep::PutBack(rest).run(bin) {
+                groups.insert(*id, still_out);
+            }
+        }
         let taken: Vec<Trashed> = removed.iter().filter_map(|id| groups.remove(id)).flatten().collect();
         // (whatever is left belongs to no photo leaving: back where it was)
         for (_, g) in groups.drain() {
@@ -718,5 +918,12 @@ impl TrashWork {
             "skipped": browsed,
             "stopped": stopped,
         }))
+    }
+
+    /// Put every file that moved back where it was (the library changed under the job); the
+    /// sentence says what could not be.
+    pub fn put_back(mut self) -> Option<String> {
+        let groups = self.moved.take();
+        TrashStep::PutBack(groups.into_iter().flat_map(|(_, g)| g).collect()).run(self.moved.bin.as_ref()).1
     }
 }

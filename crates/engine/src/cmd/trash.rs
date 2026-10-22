@@ -39,7 +39,7 @@ pub(crate) fn trash_files(s: &mut Session, ids: &[PhotoId], no_trash: NoTrashPar
     let mut plan = TrashPlan::new(s, ids, c)?;
     let never = AtomicBool::new(false);
     let survey = plan.survey(&never, None);
-    plan.resolve(s, &survey);
+    plan.resolve(s, &survey)?;
     let erase: HashSet<PhotoId> = if no_trash.0 == NoTrash::Erase { plan.file_ids() } else { HashSet::new() };
     plan.work(survey, &erase, &never, None, &crate::rename::RealFs).finish(s, c)
 }

@@ -335,6 +335,9 @@ pub struct Session {
     pub clock: Box<dyn Fn() -> String + Send>,
     /// The Trash `photo.trashFiles` moves files to (the system's; tests use one of their own).
     pub trash: std::sync::Arc<dyn trash::Bin>,
+    /// Held by a Move Files to Trash at work ([`trash_job::TrashPlan`]): another one, and the
+    /// commands that move files, wait for it ([`Session::refuse_while_trashing`]).
+    pub(crate) trash_busy: Arc<std::sync::atomic::AtomicBool>,
     depth: u32,
     /// Selected mask (Masking panel), by mask id.
     pub active_mask: Option<u32>,
@@ -455,6 +458,15 @@ impl Default for Session {
 }
 
 impl Session {
+    /// Commands that move files or undo a step wait while Move Files to Trash is at work: a path
+    /// it planned must not come to name another photo's file before it is moved or erased.
+    pub(crate) fn refuse_while_trashing(&self, c: &str) -> Result<()> {
+        if self.trash_busy.load(std::sync::atomic::Ordering::Acquire) {
+            return Err(cmd::bad(c, "files are being moved to the Trash: try again when that has finished"));
+        }
+        Ok(())
+    }
+
     pub fn library_generation(&self) -> u64 {
         self.library_generation
     }
@@ -517,6 +529,7 @@ impl Session {
             active_spot: None,
             library: None,
             library_identity: Arc::new(()),
+            trash_busy: Arc::default(),
             xmp: sidecar::XmpPrefs::default(),
             last_export: None,
             last_merge: Default::default(),

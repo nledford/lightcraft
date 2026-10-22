@@ -31,6 +31,9 @@
 //!   photos of that name anywhere are checked, links included.
 //! - Photos on a disk the system says has no Trash are named before any file there is touched;
 //!   when erasing was asked for, one real attempt per folder confirms it first.
+//! - A cancelled job keeps the photos it did not reach; a job that ends in another library, or
+//!   on a photo that changed, puts the files back.
+//! - Renaming and Undo wait while files move; a second job waits for the first.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -517,7 +520,7 @@ fn job(s: &mut Session, ids: &[u64], erase: &[u64], fs: &dyn MoveFs) -> crate::R
     let mut plan = TrashPlan::new(s, &ids, "photo.trashFiles")?;
     let never = AtomicBool::new(false);
     let survey = plan.survey(&never, None);
-    plan.resolve(s, &survey);
+    plan.resolve(s, &survey)?;
     let erase: HashSet<PhotoId> = erase.iter().map(|i| PhotoId(*i)).collect();
     plan.work(survey, &erase, &never, None, fs).finish(s, "photo.trashFiles")
 }
@@ -603,7 +606,8 @@ fn photos_on_a_disk_without_a_trash_are_not_touched_before_the_question() {
     let (ifar, inear) = (add(&mut s, &far), add(&mut s, &near));
     let mut plan = TrashPlan::new(&s, &[PhotoId(ifar), PhotoId(inear)], C).unwrap();
     let survey = plan.survey(&never, None);
-    plan.resolve(&s, &survey);
+    assert_eq!(survey.no_trash_ids(&plan), vec![ifar], "known before anything moves");
+    plan.resolve(&s, &survey).unwrap();
     let r = plan.work(survey, &HashSet::new(), &never, None, &RealFs).finish(&mut s, C).unwrap();
     assert_eq!(nas_calls(&first_bin), 0, "{:?}", first_bin.calls.lock().unwrap());
     assert_eq!(r["noTrash"], json!([ifar]), "{r}");
@@ -622,6 +626,142 @@ fn photos_on_a_disk_without_a_trash_are_not_touched_before_the_question() {
     // one step brings both photos back: the trashed file too, the erased one shown as missing
     s.execute("edit.undo", &json!({})).unwrap();
     assert!(has(&s, ifar) && has(&s, inear) && exists(&near) && !exists(&far));
+}
+
+#[test]
+fn a_cancelled_job_keeps_the_photos_it_did_not_reach() {
+    let dir = Scratch::new("cancelled");
+    let paths: Vec<String> = (1..=3).map(|i| dir.file(&format!("p{i}.jpg"), "x")).collect();
+    let mut s = session(&dir);
+    let ids: Vec<PhotoId> = paths.iter().map(|p| PhotoId(add(&mut s, p))).collect();
+    let steps = s.undo.len();
+    let mut plan = TrashPlan::new(&s, &ids, "photo.trashFiles").unwrap();
+    let stop = AtomicBool::new(false);
+    let survey = plan.survey(&stop, None);
+    plan.resolve(&s, &survey).unwrap();
+    stop.store(true, Ordering::Relaxed);
+    let r = plan.work(survey, &HashSet::new(), &stop, None, &RealFs).finish(&mut s, "photo.trashFiles").unwrap();
+    assert_eq!((r["removed"].as_u64(), r["stopped"].as_u64()), (Some(0), Some(3)), "{r}");
+    assert!(paths.iter().all(|p| exists(p)) && ids.iter().all(|id| has(&s, id.0)));
+    assert_eq!(s.undo.len(), steps, "no step to undo");
+}
+
+#[test]
+fn a_job_finished_in_another_library_puts_the_files_back() {
+    let dir = Scratch::new("other-library");
+    let paths: Vec<String> = (1..=2).map(|i| dir.file(&format!("p{i}.jpg"), "x")).collect();
+    let mut s = session(&dir);
+    let ids: Vec<PhotoId> = paths.iter().map(|p| PhotoId(add(&mut s, p))).collect();
+    let never = AtomicBool::new(false);
+    let mut plan = TrashPlan::new(&s, &ids, "photo.trashFiles").unwrap();
+    let survey = plan.survey(&never, None);
+    plan.resolve(&s, &survey).unwrap();
+    let work = plan.work(survey, &HashSet::new(), &never, None, &RealFs);
+    assert!(paths.iter().all(|p| !exists(p)), "the files moved");
+    s.library_identity = Arc::new(());
+    let e = work.finish(&mut s, "photo.trashFiles").unwrap_err().to_string();
+    assert!(e.contains("they were put back"), "{e}");
+    assert!(paths.iter().all(|p| exists(p)) && in_bin(&dir).is_empty());
+}
+
+#[test]
+fn a_photo_changed_while_its_file_moved_gets_its_file_back() {
+    let dir = Scratch::new("changed");
+    let (a, b) = (dir.file("a.jpg", "A"), dir.file("b.jpg", "B"));
+    let mut s = session(&dir);
+    let (ia, ib) = (add(&mut s, &a), add(&mut s, &b));
+    // a photo whose file is gone (it would just leave), found again meanwhile (Find Missing)
+    let gone = add(&mut s, &dir.at("gone.jpg"));
+    let never = AtomicBool::new(false);
+    let mut plan = TrashPlan::new(&s, &[PhotoId(ia), PhotoId(ib), PhotoId(gone)], "photo.trashFiles").unwrap();
+    let survey = plan.survey(&never, None);
+    plan.resolve(&s, &survey).unwrap();
+    let work = plan.work(survey, &HashSet::new(), &never, None, &RealFs);
+    // meanwhile the photos were pointed at other files
+    s.commit("Relink", Op::SetFile { id: PhotoId(ia), file_name: "z.jpg".into(), source: Source::File { path: dir.at("z.jpg") } }).unwrap();
+    let found = dir.file("found/gone.jpg", "G");
+    s.commit("Relink", Op::Relink { id: PhotoId(gone), file_name: "gone.jpg".into(), source: Source::File { path: found.clone() }, format: None })
+        .unwrap();
+    let r = work.finish(&mut s, "photo.trashFiles").unwrap();
+    assert_eq!((r["removed"].as_u64(), r["missing"].as_u64()), (Some(1), Some(0)), "the found photo stays and is not counted as gone: {r}");
+    assert!(has(&s, ia) && exists(&a), "it stays, and its file is back");
+    assert!(has(&s, gone) && exists(&found));
+    assert!(!has(&s, ib) && !exists(&b));
+    assert!(r["failed"][0]["why"].as_str().unwrap().contains("changed while its file was being moved"), "{r}");
+    assert_eq!(r["failed"].as_array().map(Vec::len), Some(2), "{r}");
+}
+
+#[test]
+fn a_new_file_at_an_emptied_path_does_not_cost_the_trashed_file_its_undo_record() {
+    let dir = Scratch::new("written-over");
+    let a = dir.file("a.jpg", "A");
+    let mut s = session(&dir);
+    let ia = add(&mut s, &a);
+    let never = AtomicBool::new(false);
+    let mut plan = TrashPlan::new(&s, &[PhotoId(ia)], "photo.trashFiles").unwrap();
+    let survey = plan.survey(&never, None);
+    plan.resolve(&s, &survey).unwrap();
+    let work = plan.work(survey, &HashSet::new(), &never, None, &RealFs);
+    assert!(!exists(&a), "the run emptied the path");
+    // meanwhile something wrote a new file there and added a photo of it (a denoise or a merge
+    // output: the commands that name a file after a photo wait for the run)
+    std::fs::write(&a, "NEW").unwrap();
+    let other = add(&mut s, &a);
+    let r = work.finish(&mut s, "photo.trashFiles").unwrap();
+    assert_eq!(
+        (r["removed"].as_u64(), r["trashed"].as_u64(), r["shared"].as_u64()),
+        (Some(1), Some(1), Some(0)),
+        "the file could not come back: {r}"
+    );
+    assert_eq!(std::fs::read_to_string(&a).unwrap(), "NEW", "the new file is never replaced");
+    assert!(has(&s, other) && !has(&s, ia));
+    assert!(dir.0.join("bin/1-a.jpg").exists());
+    let undone = s.execute("edit.undo", &json!({})).unwrap()["undone"].as_str().unwrap().to_string();
+    assert!(has(&s, ia));
+    assert!(undone.contains("1 file could not be put back"), "the undo step still holds the trashed file: {undone}");
+    assert!(dir.0.join("bin/1-a.jpg").exists());
+}
+
+#[test]
+fn a_file_that_cannot_come_back_keeps_its_sidecar_in_the_trash_with_it() {
+    let dir = Scratch::new("written-over-sidecar");
+    let (a, side) = (dir.file("a.jpg", "A"), dir.file("a.xmp", "<xmp/>"));
+    let mut s = session(&dir);
+    let ia = add(&mut s, &a);
+    let never = AtomicBool::new(false);
+    let mut plan = TrashPlan::new(&s, &[PhotoId(ia)], "photo.trashFiles").unwrap();
+    let survey = plan.survey(&never, None);
+    plan.resolve(&s, &survey).unwrap();
+    let work = plan.work(survey, &HashSet::new(), &never, None, &RealFs);
+    assert!(!exists(&a) && !exists(&side));
+    std::fs::write(&a, "NEW").unwrap();
+    let other = add(&mut s, &a);
+    let r = work.finish(&mut s, "photo.trashFiles").unwrap();
+    assert_eq!((r["trashed"].as_u64(), r["shared"].as_u64()), (Some(2), Some(0)), "{r}");
+    assert!(!exists(&side), "the sidecar is not put back beside a file that is not the photo's: {r}");
+    assert_eq!(in_bin(&dir), vec!["1-a.jpg", "2-a.xmp"]);
+    assert!(has(&s, other));
+    let undone = s.execute("edit.undo", &json!({})).unwrap()["undone"].as_str().unwrap().to_string();
+    assert!(undone.contains("1 file could not be put back"), "{undone}");
+    assert!(exists(&side), "undo puts the sidecar back: it is its own file's step");
+}
+
+#[test]
+fn a_file_a_photo_added_meanwhile_uses_goes_back_with_its_sidecar() {
+    let dir = Scratch::new("added-meanwhile");
+    let (a, side) = (dir.file("a.jpg", "A"), dir.file("a.xmp", "<xmp/>"));
+    let mut s = session(&dir);
+    let ia = add(&mut s, &a);
+    let never = AtomicBool::new(false);
+    let mut plan = TrashPlan::new(&s, &[PhotoId(ia)], "photo.trashFiles").unwrap();
+    let survey = plan.survey(&never, None);
+    plan.resolve(&s, &survey).unwrap();
+    let work = plan.work(survey, &HashSet::new(), &never, None, &RealFs);
+    let other = add(&mut s, &a);
+    let r = work.finish(&mut s, "photo.trashFiles").unwrap();
+    assert_eq!((r["removed"].as_u64(), r["trashed"].as_u64(), r["shared"].as_u64()), (Some(1), Some(0), Some(1)), "{r}");
+    assert!(has(&s, other) && !has(&s, ia));
+    assert!(exists(&a) && exists(&side) && in_bin(&dir).is_empty());
 }
 
 #[test]
@@ -650,6 +790,113 @@ fn sidecars_of_many_photos_in_one_folder_go_with_them() {
     // and they all come back
     s.execute("edit.undo", &json!({})).unwrap();
     assert!(sidecars.iter().all(|p| exists(p)));
+}
+
+#[test]
+fn commands_that_move_files_or_undo_wait_for_a_trash_job() {
+    let dir = Scratch::new("wait");
+    let (a, b) = (dir.file("a.jpg", "A"), dir.file("b.jpg", "B"));
+    let mut s = session(&dir);
+    let (ia, ib) = (add(&mut s, &a), add(&mut s, &b));
+    select(&mut s, &[ib]);
+    // something to redo
+    s.execute("photo.rate", &json!({"rating": 2})).unwrap();
+    s.execute("edit.undo", &json!({})).unwrap();
+    let plan = TrashPlan::new(&s, &[PhotoId(ia)], "photo.trashFiles").unwrap();
+    let rename = json!({"template": "x-{name}"});
+    let photos = dir.0.join("photos").to_string_lossy().to_string();
+    let bin_dir = dir.0.join("bin").to_string_lossy().to_string();
+    let commands = [
+        ("photo.rename", rename.clone()),
+        ("edit.undo", json!({})),
+        ("edit.redo", json!({})),
+        ("folder.rename", json!({"path": photos, "name": "renamed"})),
+        ("folder.move", json!({"path": photos, "into": bin_dir})),
+        ("photo.moveToFolder", json!({"folder": bin_dir, "ids": [ib]})),
+        ("photo.convertToDng", json!({"ids": [ib]})),
+        ("photo.relink", json!({"id": ib, "path": a})),
+        // (a copy made while a run works would share a file that run is about to erase)
+        ("photo.virtualCopy", json!({"ids": [ib]})),
+        // (a new file named for the photo may be written where a file of the run was)
+        ("photo.duplicate", json!({"ids": [ib]})),
+        ("photo.editExternal", json!({"ids": [ib]})),
+    ];
+    for (command, params) in &commands {
+        let e = s.execute(command, params).unwrap_err().to_string();
+        assert!(e.contains("being moved to the Trash"), "{command}: {e}");
+    }
+    assert!(exists(&a) && exists(&b));
+    drop(plan);
+    s.execute("photo.rename", &rename).unwrap();
+    assert!(!exists(&b), "renamed");
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert!(exists(&b));
+}
+
+#[test]
+fn a_work_dropped_without_finish_puts_its_files_back_and_frees_the_lease() {
+    let dir = Scratch::new("dropped");
+    let a = dir.file("a.jpg", "A");
+    let sidecar = dir.file("a.xmp", "<xmp/>");
+    let mut s = session(&dir);
+    let ia = add(&mut s, &a);
+    let mut plan = TrashPlan::new(&s, &[PhotoId(ia)], "photo.trashFiles").unwrap();
+    let never = AtomicBool::new(false);
+    let survey = plan.survey(&never, None);
+    plan.resolve(&s, &survey).unwrap();
+    let work = plan.work(survey, &HashSet::new(), &never, None, &RealFs);
+    assert!(!exists(&a) && !exists(&sidecar), "the files are in the Trash while the work waits");
+    assert!(TrashPlan::new(&s, &[PhotoId(ia)], "photo.trashFiles").is_err(), "and the lease is held");
+    // (the job's result was never collected: the app quit, or its thread panicked)
+    drop(work);
+    assert!(exists(&a) && exists(&sidecar) && in_bin(&dir).is_empty(), "back where they were");
+    assert_eq!(std::fs::read_to_string(&a).unwrap(), "A");
+    assert!(has(&s, ia), "the photo never left the library");
+    assert!(TrashPlan::new(&s, &[PhotoId(ia)], "photo.trashFiles").is_ok(), "the lease is free again");
+}
+
+#[test]
+fn a_work_on_the_real_disk_says_what_it_did_not_reach_and_puts_its_files_back_when_told_to() {
+    let dir = Scratch::new("put-back");
+    let (a, b) = (dir.file("a.jpg", "A"), dir.file("b.jpg", "B"));
+    let sidecar = dir.file("a.xmp", "<xmp/>");
+    let mut s = session(&dir);
+    let ids = [PhotoId(add(&mut s, &a)), PhotoId(add(&mut s, &b))];
+    let stop = AtomicBool::new(false);
+    let mut plan = TrashPlan::new(&s, &ids, "photo.trashFiles").unwrap();
+    let survey = plan.survey(&stop, None);
+    plan.resolve(&s, &survey).unwrap();
+    let work = plan.work_real(survey, &HashSet::new(), &stop, None);
+    assert_eq!(work.stopped(), 0);
+    assert!(!exists(&a) && !exists(&b) && !exists(&sidecar), "everything is in the Trash");
+    assert_eq!(work.put_back(), None, "and comes back without a note");
+    assert!(exists(&a) && exists(&b) && exists(&sidecar) && in_bin(&dir).is_empty());
+    assert!(ids.iter().all(|id| has(&s, id.0)), "no photo left the library");
+    assert!(TrashPlan::new(&s, &ids, "photo.trashFiles").is_ok(), "the lease is free again");
+    // stopped before the work: every photo is one it did not reach
+    let mut plan = TrashPlan::new(&s, &ids, "photo.trashFiles").unwrap();
+    let survey = plan.survey(&stop, None);
+    plan.resolve(&s, &survey).unwrap();
+    stop.store(true, Ordering::Relaxed);
+    assert_eq!(plan.work_real(survey, &HashSet::new(), &stop, None).stopped(), 2);
+    assert!(exists(&a) && exists(&b));
+}
+
+#[test]
+fn a_second_job_is_refused_while_one_holds_the_lease() {
+    let dir = Scratch::new("lease");
+    let (a, b) = (dir.file("a.jpg", "A"), dir.file("b.jpg", "B"));
+    let mut s = session(&dir);
+    let (ia, ib) = (add(&mut s, &a), add(&mut s, &b));
+    let first = TrashPlan::new(&s, &[PhotoId(ia)], "photo.trashFiles").unwrap();
+    let second = TrashPlan::new(&s, &[PhotoId(ib)], "photo.trashFiles");
+    assert!(second.err().is_some_and(|e| e.to_string().contains("already being moved")));
+    let e = run(&mut s, "photo.trashFiles", &[ib], json!({})).unwrap_err().to_string();
+    assert!(e.contains("already being moved"), "{e}");
+    assert!(exists(&b));
+    drop(first);
+    trash(&mut s, &[ib]);
+    assert!(!exists(&b));
 }
 
 #[test]
