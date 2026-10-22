@@ -17,10 +17,7 @@ impl LightcraftApp {
             // …which gives way to the file work of an import, a scan, a Synchronize Folder and the Local view's
             // listings: one share, one stream of reads. The task guards decide, so a task that ends, fails or
             // panics lets go; a listing hung on a dead mount holds the sweep back until it returns.
-            let (activity, listings) = (self.session.activity.clone(), ctx.clone());
-            self.session.media.availability.sweep_yields_to(std::sync::Arc::new(move || {
-                activity.any_of(&["scan", "import", "sync"]) || panels::left::fs_cached_running(&listings) > 0
-            }));
+            self.session.media.availability.sweep_yields_to(crate::clock::sweep_gives_way(self.session.activity.clone(), ctx));
             self.styled = true;
             self.font_language = self.ui.language;
         } else if self.font_language != self.ui.language {

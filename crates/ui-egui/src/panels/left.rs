@@ -26,7 +26,7 @@ use dates::date_rows;
 pub(crate) use folders::{folder_row_of, move_photos, moved_text};
 use folders::{folder_rows, reveal_chosen};
 use keywords::keyword_rows;
-pub(crate) use local::{fs_cached, fs_cached_running, same_folder};
+pub(crate) use local::{fs_cached, fs_cached_running, fs_running_counter, same_folder};
 use local::{local_now, local_rows};
 #[cfg(test)]
 pub(crate) use rows::{INDENT_STEP, MIN_INDENT_STEP};

@@ -72,6 +72,7 @@ mod scroll;
 mod slider_reset;
 mod slideshow;
 mod solo_sections;
+mod sweep_yield;
 mod switch_library;
 mod sync;
 mod tallies;
