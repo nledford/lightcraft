@@ -2466,5 +2466,6 @@
   "1 year": "1 år",
   "Days": "Dagar",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Äldre säkerhetskopior av det här biblioteket tas bort när en ny har gjorts. De tre senaste behålls alltid.",
-  "Removing old backups": "Tar bort gamla säkerhetskopior"
+  "Removing old backups": "Tar bort gamla säkerhetskopior",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Det som återställningar har ersatt (Replaced i biblioteksmappen) följer samma regel."
 }

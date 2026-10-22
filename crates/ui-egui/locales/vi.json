@@ -2272,5 +2272,6 @@
   "1 year": "1 năm",
   "Days": "Ngày",
   "Older backups of this library are removed after a new one is made. Its newest three are always kept.": "Các bản sao lưu cũ hơn của thư viện này sẽ bị xóa sau khi tạo bản mới. Ba bản mới nhất luôn được giữ lại.",
-  "Removing old backups": "Đang xóa các bản sao lưu cũ"
+  "Removing old backups": "Đang xóa các bản sao lưu cũ",
+  "What restores replaced (Replaced in the library folder) goes by the same rule.": "Những gì các lần khôi phục đã thay thế (Replaced trong thư mục thư viện) cũng theo quy tắc này."
 }
