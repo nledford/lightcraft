@@ -1,6 +1,7 @@
 //! Sorting the photos of a move to another folder (`photo.moveToFolder`) before anything moves:
 //! which ones go, which are in that folder already, and which can't go (a name taken there, the
-//! file missing or offline). `photo.checkMove` reports the sort so a confirmation can show the
+//! file missing or offline, or a photo that can't move as it is: a Local photo or one with no file,
+//! and a library photo of the same file as one in the batch, since skipping is by file). `photo.checkMove` reports the sort so a confirmation can show the
 //! problems up front; the move itself uses the same sort, and leaves out the photos it was told
 //! to skip (`skip`) instead of refusing the batch for them.
 //!
@@ -25,8 +26,10 @@ pub(crate) enum Kind {
     Clash,
     /// The file isn't where the library has it: the disk is offline, or it was moved or deleted.
     Missing,
-    /// Not in the library (Local) or with no file on disk (a demo photo): it can never move, so it
-    /// refuses a move unless it is skipped. Only `photo.checkMove` lists it, as a problem.
+    /// A photo that can't move as it is: not in the library (Local, until it is added) or with no
+    /// file on disk (a demo photo); or a library photo of the same file as such a photo in the batch
+    /// (skipping is by file). It refuses a move unless it is skipped. Only `photo.checkMove` lists
+    /// it, as a problem.
     Unmovable,
     /// Only for a photo told to be skipped that has no problem (any more).
     Asked,
@@ -104,7 +107,8 @@ pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>
     // skipped photos that would have moved: their names are checked against the moving ones at the end
     let mut pending: Vec<(usize, String)> = Vec::new();
     // the check (which skips nothing yet): the files of the Local photos listed as problems; a
-    // library photo of the same file goes the way the move would send it once those are skipped
+    // library photo of the same file is listed as `unmovable` too, because skipping is by file and
+    // the move would leave it out with them
     let local_files: HashSet<String> = if lenient {
         ids.iter()
             .filter_map(|id| s.catalog.photo(*id))
@@ -121,7 +125,7 @@ pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>
         // (no command named: `execute` puts in the one that was asked for)
         let ph = s.catalog.photo(id).ok_or_else(|| bad("", format!("no photo {}", id.0)))?;
         let asked = skip.contains(&id.0);
-        // a photo that can't be moved at all is refused, or left out when it was told to be skipped
+        // a photo that can't move as it is (Local, or no file) is refused, or left out when it was told to be skipped
         let unmovable = if ph.local {
             Some(format!("{} is not in the library (Local): add it to the library first", ph.file_name))
         } else if !matches!(ph.source, Source::File { .. }) {
