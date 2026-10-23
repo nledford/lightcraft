@@ -56,7 +56,8 @@
   named an internal command. Moving the photos you chose still stops as a whole when one of them can't go, and then
   nothing is moved.
 - Agents get the same details: `photo.checkMove` lists, without moving anything, the photos that can go, the ones
-  already in the folder, and those with a name taken there or a file that is missing or offline.
+  already in the folder, and those that can't go: a name taken there, a file that is missing or offline, or a photo
+  that can never move (a Local photo, or one with no file).
   `photo.moveToFolder` takes `skip`, the ids of photos to leave where they are while the rest move (a Local photo
   can be skipped too), and reports each skipped photo with the reason.
 

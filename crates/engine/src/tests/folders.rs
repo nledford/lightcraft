@@ -792,6 +792,10 @@ fn skipping_a_local_photo_leaves_out_a_library_photo_of_the_same_file_and_a_phot
     let mut p = Photo::new(local, Source::File { path: dir.path("in/l.jpg") }, "l.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
     p.local = true;
     s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    // the check says up front what skipping the Local photo will do to the library photo of the same file
+    let c = s.execute("photo.checkMove", &json!({"ids": [lib.0, local.0], "folder": dir.path("out")})).unwrap();
+    let listed: Vec<_> = c["problems"].as_array().unwrap().iter().map(|x| (x["id"].as_u64().unwrap(), x["kind"].as_str().unwrap())).collect();
+    assert_eq!((c["movable"].as_u64(), listed), (Some(0), vec![(lib.0, "unmovable"), (local.0, "unmovable")]), "{c}");
     let r = s.execute("photo.moveToFolder", &json!({"ids": [lib.0, local.0], "skip": [local.0], "folder": dir.path("out")})).unwrap();
     // the file is one: leaving the Local photo out leaves the library photo of it out too, so it can't move unreported
     assert_eq!(r["moved"], 0);
@@ -833,6 +837,29 @@ fn the_refusal_names_a_file_once_even_when_a_virtual_copy_shares_it() {
     std::fs::remove_file(dir.path("in/c.jpg")).unwrap();
     let e = s.execute("photo.moveToFolder", &json!({"ids": [c.0, vc.0], "folder": dir.path("out")})).unwrap_err().to_string();
     assert!(e.contains("c.jpg is missing or offline") && !e.contains("c.jpg, c.jpg") && !e.contains("are missing"), "{e}");
+}
+
+#[test]
+fn checking_a_move_lists_a_local_photo_and_one_without_a_file_so_they_can_be_skipped() {
+    let (dir, mut s, [a, _, _]) = clash_setup("move-check-unmovable");
+    std::fs::write(dir.path("in/l.jpg"), "L").unwrap();
+    let local = s.catalog.alloc_photo_id();
+    let mut p = Photo::new(local, Source::File { path: dir.path("in/l.jpg") }, "l.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    p.local = true;
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let demo = s.catalog.alloc_photo_id();
+    let p = Photo::new(demo, Source::Demo { scene: 0 }, "d.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let ids = json!([a.0, local.0, demo.0]);
+    // the check lists them, it doesn't fail: that is how the person (or an agent) learns what to skip
+    let r = s.execute("photo.checkMove", &json!({"ids": ids, "folder": dir.path("out")})).unwrap();
+    assert_eq!((r["photos"].as_u64(), r["movable"].as_u64()), (Some(3), Some(1)), "{r}");
+    let problems: Vec<_> = r["problems"].as_array().unwrap().iter().map(|x| (x["id"].as_u64().unwrap(), x["kind"].as_str().unwrap())).collect();
+    assert_eq!(problems, [(local.0, "unmovable"), (demo.0, "unmovable")]);
+    // the move without a skip still refuses, and with exactly those skipped it goes
+    assert!(s.execute("photo.moveToFolder", &json!({"ids": ids, "folder": dir.path("out")})).is_err());
+    let r = s.execute("photo.moveToFolder", &json!({"ids": ids, "skip": [local.0, demo.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 1);
 }
 
 #[test]
