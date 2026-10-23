@@ -60,6 +60,16 @@ impl Left {
     pub(crate) fn json(&self) -> Value {
         json!({"id": self.id.0, "name": self.file, "kind": self.kind.word()})
     }
+
+    /// [`Left::json`] for `photo.checkMove`: a clash with another photo of the same move says so
+    /// (`twin`), since the fix differs from a name taken in the folder.
+    fn check_json(&self) -> Value {
+        let mut v = self.json();
+        if self.twin {
+            v["twin"] = json!(true);
+        }
+        v
+    }
 }
 
 /// How the photos of a move sort out.
@@ -282,6 +292,6 @@ pub(crate) fn check_command(s: &Session, p: &Value) -> Result<Value> {
         "photos": ids.len(),
         "movable": sorted.movable,
         "here": sorted.here,
-        "problems": sorted.problems.iter().map(Left::json).collect::<Vec<_>>(),
+        "problems": sorted.problems.iter().map(Left::check_json).collect::<Vec<_>>(),
     }))
 }

@@ -847,6 +847,25 @@ fn a_photo_skipped_for_sharing_a_name_with_another_of_the_move_is_reported_as_a_
 }
 
 #[test]
+fn checking_a_move_marks_two_photos_of_one_name_as_twins_and_a_name_taken_in_the_folder_as_not() {
+    let dir = Scratch::new("move-check-twin");
+    for d in ["x", "y", "out"] {
+        std::fs::create_dir_all(dir.0.join(d)).unwrap();
+    }
+    let mut s = Session::new();
+    let first = add_file(&mut s, &dir.path("x/a.jpg"), "X");
+    let second = add_file(&mut s, &dir.path("y/a.jpg"), "Y");
+    let taken = add_file(&mut s, &dir.path("x/t.jpg"), "T");
+    std::fs::write(dir.path("out/t.jpg"), "other").unwrap();
+    let r = s.execute("photo.checkMove", &json!({"ids": [first.0, second.0, taken.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(
+        r["problems"],
+        json!([{"id": second.0, "name": "a.jpg", "kind": "clash", "twin": true}, {"id": taken.0, "name": "t.jpg", "kind": "clash"}]),
+        "{r}"
+    );
+}
+
+#[test]
 fn the_refusal_names_a_file_once_even_when_a_virtual_copy_shares_it() {
     let (dir, mut s, [_, _, c]) = clash_setup("move-refusal-names");
     let vc = s.catalog.alloc_photo_id();
