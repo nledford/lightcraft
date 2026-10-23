@@ -567,7 +567,10 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             // a folder asked for earlier can always be taken off again, also once it no longer
             // only leads on (photos or a second folder came into it, it was labelled or renamed)
             if show != Some(true) && app.ui.folder_parents.remove(&key) {
-                return Some(Ok(json!({"path": key, "show": false})));
+                // named as showing it names it: the row's own spelling while the folder has one
+                let tree = app.caches.folder_tree(&app.session.catalog);
+                let named = crate::panels::left::folder_place(app, &tree, &key).map_or(key, |(node, _)| node.path.clone());
+                return Some(Ok(json!({"path": named, "show": false})));
             }
             use crate::panels::left::{FolderPlace, folder_place};
             let tree = app.caches.folder_tree(&app.session.catalog);

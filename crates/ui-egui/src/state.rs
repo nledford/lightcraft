@@ -1655,6 +1655,16 @@ impl UiState {
             self.open_flyouts.push(id.to_string());
         }
     }
+    /// Spell every entry of [`UiState::folder_parents`] as `folder_key` does, the one name Show and
+    /// Hide look folders up by (a file or a `ui.set` that spells a folder another way, with
+    /// backslashes, a capital drive letter or a trailing separator, still finds its row, and two
+    /// spellings are one entry), and keep the list within [`MAX_FOLDER_PARENTS`].
+    pub fn normalize_folder_parents(&mut self) {
+        self.folder_parents = std::mem::take(&mut self.folder_parents).iter().map(|p| lightcraft_catalog::query::folder_key(p)).collect();
+        while self.folder_parents.len() > MAX_FOLDER_PARENTS {
+            self.folder_parents.pop_last();
+        }
+    }
     /// Clamp values restored from disk.
     pub fn sanitized(mut self) -> Self {
         self.thumb_size = self.thumb_size.clamp(THUMB_SIZE_MIN, THUMB_SIZE_MAX);
@@ -1662,9 +1672,7 @@ impl UiState {
         self.right_width = RIGHT_WIDTH.clamp(self.right_width);
         self.brush_size = self.brush_size.clamp(0.002, 0.5);
         self.sidebar.adopt_collapsed(&std::mem::take(&mut self.collapsed_sidebar));
-        while self.folder_parents.len() > MAX_FOLDER_PARENTS {
-            self.folder_parents.pop_last();
-        }
+        self.normalize_folder_parents();
         self.dialog = None;
         self.fullscreen = false;
         if !crate::state::PREVIEW_LIMITS.contains(&self.settings.preview_limit) {
