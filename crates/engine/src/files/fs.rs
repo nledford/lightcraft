@@ -35,8 +35,13 @@ pub(super) fn raf_preview_extent(prefix: &[u8]) -> Option<u64> {
 /// The display-ready preview of a raw whose embedded JPEG was already located: the counterpart of
 /// [`embedded_preview_srgb`] for [`preview_window`], which does not re-read the container.
 /// `adobe_rgb`: the container declares the preview Adobe RGB ([`PreviewRead::adobe_rgb`]), applied
-/// as [`decode_raw_preview`] applies it. `None` when the bytes are not a decodable image.
+/// as [`decode_raw_preview`] applies it. `None` when the bytes are not a decodable image, and
+/// when they are a JPEG that stops before its end (a pointer that lies about the preview's length,
+/// or a window whose last range wasn't read): the caller's whole-file fallback decodes the real one.
 pub(super) fn quick_image_srgb(header: &[u8], window: &[u8], adobe_rgb: bool, max_edge: usize) -> Option<lightcraft_raster::Rgba8> {
+    if lightcraft_codecs::read_header(window).is_ok_and(|h| h.truncated) {
+        return None;
+    }
     let decoded = if adobe_rgb && window.starts_with(&[0xff, 0xd8]) {
         lightcraft_codecs::decode_jpeg_with_fallback(window, fit_box(max_edge), lightcraft_codecs::NamedSpace::AdobeRgb)
     } else {
