@@ -329,21 +329,30 @@ fn quoted(path: &str) -> String {
     format!("“{}”", Path::new(path).file_name().map_or_else(|| path.to_string(), |n| n.to_string_lossy().to_string()))
 }
 
+/// Whether a mount point exists: `Some(false)` only when the file system says it is not there
+/// (a stale or unreadable mount answers with an error, `None`).
+pub(crate) type Probe<'a> = &'a dyn Fn(&str) -> Option<bool>;
+
+fn real_probe(path: &str) -> Option<bool> {
+    Path::new(path).try_exists().ok()
+}
+
 /// The name of the disk or share `path` is on when that disk isn't there. The rule, from the
 /// path alone: a path that lies on a mounted disk or share (`/Volumes/<name>`, `/mnt/<name>`,
-/// `/media/<user>/<name>`, a drive letter, `\\server\share`…) is offline when that mount point
-/// does not exist. A disk whose empty mount point is left behind (some Linux setups) isn't
-/// told from a folder that was deleted, and reads as "isn't there (is its disk connected?)".
-fn offline_disk(path: &str) -> Option<String> {
+/// `/media/<user>/<name>`, a drive letter, `\\server\share`…) is offline when the file system
+/// says its mount point does not exist. A mount point that is left behind empty (some Linux
+/// setups) or answers with an error (a stale share) isn't told from a deleted folder: those
+/// read "isn't there (moved or deleted, or is its disk connected?)".
+fn offline_disk(path: &str, probe: Probe) -> Option<String> {
     let (mount, name) = lightcraft_catalog::folders::disk_of(path)?;
     // a bare drive letter (`D:`) means the current folder on that drive, so ask for its root
-    let probe = if mount.ends_with(':') { format!("{mount}/") } else { mount };
-    matches!(Path::new(&probe).try_exists(), Ok(false)).then_some(name)
+    let at = if mount.ends_with(':') { format!("{mount}/") } else { mount };
+    (probe(&at) == Some(false)).then_some(name)
 }
 
 /// "`folder` is on “disk”, which isn't connected", when it is.
-fn offline_refusal(folder: &str) -> Option<String> {
-    let disk = offline_disk(folder)?;
+fn offline_refusal(folder: &str, probe: Probe) -> Option<String> {
+    let disk = offline_disk(folder, probe)?;
     // the disk's own root (`/Volumes/nas`) isn't "on" itself
     let subject = if lightcraft_catalog::folders::is_disk_root(folder) {
         format!("“{disk}” isn't connected")
@@ -353,31 +362,73 @@ fn offline_refusal(folder: &str) -> Option<String> {
     Some(format!("{subject}. Nothing was moved. To go on: connect it and try again."))
 }
 
-/// Why the folder to move can't be: its disk is offline, it isn't there, or it is a file.
-fn source_refusal(from: &str) -> String {
-    if let Some(text) = offline_refusal(from) {
-        return text;
-    }
-    if Path::new(from).try_exists().unwrap_or(false) {
-        return format!("{} is not a folder. Nothing was moved.", quoted(from));
-    }
-    format!("{} isn't there (moved or deleted?). Nothing was moved.", quoted(from))
+/// An OS error without its number or final full stop, starting in lower case, for the middle of
+/// a sentence: "permission denied", "input/output error".
+fn plain_reason(e: &std::io::Error) -> String {
+    let text = e.to_string();
+    let reason = text.split(" (os error").next().unwrap_or(&text).trim_end_matches('.');
+    let mut chars = reason.chars();
+    chars.next().map(|c| c.to_lowercase().chain(chars).collect::<String>()).unwrap_or_default()
 }
 
-/// Why the folder `to` goes into can't hold it: its disk is offline, or it isn't there. Nothing
-/// is created: a move never makes the destination's folders itself.
-fn parent_refusal(parent: &Path) -> String {
-    let parent_text = parent.to_string_lossy();
-    if let Some(text) = offline_refusal(&parent_text) {
+/// What it means that looking at `folder` failed with `e`, when that isn't "isn't there": no
+/// permission to look, or the disk answers with an error (a stale or broken share). `None` for
+/// a folder that is simply not there.
+pub(crate) fn look_refusal(folder: &str, e: &std::io::Error) -> Option<String> {
+    match e.kind() {
+        std::io::ErrorKind::NotFound => None,
+        std::io::ErrorKind::PermissionDenied => Some(format!(
+            "LightCraft isn't allowed to open {}. Nothing was moved. To go on: change the permissions of the folders that hold it, or do it with your file manager.",
+            quoted(folder)
+        )),
+        _ => Some(format!(
+            "{} can't be reached right now: {}. Nothing was moved. To go on: check that its disk is connected, then try again.",
+            quoted(folder),
+            plain_reason(e)
+        )),
+    }
+}
+
+/// Why the folder to move can't be: its disk is offline, it isn't there, it is a file or it
+/// can't be looked at. `probe` answers whether a mount point exists (tests give their own).
+pub(crate) fn source_refusal(from: &str, probe: Probe) -> String {
+    if let Some(text) = offline_refusal(from, probe) {
         return text;
     }
-    if parent.try_exists().unwrap_or(false) {
-        return format!("{} is not a folder. Nothing was moved. To go on: choose a folder to move it into.", quoted(&parent_text));
+    match std::fs::metadata(from) {
+        Ok(_) => return format!("{} is not a folder. Nothing was moved.", quoted(from)),
+        Err(e) => {
+            if let Some(text) = look_refusal(from, &e) {
+                return text;
+            }
+        }
     }
-    let parent = parent_text;
+    // on a disk or share the folder may be gone, or the disk is only not answering
+    // (a drive letter is not told from the system disk, so a local folder keeps the short wording)
+    let on_disk = lightcraft_catalog::folders::disk_of(from).is_some_and(|(mount, _)| !mount.ends_with(':'));
+    let why = if on_disk { "moved or deleted, or is its disk connected?" } else { "moved or deleted?" };
+    format!("{} isn't there ({why}). Nothing was moved.", quoted(from))
+}
+
+/// Why the folder `to` goes into can't hold it: its disk is offline, it isn't there or can't
+/// be looked at. Nothing is created: a move never makes the destination's folders itself.
+fn parent_refusal(parent: &Path) -> String {
+    let parent_text = parent.to_string_lossy();
+    if let Some(text) = offline_refusal(&parent_text, &real_probe) {
+        return text;
+    }
+    match std::fs::metadata(parent) {
+        Ok(_) => return format!("{} is not a folder. Nothing was moved.", quoted(&parent_text)),
+        Err(e) => {
+            if let Some(text) = look_refusal(&parent_text, &e) {
+                return text;
+            }
+        }
+    }
+    // no "choose another folder": undo and redo refuse in these words too, and can't
     format!(
-        "{} isn't there (is its disk connected?). Nothing was moved. To go on: connect its disk or create the folder first, or choose another folder.",
-        quoted(&parent)
+        "{} isn't there (is its disk connected?). Nothing was moved. To go on: connect its disk or create the folder first, then try again.",
+        quoted(&parent_text)
     )
 }
 
@@ -404,13 +455,7 @@ fn move_error(from: &str, to: &str, e: &std::io::Error) -> String {
             quoted(from),
             quoted(&parent)
         ),
-        _ => {
-            let text = e.to_string();
-            let reason = text.split(" (os error").next().unwrap_or(&text).trim_end_matches('.');
-            let mut chars = reason.chars();
-            let reason = chars.next().map(|c| c.to_lowercase().chain(chars).collect::<String>()).unwrap_or_default();
-            format!("LightCraft couldn't {what}: {reason}. Nothing was moved.")
-        }
+        _ => format!("LightCraft couldn't {what}: {}. Nothing was moved.", plain_reason(e)),
     }
 }
 
@@ -426,10 +471,10 @@ pub(crate) fn rename_folder_on_disk(from: &str, to: &str) -> std::result::Result
 fn check_places(from: &str, to: &str) -> std::result::Result<(), String> {
     let (src, dst) = (Path::new(from), Path::new(to));
     if !src.is_dir() {
-        return Err(source_refusal(from));
+        return Err(source_refusal(from, &real_probe));
     }
     if dst != src && dst.starts_with(src) {
-        return Err("a folder can't move into itself".into());
+        return Err(format!("{} can't be moved into itself. Nothing was moved.", quoted(from)));
     }
     match dst.parent().filter(|p| !p.as_os_str().is_empty()) {
         Some(parent) if !parent.is_dir() => Err(parent_refusal(parent)),
@@ -452,9 +497,19 @@ pub(crate) fn rename_folder_with(from: &str, to: &str, rename: &dyn Fn(&Path, &P
             return Err(format!("{} already exists", tmp.display()));
         }
         rename(src, &tmp).map_err(|e| move_error(from, to, &e))?;
-        return rename(&tmp, dst).map_err(|e| {
-            let _ = std::fs::rename(&tmp, src);
-            move_error(from, to, &e)
+        return rename(&tmp, dst).map_err(|e| match rename(&tmp, src) {
+            Ok(()) => move_error(from, to, &e),
+            // the folder is left under the temporary name: say where, never "nothing was moved"
+            Err(back) => format!(
+                "LightCraft couldn't rename {} to {}: {}, and couldn't put it back under its old name either: {}. The folder is now at {} (a hidden name, starting with a dot). To go on: rename it by hand to {} or back to {}.",
+                quoted(from),
+                quoted(to),
+                plain_reason(&e),
+                plain_reason(&back),
+                tmp.display(),
+                quoted(to),
+                quoted(from)
+            ),
         });
     }
     rename(src, dst).map_err(|e| move_error(from, to, &e))
@@ -609,11 +664,22 @@ fn follow_library_folder(chosen: &mut Option<String>, from: &str, to: &str) {
     }
 }
 
+/// `path` with links in the folders above it resolved, so `/alias/Lib` and `/real/Lib` compare
+/// as the one folder they are. The last name stays as written, so a link that is itself moved
+/// still differs from what it points to. A path that can't be resolved (it isn't there) is
+/// taken as written.
+fn resolved(path: &Path) -> std::path::PathBuf {
+    match (path.parent().filter(|p| !p.as_os_str().is_empty()).and_then(|p| p.canonicalize().ok()), path.file_name()) {
+        (Some(parent), Some(name)) => parent.join(name),
+        _ => path.to_path_buf(),
+    }
+}
+
 /// Why a folder can't move while the library at `library` is open: it is the library's own
 /// folder or inside it, or it holds the library, and moving it would take the library along.
-fn library_refusal(from: &str, library: &Path) -> String {
+/// `src` and `library` are the resolved paths of the folder and the library.
+fn library_refusal(from: &str, src: &Path, library: &Path) -> String {
     let (folder, lib) = (quoted(from), quoted(&library.to_string_lossy()));
-    let src = Path::new(from);
     if src == library {
         format!(
             "{folder} is the open library's own folder, so it can't be moved or renamed while that library is open. Nothing was moved. To go on: open another library first."
@@ -633,8 +699,16 @@ fn library_refusal(from: &str, library: &Path) -> String {
 pub(crate) fn move_folder(s: &mut Session, from: &str, to: &str) -> std::result::Result<usize, String> {
     let (src, dst) = (Path::new(from), Path::new(to));
     check_places(from, to)?;
-    if let Some(l) = s.library.as_ref().filter(|l| l.dir.starts_with(src) || src.starts_with(&l.dir)) {
-        return Err(library_refusal(from, &l.dir));
+    if let Some(l) = s.library.as_ref() {
+        // as written: renaming a link the library was opened through breaks its path just the same
+        if l.dir.starts_with(src) || src.starts_with(&l.dir) {
+            return Err(library_refusal(from, src, &l.dir));
+        }
+        // and as the disk has it, so a path through a link to the library's folder is caught too
+        let (lib, at) = (l.dir.canonicalize().unwrap_or_else(|_| l.dir.clone()), resolved(src));
+        if lib.starts_with(&at) || at.starts_with(&lib) {
+            return Err(library_refusal(from, &at, &lib));
+        }
     }
     // Repairs retain their exact old paths, including those on surviving history entries.
     // Complete them before the directory moves; an unavailable repair leaves it in place.

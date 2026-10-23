@@ -881,3 +881,113 @@ fn a_destination_that_is_a_file_or_a_whole_offline_disk_is_worded_for_what_it_is
     let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": same}));
     assert!(e.contains("is on “lc-absent-disk-") && e.contains("which isn't connected"), "{e}");
 }
+
+#[test]
+fn a_missing_folder_on_a_disk_that_answers_with_an_error_is_not_called_deleted() {
+    use crate::cmd::browse::source_refusal;
+    let from = format!("{}/photos/Trip", absent_disk());
+    // the mount point is there but the folder isn't (or the mount is stale and answers with an error):
+    // it may be gone or its disk may not be answering, and the sentence says both
+    for answer in [Some(true), None] {
+        let e = source_refusal(&from, &|_| answer);
+        assert!(e.contains("“Trip” isn't there (moved or deleted, or is its disk connected?)") && !e.contains("which isn't connected"), "{e}");
+    }
+    // only the file system saying "not there" for the mount point makes the disk offline
+    let e = source_refusal(&from, &|_| Some(false));
+    assert!(e.contains("“Trip” is on “lc-absent-disk-") && e.contains("which isn't connected"), "{e}");
+    // a folder that is not on a disk or share keeps the short wording
+    let e = source_refusal(&Scratch::new("plainsrc").path("gone"), &|_| None);
+    assert!(e.contains("isn't there (moved or deleted?)"), "{e}");
+}
+
+#[test]
+fn a_folder_moved_into_itself_is_named_in_the_refusal() {
+    let dir = Scratch::new("itself");
+    let mut s = trip_session(&dir);
+    std::fs::create_dir_all(dir.0.join("trip/inner")).unwrap();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": dir.path("trip/inner")}));
+    assert!(e.contains("“trip” can't be moved into itself"), "{e}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_path_through_a_link_to_the_open_librarys_folder_is_refused_like_the_real_one() {
+    let dir = Scratch::new("alias");
+    std::fs::create_dir_all(dir.0.join("real/Lib")).unwrap();
+    std::fs::create_dir_all(dir.0.join("Archive")).unwrap();
+    std::os::unix::fs::symlink(dir.0.join("real"), dir.0.join("alias")).unwrap();
+    let mut s = Session::new();
+    s.open_library(dir.0.join("real/Lib"), false).unwrap();
+    // the library's own folder, and the folder that holds it, spelled through the link
+    let e = refusal(&mut s, "folder.rename", json!({"path": dir.path("alias/Lib"), "name": "Renamed"}));
+    assert!(e.contains("is the open library's own folder"), "{e}");
+    std::os::unix::fs::symlink(&dir.0, dir.0.join("up")).unwrap();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("up/real"), "into": dir.path("Archive")}));
+    assert!(e.contains("holds the open library"), "{e}");
+    assert!(dir.0.join("real/Lib").is_dir(), "the library stayed where it is");
+}
+
+#[test]
+fn a_case_only_rename_that_cannot_be_put_back_says_where_the_folder_is() {
+    let dir = Scratch::new("caseback");
+    std::fs::create_dir_all(dir.0.join("trip")).unwrap();
+    let calls = std::cell::Cell::new(0);
+    // the first step (to the temporary name) works; the second and the way back fail
+    let flaky = |a: &std::path::Path, b: &std::path::Path| {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 { std::fs::rename(a, b) } else { Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)) }
+    };
+    let e = crate::cmd::browse::rename_folder_with(&dir.path("trip"), &dir.path("TRIP"), &flaky).unwrap_err();
+    assert!(!e.contains("Nothing was moved") && !e.contains("os error"), "{e}");
+    let tmp = dir.0.join(format!(".lc-rename-{}", std::process::id()));
+    assert!(tmp.is_dir(), "the folder is under the temporary name");
+    assert!(e.contains(&tmp.display().to_string()) && e.contains("rename it by hand"), "{e}");
+}
+
+#[test]
+fn a_folder_that_cannot_be_looked_at_is_not_called_missing() {
+    // the disk answers with an error (a stale share): not "isn't there"
+    let e = crate::cmd::browse::look_refusal("/Volumes/nas/Trip", &std::io::Error::from(std::io::ErrorKind::TimedOut)).unwrap();
+    assert!(e.contains("“Trip” can't be reached right now") && e.contains("check that its disk is connected") && !e.contains("isn't there"), "{e}");
+    assert!(!e.contains("os error"), "{e}");
+    // no permission to look
+    let e = crate::cmd::browse::look_refusal("/x/Trip", &std::io::Error::from(std::io::ErrorKind::PermissionDenied)).unwrap();
+    assert!(e.contains("isn't allowed to open “Trip”") && e.contains("permissions"), "{e}");
+    // simply not there
+    assert!(crate::cmd::browse::look_refusal("/x/Trip", &std::io::Error::from(std::io::ErrorKind::NotFound)).is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_source_or_destination_without_permission_to_look_is_not_called_missing() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = Scratch::new("nolook");
+    let mut s = trip_session(&dir);
+    std::fs::create_dir_all(dir.0.join("locked/Trip")).unwrap();
+    std::fs::create_dir_all(dir.0.join("locked/Archive")).unwrap();
+    std::fs::set_permissions(dir.0.join("locked"), std::fs::Permissions::from_mode(0o000)).unwrap();
+    let readable = std::fs::metadata(dir.0.join("locked/Trip")).is_ok();
+    let src = s.execute("folder.move", &json!({"path": dir.path("locked/Trip"), "into": dir.path("trip")}));
+    let dst = s.execute("folder.move", &json!({"path": dir.path("trip"), "into": dir.path("locked/Archive")}));
+    std::fs::set_permissions(dir.0.join("locked"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    if readable {
+        return; // running as root: nothing is denied
+    }
+    for (what, r) in [("source", src), ("destination", dst)] {
+        let e = r.unwrap_err().to_string();
+        assert!(e.contains("isn't allowed to open") && e.contains("Nothing was moved") && !e.contains("isn't there"), "{what}: {e}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_link_the_library_was_opened_through_cannot_be_renamed_away_from_it() {
+    let dir = Scratch::new("openlink");
+    std::fs::create_dir_all(dir.0.join("real/Lib")).unwrap();
+    std::os::unix::fs::symlink(dir.0.join("real"), dir.0.join("lnk")).unwrap();
+    let mut s = Session::new();
+    s.open_library(dir.0.join("lnk/Lib"), false).unwrap();
+    let e = refusal(&mut s, "folder.rename", json!({"path": dir.path("lnk"), "name": "gone"}));
+    assert!(e.contains("“lnk” holds the open library “Lib”"), "{e}");
+    assert!(dir.0.join("lnk").exists(), "the link stayed");
+}
