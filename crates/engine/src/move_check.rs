@@ -45,6 +45,8 @@ pub(crate) struct Left {
     pub id: PhotoId,
     pub file: String,
     pub kind: Kind,
+    /// For a clash: the name is taken by another photo of the same move, not by a file in the folder.
+    pub twin: bool,
 }
 
 impl Left {
@@ -72,12 +74,15 @@ pub(crate) struct Sorted {
 enum Fate {
     Move,
     Here,
+    /// A file of that name is in the folder.
     Clash,
+    /// Another photo of the same move has the name.
+    Twin,
     Missing,
 }
 
 /// Sort `ids` for a move into `dir`. Refuses (as a whole) a photo that isn't in the library or
-/// has no file, which no skip can cure; a name clash or a missing file goes to `problems`, or to
+/// has no file, unless that photo is in `skip`; a name clash or a missing file goes to `problems`, or to
 /// `skipped` when its photo is in `skip`. A photo skipped never holds a name in the folder.
 pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>) -> Result<Sorted> {
     // skipping is by file: a virtual copy goes where its master goes
@@ -91,16 +96,29 @@ pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>
     let mut out = Sorted::default();
     let mut fates: HashMap<String, Fate> = HashMap::new();
     let mut taken: HashSet<String> = HashSet::new();
+    // skipped photos that would have moved: their names are checked against the moving ones at the end
+    let mut pending: Vec<(usize, String)> = Vec::new();
     for &id in ids {
         // (no command named: `execute` puts in the one that was asked for)
         let ph = s.catalog.photo(id).ok_or_else(|| bad("", format!("no photo {}", id.0)))?;
-        if ph.local {
-            return Err(EngineError::Other(format!("{} is not in the library (Local): add it to the library first", ph.file_name)));
-        }
-        let Source::File { path } = &ph.source else {
-            return Err(EngineError::Other(format!("{} has no file on disk, so it can't be moved", ph.file_name)));
+        let asked = skip.contains(&id.0);
+        // a photo that can't be moved at all is refused, or left out when it was told to be skipped
+        let unmovable = if ph.local {
+            Some(format!("{} is not in the library (Local): add it to the library first", ph.file_name))
+        } else if !matches!(ph.source, Source::File { .. }) {
+            Some(format!("{} has no file on disk, so it can't be moved", ph.file_name))
+        } else {
+            None
         };
-        let left_out = skip_paths.contains(path);
+        if let Some(why) = unmovable {
+            if !asked {
+                return Err(EngineError::Other(why));
+            }
+            out.skipped.push(Left { id, file: ph.file_name.clone(), kind: Kind::Asked, twin: false });
+            continue;
+        }
+        let Source::File { path } = &ph.source else { continue };
+        let left_out = asked || skip_paths.contains(path);
         let fate = match fates.get(path) {
             Some(f) => *f,
             None => {
@@ -112,8 +130,10 @@ pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>
                     Fate::Missing
                 } else if src.parent() == Some(dir) {
                     Fate::Here
-                } else if to.exists() || (!left_out && !taken.insert(to_s.to_lowercase())) {
+                } else if to.exists() {
                     Fate::Clash
+                } else if !left_out && !taken.insert(to_s.to_lowercase()) {
+                    Fate::Twin
                 } else {
                     Fate::Move
                 };
@@ -126,16 +146,31 @@ pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>
             }
         };
         let kind = match fate {
-            Fate::Clash => Kind::Clash,
+            Fate::Clash | Fate::Twin => Kind::Clash,
             Fate::Missing => Kind::Missing,
             Fate::Move | Fate::Here => Kind::Asked,
         };
-        let left = Left { id, file: ph.file_name.clone(), kind };
+        let left = Left { id, file: ph.file_name.clone(), kind, twin: matches!(fate, Fate::Twin) };
         match (left_out, fate) {
-            (true, _) => out.skipped.push(left),
+            (true, _) => {
+                if matches!(fate, Fate::Move) {
+                    pending.push((
+                        out.skipped.len(),
+                        Path::new(path).file_name().map(|f| dir.join(f).to_string_lossy().to_lowercase()).unwrap_or_default(),
+                    ));
+                }
+                out.skipped.push(left);
+            }
             (false, Fate::Move) => out.movable += 1,
             (false, Fate::Here) => out.here += 1,
-            (false, Fate::Clash | Fate::Missing) => out.problems.push(left),
+            (false, Fate::Clash | Fate::Twin | Fate::Missing) => out.problems.push(left),
+        }
+    }
+    // a skipped photo whose name a moving photo takes is a clash, whichever of the two came first
+    for (i, name) in pending {
+        if taken.contains(&name) {
+            out.skipped[i].kind = Kind::Clash;
+            out.skipped[i].twin = true;
         }
     }
     Ok(out)
@@ -151,13 +186,19 @@ pub(crate) fn skip_param(p: &Value) -> Result<HashSet<u64>> {
 }
 
 /// The folder as a person names it: its last part.
-fn folder_name(folder: &str) -> String {
+pub(crate) fn folder_name(folder: &str) -> String {
     Path::new(folder).file_name().map_or_else(|| folder.to_string(), |f| f.to_string_lossy().to_string())
 }
 
+/// The file names of `of`, each once, in order.
+fn unique_names(of: &[&Left]) -> Vec<String> {
+    let mut seen = HashSet::new();
+    of.iter().filter(|l| seen.insert(l.file.as_str())).map(|l| l.file.clone()).collect()
+}
+
 /// Up to three names, then "and N more".
-fn names(of: &[&Left]) -> String {
-    let shown: Vec<&str> = of.iter().take(3).map(|l| l.file.as_str()).collect();
+fn names(of: &[String]) -> String {
+    let shown = &of[..of.len().min(3)];
     match of.len() - shown.len() {
         0 => shown.join(", "),
         more => format!("{} and {more} more", shown.join(", ")),
@@ -166,18 +207,23 @@ fn names(of: &[&Left]) -> String {
 
 /// Why a move with `problems` was refused, in plain words with what to do about it.
 pub(crate) fn refusal(folder: &str, problems: &[Left]) -> String {
-    let clashes: Vec<&Left> = problems.iter().filter(|l| l.kind == Kind::Clash).collect();
-    let missing: Vec<&Left> = problems.iter().filter(|l| l.kind == Kind::Missing).collect();
+    let of =
+        |kind: Kind, twin: bool| -> Vec<String> { unique_names(&problems.iter().filter(|l| l.kind == kind && l.twin == twin).collect::<Vec<_>>()) };
+    let (clashes, twins, missing) = (of(Kind::Clash, false), of(Kind::Clash, true), of(Kind::Missing, false));
     let verb = |n: usize| if n == 1 { "is" } else { "are" };
+    let dest = folder_name(folder);
     let mut text = String::from("Nothing was moved. ");
     if !clashes.is_empty() {
-        text += &format!("{} {} already in “{}”. ", names(&clashes), verb(clashes.len()), folder_name(folder));
+        text += &format!("{} {} already in “{dest}”. ", names(&clashes), verb(clashes.len()));
+    }
+    if !twins.is_empty() {
+        text += &format!("More than one photo being moved is named {}, and only one of each name can go into “{dest}”. ", names(&twins));
     }
     if !missing.is_empty() {
         text += &format!("{} {} missing or offline. ", names(&missing), verb(missing.len()));
     }
     let mut fixes = Vec::new();
-    if !clashes.is_empty() {
+    if !clashes.is_empty() || !twins.is_empty() {
         fixes.push("rename the clashing photos");
     }
     if !missing.is_empty() {
@@ -193,7 +239,7 @@ pub(crate) fn check_command(s: &Session, p: &Value) -> Result<Value> {
     let folder = crate::cmd::browse::folder_param(p, "folder").ok_or_else(|| bad("photo.checkMove", "missing folder"))?;
     let dir = Path::new(folder);
     if !dir.is_dir() {
-        return Err(EngineError::Other(format!("{folder} is not a folder (offline, moved or deleted?)")));
+        return Err(EngineError::Other(format!("“{}” is not a folder (offline, moved or deleted?)", folder_name(folder))));
     }
     let ids = s.targets(p).map_err(|e| match e {
         EngineError::BadParams { cmd, msg } if cmd.is_empty() => bad("photo.checkMove", msg),

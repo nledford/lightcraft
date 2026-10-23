@@ -52,12 +52,13 @@
 
 ### A refused move to another folder says what is wrong
 - When photos can't be moved into another folder, the message now names the photos and what to do (rename them,
-  reconnect the disk, or leave them out), in plain words, instead of an "invalid parameters" error that named an
-  internal command. A move still refuses as a whole when any photo can't go, and nothing is moved.
+  reconnect the disk, or leave them out of the move), in plain words, instead of an "invalid parameters" error that
+  named an internal command. Moving the photos you chose still stops as a whole when one of them can't go, and then
+  nothing is moved.
 - Agents get the same details: `photo.checkMove` lists, without moving anything, the photos that can go, the ones
   already in the folder, and those with a name taken there or a file that is missing or offline.
-  `photo.moveToFolder` takes `skip`, the ids of photos to leave where they are while the rest move, and reports
-  each skipped photo with the reason.
+  `photo.moveToFolder` takes `skip`, the ids of photos to leave where they are while the rest move (a Local photo
+  can be skipped too), and reports each skipped photo with the reason.
 
 ### Choose where a Lightroom catalog goes
 - File ▸ Import Lightroom Catalog… now asks first: merge the catalog's photos, collections and edits into the
