@@ -437,6 +437,14 @@ pub mod xdg {
         Ok(())
     }
 
+    /// The folders of the home Trash, with mode 700 for each one made now (the specification
+    /// and other Trash implementations keep it private: it holds the original paths); one
+    /// that was there is never changed. Through links as before: the home Trash may be one.
+    fn private_dirs(dir: &Path) -> std::io::Result<()> {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)
+    }
+
     /// One folder of a disk's own Trash: made with mode 700 when missing (the parent first, one
     /// level at a time: never through a link), then checked.
     ///
@@ -588,7 +596,7 @@ pub mod xdg {
         // the home Trash for files of its disk, else the disk's own
         // (a home Trash that can't be made or read is a failure, never "no Trash": the disk
         // the home folder is on has one, it only needs putting right)
-        std::fs::create_dir_all(&places.home_trash).map_err(|e| failed("the Trash can't be made", e))?;
+        private_dirs(&places.home_trash).map_err(|e| failed("the Trash can't be made", e))?;
         let Some(home_dev) = device(&places.home_trash) else {
             return Err(BinError::Failed(format!("{}: the Trash can't be read", path.display())));
         };
@@ -609,7 +617,7 @@ pub mod xdg {
         };
         let (files, info) = (bin.join("files"), bin.join("info"));
         if home {
-            std::fs::create_dir_all(&files).and_then(|()| std::fs::create_dir_all(&info)).map_err(|e| failed("the Trash can't be written to", e))?;
+            private_dirs(&files).and_then(|()| private_dirs(&info)).map_err(|e| failed("the Trash can't be written to", e))?;
         } else {
             // (a disk's own Trash is on a disk others may write to: only a private one of ours)
             make(&bin, places.uid, Need::Private)
@@ -626,7 +634,9 @@ pub mod xdg {
         for n in 0..10_000u32 {
             let unique = if n == 0 { base.clone() } else { format!("{base}.{n}") };
             let (info_file, to) = (info.join(format!("{unique}.trashinfo")), files.join(&unique));
-            match std::fs::OpenOptions::new().write(true).create_new(true).open(&info_file) {
+            // (mode 600: the note holds an original path)
+            use std::os::unix::fs::OpenOptionsExt;
+            match std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&info_file) {
                 Ok(mut f) => {
                     use std::io::Write;
                     // (a file of that name left in the Trash without its note: the next name)
@@ -771,6 +781,35 @@ mod tests {
         assert!(matches!(e, BinError::Failed(_)), "{e:?}");
         let left: Vec<_> = std::fs::read_dir(places.home_trash.join("info")).unwrap().flatten().collect();
         assert!(left.is_empty(), "{left:?}");
+    }
+
+    /// What goes into the home Trash is private, as other Trash implementations make it: the
+    /// folders new (0700) and each note about a file (0600), since they hold original paths. A
+    /// folder that was there is never changed.
+    #[test]
+    fn a_new_home_trash_and_its_notes_are_private_and_an_old_one_is_left_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        let (dir, places) = scratch("home-private");
+        let photo = dir.0.join("photos/a.jpg");
+        std::fs::write(&photo, "x").unwrap();
+        let at = trash(&photo, &places).unwrap();
+        for d in [places.home_trash.clone(), places.home_trash.join("files"), places.home_trash.join("info")] {
+            assert_eq!(mode(&d), 0o700, "{}", d.display());
+        }
+        assert_eq!(mode(&info_of(&at).unwrap()), 0o600);
+        // folders that were there, shared with others on purpose, keep their mode
+        let (dir, places) = scratch("home-existing");
+        for d in [places.home_trash.clone(), places.home_trash.join("files"), places.home_trash.join("info")] {
+            std::fs::create_dir_all(&d).unwrap();
+            std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let photo = dir.0.join("photos/b.jpg");
+        std::fs::write(&photo, "x").unwrap();
+        trash(&photo, &places).unwrap();
+        for d in [places.home_trash.clone(), places.home_trash.join("files"), places.home_trash.join("info")] {
+            assert_eq!(mode(&d), 0o755, "{}", d.display());
+        }
     }
 
     /// A home Trash that can't be written to is a failure to put right, never "no Trash": the
