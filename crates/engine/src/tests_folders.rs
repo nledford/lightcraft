@@ -701,3 +701,183 @@ fn a_destination_without_write_permission_reports_an_error_and_keeps_everything(
     }
     std::fs::set_permissions(dir.0.join("ro"), std::fs::Permissions::from_mode(0o755)).unwrap();
 }
+
+// ── Moving a folder refuses what it can't do, in plain words ─────────────────────────────────
+//
+// * A folder goes into a folder that is there: a missing one is refused and never created.
+// * A folder or destination on a disk that isn't connected says so, rather than "not a folder".
+// * No permission, another disk and other OS errors name the folder, with no `os error` number.
+// * A folder that is, or holds, the open library says which.
+
+/// A folder to move (`trip`, with a photo in it) and the session that knows it.
+fn trip_session(dir: &Scratch) -> Session {
+    std::fs::create_dir_all(dir.0.join("trip")).unwrap();
+    std::fs::write(dir.0.join("trip/a.jpg"), b"x").unwrap();
+    let mut s = Session::new();
+    add(&mut s, &format!("{}/a.jpg", dir.path("trip")));
+    s
+}
+
+/// A refusal: the words the person reads, which never show the command or an OS error number.
+fn refusal(s: &mut Session, command: &str, params: serde_json::Value) -> String {
+    let e = s.execute(command, &params).unwrap_err().to_string();
+    assert!(!e.contains("invalid parameters") && !e.contains('`') && !e.contains("os error"), "plain words for the person: {e}");
+    assert!(e.contains("Nothing was moved"), "{e}");
+    e
+}
+
+/// A path on a disk that is not there (`/Volumes/<name>` on every platform's reading of it).
+fn absent_disk() -> String {
+    format!("/Volumes/lc-absent-disk-{}", std::process::id())
+}
+
+#[test]
+fn a_move_into_a_folder_that_is_not_there_is_refused_and_creates_nothing() {
+    let dir = Scratch::new("nodest");
+    let mut s = trip_session(&dir);
+    let undo = s.undo.len();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": dir.path("Archive")}));
+    assert!(e.contains("“Archive” isn't there") && e.contains("is its disk connected?"), "{e}");
+    assert!(!dir.0.join("Archive").exists(), "nothing is created");
+    assert!(dir.0.join("trip/a.jpg").exists(), "nothing is moved");
+    assert_eq!(s.undo.len(), undo, "and no undo step is left");
+    // however deep the missing folders go
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": dir.path("Archive/2026")}));
+    assert!(e.contains("“2026” isn't there"), "{e}");
+    assert!(!dir.0.join("Archive").exists());
+}
+
+#[test]
+fn a_folder_that_is_not_there_is_not_called_offline() {
+    let dir = Scratch::new("nosrc");
+    let mut s = trip_session(&dir);
+    std::fs::create_dir_all(dir.0.join("Archive")).unwrap();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("gone"), "into": dir.path("Archive")}));
+    assert!(e.contains("“gone” isn't there (moved or deleted?)") && !e.contains("connected"), "{e}");
+    // a file is not a folder either
+    let e = refusal(&mut s, "folder.rename", json!({"path": dir.path("trip/a.jpg"), "name": "b"}));
+    assert!(e.contains("“a.jpg” is not a folder"), "{e}");
+}
+
+#[test]
+fn a_folder_on_a_disk_that_is_not_connected_says_so() {
+    let dir = Scratch::new("offsrc");
+    let mut s = trip_session(&dir);
+    std::fs::create_dir_all(dir.0.join("Archive")).unwrap();
+    let off = absent_disk();
+    let e = refusal(&mut s, "folder.move", json!({"path": format!("{off}/photos/Trip"), "into": dir.path("Archive")}));
+    assert!(e.contains("“Trip” is on “lc-absent-disk-") && e.contains("which isn't connected") && e.contains("connect it"), "{e}");
+    assert!(!e.contains("not a folder"), "{e}");
+    let e = refusal(&mut s, "folder.rename", json!({"path": format!("{off}/photos/Trip"), "name": "Holiday"}));
+    assert!(e.contains("which isn't connected"), "{e}");
+}
+
+#[test]
+fn a_destination_on_a_disk_that_is_not_connected_says_so() {
+    let dir = Scratch::new("offdest");
+    let mut s = trip_session(&dir);
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": format!("{}/Archive", absent_disk())}));
+    assert!(e.contains("“Archive” is on “lc-absent-disk-") && e.contains("which isn't connected"), "{e}");
+    assert!(!e.contains("isn't there"), "{e}");
+    assert!(dir.0.join("trip/a.jpg").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_destination_without_permission_is_refused_naming_both_folders() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = Scratch::new("perm");
+    let mut s = trip_session(&dir);
+    std::fs::create_dir_all(dir.0.join("Archive")).unwrap();
+    std::fs::set_permissions(dir.0.join("Archive"), std::fs::Permissions::from_mode(0o555)).unwrap();
+    let writable = std::fs::write(dir.0.join("Archive/probe"), b"").is_ok();
+    let r = s.execute("folder.move", &json!({"path": dir.path("trip"), "into": dir.path("Archive")}));
+    std::fs::set_permissions(dir.0.join("Archive"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    if writable {
+        return; // running as root: nothing is denied
+    }
+    let e = r.unwrap_err().to_string();
+    assert!(e.contains("isn't allowed to move “trip” into “Archive”") && e.contains("permissions") && e.contains("Nothing was moved"), "{e}");
+    assert!(!e.contains("os error") && !e.contains("invalid parameters"), "{e}");
+    assert!(dir.0.join("trip/a.jpg").exists());
+}
+
+#[test]
+fn a_move_to_another_disk_is_refused_and_says_what_to_do() {
+    let dir = Scratch::new("exdev");
+    std::fs::create_dir_all(dir.0.join("trip")).unwrap();
+    std::fs::create_dir_all(dir.0.join("Archive")).unwrap();
+    let denied = |_: &std::path::Path, _: &std::path::Path| Err(std::io::Error::from(std::io::ErrorKind::CrossesDevices));
+    let e = crate::cmd::browse::rename_folder_with(&dir.path("trip"), &dir.path("Archive/trip"), &denied).unwrap_err();
+    assert!(e.contains("“trip” is on a different disk than “Archive”") && e.contains("doesn't copy"), "{e}");
+    assert!(e.contains("Finder") && e.contains("copy it there yourself") && e.contains("Nothing was moved"), "{e}");
+    assert!(!e.contains("os error") && !e.contains("→"), "{e}");
+}
+
+#[test]
+fn another_os_error_becomes_a_sentence_without_its_number() {
+    let dir = Scratch::new("oserr");
+    std::fs::create_dir_all(dir.0.join("trip")).unwrap();
+    let fail = |_: &std::path::Path, _: &std::path::Path| Err(std::io::Error::from_raw_os_error(2));
+    let e = crate::cmd::browse::rename_folder_with(&dir.path("trip"), &dir.path("holiday"), &fail).unwrap_err();
+    assert!(e.starts_with("LightCraft couldn't rename “trip” to “holiday”: ") && e.ends_with(". Nothing was moved."), "{e}");
+    assert!(!e.contains("os error") && !e.contains('→'), "{e}");
+    // a reason that already ends in a full stop (Windows spells its errors so) doesn't double it
+    let sentence = |_: &std::path::Path, _: &std::path::Path| Err(std::io::Error::other("The system cannot find the file specified."));
+    let e = crate::cmd::browse::rename_folder_with(&dir.path("trip"), &dir.path("holiday"), &sentence).unwrap_err();
+    assert!(e.ends_with("the system cannot find the file specified. Nothing was moved.") && !e.contains(".."), "{e}");
+}
+
+#[test]
+fn a_folder_that_holds_the_open_library_names_the_library() {
+    let dir = Scratch::new("holds");
+    std::fs::create_dir_all(dir.0.join("Pictures/Lib")).unwrap();
+    std::fs::create_dir_all(dir.0.join("Archive")).unwrap();
+    let mut s = Session::new();
+    s.open_library(dir.0.join("Pictures/Lib"), false).unwrap();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("Pictures"), "into": dir.path("Archive")}));
+    assert!(e.contains("“Pictures” holds the open library “Lib”"), "{e}");
+    assert!(dir.0.join("Pictures/Lib").exists());
+}
+
+#[test]
+fn a_folder_inside_the_open_library_is_said_to_be_part_of_it() {
+    let dir = Scratch::new("inside");
+    std::fs::create_dir_all(dir.0.join("Lib")).unwrap();
+    std::fs::create_dir_all(dir.0.join("Archive")).unwrap();
+    let mut s = Session::new();
+    s.open_library(dir.0.join("Lib"), false).unwrap();
+    std::fs::create_dir_all(dir.0.join("Lib/extra")).unwrap();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("Lib/extra"), "into": dir.path("Archive")}));
+    assert!(e.contains("“extra” is part of the open library “Lib”"), "{e}");
+}
+
+#[test]
+fn the_library_folder_itself_and_a_rename_to_the_same_name_are_told_apart() {
+    let dir = Scratch::new("same");
+    std::fs::create_dir_all(dir.0.join("Lib")).unwrap();
+    let mut s = Session::new();
+    s.open_library(dir.0.join("Lib"), false).unwrap();
+    let e = refusal(&mut s, "folder.rename", json!({"path": dir.path("Lib"), "name": "Renamed"}));
+    assert!(e.contains("“Lib” is the open library's own folder") && e.contains("open another library first"), "{e}");
+    // renaming a folder to the name it has says it is taken, not that it can't go into itself
+    std::fs::create_dir_all(dir.0.join("trip")).unwrap();
+    let e = s.execute("folder.rename", &json!({"path": dir.path("trip"), "name": "trip"})).unwrap_err().to_string();
+    assert!(e.contains("already exists") && !e.contains("into itself"), "{e}");
+}
+
+#[test]
+fn a_destination_that_is_a_file_or_a_whole_offline_disk_is_worded_for_what_it_is() {
+    let dir = Scratch::new("dest-kinds");
+    let mut s = trip_session(&dir);
+    std::fs::write(dir.0.join("note.txt"), b"x").unwrap();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": dir.path("note.txt")}));
+    assert!(e.contains("“note.txt” is not a folder") && !e.contains("isn't there"), "{e}");
+    let off = absent_disk();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": off}));
+    assert!(e.contains("lc-absent-disk-") && e.contains("” isn't connected.") && !e.contains("is on"), "{e}");
+    // a folder in the disk that is named like the disk is a folder, not the disk
+    let same = format!("{off}/{}", off.rsplit('/').next().unwrap());
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": same}));
+    assert!(e.contains("is on “lc-absent-disk-") && e.contains("which isn't connected"), "{e}");
+}

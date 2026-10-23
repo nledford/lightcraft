@@ -255,7 +255,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Rename Folder",
             [],
             None,
-            "{path, name} — rename a folder on disk (its files and sidecars go along) and relink the photos in it; one undo step (undo renames it back, refused if the old name is taken) → {path, relinked}",
+            "{path, name} — rename a folder on disk (its files and sidecars go along) and relink the photos in it; one undo step (undo renames it back, refused if the old name is taken); refused in plain words, with nothing changed, when the folder isn't there or its disk isn't connected, or the disk says no → {path, relinked}",
             always,
             |s, p| {
                 let from = str_param(p, "path").ok_or_else(|| bad("folder.rename", "missing path"))?.trim_end_matches(['/', '\\']).to_string();
@@ -264,7 +264,7 @@ pub fn specs() -> Vec<CommandSpec> {
                     .filter(|n| !n.is_empty() && !n.contains(['/', '\\']) && *n != "." && *n != "..")
                     .ok_or_else(|| bad("folder.rename", "give a folder name (no slashes)"))?;
                 let to = Path::new(&from).with_file_name(name).to_string_lossy().to_string();
-                let n = move_folder(s, &from, &to).map_err(|e| bad("folder.rename", e))?;
+                let n = move_folder(s, &from, &to).map_err(crate::EngineError::Other)?;
                 Ok(json!({"path": to, "relinked": n}))
             }
         ),
@@ -273,14 +273,14 @@ pub fn specs() -> Vec<CommandSpec> {
             "Move Folder",
             [],
             None,
-            "{path, into: destination folder} — move a folder on disk into another and relink the photos in it; one undo step (undo moves it back, refused if the old place is taken) → {path, relinked}",
+            "{path, into: destination folder} — move a folder on disk into another and relink the photos in it; one undo step (undo moves it back, refused if the old place is taken); the destination folder must exist (it is never created) and be on the same disk (never copied and deleted); every refusal (a missing folder, a disk that isn't connected, no permission, another disk) is a plain sentence naming the folder, with nothing changed → {path, relinked}",
             always,
             |s, p| {
                 let from = str_param(p, "path").ok_or_else(|| bad("folder.move", "missing path"))?.trim_end_matches(['/', '\\']).to_string();
                 let into = str_param(p, "into").ok_or_else(|| bad("folder.move", "missing into"))?;
                 let name = Path::new(&from).file_name().ok_or_else(|| bad("folder.move", "bad path"))?;
                 let to = Path::new(into).join(name).to_string_lossy().to_string();
-                let n = move_folder(s, &from, &to).map_err(|e| bad("folder.move", e))?;
+                let n = move_folder(s, &from, &to).map_err(crate::EngineError::Other)?;
                 Ok(json!({"path": to, "relinked": n}))
             }
         ),
@@ -324,36 +324,140 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
+/// A folder's own name in curly quotes, for a sentence (the whole path when it has none).
+fn quoted(path: &str) -> String {
+    format!("“{}”", Path::new(path).file_name().map_or_else(|| path.to_string(), |n| n.to_string_lossy().to_string()))
+}
+
+/// The name of the disk or share `path` is on when that disk isn't there. The rule, from the
+/// path alone: a path that lies on a mounted disk or share (`/Volumes/<name>`, `/mnt/<name>`,
+/// `/media/<user>/<name>`, a drive letter, `\\server\share`…) is offline when that mount point
+/// does not exist. A disk whose empty mount point is left behind (some Linux setups) isn't
+/// told from a folder that was deleted, and reads as "isn't there (is its disk connected?)".
+fn offline_disk(path: &str) -> Option<String> {
+    let (mount, name) = lightcraft_catalog::folders::disk_of(path)?;
+    // a bare drive letter (`D:`) means the current folder on that drive, so ask for its root
+    let probe = if mount.ends_with(':') { format!("{mount}/") } else { mount };
+    matches!(Path::new(&probe).try_exists(), Ok(false)).then_some(name)
+}
+
+/// "`folder` is on “disk”, which isn't connected", when it is.
+fn offline_refusal(folder: &str) -> Option<String> {
+    let disk = offline_disk(folder)?;
+    // the disk's own root (`/Volumes/nas`) isn't "on" itself
+    let subject = if lightcraft_catalog::folders::is_disk_root(folder) {
+        format!("“{disk}” isn't connected")
+    } else {
+        format!("{} is on “{disk}”, which isn't connected", quoted(folder))
+    };
+    Some(format!("{subject}. Nothing was moved. To go on: connect it and try again."))
+}
+
+/// Why the folder to move can't be: its disk is offline, it isn't there, or it is a file.
+fn source_refusal(from: &str) -> String {
+    if let Some(text) = offline_refusal(from) {
+        return text;
+    }
+    if Path::new(from).try_exists().unwrap_or(false) {
+        return format!("{} is not a folder. Nothing was moved.", quoted(from));
+    }
+    format!("{} isn't there (moved or deleted?). Nothing was moved.", quoted(from))
+}
+
+/// Why the folder `to` goes into can't hold it: its disk is offline, or it isn't there. Nothing
+/// is created: a move never makes the destination's folders itself.
+fn parent_refusal(parent: &Path) -> String {
+    let parent_text = parent.to_string_lossy();
+    if let Some(text) = offline_refusal(&parent_text) {
+        return text;
+    }
+    if parent.try_exists().unwrap_or(false) {
+        return format!("{} is not a folder. Nothing was moved. To go on: choose a folder to move it into.", quoted(&parent_text));
+    }
+    let parent = parent_text;
+    format!(
+        "{} isn't there (is its disk connected?). Nothing was moved. To go on: connect its disk or create the folder first, or choose another folder.",
+        quoted(&parent)
+    )
+}
+
+/// The rename or move that failed, in plain words: what the person asked for, why it didn't
+/// happen and what to do, with no OS error number. Moving to another disk is refused (the
+/// folder would have to be copied and the original deleted, which a rename never does).
+fn move_error(from: &str, to: &str, e: &std::io::Error) -> String {
+    use std::io::ErrorKind;
+    let (src, dst) = (Path::new(from), Path::new(to));
+    let parent = dst.parent().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+    let what = if src.parent() == dst.parent() {
+        format!("rename {} to {}", quoted(from), quoted(to))
+    } else {
+        format!("move {} into {}", quoted(from), quoted(&parent))
+    };
+    match e.kind() {
+        ErrorKind::PermissionDenied => {
+            format!(
+                "LightCraft isn't allowed to {what}. Nothing was moved. To go on: change the folders' permissions, or do it with your file manager."
+            )
+        }
+        ErrorKind::CrossesDevices => format!(
+            "{} is on a different disk than {}, and LightCraft doesn't copy whole folders between disks. Nothing was moved. To go on: move it with Finder or your file manager, or copy it there yourself and remove the original.",
+            quoted(from),
+            quoted(&parent)
+        ),
+        _ => {
+            let text = e.to_string();
+            let reason = text.split(" (os error").next().unwrap_or(&text).trim_end_matches('.');
+            let mut chars = reason.chars();
+            let reason = chars.next().map(|c| c.to_lowercase().chain(chars).collect::<String>()).unwrap_or_default();
+            format!("LightCraft couldn't {what}: {reason}. Nothing was moved.")
+        }
+    }
+}
+
 /// Rename `from` to `to` on disk (a folder; everything in it goes along). Never overwrites:
 /// refused when `to` exists (a case-only rename on a case-insensitive file system goes through
-/// a temporary name). Missing parents of `to` are created.
+/// a temporary name). Never creates the folder `to` goes into: it must be there already.
 pub(crate) fn rename_folder_on_disk(from: &str, to: &str) -> std::result::Result<(), String> {
+    rename_folder_with(from, to, &|a, b| std::fs::rename(a, b))
+}
+
+/// The refusals that need only a look at the disk, before anything is changed: the folder isn't
+/// there (or its disk is offline), it would go into itself, or the folder it goes into isn't there.
+fn check_places(from: &str, to: &str) -> std::result::Result<(), String> {
     let (src, dst) = (Path::new(from), Path::new(to));
     if !src.is_dir() {
-        return Err(format!("{from} is not a folder (moved or deleted?)"));
+        return Err(source_refusal(from));
     }
+    if dst != src && dst.starts_with(src) {
+        return Err("a folder can't move into itself".into());
+    }
+    match dst.parent().filter(|p| !p.as_os_str().is_empty()) {
+        Some(parent) if !parent.is_dir() => Err(parent_refusal(parent)),
+        _ => Ok(()),
+    }
+}
+
+/// [`rename_folder_on_disk`] with the file-system rename given, so a test can make it fail the
+/// way a disk does (another device, no permission).
+pub(crate) fn rename_folder_with(from: &str, to: &str, rename: &dyn Fn(&Path, &Path) -> std::io::Result<()>) -> std::result::Result<(), String> {
+    let (src, dst) = (Path::new(from), Path::new(to));
+    check_places(from, to)?;
     let case_only = from != to && from.to_lowercase() == to.to_lowercase();
     if dst.exists() && !case_only {
         return Err(format!("{to} already exists"));
-    }
-    if dst.starts_with(src) {
-        return Err("a folder can't move into itself".into());
-    }
-    if let Some(parent) = dst.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
     }
     if case_only {
         let tmp = src.with_file_name(format!(".lc-rename-{}", std::process::id()));
         if tmp.exists() {
             return Err(format!("{} already exists", tmp.display()));
         }
-        std::fs::rename(src, &tmp).map_err(|e| format!("{from} → {to}: {e}"))?;
-        return std::fs::rename(&tmp, dst).map_err(|e| {
+        rename(src, &tmp).map_err(|e| move_error(from, to, &e))?;
+        return rename(&tmp, dst).map_err(|e| {
             let _ = std::fs::rename(&tmp, src);
-            format!("{from} → {to}: {e}")
+            move_error(from, to, &e)
         });
     }
-    std::fs::rename(src, dst).map_err(|e| format!("{from} → {to}: {e}"))
+    rename(src, dst).map_err(|e| move_error(from, to, &e))
 }
 
 /// Do an undo step's folder change on disk: rename `from` → `to`; with `to` empty, remove the
@@ -505,16 +609,32 @@ fn follow_library_folder(chosen: &mut Option<String>, from: &str, to: &str) {
     }
 }
 
+/// Why a folder can't move while the library at `library` is open: it is the library's own
+/// folder or inside it, or it holds the library, and moving it would take the library along.
+fn library_refusal(from: &str, library: &Path) -> String {
+    let (folder, lib) = (quoted(from), quoted(&library.to_string_lossy()));
+    let src = Path::new(from);
+    if src == library {
+        format!(
+            "{folder} is the open library's own folder, so it can't be moved or renamed while that library is open. Nothing was moved. To go on: open another library first."
+        )
+    } else if src.starts_with(library) {
+        format!("{folder} is part of the open library {lib}, so it can't be moved here. Nothing was moved.")
+    } else {
+        format!(
+            "{folder} holds the open library {lib}, so it can't be moved or renamed while that library is open. Nothing was moved. To go on: open another library first, or move a folder that doesn't hold it."
+        )
+    }
+}
+
 /// Rename or move a folder on disk (everything in it goes along, sidecars included) and relink
 /// the photos inside, as one undo step: undo renames the folder back and restores the photos'
 /// paths, redo repeats the move — each refused (and reported) when the destination is taken.
 pub(crate) fn move_folder(s: &mut Session, from: &str, to: &str) -> std::result::Result<usize, String> {
     let (src, dst) = (Path::new(from), Path::new(to));
-    if !src.is_dir() {
-        return Err(format!("{from} is not a folder"));
-    }
-    if s.library.as_ref().is_some_and(|l| l.dir.starts_with(src) || src.starts_with(&l.dir)) {
-        return Err("the library's own folders can't be moved here".into());
+    check_places(from, to)?;
+    if let Some(l) = s.library.as_ref().filter(|l| l.dir.starts_with(src) || src.starts_with(&l.dir)) {
+        return Err(library_refusal(from, &l.dir));
     }
     // Repairs retain their exact old paths, including those on surviving history entries.
     // Complete them before the directory moves; an unavailable repair leaves it in place.
