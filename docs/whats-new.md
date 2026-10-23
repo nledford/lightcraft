@@ -31,6 +31,11 @@
   stay available in All Metadata; PSD edit copies keep their capture date. Original exports with Remove Location Info enabled
   are refused when a PSD or PSB embeds GPS, since LightCraft cannot strip metadata from a byte-for-byte original copy.
 
+### Drag photos from the filmstrip
+- In the Detail view you can now drag a photo from the filmstrip onto the sidebar, as you can from the grid: onto an
+  album, a folder or a keyword. Dragging a selected photo takes the whole selection; dragging one that isn't selected
+  takes just that photo and selects it. A click on a filmstrip photo still only selects it.
+
 ## 2026-10-22
 
 ### Reliability

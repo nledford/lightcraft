@@ -2846,7 +2846,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             if !local.intersects(vp.expand2(vec2(cell_w * 4.0, 0.0))) {
                 continue;
             }
-            let resp = ui.interact(cr, egui::Id::new(("film", id.0)), Sense::click());
+            let resp = ui.interact(cr, egui::Id::new(("film", id.0)), Sense::click_and_drag());
             crate::widgets::announce(&resp, app.session.catalog.photo(*id).map(|p| p.file_name.clone()).unwrap_or_default());
             register(ui.ctx(), format!("film:{}", id.0), cr);
             let state = app.session.selection.state_of(*id);
@@ -2930,6 +2930,16 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                 };
                 if compare && let Err(e) = r {
                     app.toast(ui.ctx(), e);
+                }
+            }
+            // drag the selection to a sidebar row, as from the grid (a plain click never starts one); in
+            // Compare an unselected photo is dragged alone, so the pair and its active photo stay (#744).
+            // Only the primary button drags: a right-button drag must not replace the selection
+            if resp.drag_started_by(egui::PointerButton::Primary) {
+                if app.ui.view == crate::state::ViewMode::Compare && !app.session.selection.contains(*id) {
+                    app.ui.dragging_photos = Some(vec![id.0]);
+                } else {
+                    super::grid::begin_photo_drag(app, *id);
                 }
             }
             // the same photo actions as the grid and loupe (Restore / Delete Permanently in Recently Deleted)
