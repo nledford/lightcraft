@@ -24,6 +24,7 @@ pub mod model;
 pub mod query;
 pub mod rules;
 pub mod safe_file;
+pub mod segments;
 pub mod stacks;
 pub mod store;
 pub mod tally;
@@ -1210,6 +1211,8 @@ mod tests_lock;
 mod tests_repair;
 #[cfg(test)]
 mod tests_scale;
+#[cfg(test)]
+mod tests_segments;
 #[cfg(test)]
 mod tests_tally;
 #[cfg(test)]
