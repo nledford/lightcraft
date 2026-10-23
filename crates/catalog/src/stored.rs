@@ -1091,3 +1091,16 @@ pub(crate) fn photos<S: Serializer>(v: &BTreeMap<PhotoId, Arc<Photo>>, s: S) -> 
     }
     map.end()
 }
+
+/// A run of the catalog's photos in their stored form (a segment's).
+pub(crate) struct PhotoRange<'a>(pub std::collections::btree_map::Range<'a, PhotoId, Arc<Photo>>);
+
+impl Serialize for PhotoRange<'_> {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut map = s.serialize_map(None)?;
+        for (id, p) in self.0.clone() {
+            map.serialize_entry(id, &StoredPhoto(p))?;
+        }
+        map.end()
+    }
+}
