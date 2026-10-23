@@ -18,6 +18,9 @@ use crate::state::ViewMode;
 use crate::theme::Tokens;
 use crate::widgets::register;
 
+/// How dark (alpha of black) the photos being dragged are painted: as dark as a rejected photo's thumbnail.
+const DRAGGED_DIM: u8 = 110;
+
 /// Thumbnail render size (pixels, long edge) for a cell of `pts` points.
 fn thumb_px(pts: f32, ppp: f32) -> usize {
     let px = (pts * ppp).ceil() as usize;
@@ -407,6 +410,8 @@ fn show_inner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         }
         // only the rows on screen and a screen above and below it (their thumbnails are prefetched)
         let prefetch = viewport.expand2(vec2(0.0, viewport.height()));
+        // the photos a drag carries, as a set once per frame: a cell asks about itself, and a large selection mustn't be scanned for each
+        let dragged: Option<HashSet<u64>> = app.ui.dragging_photos.as_ref().map(|d| d.iter().copied().collect());
         for row in rows_between(&lay.rows, prefetch.top(), prefetch.bottom()) {
             for i in row.start..row.end {
                 let (Some(&id), Some(&rect)) = (ids.get(i), lay.cells.get(i)) else { continue };
@@ -417,7 +422,7 @@ fn show_inner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 visible_ids.insert(id);
                 let r = rect.translate(origin.to_vec2());
                 let onscreen = rect.intersects(viewport);
-                cell(app, ui, id, r, square, onscreen, ppp);
+                cell(app, ui, id, r, square, onscreen, ppp, dragged.as_ref());
                 if let Some((sid, pos)) = stacks.get(&id) {
                     stack_badge(app, ui, id, *sid, *pos, r, square);
                 }
@@ -755,7 +760,7 @@ pub(crate) fn skips_the_real_render(embedded_is_final: bool, from_embedded: bool
 /// Rendered thumbnails replacing embedded previews: after everything on screen.
 pub const BACKGROUND_THUMB_PRIORITY: u32 = 3;
 
-fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square: bool, onscreen: bool, ppp: f32) {
+fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square: bool, onscreen: bool, ppp: f32, dragged: Option<&HashSet<u64>>) {
     let t = Tokens::get(ui.ctx());
     let Some(photo) = app.session.catalog.photo(id).cloned() else { return };
     let resp = ui.interact(r, egui::Id::new(("cell", id.0)), Sense::click_and_drag());
@@ -907,6 +912,12 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
     }
     if photo.flag == Flag::Reject {
         p.rect_filled(img_rect, 0.0, Color32::from_black_alpha(110));
+    }
+    // the photos being dragged step back while the drag lasts: what moves is the label at the pointer, and a drop's
+    // target is the thing to look at. Those are the photos a drop would carry (`drag_started` below takes the
+    // selection of that moment), whatever the selection becomes before the button is let go.
+    if dragged.is_some_and(|dragged| dragged.contains(&id.0)) {
+        p.rect_filled(img_rect, 0.0, Color32::from_black_alpha(DRAGGED_DIM));
     }
     // interaction
     if let Some(k) = app.ui.keyword_painter.clone() {

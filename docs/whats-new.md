@@ -31,6 +31,10 @@
   stay available in All Metadata; PSD edit copies keep their capture date. Original exports with Remove Location Info enabled
   are refused when a PSD or PSB embeds GPS, since LightCraft cannot strip metadata from a byte-for-byte original copy.
 
+### Dragged photos step back in the grid
+- While you drag photos from the grid, their thumbnails are dimmed (as dark as a rejected photo's), so the label at
+  the pointer and the row it is over are what stands out. They return to normal when you let go of them.
+
 ## 2026-10-22
 
 ### Reliability

@@ -85,6 +85,8 @@ mod tests_dialog_tab;
 #[cfg(test)]
 mod tests_dialogs;
 #[cfg(test)]
+mod tests_drag_dim;
+#[cfg(test)]
 mod tests_edit_layout;
 #[cfg(test)]
 mod tests_empty_library;
