@@ -98,7 +98,8 @@ dialog window without a title. A field's typed text or a dropdown's shown value 
 caption is. Name quality, contrast and reading order outside the four panels below are not checked.
 
 Today's gaps are listed in `crates/ui-egui/tests/a11y-gaps.json` (screen, the control with the names
-of the windows around it, how many): only a gap that is not listed fails the test. A control that
+of the windows around it, how many): a problem that is not listed fails the test, and so does a
+listed one that occurs more often than its count. A control that
 gets a name does not have to touch the file, and the test prints the entries that are fixed now.
 `LIGHTCRAFT_A11Y_BASELINE=shrink cargo test -p lightcraft-ui-egui --test accessibility` removes
 them; `LIGHTCRAFT_A11Y_BASELINE=write` regenerates the file (a new screen needs it, once). Listed

@@ -240,6 +240,13 @@ fn windows<S>(h: &Harness<'_, S>) -> usize {
     h.root().children_recursive().filter(|n| n.accesskit_node().role() == Role::Window).count()
 }
 
+/// Every name in the tree, sorted.
+fn names<S>(h: &Harness<'_, S>) -> Vec<String> {
+    let mut all: Vec<String> = h.root().children_recursive().filter_map(|n| n.accesskit_node().label()).collect();
+    all.sort();
+    all
+}
+
 type Screen = (String, Box<dyn Fn() -> App>);
 
 fn screen(name: impl Into<String>, open: impl Fn() -> App + 'static) -> Screen {
@@ -343,7 +350,15 @@ fn screens() -> Vec<Screen> {
         h
     }));
     for (tab, _) in lightcraft_ui_egui::panels::settings::TABS {
-        all.push(state_dialog(format!("Settings {tab}"), Dialog::Settings { tab: (*tab).into() }));
+        all.push(screen(format!("Dialog Settings {tab}"), move || {
+            let open = |tab: &str| harness_with(|app| app.ui.dialog = Some(Dialog::Settings { tab: tab.into() }));
+            let h = open(tab);
+            assert!(windows(&h) > 0, "Settings {tab}: no dialog window is open");
+            // the tab's own body is drawn: another tab's body has other controls in it
+            let other = open(if *tab == "general" { "import" } else { "general" });
+            assert_ne!(names(&h), names(&other), "Settings {tab}: the tab's body is the same as another tab's");
+            h
+        }));
     }
     all.push(screen("Import review", || {
         let h = harness_with(|app| {
