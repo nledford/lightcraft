@@ -190,6 +190,8 @@ fn folder_moves_repair_retained_sidecars_before_changing_paths() {
                     "redo" => s.redo.last_mut().unwrap().retry_sidecars.push(repair),
                     _ => s.pending_sidecar_repairs.push(repair),
                 }
+                // the destination folder is there, so it is the repair that blocks the move
+                std::fs::create_dir_all(root.join("Archive")).unwrap();
                 let params = if command == "folder.rename" {
                     serde_json::json!({"path": from, "name": "Holiday"})
                 } else {

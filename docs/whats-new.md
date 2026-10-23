@@ -101,6 +101,12 @@
 - Photo Grid and Square Grid now show the grid-cycle shortcut (G by default) in the View menu. The hints follow
   shortcut changes; clicking a menu row still selects that grid (issue #2500).
 
+### Moving a folder says plainly why it can't
+- Moving a folder into a folder that isn't there is refused ("“Archive” isn't there (is its disk connected?)"); it no
+  longer creates the missing folders. A folder, or a destination, on a disk or share that isn't connected says so
+  instead of "is not a folder". No permission, a move to another disk (still refused: LightCraft never copies a
+  folder and deletes the original; use Finder or your file manager) and other disk errors are sentences that name the
+  folder, with no `os error` number. Refusing to move a folder that holds the open library names the library.
 
 ## 2026-10-21
 
