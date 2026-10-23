@@ -6,7 +6,7 @@
 //! The naming check is a gate with a baseline. A control counts as unnamed when its accessible
 //! name (its label, else its value) is empty or has no letter or digit in it: an icon-only
 //! button is announced as just "button". Today's gaps are listed in `tests/a11y-gaps.json`
-//! (screen, then the control, then how many of them): only a gap *not* listed there fails. A
+//! (screen, then the control, then how many of them): a gap not listed there, or one that occurs more often than its count, fails. A
 //! control that gets a name does not have to touch the file: a stale entry is tolerated and
 //! printed as a hint. `LIGHTCRAFT_A11Y_BASELINE=shrink` deletes the stale entries; `=write`
 //! regenerates the whole file. A control is identified by its role, its name and the names of the
