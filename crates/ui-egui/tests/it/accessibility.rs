@@ -50,6 +50,68 @@ fn harness(view: ViewMode, right: RightPanel) -> App {
     })
 }
 
+/// What a People screen shows beyond the sidebar.
+#[derive(Clone, Copy)]
+enum People {
+    /// The cards of the named people and the unnamed face's tile.
+    Everyone,
+    /// The unnamed face selected, so the name field and its buttons under the tiles are drawn.
+    UnnamedSelected,
+    /// One person's page: a tile for each of their faces.
+    Page,
+}
+
+/// The People view over the demo library with faces in it: two named people and one unnamed face.
+fn people_harness(what: People) -> App {
+    use lightcraft_catalog::Op;
+    use lightcraft_meta::{Region, RegionKind};
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
+    let ids: Vec<_> = app.session.catalog.photos().map(|p| p.id).take(3).collect();
+    let face = |x: f64, name: Option<&str>| Region {
+        rect: lightcraft_geom::Rect { x0: x, y0: 0.2, x1: x + 0.25, y1: 0.6 },
+        kind: RegionKind::Face,
+        name: name.map(str::to_string),
+        description: None,
+    };
+    for (id, regions) in [
+        (ids[0], vec![face(0.1, Some("Jane Doe")), face(0.5, None)]),
+        (ids[1], vec![face(0.3, Some("Jane Doe"))]),
+        (ids[2], vec![face(0.3, Some("John Roe"))]),
+    ] {
+        let mut meta = app.session.catalog.photo(id).unwrap().meta.clone();
+        meta.regions = regions;
+        app.session.commit("setup", Op::SetMeta { id, meta: Box::new(meta) }).unwrap();
+    }
+    app.ui.left_panel = true;
+    app.ui.view = ViewMode::People;
+    match what {
+        People::Everyone => {}
+        People::UnnamedSelected => {
+            app.ui.unnamed_selected.insert((ids[0].0, 1));
+        }
+        People::Page => app.ui.person_page = Some("Jane Doe".to_string()),
+    }
+    let mut h = Harness::builder().with_size(vec2(1500.0, 950.0)).build_ui_state(
+        |ui, app: &mut LightcraftApp| {
+            app.logic(&ui.ctx().clone());
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(10);
+    // what the screen is about is on it, so a seeding that failed cannot pass as an empty, clean screen
+    // a plain label's text is the node's value, a control's name its label
+    let mut all = names(&h);
+    all.extend(h.root().children_recursive().filter_map(|n| n.accesskit_node().value()));
+    let shown = |text: &str| all.iter().any(|n| n.contains(text));
+    match what {
+        People::Everyone => assert!(shown("Jane Doe") && shown("Unnamed face"), "the cards and the unnamed tile: {all:?}"),
+        People::UnnamedSelected => assert!(shown("Name face"), "the unnamed faces' name bar: {all:?}"),
+        People::Page => assert!(shown("2 faces"), "the person's page with both of their faces: {all:?}"),
+    }
+    h
+}
+
 fn interactive(role: Role) -> bool {
     matches!(
         role,
@@ -247,6 +309,10 @@ fn names<S>(h: &Harness<'_, S>) -> Vec<String> {
     all
 }
 
+/// Every view the gate walks; `every_view_is_a_screen_of_the_gate` names each `ViewMode` variant.
+const VIEWS: [ViewMode; 7] =
+    [ViewMode::PhotoGrid, ViewMode::SquareGrid, ViewMode::Detail, ViewMode::Compare, ViewMode::Survey, ViewMode::Reference, ViewMode::People];
+
 type Screen = (String, Box<dyn Fn() -> App>);
 
 fn screen(name: impl Into<String>, open: impl Fn() -> App + 'static) -> Screen {
@@ -303,9 +369,15 @@ fn context_menu(what: &'static str, label: &'static str) -> Screen {
 /// import review, the menus and a context menu. The left sidebar is part of every one of them.
 fn screens() -> Vec<Screen> {
     let mut all = Vec::new();
-    for view in [ViewMode::PhotoGrid, ViewMode::SquareGrid, ViewMode::Detail, ViewMode::Compare, ViewMode::Survey, ViewMode::Reference] {
-        all.push(screen(format!("View {view:?}"), move || harness(view, RightPanel::None)));
+    for view in VIEWS {
+        // People needs faces in the library: its screens are below
+        if view != ViewMode::People {
+            all.push(screen(format!("View {view:?}"), move || harness(view, RightPanel::None)));
+        }
     }
+    all.push(screen("View People", || people_harness(People::Everyone)));
+    all.push(screen("View People with an unnamed face selected", || people_harness(People::UnnamedSelected)));
+    all.push(screen("View People of one person", || people_harness(People::Page)));
     for right in [
         RightPanel::Edit,
         RightPanel::Profiles,
@@ -384,6 +456,28 @@ fn screens() -> Vec<Screen> {
 
 fn baseline_path() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/a11y-gaps.json")
+}
+
+/// Every view in `VIEWS` is a screen of the gate. The match has no wildcard, so a new `ViewMode`
+/// does not compile until it is named here; add it to `VIEWS` (above `screens()`) at the same time.
+#[test]
+fn every_view_is_a_screen_of_the_gate() {
+    for view in VIEWS {
+        match view {
+            ViewMode::PhotoGrid
+            | ViewMode::SquareGrid
+            | ViewMode::Detail
+            | ViewMode::Compare
+            | ViewMode::Survey
+            | ViewMode::Reference
+            | ViewMode::People => {}
+        }
+    }
+    let audited: Vec<String> = screens().into_iter().map(|(name, _)| name).collect();
+    for view in VIEWS {
+        let name = format!("View {view:?}");
+        assert!(audited.contains(&name), "{name} is not audited: add it to screens() ({audited:?})");
+    }
 }
 
 #[test]
