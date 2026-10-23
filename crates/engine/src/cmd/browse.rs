@@ -307,7 +307,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Check Move to Folder",
             [],
             None,
-            "{folder, ids?} — how `photo.moveToFolder` would go for the photos (default: the selection), without moving anything → {folder, photos, movable, here, problems: [{id, name, kind: clash|missing|unmovable}]}; photos count as the person sees them (a virtual copy is one, though it moves with its master's file); `here`: already in the folder; a name taken in `folder`, a file that is missing or offline, or a photo that can't move as it is (Local, or no file) or a library photo of the same file as such a photo in the batch, since skipping is by file (`unmovable`) is a problem (pass those ids as `skip` to move the rest)",
+            "{folder, ids?} — how `photo.moveToFolder` would go for the photos (default: the selection), without moving anything → {folder, photos, movable, here, problems: [{id, name, kind: clash|missing|unmovable, twin?}]}; photos count as the person sees them (a virtual copy is one, though it moves with its master's file); `here`: already in the folder; a name taken in `folder`, a file that is missing or offline, or a photo that can't move as it is (Local, or no file) or a library photo of the same file as such a photo in the batch, since skipping is by file (`unmovable`) is a problem (pass those ids as `skip` to move the rest); `twin: true` marks a `clash` with another photo of the same move rather than with a file in the folder",
             always,
             |s, p| crate::move_check::check_command(s, p)
         ),
