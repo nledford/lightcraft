@@ -437,9 +437,11 @@ pub mod xdg {
         Ok(())
     }
 
-    /// The folders of the home Trash, with mode 700 for each one made now (the specification
-    /// and other Trash implementations keep it private: it holds the original paths); one
-    /// that was there is never changed. Through links as before: the home Trash may be one.
+    /// The folders of the home Trash, with mode 700 for each one made now (they hold the original
+    /// paths; the specification sets no mode for the home Trash, GLib and KDE make it 0700, and a
+    /// missing parent such as `~/.local/share` is made 0700 too, as the XDG base directory
+    /// specification asks); one that was there is never changed. Through links as before: the home
+    /// Trash may be one.
     fn private_dirs(dir: &Path) -> std::io::Result<()> {
         use std::os::unix::fs::DirBuilderExt;
         std::fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)
@@ -783,9 +785,9 @@ mod tests {
         assert!(left.is_empty(), "{left:?}");
     }
 
-    /// What goes into the home Trash is private, as other Trash implementations make it: the
-    /// folders new (0700) and each note about a file (0600), since they hold original paths. A
-    /// folder that was there is never changed.
+    /// What goes into the home Trash is private (the specification sets no mode; GLib and KDE make
+    /// the folders 0700): the folders new (0700) and each note about a file (0600), since they hold
+    /// original paths. A folder that was there is never changed.
     #[test]
     fn a_new_home_trash_and_its_notes_are_private_and_an_old_one_is_left_alone() {
         use std::os::unix::fs::PermissionsExt;
