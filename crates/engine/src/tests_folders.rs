@@ -660,7 +660,9 @@ fn a_name_taken_in_the_destination_refuses_the_move_and_overwrites_nothing() {
     let b = add_file(&mut s, &dir.path("in/b.jpg"), "B");
     std::fs::write(dir.path("out/b.jpg"), "OTHER").unwrap();
     let e = s.execute("photo.moveToFolder", &json!({"ids": [a.0, b.0], "folder": dir.path("out")})).unwrap_err().to_string();
-    assert!(e.contains("b.jpg already in") && e.contains("nothing was moved"), "{e}");
+    assert!(e.contains("b.jpg is already in") && e.contains("Nothing was moved"), "{e}");
+    assert!(!e.contains("invalid parameters") && !e.contains('`'), "plain words for the person: {e}");
+    assert!(e.contains("leave these photos out of the move"), "it says what can be done: {e}");
     assert_eq!(std::fs::read_to_string(dir.path("out/b.jpg")).unwrap(), "OTHER");
     assert!(dir.0.join("in/a.jpg").is_file() && !dir.0.join("out/a.jpg").exists(), "all or nothing");
     assert_eq!(file_of(&s, a), dir.path("in/a.jpg"));
@@ -673,12 +675,119 @@ fn moving_to_a_missing_folder_or_a_missing_original_is_refused() {
     let mut s = Session::new();
     let a = add_file(&mut s, &dir.path("in/a.jpg"), "A");
     let e = s.execute("photo.moveToFolder", &json!({"ids": [a.0], "folder": dir.path("nope")})).unwrap_err().to_string();
-    assert!(e.contains("not a folder"), "{e}");
+    assert!(e.contains("not a folder") && !e.contains("invalid parameters") && !e.contains('`'), "{e}");
     std::fs::create_dir_all(dir.0.join("out")).unwrap();
     std::fs::remove_file(dir.path("in/a.jpg")).unwrap();
     let e = s.execute("photo.moveToFolder", &json!({"ids": [a.0], "folder": dir.path("out")})).unwrap_err().to_string();
-    assert!(e.contains("missing or offline"), "{e}");
+    assert!(e.contains("a.jpg is missing or offline") && e.contains("Find Missing Photos"), "{e}");
+    assert!(!e.contains("invalid parameters") && !e.contains('`'), "plain words for the person: {e}");
     assert_eq!(file_of(&s, a), dir.path("in/a.jpg"));
+}
+
+/// in/{a,b,c}.jpg, out/b.jpg already taken; ids a, b, c.
+fn clash_setup(name: &str) -> (Scratch, Session, [lightcraft_catalog::PhotoId; 3]) {
+    let dir = Scratch::new(name);
+    std::fs::create_dir_all(dir.0.join("in")).unwrap();
+    std::fs::create_dir_all(dir.0.join("out")).unwrap();
+    let mut s = Session::new();
+    let a = add_file(&mut s, &dir.path("in/a.jpg"), "A");
+    let b = add_file(&mut s, &dir.path("in/b.jpg"), "B");
+    let c = add_file(&mut s, &dir.path("in/c.jpg"), "C");
+    std::fs::write(dir.path("out/b.jpg"), "OTHER").unwrap();
+    (dir, s, [a, b, c])
+}
+
+#[test]
+fn the_photos_told_to_skip_stay_and_the_rest_move_in_one_undo_step() {
+    let (dir, mut s, [a, b, c]) = clash_setup("move-skip");
+    let r = s.execute("photo.moveToFolder", &json!({"ids": [a.0, b.0, c.0], "skip": [b.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 2);
+    assert_eq!(r["skipped"], json!([{"id": b.0, "name": "b.jpg", "kind": "clash"}]));
+    assert_eq!(file_of(&s, a), dir.path("out/a.jpg"));
+    assert_eq!(file_of(&s, c), dir.path("out/c.jpg"));
+    assert_eq!(file_of(&s, b), dir.path("in/b.jpg"), "the skipped photo stays");
+    assert_eq!(std::fs::read_to_string(dir.path("out/b.jpg")).unwrap(), "OTHER");
+    assert!(dir.0.join("in/b.jpg").is_file());
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert!(dir.0.join("in/a.jpg").is_file() && dir.0.join("in/c.jpg").is_file() && !dir.0.join("out/a.jpg").exists());
+}
+
+#[test]
+fn a_problem_that_was_not_skipped_still_refuses_the_whole_move() {
+    let (dir, mut s, [a, b, c]) = clash_setup("move-skip-other");
+    std::fs::remove_file(dir.path("in/c.jpg")).unwrap();
+    // b is skipped; c went missing since the check, and nobody said to skip it
+    let e = s.execute("photo.moveToFolder", &json!({"ids": [a.0, b.0, c.0], "skip": [b.0], "folder": dir.path("out")})).unwrap_err().to_string();
+    assert!(e.contains("c.jpg is missing or offline") && !e.contains("b.jpg"), "{e}");
+    assert!(dir.0.join("in/a.jpg").is_file() && !dir.0.join("out/a.jpg").exists(), "all or nothing for the rest");
+}
+
+#[test]
+fn a_missing_file_is_skipped_like_a_clash_and_skipping_everything_moves_nothing() {
+    let (dir, mut s, [a, b, c]) = clash_setup("move-skip-missing");
+    std::fs::remove_file(dir.path("in/c.jpg")).unwrap();
+    let r = s.execute("photo.moveToFolder", &json!({"ids": [a.0, b.0, c.0], "skip": [c.0, b.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 1);
+    let kinds: Vec<_> = r["skipped"].as_array().unwrap().iter().map(|x| (x["name"].as_str().unwrap(), x["kind"].as_str().unwrap())).collect();
+    assert_eq!(kinds, [("b.jpg", "clash"), ("c.jpg", "missing")]);
+    // nothing left to move: no undo step, no activity row
+    let (undo, journal) = (s.undo.len(), s.journal.len());
+    let r = s.execute("photo.moveToFolder", &json!({"ids": [b.0, c.0], "skip": [c.0, b.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 0);
+    assert_eq!(r["skipped"].as_array().unwrap().len(), 2);
+    assert_eq!(s.undo.len(), undo, "no undo step for a move of nothing");
+    assert!(s.activity.list().is_empty());
+    assert_eq!(file_of(&s, a), dir.path("out/a.jpg"));
+    assert_eq!(s.journal.len(), journal + 1, "the move is journaled, as a command that changed something");
+    assert!(s.execute("photo.moveToFolder", &json!({"ids": [a.0], "skip": "a", "folder": dir.path("out")})).is_err(), "skip is a list of ids");
+}
+
+#[test]
+fn skipping_one_of_two_photos_with_the_same_name_lets_the_other_go() {
+    let dir = Scratch::new("move-skip-batch-clash");
+    for d in ["x", "y", "out"] {
+        std::fs::create_dir_all(dir.0.join(d)).unwrap();
+    }
+    let mut s = Session::new();
+    let first = add_file(&mut s, &dir.path("x/a.jpg"), "X");
+    let second = add_file(&mut s, &dir.path("y/a.jpg"), "Y");
+    let ids = json!([first.0, second.0]);
+    let e = s.execute("photo.moveToFolder", &json!({"ids": ids, "folder": dir.path("out")})).unwrap_err().to_string();
+    assert!(e.contains("a.jpg is already in"), "{e}");
+    let r = s.execute("photo.moveToFolder", &json!({"ids": ids, "skip": [first.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 1, "a skipped photo doesn't keep its name taken");
+    assert_eq!(std::fs::read_to_string(dir.path("out/a.jpg")).unwrap(), "Y");
+    assert_eq!(file_of(&s, first), dir.path("x/a.jpg"));
+}
+
+#[test]
+fn checking_a_move_lists_the_problems_and_touches_nothing() {
+    let (dir, mut s, [a, b, c]) = clash_setup("move-check");
+    let d = add_file(&mut s, &dir.path("out/d.jpg"), "D"); // in the folder already
+    // a virtual copy of the clashing photo has the same problem
+    let vc = s.catalog.alloc_photo_id();
+    let p = Photo::new(vc, Source::File { path: dir.path("in/b.jpg") }, "b.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    std::fs::remove_file(dir.path("in/c.jpg")).unwrap();
+    let r = s.execute("photo.checkMove", &json!({"ids": [a.0, b.0, c.0, d.0, vc.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!((r["photos"].as_u64(), r["movable"].as_u64(), r["here"].as_u64()), (Some(5), Some(1), Some(1)), "{r}");
+    let problems: Vec<_> = r["problems"].as_array().unwrap().iter().map(|x| (x["id"].as_u64().unwrap(), x["kind"].as_str().unwrap())).collect();
+    assert_eq!(problems, [(b.0, "clash"), (c.0, "missing"), (vc.0, "clash")]);
+    assert!(dir.0.join("in/a.jpg").is_file() && !dir.0.join("out/a.jpg").exists(), "nothing moved");
+    assert_eq!(file_of(&s, a), dir.path("in/a.jpg"));
+    assert!(s.activity.list().is_empty(), "no activity row for a look");
+    assert!(s.journal.is_empty(), "a look isn't a recorded command");
+    // an id the library doesn't have names the command that was asked for
+    let e = s.execute("photo.checkMove", &json!({"ids": [999_999], "folder": dir.path("out")})).unwrap_err().to_string();
+    assert!(e.contains("photo.checkMove") && e.contains("no photo 999999"), "{e}");
+    // the move with exactly those skipped goes through
+    let r =
+        s.execute("photo.moveToFolder", &json!({"ids": [a.0, b.0, c.0, d.0, vc.0], "skip": [b.0, c.0, vc.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 1);
+    assert_eq!(r["skipped"].as_array().unwrap().len(), 3);
+    // a folder that isn't there is said in plain words too
+    let e = s.execute("photo.checkMove", &json!({"ids": [a.0], "folder": dir.path("nope")})).unwrap_err().to_string();
+    assert!(e.contains("not a folder") && !e.contains('`'), "{e}");
 }
 
 #[cfg(unix)]
