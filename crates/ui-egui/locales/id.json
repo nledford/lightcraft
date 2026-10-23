@@ -2325,5 +2325,8 @@
   "≤  at most": "≤  maksimal",
   "≥  at least": "≥  minimal",
   "日本語": "日本語",
-  "繁體中文（台灣）": "繁體中文（台灣）"
+  "繁體中文（台灣）": "繁體中文（台灣）",
+  "Rename a clashing photo, or choose another folder, to move it too.": "Ganti nama foto yang bentrok atau pilih folder lain agar bisa dipindahkan.",
+  "Reconnect the disk or use File ▸ Find Missing Photos…, then try again.": "Sambungkan kembali disk atau gunakan File → Cari foto hilang…, lalu coba lagi.",
+  "A photo with no file can't be moved. A Local photo can, once you use Add to My Photos.": "Foto tanpa file tidak dapat dipindahkan. Foto lokal bisa, setelah memakai Tambahkan ke Foto saya."
 }

@@ -297,5 +297,13 @@
   "Move {n} photo{} to “{}”": "Déplacer {n} photo{} vers « {} »",
   "Move {n} photo{} to “{}”?": "Déplacer {n} photo{} vers « {} » ?",
   "Listing folders — folders: {folders}, files: {files}": "Liste des dossiers — dossiers : {folders}, fichiers : {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n} photo{} déplacée(s) vers « {} ». Modifier → Annuler les remet en place."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n} photo{} déplacée(s) vers « {} ». Modifier → Annuler les remet en place.",
+  "These can't be moved to “{}”:": "Ces photos ne peuvent pas être déplacées vers « {0} » :",
+  "{} is already in “{}”": "{0} est déjà dans « {1} »",
+  "{} is missing or offline": "{0} est introuvable ou hors ligne",
+  "and {n} more": "et {n} autre(s)",
+  "Move {n}, skip {m}": "Déplacer {n}, ignorer {m}",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "{n} photo{0} déplacée(s) vers « {1} », {skipped} ignorée(s). Modifier → Annuler les remet en place.",
+  "{} can't be moved": "{0} ne peut pas être déplacé",
+  "{} has the same name as another photo being moved": "{0} porte le même nom qu’une autre photo à déplacer"
 }

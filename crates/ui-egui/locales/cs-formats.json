@@ -297,5 +297,13 @@
   "Move {n} photo{} to “{}”": "Přesunout do „{1}“ fotografie: {n}{0:.0}",
   "Move {n} photo{} to “{}”?": "Přesunout do „{1}“ fotografie: {n}{0:.0}?",
   "Listing folders — folders: {folders}, files: {files}": "Procházení složek – složky: {folders}, soubory: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Do „{1}“ přesunuto fotografií: {n}{0:.0}. Úpravy → Zpět je vrátí."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Do „{1}“ přesunuto fotografií: {n}{0:.0}. Úpravy → Zpět je vrátí.",
+  "These can't be moved to “{}”:": "Do „{0}“ nelze přesunout:",
+  "{} is already in “{}”": "{0} už je ve složce „{1}“",
+  "{} is missing or offline": "{0} chybí nebo je offline",
+  "and {n} more": "a dalších: {n}",
+  "Move {n}, skip {m}": "Přesunout {n}, přeskočit {m}",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "Do „{1}“ přesunuto fotografií: {n}{0:.0}, přeskočeno: {skipped}. Úpravy → Zpět je vrátí.",
+  "{} can't be moved": "{0} nelze přesunout",
+  "{} has the same name as another photo being moved": "{0} má stejný název jako jiná přesouvaná fotografie"
 }

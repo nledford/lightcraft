@@ -297,5 +297,13 @@
   "Move {n} photo{} to “{}”": "Przenieś do „{1}” — zdjęcia: {n}{0:.0}",
   "Move {n} photo{} to “{}”?": "Przenieść do „{1}” — zdjęcia: {n}{0:.0}?",
   "Listing folders — folders: {folders}, files: {files}": "Przeglądanie folderów — foldery: {folders}, pliki: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Przeniesiono do „{1}” — zdjęcia: {n}{0:.0}. Edytuj → Cofnij przywróci je."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Przeniesiono do „{1}” — zdjęcia: {n}{0:.0}. Edytuj → Cofnij przywróci je.",
+  "These can't be moved to “{}”:": "Nie można ich przenieść do „{0}”:",
+  "{} is already in “{}”": "{0} jest już w „{1}”",
+  "{} is missing or offline": "Brakuje {0} lub jest niedostępny",
+  "and {n} more": "i {n} więcej",
+  "Move {n}, skip {m}": "Przenieś: {n}, pomiń: {m}",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "Przeniesiono do „{1}” — zdjęcia: {n}{0:.0}, pominięto: {skipped}. Edytuj → Cofnij przywróci je.",
+  "{} can't be moved": "{0} nie można przenieść",
+  "{} has the same name as another photo being moved": "{0} ma tę samą nazwę co inne przenoszone zdjęcie"
 }

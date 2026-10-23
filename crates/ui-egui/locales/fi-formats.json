@@ -297,5 +297,13 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "”{to}” on jo henkilö. Yhdistäminen tekee kahdesta yhden henkilön; Kumoa erottaa ne uudelleen.",
   "•  {assumption}": "•  {assumption}",
   "… and {more} more": "… ja {more} lisää",
-  "…and {more} more": "…ja {more} lisää"
+  "…and {more} more": "…ja {more} lisää",
+  "These can't be moved to “{}”:": "Näitä ei voi siirtää kohteeseen ”{0}”:",
+  "{} is already in “{}”": "{0} on jo kohteessa ”{1}”",
+  "{} is missing or offline": "{0} puuttuu tai on offline-tilassa",
+  "and {n} more": "ja {n} muuta",
+  "Move {n}, skip {m}": "Siirrä {n}, ohita {m}",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "Siirretty kuvia kohteeseen ”{1}”: {n}{0:.0}, ohitettu: {skipped}. Muokkaa → Kumoa siirtää ne takaisin.",
+  "{} can't be moved": "Kohdetta {0} ei voi siirtää",
+  "{} has the same name as another photo being moved": "{0} on samanniminen kuin toinen siirrettävä kuva"
 }

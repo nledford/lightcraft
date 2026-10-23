@@ -41,6 +41,10 @@
   that can't move as it is (a Local photo, until it is added to the library, or one with no file).
   `photo.moveToFolder` takes `skip`, the ids of photos to leave where they are while the rest move (a Local photo
   can be skipped too), and reports each skipped photo with the reason.
+- Dropping photos on a folder in the sidebar now checks the move first. The question names the photos that can't go
+  (up to five, then a count) and why: the name is taken in the folder, two photos being moved share a name, the file is
+  missing or offline, or the photo has no file. It says what to do and offers to move the rest, and it asks even when
+  you turned off the confirmation. Dropping a Local photo is still refused on the row, with its own reason.
 
 ## 2026-10-22
 

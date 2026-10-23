@@ -297,5 +297,13 @@
   "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "Hasil penggabungan {what} ditambahkan dengan resolusi {mp}: resolusi penuhnya ({full}) memerlukan memori melebihi kapasitas komputer ini",
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "Hasil penggabungan {what} ditambahkan dengan resolusi {mp}, resolusi maksimum untuk panorama (resolusi penuhnya {full})",
   "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "{skipped} catalog images were not imported because their records in the catalog are incomplete.",
-  "Listing folders — folders: {folders}, files: {files}": "Listing folders — folders: {folders}, files: {files}"
+  "Listing folders — folders: {folders}, files: {files}": "Listing folders — folders: {folders}, files: {files}",
+  "These can't be moved to “{}”:": "Tidak dapat dipindahkan ke “{0}”:",
+  "{} is already in “{}”": "{0} sudah ada di “{1}”",
+  "{} is missing or offline": "{0} hilang atau offline",
+  "and {n} more": "dan {n} lainnya",
+  "Move {n}, skip {m}": "Pindahkan {n}, lewati {m}",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "{n} foto dipindahkan ke “{1}”{0:.0}, {skipped} dilewati. Pilih Edit → Urungkan untuk mengembalikannya.",
+  "{} can't be moved": "{0} tidak dapat dipindahkan",
+  "{} has the same name as another photo being moved": "{0} memiliki nama yang sama dengan foto lain yang dipindahkan"
 }

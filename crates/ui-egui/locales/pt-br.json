@@ -2188,5 +2188,8 @@
   "Color Overlay on B&W": "Sobreposição de cor em P&B",
   "Image on Black": "Imagem sobre preto",
   "Image on White": "Imagem sobre branco",
-  "White on Black": "Branco sobre preto"
+  "White on Black": "Branco sobre preto",
+  "Rename a clashing photo, or choose another folder, to move it too.": "Renomeie a foto com nome repetido ou escolha outra pasta para movê-la.",
+  "Reconnect the disk or use File ▸ Find Missing Photos…, then try again.": "Reconecte o disco ou use Arquivo → Localizar fotos ausentes… e tente de novo.",
+  "A photo with no file can't be moved. A Local photo can, once you use Add to My Photos.": "Uma foto sem arquivo não pode ser movida. Uma foto local pode, depois de usar Adicionar às Minhas fotos."
 }

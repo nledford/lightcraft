@@ -2311,5 +2311,8 @@
   "− harder border · + softer border": "− terävämpi reuna · + pehmeämpi reuna",
   "≤  at most": "≤  enintään",
   "≥  at least": "≥  vähintään",
-  "★ Favorites": "★ Suosikit"
+  "★ Favorites": "★ Suosikit",
+  "Rename a clashing photo, or choose another folder, to move it too.": "Nimeä samannimisen kuvan uudelleen tai valitse toinen kansio, jotta se voidaan siirtää.",
+  "Reconnect the disk or use File ▸ Find Missing Photos…, then try again.": "Yhdistä levy uudelleen tai käytä toimintoa Tiedosto → Etsi puuttuvat kuvat… ja yritä uudelleen.",
+  "A photo with no file can't be moved. A Local photo can, once you use Add to My Photos.": "Kuvaa ilman tiedostoa ei voi siirtää. Paikallisen kuvan voi, kun käytät toimintoa Lisää Omiin kuviin."
 }

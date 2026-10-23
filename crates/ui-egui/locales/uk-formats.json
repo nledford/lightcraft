@@ -297,5 +297,13 @@
   "Move {n} photo{} to “{}”": "Перемістити до «{1}» фото: {n}{0:.0}",
   "Move {n} photo{} to “{}”?": "Перемістити до «{1}» фото: {n}{0:.0}?",
   "Listing folders — folders: {folders}, files: {files}": "Перегляд тек — тек: {folders}, файлів: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "До «{1}» переміщено фото: {n}{0:.0}. Редагування → Скасувати поверне їх."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "До «{1}» переміщено фото: {n}{0:.0}. Редагування → Скасувати поверне їх.",
+  "These can't be moved to “{}”:": "Ці фото не можна перемістити до «{0}»:",
+  "{} is already in “{}”": "{0} уже в «{1}»",
+  "{} is missing or offline": "{0} відсутній або недоступний",
+  "and {n} more": "і ще {n}",
+  "Move {n}, skip {m}": "Перемістити {n}, пропустити {m}",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "До «{1}» переміщено фото: {n}{0:.0}, пропущено: {skipped}. Редагування → Скасувати поверне їх.",
+  "{} can't be moved": "{0} не можна перемістити",
+  "{} has the same name as another photo being moved": "{0} має таку саму назву, як інше фото, що переміщується"
 }

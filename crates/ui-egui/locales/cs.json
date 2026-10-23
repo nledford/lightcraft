@@ -2394,5 +2394,8 @@
   "End Slideshow": "Ukončit prezentaci",
   "Save Current Settings as New Effect Preset…": "Uložit aktuální nastavení jako nové přednastavení efektu…",
   "Manage Effect Presets…": "Spravovat přednastavení efektů…",
-  "Export Effect Presets…": "Exportovat přednastavení efektů…"
+  "Export Effect Presets…": "Exportovat přednastavení efektů…",
+  "Rename a clashing photo, or choose another folder, to move it too.": "Kolidující fotografii přejmenujte nebo zvolte jinou složku, a půjde přesunout.",
+  "Reconnect the disk or use File ▸ Find Missing Photos…, then try again.": "Znovu připojte disk nebo použijte Soubor → Najít chybějící fotografie… a zkuste to znovu.",
+  "A photo with no file can't be moved. A Local photo can, once you use Add to My Photos.": "Fotografii bez souboru nelze přesunout. Místní fotografii lze, jakmile použijete Přidat do mých fotografií."
 }

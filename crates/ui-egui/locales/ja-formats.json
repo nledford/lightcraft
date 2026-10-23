@@ -297,5 +297,13 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "「{to}」はすでに別の人物です。まとめると1人になり、元に戻すと再び分かれます。",
   "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "{what}合成を{mp}で追加しました：フルサイズ（{full}）にはこのコンピューターのメモリが足りません",
   "Listing folders — folders: {folders}, files: {files}": "フォルダーを一覧中 — フォルダー：{folders}、ファイル：{files}",
-  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what}合成を{mp}で追加しました。パノラマの最大サイズです（フルサイズ：{full}）"
+  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what}合成を{mp}で追加しました。パノラマの最大サイズです（フルサイズ：{full}）",
+  "These can't be moved to “{}”:": "「{0}」に移動できない写真:",
+  "{} is already in “{}”": "{0} はすでに「{1}」にあります",
+  "{} is missing or offline": "{0} が見つからないか、オフラインです",
+  "and {n} more": "ほか{n}枚",
+  "Move {n}, skip {m}": "{n}枚を移動、{m}枚をスキップ",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "{n}枚を「{1}」に移動し、{skipped}枚をスキップしました。編集 → 取り消す で元に戻せます。{0:.0}",
+  "{} can't be moved": "{0} は移動できません",
+  "{} has the same name as another photo being moved": "{0} は、移動する別の写真と名前が同じです"
 }

@@ -297,5 +297,13 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}” já é uma pessoa. Combiná-las deixa uma só; Desfazer as separa de novo.",
   "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "{what} mesclagem adicionada em {mp}: o tamanho completo, {full}, precisa de mais memória do que este computador tem",
   "Listing folders — folders: {folders}, files: {files}": "Listando pastas — pastas: {folders}, arquivos: {files}",
-  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} mesclagem adicionada em {mp}, o maior tamanho possível para um panorama (tamanho completo: {full})"
+  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} mesclagem adicionada em {mp}, o maior tamanho possível para um panorama (tamanho completo: {full})",
+  "These can't be moved to “{}”:": "Não é possível mover para “{0}”:",
+  "{} is already in “{}”": "{0} já está em “{1}”",
+  "{} is missing or offline": "{0} está ausente ou offline",
+  "and {n} more": "e mais {n}",
+  "Move {n}, skip {m}": "Mover {n}, ignorar {m}",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "{n} foto{0} movida{0} para “{1}”, {skipped} ignorada(s). Editar → Desfazer as traz de volta.",
+  "{} can't be moved": "{0} não pode ser movido",
+  "{} has the same name as another photo being moved": "{0} tem o mesmo nome de outra foto que está sendo movida"
 }

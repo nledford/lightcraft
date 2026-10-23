@@ -2335,5 +2335,8 @@
   "Checking the GPU…": "Проверка ГП…",
   "CPU": "ЦП",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Модель лиц использует ГП, только если проверка показала, что он даёт те же результаты быстрее.",
-  "Checking the GPU for faces": "Проверка ГП для лиц"
+  "Checking the GPU for faces": "Проверка ГП для лиц",
+  "Rename a clashing photo, or choose another folder, to move it too.": "Переименуйте фото с таким же именем или выберите другую папку, чтобы переместить его.",
+  "Reconnect the disk or use File ▸ Find Missing Photos…, then try again.": "Подключите диск снова или выберите Файл → Найти отсутствующие фото…, затем повторите.",
+  "A photo with no file can't be moved. A Local photo can, once you use Add to My Photos.": "Фото без файла нельзя переместить. Локальное фото можно переместить после команды Добавить в «Мои фото»."
 }

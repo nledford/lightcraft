@@ -2342,5 +2342,8 @@
   "Checking the GPU…": "Comprobando la GPU…",
   "CPU": "CPU",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Un modelo de caras usa la GPU solo cuando una comprobación muestra que da los mismos resultados más rápido.",
-  "Checking the GPU for faces": "Comprobando la GPU para las caras"
+  "Checking the GPU for faces": "Comprobando la GPU para las caras",
+  "Rename a clashing photo, or choose another folder, to move it too.": "Cambia el nombre de la foto repetida o elige otra carpeta para poder moverla.",
+  "Reconnect the disk or use File ▸ Find Missing Photos…, then try again.": "Vuelve a conectar el disco o usa Archivo → Buscar fotos que faltan… y vuelve a intentarlo.",
+  "A photo with no file can't be moved. A Local photo can, once you use Add to My Photos.": "Una foto sin archivo no se puede mover. Una foto local sí, una vez que uses Añadir a Mis fotos."
 }

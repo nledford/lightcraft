@@ -297,5 +297,13 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}” is already a person. Combining them makes one person; Undo separates them again.",
   "•  {assumption}": "•  {assumption}",
   "… and {more} more": "… và {more} nữa",
-  "…and {more} more": "…and {more} more"
+  "…and {more} more": "…and {more} more",
+  "These can't be moved to “{}”:": "Không thể chuyển các ảnh này vào “{0}”:",
+  "{} is already in “{}”": "{0} đã có trong “{1}”",
+  "{} is missing or offline": "{0} bị thiếu hoặc đang ngoại tuyến",
+  "and {n} more": "và {n} mục khác",
+  "Move {n}, skip {m}": "Chuyển {n}, bỏ qua {m}",
+  "Moved {n} photo{} to “{}”, skipped {skipped}. Edit → Undo moves them back.": "Đã chuyển vào “{1}” — ảnh: {n}{0:.0}, bỏ qua: {skipped}. Chỉnh sửa → Hoàn tác sẽ chuyển chúng lại.",
+  "{} can't be moved": "{0} không thể được chuyển",
+  "{} has the same name as another photo being moved": "{0} trùng tên với một ảnh khác đang được chuyển"
 }

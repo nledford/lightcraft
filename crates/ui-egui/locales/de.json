@@ -3423,5 +3423,8 @@
   "favourites across restarts (issue #328).": "über Neustarts hinweg Favoriten (Issue #328).",
   "Optional remote SAM 3: keep the native editor local and run Object, Describe, and detail": "Optionales entferntes SAM 3: Der native Editor bleibt lokal, und Objekt-, Beschreibungs- und Detail-",
   "inference on a Mac through SSH. Saved masks still render and export offline.": "Inferenz laufen über SSH auf einem Mac. Gespeicherte Masken werden weiterhin offline gerendert und exportiert.",
-  "See [remote Metal inference](ai-masks.md#remote-metal-inference).": "Siehe [remote Metal inference](ai-masks.md#remote-metal-inference)."
+  "See [remote Metal inference](ai-masks.md#remote-metal-inference).": "Siehe [remote Metal inference](ai-masks.md#remote-metal-inference).",
+  "Rename a clashing photo, or choose another folder, to move it too.": "Benenne das Foto mit dem gleichen Namen um oder wähle einen anderen Ordner, dann kann es mitkommen.",
+  "Reconnect the disk or use File ▸ Find Missing Photos…, then try again.": "Verbinde den Datenträger wieder oder nutze Datei → Fehlende Fotos suchen… und versuche es dann erneut.",
+  "A photo with no file can't be moved. A Local photo can, once you use Add to My Photos.": "Ein Foto ohne Datei lässt sich nicht verschieben. Ein lokales Foto schon, sobald du Zu „Meine Fotos“ hinzufügen verwendest."
 }

@@ -2719,5 +2719,8 @@
   "≥  at least": "≥  არანაკლებ",
   "⌘-drag to straighten, ⇧G Guided Upright, a grid while transforming.": "⌘-გადათრევა გასასწორებლად, ⇧G მართვადი Upright, ბადე გარდაქმნისას.",
   "日本語": "日本語",
-  "繁體中文（台灣）": "繁體中文（台灣）"
+  "繁體中文（台灣）": "繁體中文（台灣）",
+  "Rename a clashing photo, or choose another folder, to move it too.": "გადაარქვით სახელი დუბლირებულ ფოტოს ან აირჩიეთ სხვა საქაღალდე, რომ გადავიდეს.",
+  "Reconnect the disk or use File ▸ Find Missing Photos…, then try again.": "ხელახლა შეაერთეთ დისკი ან გამოიყენეთ ფაილი → დაკარგული ფოტოების მოძებნა… და სცადეთ თავიდან.",
+  "A photo with no file can't be moved. A Local photo can, once you use Add to My Photos.": "ფაილის გარეშე ფოტო ვერ გადაიტანება. ლოკალური ფოტო გადაიტანება, თუ გამოიყენებთ: ჩემს ფოტოებში დამატება."
 }
