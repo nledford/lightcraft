@@ -298,7 +298,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Move to Folder",
             [],
             None,
-            "{folder, ids?, skip?} — move the photos' files (default: the selection) with their XMP sidecars into `folder` on disk and relink them; virtual copies follow their master; across volumes the file is copied, verified and only then removed; never overwrites (a name taken in `folder`, or a file that is missing or offline, refuses the whole move unless that photo's id is in `skip`: skipped photos stay put and the rest move); Local photos are refused; one undo step (undo moves them back) → {moved, folder, skipped: [{id, name, kind: clash|missing|asked}]}",
+            "{folder, ids?, skip?} — move the photos' files (default: the selection) with their XMP sidecars into `folder` on disk and relink them; virtual copies follow their master; across volumes the file is copied, verified and only then removed; never overwrites (a name taken in `folder`, or a file that is missing or offline, refuses the whole move unless that photo's id is in `skip`: skipped photos stay put and the rest move); Local photos (and ones with no file) are refused unless skipped; one undo step (undo moves them back) → {moved, folder, skipped: [{id, name, kind: clash|missing|asked}]}",
             always,
             move_to_folder
         ),
@@ -433,7 +433,10 @@ fn move_to_folder(s: &mut Session, p: &Value) -> Result<Value> {
     let folder = folder_param(p, "folder").ok_or_else(|| bad(C, "missing folder"))?;
     let dir = Path::new(folder);
     if !dir.is_dir() {
-        return Err(EngineError::Other(format!("{folder} is not a folder (offline, moved or deleted?). Choose another folder")));
+        return Err(EngineError::Other(format!(
+            "“{}” is not a folder (offline, moved or deleted?). Choose another folder",
+            crate::move_check::folder_name(folder)
+        )));
     }
     let ids = s.targets(p).map_err(|e| match e {
         EngineError::BadParams { cmd, msg } if cmd.is_empty() => bad(C, msg),
