@@ -955,6 +955,8 @@ fn a_folder_that_cannot_be_looked_at_is_not_called_missing() {
     assert!(e.contains("isn't allowed to open “Trip”") && e.contains("permissions"), "{e}");
     // simply not there
     assert!(crate::cmd::browse::look_refusal("/x/Trip", &std::io::Error::from(std::io::ErrorKind::NotFound)).is_none());
+    // or runs through a file
+    assert!(crate::cmd::browse::look_refusal("/x/Trip", &std::io::Error::from(std::io::ErrorKind::NotADirectory)).is_none());
 }
 
 #[cfg(unix)]
@@ -989,5 +991,28 @@ fn a_link_the_library_was_opened_through_cannot_be_renamed_away_from_it() {
     s.open_library(dir.0.join("lnk/Lib"), false).unwrap();
     let e = refusal(&mut s, "folder.rename", json!({"path": dir.path("lnk"), "name": "gone"}));
     assert!(e.contains("“lnk” holds the open library “Lib”"), "{e}");
+    assert!(dir.0.join("lnk").exists(), "the link stayed");
+}
+
+#[test]
+fn a_destination_that_runs_through_a_file_is_not_called_unreachable() {
+    let dir = Scratch::new("thruFile");
+    let mut s = trip_session(&dir);
+    std::fs::write(dir.0.join("notes.txt"), b"x").unwrap();
+    let e = refusal(&mut s, "folder.move", json!({"path": dir.path("trip"), "into": dir.path("notes.txt/sub")}));
+    assert!(e.contains("“sub” isn't there") && !e.contains("can't be reached"), "{e}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_link_the_library_was_opened_through_is_found_when_reached_through_another_link() {
+    let dir = Scratch::new("twolinks");
+    std::fs::create_dir_all(dir.0.join("real/Lib")).unwrap();
+    std::os::unix::fs::symlink(dir.0.join("real"), dir.0.join("lnk")).unwrap();
+    std::os::unix::fs::symlink(&dir.0, dir.0.join("up")).unwrap();
+    let mut s = Session::new();
+    s.open_library(dir.0.join("lnk/Lib"), false).unwrap();
+    let e = refusal(&mut s, "folder.rename", json!({"path": dir.path("up/lnk"), "name": "gone"}));
+    assert!(e.contains("holds the open library"), "{e}");
     assert!(dir.0.join("lnk").exists(), "the link stayed");
 }
