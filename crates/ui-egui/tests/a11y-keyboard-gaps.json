@@ -1,0 +1,186 @@
+{
+  "Context menu of a photo": {
+    "Button shows no focus in (top level)": 84,
+    "Unknown shows no focus in (top level)": 1
+  },
+  "Context menu of an album": {
+    "Button shows no focus in (top level)": 84,
+    "Unknown shows no focus in (top level)": 1
+  },
+  "Dialog About": {
+    "Button shows no focus in About LightCraft": 3
+  },
+  "Dialog Settings denoise": {
+    "Button shows no focus in Settings": 8
+  },
+  "Dialog Settings display": {
+    "Button shows no focus in Settings": 8
+  },
+  "Dialog Settings faces": {
+    "Button shows no focus in Settings": 8
+  },
+  "Dialog Settings general": {
+    "Button shows no focus in Settings": 45
+  },
+  "Dialog Settings import": {
+    "Button shows no focus in Settings": 10
+  },
+  "Dialog Settings interface": {
+    "Button shows no focus in Settings": 19
+  },
+  "Dialog Settings performance": {
+    "Button shows no focus in Settings": 28
+  },
+  "Dialog Settings slideshow": {
+    "Button shows no focus in Settings": 24,
+    "CheckBox shows no focus in Settings": 11,
+    "ColorWell shows no focus in Settings": 1,
+    "Slider shows no focus in Settings": 1,
+    "SpinButton shows no focus in Settings": 1,
+    "Unknown shows no focus in Settings": 5
+  },
+  "Dialog Shortcuts": {},
+  "Dialog ViewOptions": {},
+  "Dialog dialog.allMetadata": {},
+  "Dialog dialog.autoStack": {},
+  "Dialog dialog.captureTime": {
+    "Button shows no focus in Edit Capture Time": 3
+  },
+  "Dialog dialog.contactSheet": {},
+  "Dialog dialog.copySettings": {},
+  "Dialog dialog.createPreset": {},
+  "Dialog dialog.export": {
+    "Button shows no focus in Export": 37,
+    "Slider shows no focus in Export": 4
+  },
+  "Dialog dialog.labelNames": {
+    "Button shows no focus in Edit Color Label Names": 2
+  },
+  "Dialog dialog.newAlbum": {
+    "Button \"Cancel\" not reached by Tab in Create Album": 1,
+    "Button \"OK\" not reached by Tab in Create Album": 1,
+    "CheckBox \"Include selected photos\" not reached by Tab in Create Album": 1
+  },
+  "Dialog dialog.newSmartAlbum": {
+    "Button \"Cancel\" not reached by Tab in Create Smart Album": 1,
+    "Button \"OK\" not reached by Tab in Create Smart Album": 1
+  },
+  "Dialog dialog.pasteSettings": {},
+  "Dialog dialog.rename": {
+    "Button shows no focus in Rename Photos": 5
+  },
+  "Dialog dialog.saveMetadataPreset": {
+    "Button \"Cancel\" not reached by Tab in Save Metadata Preset": 1,
+    "Button \"OK\" not reached by Tab in Save Metadata Preset": 1
+  },
+  "Import review": {
+    "Button shows no focus in Import Photos": 9
+  },
+  "Menu Edit": {
+    "Button shows no focus in (top level)": 84,
+    "Unknown shows no focus in (top level)": 1
+  },
+  "Menu File": {
+    "Button shows no focus in (top level)": 84,
+    "Unknown shows no focus in (top level)": 1
+  },
+  "Menu Help": {
+    "Button shows no focus in (top level)": 84,
+    "Unknown shows no focus in (top level)": 1
+  },
+  "Menu Photo": {
+    "Button \"Scroll menu down\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 96,
+    "Unknown shows no focus in (top level)": 1
+  },
+  "Menu View": {
+    "Button \"Scroll menu down\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 114,
+    "Unknown shows no focus in (top level)": 1
+  },
+  "Menu Window": {
+    "Button shows no focus in (top level)": 84,
+    "Unknown shows no focus in (top level)": 1
+  },
+  "Right panel Activity": {
+    "Button shows no focus in (top level)": 88,
+    "ComboBox shows no focus in (top level)": 2
+  },
+  "Right panel Crop": {
+    "Button shows no focus in (top level)": 126,
+    "ComboBox shows no focus in (top level)": 3,
+    "Slider shows no focus in (top level)": 8
+  },
+  "Right panel Edit": {
+    "Button shows no focus in (top level)": 115,
+    "ComboBox shows no focus in (top level)": 3,
+    "Slider shows no focus in (top level)": 6
+  },
+  "Right panel Info": {
+    "Button shows no focus in (top level)": 101,
+    "ComboBox shows no focus in (top level)": 2,
+    "TextInput shows no focus in (top level)": 5
+  },
+  "Right panel Keywords": {
+    "Button shows no focus in (top level)": 162,
+    "ComboBox shows no focus in (top level)": 2
+  },
+  "Right panel Masking": {
+    "Button shows no focus in (top level)": 100,
+    "ComboBox shows no focus in (top level)": 2
+  },
+  "Right panel Profiles": {
+    "Button shows no focus in (top level)": 116,
+    "ComboBox shows no focus in (top level)": 2
+  },
+  "Right panel RedEye": {
+    "Button shows no focus in (top level)": 90,
+    "ComboBox shows no focus in (top level)": 2
+  },
+  "Right panel Remove": {
+    "Button \"Reset Threshold\" not reached by Tab in (top level)": 1,
+    "Button \"Threshold: Click to type a value, drag to change it\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 99,
+    "ComboBox shows no focus in (top level)": 3,
+    "Slider shows no focus in (top level)": 3
+  },
+  "Right panel Versions": {
+    "Button shows no focus in (top level)": 91,
+    "ComboBox shows no focus in (top level)": 2
+  },
+  "View Compare": {
+    "Button shows no focus in (top level)": 93,
+    "ComboBox shows no focus in (top level)": 2
+  },
+  "View Detail": {
+    "Button shows no focus in (top level)": 92,
+    "ComboBox shows no focus in (top level)": 2
+  },
+  "View People": {
+    "Button shows no focus in (top level)": 105,
+    "ComboBox shows no focus in (top level)": 1,
+    "Slider shows no focus in (top level)": 6
+  },
+  "View People of one person": {
+    "Button shows no focus in (top level)": 104,
+    "ComboBox shows no focus in (top level)": 1,
+    "Slider shows no focus in (top level)": 6
+  },
+  "View People with an unnamed face selected": {
+    "Button shows no focus in (top level)": 105,
+    "ComboBox shows no focus in (top level)": 1,
+    "Slider shows no focus in (top level)": 6
+  },
+  "View PhotoGrid": {
+    "Button shows no focus in (top level)": 84
+  },
+  "View Reference": {
+    "Button shows no focus in (top level)": 89
+  },
+  "View SquareGrid": {
+    "Button shows no focus in (top level)": 84
+  },
+  "View Survey": {
+    "Button shows no focus in (top level)": 90
+  }
+}

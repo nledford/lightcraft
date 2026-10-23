@@ -12,6 +12,11 @@
 //! regenerates the whole file. A control is identified by its role, its name and the names of the
 //! windows or groups around it, never by egui's widget ids, which move when unrelated widgets are
 //! added.
+//!
+//! A second gate, `every_actionable_control_is_reached_by_tab_and_shows_its_focus_or_is_a_listed_gap`,
+//! presses Tab on the same screens: every actionable control must take the focus, and the frame must
+//! paint something around it that it does not paint without the focus. Its baseline is
+//! `tests/a11y-keyboard-gaps.json`, rewritten with `LIGHTCRAFT_A11Y_KEYBOARD_BASELINE`.
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -28,9 +33,44 @@ use lightcraft_ui_egui::{
 
 type App = Harness<'static, LightcraftApp>;
 
+const BASELINE_FILE: &str = "a11y-gaps.json";
+
+/// The sidebar lists Pictures, Desktop, Downloads and Home when this computer has them, found by a
+/// worker, so the controls the audit counts would follow the machine that runs it. They are hidden
+/// from Local here (as a person can), and what is audited is the same everywhere.
+fn hide_the_computers_places(app: &mut LightcraftApp) {
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_default();
+    if home.is_empty() {
+        return;
+    }
+    for sub in ["Pictures", "Desktop", "Downloads", ""] {
+        let path = if sub.is_empty() { home.clone() } else { Path::new(&home).join(sub).to_string_lossy().to_string() };
+        app.ui.hidden_locations.push(path);
+    }
+}
+
+/// Run frames until the renders the screen asked for have come back (a photo the view shows is a
+/// control only once its picture is there), so what the audit counts does not depend on how fast
+/// the workers were.
+fn settle_renders(h: &mut App) {
+    let t0 = std::time::Instant::now();
+    let mut quiet = 0;
+    while quiet < 5 && t0.elapsed() < std::time::Duration::from_secs(20) {
+        h.run_steps(1);
+        if h.state().renderer.in_flight() == 0 {
+            quiet += 1;
+        } else {
+            quiet = 0;
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+    }
+    assert!(quiet >= 5, "the renders did not finish in 20 s");
+}
+
 fn harness_with(setup: impl FnOnce(&mut LightcraftApp)) -> App {
     let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
     app.ui.left_panel = true;
+    hide_the_computers_places(&mut app);
     setup(&mut app);
     let mut h = Harness::builder().with_size(vec2(1500.0, 950.0)).with_accessibility_check(false).build_ui_state(
         |ui, app: &mut LightcraftApp| {
@@ -40,6 +80,7 @@ fn harness_with(setup: impl FnOnce(&mut LightcraftApp)) -> App {
         app,
     );
     h.run_steps(10);
+    settle_renders(&mut h);
     h
 }
 
@@ -83,6 +124,7 @@ fn people_harness(what: People) -> App {
         app.session.commit("setup", Op::SetMeta { id, meta: Box::new(meta) }).unwrap();
     }
     app.ui.left_panel = true;
+    hide_the_computers_places(&mut app);
     app.ui.view = ViewMode::People;
     match what {
         People::Everyone => {}
@@ -99,6 +141,7 @@ fn people_harness(what: People) -> App {
         app,
     );
     h.run_steps(10);
+    settle_renders(&mut h);
     // what the screen is about is on it, so a seeding that failed cannot pass as an empty, clean screen
     // a plain label's text is the node's value, a control's name its label
     let mut all = names(&h);
@@ -164,6 +207,16 @@ struct Problem {
     at: String,
 }
 
+/// A widget that takes the focus or a click is actionable whatever its role, unless nothing of it
+/// is on screen and Tab cannot reach it (an empty label that takes clicks).
+fn actionable(n: &egui_kittest::kittest::AccessKitNode<'_>) -> bool {
+    let acts = |a| n.data().supports_action(a);
+    if !interactive(n.role()) && !acts(Action::Focus) && !acts(Action::Click) {
+        return false;
+    }
+    acts(Action::Focus) || !n.bounding_box().is_some_and(|b| b.width() <= 0.0 || b.height() <= 0.0)
+}
+
 /// The interactive nodes in the harness's current tree, and the problems found in them.
 fn audit<S>(h: &Harness<'_, S>) -> (usize, Vec<Problem>) {
     let mut keys = Vec::new();
@@ -188,13 +241,7 @@ fn audit<S>(h: &Harness<'_, S>) -> (usize, Vec<Problem>) {
         if role == Role::ScrollBar {
             continue;
         }
-        // a widget that takes the focus or a click is interactive whatever its role
-        let acts = |a| n.data().supports_action(a);
-        if !interactive(role) && !acts(Action::Focus) && !acts(Action::Click) {
-            continue;
-        }
-        // nothing of it is on screen and Tab cannot reach it (an empty label that takes clicks)
-        if !acts(Action::Focus) && n.bounding_box().is_some_and(|b| b.width() <= 0.0 || b.height() <= 0.0) {
+        if !actionable(&n) {
             continue;
         }
         count += 1;
@@ -264,8 +311,8 @@ fn compare(found: &Gaps, listed: &Gaps) -> Report {
     report
 }
 
-fn parse_baseline(text: &str) -> Gaps {
-    serde_json::from_str(text).expect("tests/a11y-gaps.json is {screen: {problem: count}}")
+fn parse_baseline(file: &str, text: &str) -> Gaps {
+    serde_json::from_str(text).unwrap_or_else(|e| panic!("tests/{file} is {{screen: {{problem: count}}}}: {e}"))
 }
 
 fn render_baseline(gaps: &Gaps) -> String {
@@ -454,8 +501,69 @@ fn screens() -> Vec<Screen> {
     all
 }
 
-fn baseline_path() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/a11y-gaps.json")
+/// Compares what the screens show with the baseline file `file` (in `tests/`). `var` is the
+/// environment variable that rewrites it. `shrink` drops the entries that are fixed.
+///
+/// With `strict` the file lists every screen checked, a clean one as `{}`, and `write` adds only the
+/// screens the file does not list yet: a new problem on a listed screen still fails instead of being
+/// written down. `write` also drops the entries that are fixed (like `shrink`). `regenerate` rewrites the whole file, for when keys move on purpose. Without it the
+/// file lists only the screens with gaps and `write` regenerates it.
+fn settle(file: &str, var: &str, found: &Gaps, strict: bool) -> Report {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join(file);
+    let read = || parse_baseline(file, &std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display())));
+    let shrunk = |mut kept: Gaps| {
+        for (screen, known) in kept.iter_mut() {
+            let counts = found.get(screen);
+            known.retain(|key, _| counts.is_some_and(|c| c.contains_key(key)));
+            for (key, n) in known.iter_mut() {
+                *n = (*n).min(counts.map_or(0, |c| c[key]));
+            }
+        }
+        if strict {
+            kept.retain(|screen, _| found.contains_key(screen));
+        } else {
+            kept.retain(|_, known| !known.is_empty());
+        }
+        kept
+    };
+    let listed = match std::env::var(var).unwrap_or_default().as_str() {
+        "write" if !strict => {
+            std::fs::write(&path, render_baseline(found)).unwrap();
+            found.clone()
+        }
+        "regenerate" if strict => {
+            std::fs::write(&path, render_baseline(found)).unwrap();
+            found.clone()
+        }
+        "write" => {
+            let old = read();
+            let mut next = shrunk(old.clone());
+            for (screen, counts) in found {
+                if !old.contains_key(screen) {
+                    next.insert(screen.clone(), counts.clone());
+                }
+            }
+            std::fs::write(&path, render_baseline(&next)).unwrap();
+            next
+        }
+        "shrink" => {
+            let kept = shrunk(read());
+            std::fs::write(&path, render_baseline(&kept)).unwrap();
+            kept
+        }
+        "" => read(),
+        other => panic!("{var} is `write`{} or `shrink`, not {other:?}", if strict { ", `regenerate`" } else { "" }),
+    };
+    let report = compare(found, &listed);
+    if !report.stale.is_empty() {
+        eprintln!(
+            "{} entries of tests/{file} are fixed now; `{var}=shrink cargo test -p lightcraft-ui-egui --test it accessibility` removes \
+             them:\n{}",
+            report.stale.len(),
+            report.stale.join("\n")
+        );
+    }
+    report
 }
 
 /// Every view in `VIEWS` is a screen of the gate. The match has no wildcard, so a new `ViewMode`
@@ -501,40 +609,201 @@ fn every_actionable_control_is_named_or_a_listed_gap() {
             found.insert(name, counts);
         }
     }
-    let path = baseline_path();
-    let read = || parse_baseline(&std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display())));
-    let listed = match std::env::var("LIGHTCRAFT_A11Y_BASELINE").unwrap_or_default().as_str() {
-        "write" => {
-            std::fs::write(&path, render_baseline(&found)).unwrap();
-            return;
-        }
-        // drops what is fixed, keeps the rest, and still checks the screens against it
-        "shrink" => {
-            let mut kept = read();
-            for (screen, known) in kept.iter_mut() {
-                let counts = found.get(screen);
-                known.retain(|key, _| counts.is_some_and(|c| c.contains_key(key)));
-                for (key, n) in known.iter_mut() {
-                    *n = (*n).min(counts.map_or(0, |c| c[key]));
-                }
-            }
-            kept.retain(|_, known| !known.is_empty());
-            std::fs::write(&path, render_baseline(&kept)).unwrap();
-            kept
-        }
-        "" => read(),
-        other => panic!("LIGHTCRAFT_A11Y_BASELINE is `write` or `shrink`, not {other:?}"),
-    };
-    let report = compare(&found, &listed);
-    if !report.stale.is_empty() {
-        eprintln!(
-            "{} entries of tests/a11y-gaps.json are fixed now; `LIGHTCRAFT_A11Y_BASELINE=shrink cargo test -p lightcraft-ui-egui --test \
-             it accessibility` removes them:\n{}",
-            report.stale.len(),
-            report.stale.join("\n")
-        );
-    }
+    let report = settle(BASELINE_FILE, "LIGHTCRAFT_A11Y_BASELINE", &found, false);
     assert!(report.new.is_empty(), "{}", failure_message(&report, &places));
+}
+
+const KEYBOARD_BASELINE_FILE: &str = "a11y-keyboard-gaps.json";
+
+/// More Tab presses than any screen has controls: a screen where every press still reaches a control
+/// not seen before has no end to its Tab order, and fails on that. (A trap that holds the focus on one
+/// control ends the round at once, and shows as the controls behind it "not reached by Tab".)
+const MAX_TABS: usize = 1500;
+
+/// An actionable control as the keyboard sees it: what it is, and where.
+struct Control {
+    id: u64,
+    role: Role,
+    name: String,
+    context: String,
+    at: String,
+}
+
+impl Control {
+    fn key(&self, what: &str) -> String {
+        format!("{:?} {:?} {what} in {}", self.role, self.name, self.context)
+    }
+}
+
+/// The controls a pointer can click or a screen reader can activate, without the ones that are
+/// switched off (a disabled control is skipped by Tab on purpose).
+fn controls<S>(h: &Harness<'_, S>) -> Vec<Control> {
+    let mut out = Vec::new();
+    for node in h.root().children_recursive() {
+        let n = node.accesskit_node();
+        let role = n.role();
+        if role == Role::Window || role == Role::ScrollBar || n.data().is_disabled() || !actionable(&n) {
+            continue;
+        }
+        // text egui lets the pointer select is a click target to AccessKit, not a control
+        if role == Role::Label && !n.data().supports_action(Action::Focus) {
+            continue;
+        }
+        let name = n.label().unwrap_or_default();
+        let name = if is_name(&name) || role != Role::Label { name } else { n.value().unwrap_or_default() };
+        let name = if is_name(&name) { name } else { String::new() };
+        let b = n.bounding_box();
+        out.push(Control {
+            id: n.locate().0.0,
+            role,
+            name,
+            context: context(&n),
+            at: b.map_or("nowhere".into(), |b| format!("x {:.0}..{:.0}, y {:.0}..{:.0}", b.x0, b.x1, b.y0, b.y1)),
+        });
+    }
+    out
+}
+
+/// What the last frame painted on and around `rect`: the shapes that lie wholly within a margin
+/// of it. A focused control paints something extra there (a stroke, a fill, a ring). Shapes that
+/// reach further (a window's backdrop, its shadow, a panel's background) are left out: they fade
+/// and move on their own and are not the control's.
+fn painted_near<S>(h: &Harness<'_, S>, rect: egui::Rect) -> Vec<egui::Shape> {
+    let zone = rect.expand(6.0);
+    h.output()
+        .shapes
+        .iter()
+        .filter(|s| s.clip_rect.intersects(zone))
+        .filter(|s| {
+            let r = s.shape.visual_bounding_rect();
+            r.is_finite() && zone.contains_rect(r)
+        })
+        .map(|s| s.shape.clone())
+        .collect()
+}
+
+/// Presses Tab until the focus comes back to a control it already visited (a round, or a control
+/// that holds the focus and lets Tab go nowhere). Returns the focus order (egui's widget ids), and
+/// for each control focused whether the frame looked different with the focus.
+fn tab_round<S>(h: &mut Harness<'_, S>) -> Result<(Vec<u64>, BTreeMap<u64, bool>), String> {
+    let mut order: Vec<u64> = Vec::new();
+    let mut shows: BTreeMap<u64, bool> = BTreeMap::new();
+    let mut lost = 0;
+    for _ in 0..MAX_TABS {
+        h.key_press(egui::Key::Tab);
+        h.run_steps(1);
+        let Some(focus) = h.ctx.memory(|m| m.focused()) else {
+            lost += 1;
+            if lost >= 3 {
+                return Ok((order, shows));
+            }
+            continue;
+        };
+        lost = 0;
+        let id = focus.value();
+        // back at a control already visited: the round is over, or the focus is held on one control
+        if order.contains(&id) {
+            return Ok((order, shows));
+        }
+        let rect = h
+            .root()
+            .children_recursive()
+            .map(|n| n.accesskit_node())
+            .find(|n| n.locate().0.0 == id)
+            .and_then(|n| n.bounding_box())
+            .map(|b| egui::Rect::from_min_max(egui::pos2(b.x0 as f32, b.y0 as f32), egui::pos2(b.x1 as f32, b.y1 as f32)));
+        if let Some(rect) = rect.filter(|r| r.width() > 0.0 && r.height() > 0.0) {
+            // a widget that drew itself before the focus reached it paints the focus a frame later
+            h.run_steps(1);
+            let focused = painted_near(h, rect);
+            h.run_steps(1);
+            let focused_again = painted_near(h, rect);
+            h.ctx.memory_mut(|m| m.surrender_focus(focus));
+            h.run_steps(1);
+            let plain = painted_near(h, rect);
+            h.run_steps(1);
+            let plain_again = painted_near(h, rect);
+            // No verdict where the answer is not the focus alone: a field that takes the focus back
+            // at once cannot be shown without it, and something that moves on its own (a fade, a
+            // thumbnail arriving) would make the same control pass on one run and fail on the next.
+            let held_back = h.ctx.memory(|m| m.focused()) == Some(focus);
+            h.ctx.memory_mut(|m| m.request_focus(focus));
+            h.run_steps(2);
+            // the focused frame again, after the plain ones: what changed between the two (a picture that
+            // came back, a row that moved) is not the focus
+            let focused_last = painted_near(h, rect);
+            if !held_back && focused == focused_again && plain == plain_again && focused == focused_last {
+                shows.insert(id, focused != plain);
+            }
+        }
+        order.push(id);
+    }
+    Err(format!("Tab reached a new control on each of {MAX_TABS} presses: the order never comes round"))
+}
+
+/// The keyboard problems of the screen the harness shows: `(problem, where)` for each control Tab
+/// does not reach or that shows no focus, and how many controls Tab visited.
+fn keyboard_problems<S>(h: &mut Harness<'_, S>) -> Result<(Vec<(String, String)>, usize), String> {
+    let all = controls(h);
+    let (order, shows) = tab_round(h)?;
+    let mut keys = Vec::new();
+    for c in &all {
+        if !order.contains(&c.id) {
+            keys.push((c.key("not reached by Tab"), c.at.clone()));
+        } else if shows.get(&c.id) == Some(&false) {
+            // counted by role and place, not by name: most of the app's buttons share one painting, and a
+            // name per button would list them all on every screen they are on
+            keys.push((format!("{:?} shows no focus in {}", c.role, c.context), c.at.clone()));
+        }
+    }
+    Ok((keys, order.len()))
+}
+
+/// Every actionable control is reached by Tab and shows that it has the focus, or is a listed gap.
+#[test]
+fn every_actionable_control_is_reached_by_tab_and_shows_its_focus_or_is_a_listed_gap() {
+    let mut found = Gaps::new();
+    let mut most = 0;
+    let mut places = BTreeMap::new();
+    for (name, open) in screens() {
+        let mut h = open();
+        let count = audit(&h).0;
+        assert!(count > 3, "{name}: the tree has too few interactive nodes ({count}): the screen did not open");
+        let (keys, visited) = keyboard_problems(&mut h).unwrap_or_else(|e| panic!("{name}: {e}"));
+        most = most.max(visited);
+        let mut counts = BTreeMap::new();
+        for (key, at) in keys {
+            places.entry((name.clone(), key.clone())).or_insert(at);
+            *counts.entry(key).or_insert(0) += 1;
+        }
+        found.insert(name, counts);
+    }
+    assert!(most > 10, "Tab reached at most {most} controls on any screen: the keyboard focus does not work in the harness");
+    let report = settle(KEYBOARD_BASELINE_FILE, "LIGHTCRAFT_A11Y_KEYBOARD_BASELINE", &found, true);
+    assert!(report.new.is_empty(), "{}", keyboard_failure_message(&report, &places));
+}
+
+/// The failures grouped by problem, like `failure_message`, with what to do about each kind.
+fn keyboard_failure_message(report: &Report, places: &BTreeMap<(String, String), String>) -> String {
+    let mut by_key: BTreeMap<&str, Vec<&Found>> = BTreeMap::new();
+    for f in &report.new {
+        by_key.entry(&f.key).or_default().push(f);
+    }
+    let mut out = format!(
+        "{} keyboard problem(s) not in tests/{KEYBOARD_BASELINE_FILE}. A control Tab skips needs `Sense::click()` (not `Sense::CLICK`) \
+         or `Sense::focusable_noninteractive()`; a control that shows no focus needs `ui.style().interact(&response)` (or a stroke \
+         painted when `response.has_focus()`):\n",
+        by_key.len()
+    );
+    for (key, found) in by_key {
+        let first = found[0];
+        let screens: Vec<&str> = found.iter().take(4).map(|f| f.screen.as_str()).collect();
+        let more = if found.len() > 4 { format!(" and {} more", found.len() - 4) } else { String::new() };
+        let at = places.get(&(first.screen.clone(), key.to_string())).map_or("", String::as_str);
+        let listed = if first.listed > 0 { format!(", {} listed", first.listed) } else { String::new() };
+        out += &format!("- {key} (×{}{listed}) on {}{more}; first on {} at {at}\n", first.n, screens.join(", "), first.screen);
+    }
+    out
 }
 
 /// The checker on a tiny UI, so it is trusted before it is pointed at the app.
@@ -592,6 +861,72 @@ mod checker {
         assert!(keys.contains(&"Button without a name in Tools".to_string()), "{keys:?}");
     }
 
+    fn keyboard_keys_of(mut ui: impl FnMut(&mut egui::Ui) + 'static) -> Vec<String> {
+        // (it builds unnamed controls on purpose; kittest 0.37 would refuse them before the checker sees them)
+        let mut h = Harness::builder().with_accessibility_check(false).build_ui(move |u| ui(u));
+        h.run();
+        let (keys, _) = keyboard_problems(&mut h).expect("the Tab round ends");
+        keys.into_iter().map(|p| p.0).collect()
+    }
+
+    /// A clickable widget that is not focusable: a mouse user can press it, Tab skips it.
+    fn click_only(ui: &mut egui::Ui, label: &str) {
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(80.0, 24.0), egui::Sense::hover());
+        let r = ui.interact(rect, ui.scope_id().with(label), egui::Sense::CLICK);
+        let label = label.to_string();
+        r.widget_info(move || egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+        ui.painter().rect_filled(rect, 2.0, egui::Color32::GRAY);
+    }
+
+    /// A focusable widget that paints nothing of its own, whatever its focus.
+    fn unpainted(ui: &mut egui::Ui, label: &str) {
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(80.0, 24.0), egui::Sense::hover());
+        let r = ui.interact(rect, ui.scope_id().with(label), egui::Sense::click());
+        let label = label.to_string();
+        r.widget_info(move || egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+        ui.painter().rect_filled(rect, 2.0, egui::Color32::GRAY);
+    }
+
+    #[test]
+    fn standard_widgets_are_reached_and_show_their_focus() {
+        let keys = keyboard_keys_of(|ui| {
+            let _ = ui.button("Save");
+            let _ = ui.button("Cancel");
+            ui.checkbox(&mut true, "Show grid");
+            ui.add(egui::Slider::new(&mut 0.5, 0.0..=1.0).text("Amount"));
+        });
+        assert!(keys.is_empty(), "{keys:?}");
+    }
+
+    #[test]
+    fn a_clickable_widget_tab_skips_is_a_problem() {
+        let keys = keyboard_keys_of(|ui| {
+            let _ = ui.button("Save");
+            click_only(ui, "Mouse only");
+            let _ = ui.button("Cancel");
+        });
+        assert_eq!(keys, ["Button \"Mouse only\" not reached by Tab in (top level)"]);
+    }
+
+    #[test]
+    fn a_focusable_widget_that_paints_no_focus_is_a_problem() {
+        let keys = keyboard_keys_of(|ui| {
+            let _ = ui.button("Save");
+            unpainted(ui, "Silent");
+            let _ = ui.button("Cancel");
+        });
+        assert_eq!(keys, ["Button shows no focus in (top level)"]);
+    }
+
+    #[test]
+    fn a_disabled_button_is_not_expected_to_take_the_focus() {
+        let keys = keyboard_keys_of(|ui| {
+            let _ = ui.button("Save");
+            ui.add_enabled(false, egui::Button::new("Greyed"));
+        });
+        assert!(keys.is_empty(), "{keys:?}");
+    }
+
     fn gaps(screen: &str, key: &str, n: usize) -> Gaps {
         Gaps::from([(screen.to_string(), BTreeMap::from([(key.to_string(), n)]))])
     }
@@ -629,7 +964,7 @@ mod checker {
     #[test]
     fn the_baseline_round_trips() {
         let g = gaps("Menu File", "Button without a name in X", 2);
-        assert_eq!(parse_baseline(&render_baseline(&g)), g);
+        assert_eq!(parse_baseline(BASELINE_FILE, &render_baseline(&g)), g);
     }
 }
 
