@@ -676,6 +676,7 @@ fn moving_to_a_missing_folder_or_a_missing_original_is_refused() {
     let a = add_file(&mut s, &dir.path("in/a.jpg"), "A");
     let e = s.execute("photo.moveToFolder", &json!({"ids": [a.0], "folder": dir.path("nope")})).unwrap_err().to_string();
     assert!(e.contains("not a folder") && !e.contains("invalid parameters") && !e.contains('`'), "{e}");
+    assert!(e.contains("“nope”") && !e.contains(&dir.path("nope")), "the folder is named, not shown as a path: {e}");
     std::fs::create_dir_all(dir.0.join("out")).unwrap();
     std::fs::remove_file(dir.path("in/a.jpg")).unwrap();
     let e = s.execute("photo.moveToFolder", &json!({"ids": [a.0], "folder": dir.path("out")})).unwrap_err().to_string();
@@ -753,11 +754,85 @@ fn skipping_one_of_two_photos_with_the_same_name_lets_the_other_go() {
     let second = add_file(&mut s, &dir.path("y/a.jpg"), "Y");
     let ids = json!([first.0, second.0]);
     let e = s.execute("photo.moveToFolder", &json!({"ids": ids, "folder": dir.path("out")})).unwrap_err().to_string();
-    assert!(e.contains("a.jpg is already in"), "{e}");
+    assert!(e.contains("More than one photo being moved is named a.jpg") && !e.contains("already in"), "{e}");
     let r = s.execute("photo.moveToFolder", &json!({"ids": ids, "skip": [first.0], "folder": dir.path("out")})).unwrap();
     assert_eq!(r["moved"], 1, "a skipped photo doesn't keep its name taken");
+    assert_eq!(r["skipped"], json!([{"id": first.0, "name": "a.jpg", "kind": "clash"}]), "a clash whichever of the two is skipped");
     assert_eq!(std::fs::read_to_string(dir.path("out/a.jpg")).unwrap(), "Y");
     assert_eq!(file_of(&s, first), dir.path("x/a.jpg"));
+}
+
+#[test]
+fn a_local_photo_refuses_the_move_unless_it_is_skipped() {
+    let (dir, mut s, [a, b, _]) = clash_setup("move-skip-local");
+    std::fs::write(dir.path("in/l.jpg"), "L").unwrap();
+    let local = s.catalog.alloc_photo_id();
+    let mut p = Photo::new(local, Source::File { path: dir.path("in/l.jpg") }, "l.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    p.local = true;
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let mv = |s: &mut Session, skip: Vec<u64>| {
+        s.execute("photo.moveToFolder", &json!({"ids": [a.0, b.0, local.0], "skip": skip, "folder": dir.path("out")}))
+    };
+    let e = mv(&mut s, vec![b.0]).unwrap_err().to_string();
+    assert!(e.contains("l.jpg is not in the library"), "{e}");
+    // left out like any other photo that was told to be skipped
+    let r = mv(&mut s, vec![b.0, local.0]).unwrap();
+    assert_eq!(r["moved"], 1);
+    let kinds: Vec<_> =
+        r["skipped"].as_array().unwrap().iter().map(|x| (x["name"].as_str().unwrap().to_string(), x["kind"].as_str().unwrap().to_string())).collect();
+    assert_eq!(kinds, [("b.jpg".to_string(), "clash".to_string()), ("l.jpg".to_string(), "asked".to_string())]);
+    assert!(dir.0.join("in/l.jpg").is_file() && dir.0.join("out/a.jpg").is_file());
+}
+
+#[test]
+fn skipping_a_local_photo_leaves_out_a_library_photo_of_the_same_file_and_a_photo_without_a_file_can_be_skipped() {
+    let (dir, mut s, [a, _, _]) = clash_setup("move-skip-shared");
+    let lib = add_file(&mut s, &dir.path("in/l.jpg"), "L");
+    let local = s.catalog.alloc_photo_id();
+    let mut p = Photo::new(local, Source::File { path: dir.path("in/l.jpg") }, "l.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    p.local = true;
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let r = s.execute("photo.moveToFolder", &json!({"ids": [lib.0, local.0], "skip": [local.0], "folder": dir.path("out")})).unwrap();
+    // the file is one: leaving the Local photo out leaves the library photo of it out too, so it can't move unreported
+    assert_eq!(r["moved"], 0);
+    assert_eq!(r["skipped"].as_array().unwrap().len(), 2);
+    assert!(dir.0.join("in/l.jpg").is_file() && !dir.0.join("out/l.jpg").exists());
+    assert_eq!(file_of(&s, lib), dir.path("in/l.jpg"));
+    // a photo with no file (a demo scene) can't move: it refuses the move unless it is skipped
+    let demo = s.catalog.alloc_photo_id();
+    let p = Photo::new(demo, Source::Demo { scene: 0 }, "d.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let e = s.execute("photo.moveToFolder", &json!({"ids": [a.0, demo.0], "folder": dir.path("out")})).unwrap_err().to_string();
+    assert!(e.contains("d.jpg has no file on disk"), "{e}");
+    let r = s.execute("photo.moveToFolder", &json!({"ids": [a.0, demo.0], "skip": [demo.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 1);
+    assert_eq!(r["skipped"], json!([{"id": demo.0, "name": "d.jpg", "kind": "asked"}]));
+}
+
+#[test]
+fn a_photo_skipped_for_sharing_a_name_with_another_of_the_move_is_reported_as_a_clash() {
+    let dir = Scratch::new("move-skip-twin");
+    for d in ["x", "y", "out"] {
+        std::fs::create_dir_all(dir.0.join(d)).unwrap();
+    }
+    let mut s = Session::new();
+    let first = add_file(&mut s, &dir.path("x/a.jpg"), "X");
+    let second = add_file(&mut s, &dir.path("y/a.jpg"), "Y");
+    let r = s.execute("photo.moveToFolder", &json!({"ids": [first.0, second.0], "skip": [second.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 1);
+    assert_eq!(r["skipped"], json!([{"id": second.0, "name": "a.jpg", "kind": "clash"}]));
+    assert_eq!(std::fs::read_to_string(dir.path("out/a.jpg")).unwrap(), "X");
+}
+
+#[test]
+fn the_refusal_names_a_file_once_even_when_a_virtual_copy_shares_it() {
+    let (dir, mut s, [_, _, c]) = clash_setup("move-refusal-names");
+    let vc = s.catalog.alloc_photo_id();
+    let p = Photo::new(vc, Source::File { path: dir.path("in/c.jpg") }, "c.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    std::fs::remove_file(dir.path("in/c.jpg")).unwrap();
+    let e = s.execute("photo.moveToFolder", &json!({"ids": [c.0, vc.0], "folder": dir.path("out")})).unwrap_err().to_string();
+    assert!(e.contains("c.jpg is missing or offline") && !e.contains("c.jpg, c.jpg") && !e.contains("are missing"), "{e}");
 }
 
 #[test]
