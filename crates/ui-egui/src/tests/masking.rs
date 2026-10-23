@@ -1214,6 +1214,56 @@ fn local_says_where_its_listing_stops_and_offers_the_way_on() {
     assert!(on_screen(&h, &more), "a place that was taken out of Local can be added again from here");
 }
 
+/// Given a Go Deeper row still shown for a folder that is gone from the disk, when it is
+/// clicked, then the refusal is said in a message and Local is unchanged.
+#[test]
+fn go_deeper_says_why_when_the_folder_cannot_be_added() {
+    /// Removes the folders however the test ends.
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let base = std::env::temp_dir().join(format!("lc-ui-deep-gone-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let _cleanup = Cleanup(base.clone());
+    let mut levels = vec![base.clone()];
+    for name in ["1", "2", "3", "4", "5", "6", "7", "8", "9"] {
+        let next = levels.last().unwrap().join(name);
+        levels.push(next);
+    }
+    std::fs::create_dir_all(levels.last().unwrap()).unwrap();
+    let mut h = detail("panel.edit");
+    let r = h.request("ui.resize", json!({"width": 1400.0, "height": 1400.0}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    exec(&mut h, "view.leftPanel", json!({"show": true}));
+    exec(&mut h, "view.sidebarSection", json!({"section": "albums", "collapsed": true}));
+    h.hide_home_above(&base);
+    exec(&mut h, "local.addRoot", json!({"path": base.to_string_lossy()}));
+    h.settle(SETTLE);
+    let on_screen = |h: &Headless, id: &str| h.app.widgets.iter().any(|(w, _)| w == id);
+    for level in &levels[..9] {
+        let toggle = format!("folderToggle:{}", level.to_string_lossy());
+        h.step_until(SETTLE, |h| on_screen(h, &toggle));
+        let r = h.request("ui.clickWidget", json!({"id": toggle}), T);
+        assert_eq!(r["ok"], true, "{r}");
+    }
+    let eighth = levels[8].to_string_lossy().to_string();
+    let more = format!("source:localDeeper:{eighth}");
+    h.step_until(SETTLE, |h| on_screen(h, &more));
+    assert!(on_screen(&h, &more), "the eighth level says there is more inside");
+    // the folder goes away; the row, from the listing kept for a moment, is still there to click
+    std::fs::remove_dir_all(&levels[8]).unwrap();
+    let places = h.app.ui.local_roots.clone();
+    let r = h.request("ui.clickWidget", json!({"id": more}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(h.app.ui.local_roots, places, "nothing was added");
+    let said = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
+    assert!(said.contains("not a folder"), "the refusal is said: {said:?}");
+}
+
 #[test]
 fn geometry_slider_drag_marks_the_grid() {
     let mut h = detail("panel.crop");

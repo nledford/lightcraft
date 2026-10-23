@@ -137,10 +137,16 @@ fn deeper_row(app: &mut LightcraftApp, ui: &mut egui::Ui, name: &str, path: &str
             .on_hover_text(crate::i18n::tr(
                 "Folders this deep are not listed here. Click to add this folder to Local as a place of its own, so you can open it further",
             ));
-        if more.clicked() && app.run("local.addRoot", json!({"path": path})).is_ok() {
-            // this row is the folder inside another place from now on: it stays open as it was
-            set_tree_open(ui, open_id, true);
-            app.toast(ui.ctx(), crate::i18n::tr_format!("“{name}” is now a place in Local: open it there", name = name));
+        if more.clicked() {
+            match app.run("local.addRoot", json!({"path": path})) {
+                Ok(_) => {
+                    // this row is the folder inside another place from now on: it stays open as it was
+                    set_tree_open(ui, open_id, true);
+                    app.toast(ui.ctx(), crate::i18n::tr_format!("“{name}” is now a place in Local: open it there", name = name));
+                }
+                // the folder went away (or its drive) while the listed row was still shown
+                Err(e) => app.toast(ui.ctx(), e),
+            }
         }
     }
 }
