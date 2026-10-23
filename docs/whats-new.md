@@ -31,6 +31,13 @@
   stay available in All Metadata; PSD edit copies keep their capture date. Original exports with Remove Location Info enabled
   are refused when a PSD or PSB embeds GPS, since LightCraft cannot strip metadata from a byte-for-byte original copy.
 
+### Undo from the toast after a drop
+- After photos dragged from the grid are moved to a folder, added to an album or given a keyword, the message that
+  names the result has an Undo button, and so does the message after Move Selected Photos Here in a folder's menu.
+  One click takes the move back, as Edit ▸ Undo would. The button stays for six seconds and goes away sooner if you do
+  something else meanwhile (or take the drop back from the Edit menu), so it can only undo the drop. A drop that
+  changed nothing (photos already in the album, already in the folder) has no button.
+
 ## 2026-10-22
 
 ### Reliability
