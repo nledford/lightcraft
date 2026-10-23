@@ -289,10 +289,13 @@ fn another_library_starts_without_this_ones_album_filter_and_target() {
     s.filter.only = vec![PhotoId(2)];
     s.previous_active = Some(PhotoId(3));
     s.active_mask = Some(1);
+    // a filter put aside by Enable Filters names this library's albums too
+    s.shelved_filter = Some(s.filter.clone());
     s.open_library(&dirs[1].0, false).unwrap();
     assert_eq!(s.catalog.album(AlbumId(theirs)).unwrap().name, "B's album");
     assert_eq!(s.target_album, None);
     assert_eq!(s.filter, lightcraft_catalog::Filter::default(), "no filter left over, as after a restart");
+    assert!(!s.filters_off(), "and none put aside to come back with Enable Filters");
     assert_eq!((s.previous_active, s.active_mask), (None, None));
     assert_eq!(s.visible_cloned().len(), 3);
 }

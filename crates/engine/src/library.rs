@@ -491,6 +491,7 @@ impl Session {
         // what names albums and photos by number means others in another library: no filter
         // (as after a restart; the view file keeps none), no target album, no photo come from
         self.filter = Default::default();
+        self.shelved_filter = None;
         self.target_album = None;
         self.previous_active = None;
         self.active_mask = None;
