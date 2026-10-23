@@ -43,6 +43,8 @@ const EMBEDDED: &[(&str, &[&str])] = &[
     ("docs/raf-corpus.sha256", &["lightcraft-raw"]),
     ("xtask/src/main.rs", &["lightcraft-raw"]),
     ("crates/ui-egui/src/menus.rs", &["xtask"]),
+    ("crates/catalog/src/fixtures/v6-catalog.snap.json", &["lightcraft-engine"]),
+    ("crates/catalog/src/fixtures/v6-catalog.log.jsonl", &["lightcraft-engine"]),
 ];
 
 /// The packages that compile in `path` from outside their own directory.
