@@ -376,7 +376,8 @@ fn plain_reason(e: &std::io::Error) -> String {
 /// a folder that is simply not there.
 pub(crate) fn look_refusal(folder: &str, e: &std::io::Error) -> Option<String> {
     match e.kind() {
-        std::io::ErrorKind::NotFound => None,
+        // a path that runs through a file (`notes.txt/sub`) is as missing as one that isn't there
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => None,
         std::io::ErrorKind::PermissionDenied => Some(format!(
             "LightCraft isn't allowed to open {}. Nothing was moved. To go on: change the permissions of the folders that hold it, or do it with your file manager.",
             quoted(folder)
@@ -501,7 +502,7 @@ pub(crate) fn rename_folder_with(from: &str, to: &str, rename: &dyn Fn(&Path, &P
             Ok(()) => move_error(from, to, &e),
             // the folder is left under the temporary name: say where, never "nothing was moved"
             Err(back) => format!(
-                "LightCraft couldn't rename {} to {}: {}, and couldn't put it back under its old name either: {}. The folder is now at {} (a hidden name, starting with a dot). To go on: rename it by hand to {} or back to {}.",
+                "LightCraft couldn't rename {} to {}: {}, and couldn't put it back under its old name either: {}. The folder is now at {} (its name starts with a dot). To go on: rename it by hand to {} or back to {}.",
                 quoted(from),
                 quoted(to),
                 plain_reason(&e),
@@ -706,7 +707,9 @@ pub(crate) fn move_folder(s: &mut Session, from: &str, to: &str) -> std::result:
         }
         // and as the disk has it, so a path through a link to the library's folder is caught too
         let (lib, at) = (l.dir.canonicalize().unwrap_or_else(|_| l.dir.clone()), resolved(src));
-        if lib.starts_with(&at) || at.starts_with(&lib) {
+        // and a link the library was opened through, even when that link is itself reached through another
+        let opened_through = std::path::absolute(&l.dir).is_ok_and(|d| d.ancestors().any(|a| resolved(a) == at));
+        if lib.starts_with(&at) || at.starts_with(&lib) || opened_through {
             return Err(library_refusal(from, &at, &lib));
         }
     }
