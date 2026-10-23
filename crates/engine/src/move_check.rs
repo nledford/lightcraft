@@ -25,6 +25,9 @@ pub(crate) enum Kind {
     Clash,
     /// The file isn't where the library has it: the disk is offline, or it was moved or deleted.
     Missing,
+    /// Not in the library (Local) or with no file on disk (a demo photo): it can never move, so it
+    /// refuses a move unless it is skipped. Only `photo.checkMove` lists it, as a problem.
+    Unmovable,
     /// Only for a photo told to be skipped that has no problem (any more).
     Asked,
 }
@@ -34,6 +37,7 @@ impl Kind {
         match self {
             Kind::Clash => "clash",
             Kind::Missing => "missing",
+            Kind::Unmovable => "unmovable",
             Kind::Asked => "asked",
         }
     }
@@ -81,10 +85,11 @@ enum Fate {
     Missing,
 }
 
-/// Sort `ids` for a move into `dir`. Refuses (as a whole) a photo that isn't in the library or
-/// has no file, unless that photo is in `skip`; a name clash or a missing file goes to `problems`, or to
+/// Sort `ids` for a move into `dir`. A photo that isn't in the library or has no file refuses the
+/// move as a whole, unless it is in `skip`; with `lenient` (the check) it is listed in `problems`
+/// instead of refusing. A name clash or a missing file goes to `problems`, or to
 /// `skipped` when its photo is in `skip`. A photo skipped never holds a name in the folder.
-pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>) -> Result<Sorted> {
+pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>, lenient: bool) -> Result<Sorted> {
     // skipping is by file: a virtual copy goes where its master goes
     let skip_paths: HashSet<String> = skip
         .iter()
@@ -98,6 +103,20 @@ pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>
     let mut taken: HashSet<String> = HashSet::new();
     // skipped photos that would have moved: their names are checked against the moving ones at the end
     let mut pending: Vec<(usize, String)> = Vec::new();
+    // the check (which skips nothing yet): the files of the Local photos listed as problems; a
+    // library photo of the same file goes the way the move would send it once those are skipped
+    let local_files: HashSet<String> = if lenient {
+        ids.iter()
+            .filter_map(|id| s.catalog.photo(*id))
+            .filter(|p| p.local)
+            .filter_map(|p| match &p.source {
+                Source::File { path } => Some(path.clone()),
+                _ => None,
+            })
+            .collect()
+    } else {
+        HashSet::new()
+    };
     for &id in ids {
         // (no command named: `execute` puts in the one that was asked for)
         let ph = s.catalog.photo(id).ok_or_else(|| bad("", format!("no photo {}", id.0)))?;
@@ -111,13 +130,21 @@ pub(crate) fn sort(s: &Session, dir: &Path, ids: &[PhotoId], skip: &HashSet<u64>
             None
         };
         if let Some(why) = unmovable {
-            if !asked {
+            let left = Left { id, file: ph.file_name.clone(), kind: if asked { Kind::Asked } else { Kind::Unmovable }, twin: false };
+            if asked {
+                out.skipped.push(left);
+            } else if lenient {
+                out.problems.push(left);
+            } else {
                 return Err(EngineError::Other(why));
             }
-            out.skipped.push(Left { id, file: ph.file_name.clone(), kind: Kind::Asked, twin: false });
             continue;
         }
         let Source::File { path } = &ph.source else { continue };
+        if local_files.contains(path) {
+            out.problems.push(Left { id, file: ph.file_name.clone(), kind: Kind::Unmovable, twin: false });
+            continue;
+        }
         let left_out = asked || skip_paths.contains(path);
         let fate = match fates.get(path) {
             Some(f) => *f,
@@ -245,7 +272,7 @@ pub(crate) fn check_command(s: &Session, p: &Value) -> Result<Value> {
         EngineError::BadParams { cmd, msg } if cmd.is_empty() => bad("photo.checkMove", msg),
         e => e,
     })?;
-    let sorted = sort(s, dir, &ids, &HashSet::new())?;
+    let sorted = sort(s, dir, &ids, &HashSet::new(), true)?;
     Ok(json!({
         "folder": folder,
         "photos": ids.len(),
