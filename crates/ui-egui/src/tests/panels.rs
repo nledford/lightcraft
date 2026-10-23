@@ -1779,6 +1779,35 @@ fn shown_parents_are_kept_with_the_ui_state() {
     assert_eq!(back.sanitized().folder_parents.len(), crate::state::MAX_FOLDER_PARENTS);
 }
 
+/// A settings file that spells a folder the Windows way (backslashes, a capital drive letter, a
+/// trailing separator, a verbatim prefix) is read as the one name Show and Hide look folders up
+/// by, so a parent shown from there can be hidden again and two spellings are one entry.
+#[test]
+fn shown_parents_spelled_another_way_in_settings_are_found_again() {
+    let spelled = json!({"folderParents": ["C:\\Users\\Me\\", "\\\\?\\c:\\Users\\Me", "c:/Users/./Me"]});
+    let back = serde_json::from_value::<crate::UiState>(spelled).unwrap().sanitized();
+    let key = lightcraft_catalog::query::folder_key("C:\\Users\\Me");
+    assert_eq!(back.folder_parents.iter().collect::<Vec<_>>(), [&key], "one entry, named by its key");
+}
+
+/// Show and Hide name the folder the same way, whichever spelling asked, and `ui.set` keeps the
+/// list as the Show and Hide commands do (a Windows-style library, which reads the same anywhere).
+#[test]
+fn show_and_hide_parent_answer_with_one_spelling_and_ui_set_keeps_keys() {
+    let mut h = folders_app(&["C:\\Users\\me\\Pictures\\2024\\a.jpg", "C:\\Users\\me\\Pictures\\2025\\b.jpg"]);
+    let shown = exec(&mut h, "view.folderParent", json!({"path": "c:\\Users\\", "show": true}));
+    let hidden = exec(&mut h, "view.folderParent", json!({"path": "C:/Users", "show": false}));
+    assert_eq!(shown["path"], hidden["path"], "{shown} {hidden}");
+    assert_eq!(hidden["show"], false);
+    assert!(h.app.ui.folder_parents.is_empty());
+    let r = h.request("ui.set", json!({"folderParents": ["c:\\Users\\", "C:/Users"]}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(h.app.ui.folder_parents.iter().collect::<Vec<_>>(), [&lightcraft_catalog::query::folder_key("C:/Users")]);
+    let r = exec(&mut h, "view.folderParent", json!({"path": "C:\\Users", "show": false}));
+    assert_eq!(r["show"], false);
+    assert!(h.app.ui.folder_parents.is_empty(), "what ui.set listed, Hide takes off again");
+}
+
 /// Removing a folder from the library asks first, then moves its photos to Recently Deleted.
 #[test]
 fn removing_a_folder_from_the_library_asks_first() {
