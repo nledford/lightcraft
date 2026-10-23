@@ -435,7 +435,7 @@ fn every_actionable_control_is_named_or_a_listed_gap() {
     if !report.stale.is_empty() {
         eprintln!(
             "{} entries of tests/a11y-gaps.json are fixed now; `LIGHTCRAFT_A11Y_BASELINE=shrink cargo test -p lightcraft-ui-egui --test \
-             accessibility` removes them:\n{}",
+             it accessibility` removes them:\n{}",
             report.stale.len(),
             report.stale.join("\n")
         );
