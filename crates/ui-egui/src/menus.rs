@@ -564,17 +564,25 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 Err(e) => return Some(Err(e)),
             };
             let key = lightcraft_catalog::query::folder_key(path);
-            // a folder asked for earlier can always be taken off again, also once it no longer
-            // only leads on (photos or a second folder came into it, it was labelled or renamed)
-            if show != Some(true) && app.ui.folder_parents.remove(&key) {
-                // named as showing it names it: the row's own spelling while the folder has one
-                let tree = app.caches.folder_tree(&app.session.catalog);
-                let named = crate::panels::left::folder_place(app, &tree, &key).map_or(key, |(node, _)| node.path.clone());
-                return Some(Ok(json!({"path": named, "show": false})));
-            }
             use crate::panels::left::{FolderPlace, folder_place};
             let tree = app.caches.folder_tree(&app.session.catalog);
-            let node = match folder_place(app, &tree, &key) {
+            // a folder asked for earlier can always be taken off again, also once it no longer
+            // only leads on (photos or a second folder came into it, it was labelled or renamed);
+            // not while its row is listed because a folder above it that was asked for too is: that
+            // row stays, so naming it hidden would be untrue (the row menu offers no Hide there)
+            let placed = folder_place(app, &tree, &key);
+            if show != Some(true) && app.ui.folder_parents.contains(&key) {
+                if let Some((_, FolderPlace::Below(above))) = &placed
+                    && app.ui.folder_parents.contains(&lightcraft_catalog::query::folder_key(above))
+                {
+                    return Some(Err(format!("{id}: `{path}` is listed because `{above}` above it is: show or hide that folder instead")));
+                }
+                app.ui.folder_parents.remove(&key);
+                // named as showing it names it: the row's own spelling while the folder has one
+                let named = placed.map_or(key, |(node, _)| node.path.clone());
+                return Some(Ok(json!({"path": named, "show": false})));
+            }
+            let node = match placed {
                 Some((node, FolderPlace::Leading)) => node.path.clone(),
                 Some((_, FolderPlace::Below(above))) => {
                     return Some(Err(format!("{id}: `{path}` is listed because `{above}` above it is: show or hide that folder instead")));

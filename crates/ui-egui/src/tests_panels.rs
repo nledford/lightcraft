@@ -1808,6 +1808,35 @@ fn show_and_hide_parent_answer_with_one_spelling_and_ui_set_keeps_keys() {
     assert!(h.app.ui.folder_parents.is_empty(), "what ui.set listed, Hide takes off again");
 }
 
+/// A parent asked for earlier whose row is listed because the folder above it is can't be hidden
+/// by itself: its row would stay, so the command refuses and keeps the request.
+#[test]
+fn hiding_a_parent_listed_below_a_shown_one_is_refused() {
+    let mut h = folders_app(&["/Users/me/Pictures/2024/a.jpg", "/Users/me/Pictures/2025/b.jpg"]);
+    exec(&mut h, "view.folderParent", json!({"path": "/Users/me", "show": true}));
+    exec(&mut h, "view.folderParent", json!({"path": "/Users", "show": true}));
+    let r = h.request("engine.execute", json!({"command": "view.folderParent", "params": {"path": "/Users/me", "show": false}}), T);
+    assert_eq!(r["ok"], false, "{r}");
+    assert!(r["error"].as_str().is_some_and(|e| e.contains("`/Users` above it")), "{r}");
+    assert!(h.app.ui.folder_parents.contains("/Users/me") && has(&h, "source:libfolder:/Users/me"));
+    // hiding the one above takes the row away with it, and then this one can be hidden on its own
+    exec(&mut h, "view.folderParent", json!({"path": "/Users", "show": false}));
+    assert!(has(&h, "source:libfolder:/Users/me"), "still asked for itself");
+    assert_eq!(exec(&mut h, "view.folderParent", json!({"path": "/Users/me", "show": false}))["show"], false);
+    assert!(h.app.ui.folder_parents.is_empty());
+}
+
+/// When the grid, not a request, is what lists the folder above, there is nothing to hide there:
+/// the request itself is what can be taken off.
+#[test]
+fn hiding_a_parent_below_the_folder_the_grid_shows_takes_its_request_off() {
+    let mut h = folders_app(&["/Users/me/Pictures/2024/a.jpg", "/Users/me/Pictures/2025/b.jpg"]);
+    exec(&mut h, "view.folderParent", json!({"path": "/Users/me", "show": true}));
+    exec(&mut h, "library.source", json!({"kind": "libraryFolder", "path": "/Users"}));
+    assert_eq!(exec(&mut h, "view.folderParent", json!({"path": "/Users/me", "show": false}))["show"], false);
+    assert!(h.app.ui.folder_parents.is_empty());
+}
+
 /// Removing a folder from the library asks first, then moves its photos to Recently Deleted.
 #[test]
 fn removing_a_folder_from_the_library_asks_first() {
