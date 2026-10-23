@@ -97,7 +97,7 @@ Today's gaps are listed in `crates/ui-egui/tests/a11y-gaps.json` (screen, the co
 of the windows around it, how many): a problem that is not listed fails the test, and so does a
 listed one that occurs more often than its count. A control that
 gets a name does not have to touch the file, and the test prints the entries that are fixed now.
-`LIGHTCRAFT_A11Y_BASELINE=shrink cargo test -p lightcraft-ui-egui --test accessibility` removes
+`LIGHTCRAFT_A11Y_BASELINE=shrink cargo test -p lightcraft-ui-egui --test it accessibility` removes
 them; `LIGHTCRAFT_A11Y_BASELINE=write` regenerates the file (a new screen needs it, once). Listed
 today, 48 controls on 21 of the 49 screens: dropdowns, spin boxes and fields with no caption (View
 Options, Export, Contact Sheet, Import review, Settings' Import and Slideshow tabs, Crop, Info and
