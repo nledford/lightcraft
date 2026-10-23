@@ -239,7 +239,8 @@ fn doctests() -> (Command, String) {
     (c, "cargo test --workspace --doc".to_owned())
 }
 
-/// The test that prints the messages each language lacks (shown in English); it always passes.
+/// The test that prints the messages each language lacks (shown in English) and the places that show
+/// English without `tr`; it always passes.
 const TRANSLATION_GAPS_TEST: &str = "i18n::tests::translation_gaps_report";
 
 /// Print the translation gaps report into the log: [`TRANSLATION_GAPS_TEST`] of lightcraft-ui-egui,
