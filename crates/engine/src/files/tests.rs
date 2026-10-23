@@ -1538,6 +1538,18 @@ fn a_quick_preview_window_cut_short_is_left_to_the_whole_file_fallback() {
     assert!(quick_image_srgb(&[], &jpeg[..jpeg.len() * 3 / 4], true, 64).is_none());
 }
 
+/// A JPEG cut short is weighed at its whole frame, not at the length of the prefix.
+#[test]
+fn a_cut_jpeg_is_weighed_at_its_whole_frame() {
+    let rgb: Vec<u8> = (0..160 * 96 * 3).map(|i| (i * 7 % 251) as u8).collect();
+    let jpeg = encode_jpeg(&EncodeImage::new(160, 96, 3, Samples::U8(&rgb)), 90, ChromaSubsampling::S420, &EncodeMeta::default()).unwrap();
+    let thumb = crate::media::SourceLevel::Thumb.max_edge();
+    assert_eq!(cut_jpeg_weight(&jpeg, thumb), 0, "a whole file is weighed by its length");
+    assert_eq!(cut_jpeg_weight(&jpeg[..jpeg.len() / 2], thumb), 160 * 96 * 3);
+    assert_eq!(cut_jpeg_weight(&jpeg[..jpeg.len() / 2], thumb + 1), 160 * 96 * 15);
+    assert_eq!(cut_jpeg_weight(b"not a jpeg", thumb), 0);
+}
+
 /// A raw whose TIFF shell holds only a small RGB image (IFD0) next to a private block, as Exif
 /// declares a picture 25x its size.
 fn tiff_shell(w: u32, h: u32, shell: bool) -> Vec<u8> {
