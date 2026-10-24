@@ -1,6 +1,7 @@
 //! Library-wide keyword commands: list (tree with counts), suggestions, rename, delete, merge;
 //! keyword sets (nine keywords a keystroke away: ⌥1–⌥9) and Recent Keywords.
 
+use lightcraft_catalog::Filter;
 use lightcraft_catalog::keywords::{KeywordInfo, clean, closest, is_under, reparent};
 use serde_json::{Value, json};
 
@@ -44,11 +45,22 @@ fn commit_keywords(s: &mut Session, label: &str, op: lightcraft_catalog::Op, fol
     };
     s.filter.keywords = follow_all(&s.filter.keywords);
     // a filter put aside by Enable Filters follows the keyword too
+    let mut gone_from_put_aside = false;
     if let Some(f) = s.shelved_filter.as_mut() {
+        let held_keywords = f.keyword.is_some() || !f.keywords.is_empty();
         if let Some(k) = f.keyword.clone() {
             f.keyword = follow(&k);
         }
         f.keywords = follow_all(&f.keywords);
+        // every keyword it held was deleted: if that emptied the filter, nothing is left to bring back. The
+        // rating operator filters nothing without stars, so it alone does not count as something to bring back.
+        gone_from_put_aside = held_keywords
+            && f.keyword.is_none()
+            && f.keywords.is_empty()
+            && (Filter { rating_op: Default::default(), ..f.clone() }) == Filter::default();
+    }
+    if gone_from_put_aside {
+        s.shelved_filter = None;
     }
     Ok(json!({"changed": photos, "listed": listed}))
 }
