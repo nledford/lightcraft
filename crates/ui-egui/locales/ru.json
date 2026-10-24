@@ -1637,8 +1637,6 @@
   "Stopped": "Остановлено",
   "Stopped by an error (see the log)": "Остановлено из-за ошибки (см. журнал)",
   "Not saved": "Не сохранено",
-  "A folder is being synchronized": "Папка синхронизируется",
-  "Wait for the import to finish": "Дождитесь завершения импорта",
   "Appearance": "Оформление",
   "Appearance Mode": "Режим оформления",
   "Sync with System": "Как в системе",
@@ -2351,5 +2349,6 @@
   "Finish Lightroom catalog import before adding photos": "Завершите импорт каталога Lightroom, прежде чем добавлять фото",
   "Queued: it starts when the task ahead of it ends": "В очереди: начнётся, когда закончится задача перед ней",
   "Another library was opened: nothing was done": "Открыта другая библиотека: ничего не сделано",
+  "Photos of the folder changed while it was read: nothing was done": "Фотографии в папке изменились во время чтения: ничего не сделано",
   "Starts next": "Начнётся следующей"
 }

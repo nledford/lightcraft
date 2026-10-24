@@ -1926,8 +1926,6 @@
   "Stopped": "停止しました",
   "Stopped by an error (see the log)": "エラーで停止しました（ログを参照）",
   "Not saved": "保存されていません",
-  "A folder is being synchronized": "フォルダを同期中です",
-  "Wait for the import to finish": "読み込みが終わるまでお待ちください",
   "Appearance": "外観",
   "Appearance Mode": "外観モード",
   "Sync with System": "システムと同期",
@@ -2358,5 +2356,6 @@
   "Finish Lightroom catalog import before adding photos": "写真を追加する前に Lightroom カタログの読み込みを完了してください",
   "Queued: it starts when the task ahead of it ends": "キューに追加: 前のタスクが終わると開始します",
   "Another library was opened: nothing was done": "別のライブラリが開かれました: 何も行われていません",
+  "Photos of the folder changed while it was read: nothing was done": "読み取り中にフォルダ内の写真が変更されました: 何も行われていません",
   "Starts next": "次に開始します"
 }

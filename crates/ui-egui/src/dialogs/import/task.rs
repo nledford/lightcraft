@@ -201,10 +201,6 @@ pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String>
     if !d.in_library(app) {
         return Err("another library was opened since the photos were scanned: nothing was imported".into());
     }
-    // a browse scan that finishes starts its own import, replacing this one
-    if app.scan.as_ref().is_some_and(|t| t.browse) {
-        return Err(crate::i18n::tr("An import is running").to_string());
-    }
     let queue = d.selected_paths();
     if queue.is_empty() {
         return Err("no photos selected".into());
@@ -257,7 +253,7 @@ pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String>
     // the review's thumbnails are done with, whether it runs now or later
     app.renderer.forget_imports();
     if waits {
-        return wait_in_line(app, &queue, &params);
+        return wait_in_line(app, &queue, &params, false);
     }
     let total = queue.len();
     app.import = Some(ImportTask::new(queue, params, undo0, false));
@@ -272,7 +268,7 @@ pub fn start_paths(app: &mut LightcraftApp, paths: Vec<String>) -> Result<Value,
     }
     let params = json!({"mode": "add"});
     if library_busy(app) {
-        return wait_in_line(app, &paths, &params);
+        return wait_in_line(app, &paths, &params, false);
     }
     let undo0 = app.session.undo.len();
     let total = paths.len();
@@ -292,7 +288,11 @@ pub fn start_request(app: &mut LightcraftApp, ctx: &egui::Context, request: &Req
         return Err("an import is running".into());
     }
     let undo0 = app.session.undo.len();
+    let auto = request.params["auto"].as_bool().unwrap_or(false);
     let mut task = ImportTask::new(paths, request.params["params"].clone(), undo0, false);
+    if auto {
+        task = task.auto();
+    }
     begin(app, ctx, &mut task)?;
     app.import = Some(task);
     Ok(())

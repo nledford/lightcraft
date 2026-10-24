@@ -307,7 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Lightroom 目录“{catalog}”要导入到哪里？",
   "Merge into the open library “{library}” ({count} photo{})": "合并到当前打开的图库“{library}”（{count} 张照片）{:.0}",
   "Queued: it starts after {n} more": "已加入队列：再过 {n} 个后开始",
-  "{n} more missing, left alone: synchronize again to review them": "还有 {n} 个缺失，未作处理：再次同步以检查它们",
+  "Left alone: {n} (synchronize again to review them)": "未处理：{n}（再次同步以查看）",
   "Starts after {n} more": "再过 {n} 个后开始",
   "Remove from Queue: {label}": "从队列中移除：{label}"
 }

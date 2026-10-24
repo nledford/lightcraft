@@ -58,14 +58,16 @@ Jobs that must not run side by side share a lane (`activity::Lane`). There are t
   Each plans its work against the library as it is when it starts, so two side by side could add the same file. An
   import asked for while the lane is taken is not refused any more: it waits and checks for duplicates against the
   library as it is when its turn comes. A Synchronize Folder that waits scans its folder again at its turn, then
-  removes or relinks only the photos its dialog showed: one that went missing while it waited was never shown, so it
-  is left alone and the end says so ("1 more missing, left alone: synchronize again to review them"). If another
-  library is opened while it scans, or its folder is gone, it stops without doing anything and a toast says so. A
-  toast says it was queued when it was put in line. The dialog's own scan ("Looking for changes", kind `scan`) only
+  removes, relinks or reads the sidecars of only the photos its dialog showed: one that went missing, moved or got a
+  sidecar update while it waited was never shown, so it is left alone and the end says so ("Left alone: 1
+  (synchronize again to review them)"). If another library is opened while it scans, or its folder is gone, it stops
+  without doing anything and a toast says so (at once for a new library, even if the old folder's scan is still going).
+  A toast says it was queued when it was put in line. The dialog's own scan ("Looking for changes", kind `scan`) only
   reads and holds up nothing. These requests are the app's (`app:import`, `app:synchronize`): the app starts them
   (`LightcraftApp::start_waiting`, every frame), and the engine leaves them alone (`Activity::take_ready_if`). Auto
-  Import waits until nothing runs, rescans or waits in this lane. A drop while an import's review is open or a scan
-  runs is still refused.
+  Import lists its folder only when nothing runs, rescans or waits in this lane; files it finds after something
+  started meanwhile wait in line, quietly. A drop while a scan runs or an import's review waits behind a dialog is
+  still refused.
 
 A call that sets `queue: true` while its lane is busy does not fail:
 `Activity::enqueue` keeps what it was asked (`Request`: the command and its parameters, with the photos written out)

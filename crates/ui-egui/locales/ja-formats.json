@@ -307,7 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Lightroom カタログ「{catalog}」をどこに読み込みますか？",
   "Merge into the open library “{library}” ({count} photo{})": "開いているライブラリ「{library}」に統合（写真{count}枚）{:.0}",
   "Queued: it starts after {n} more": "キューに追加: あと {n} 件の後に開始します",
-  "{n} more missing, left alone: synchronize again to review them": "ほかに {n} 件が見つからず、そのままにしました: 確認するにはもう一度同期してください",
+  "Left alone: {n} (synchronize again to review them)": "そのまま: {n} 件（再度同期して確認してください）",
   "Starts after {n} more": "あと {n} 件の後に開始します",
   "Remove from Queue: {label}": "キューから削除: {label}"
 }

@@ -1924,8 +1924,6 @@
   "Stopped": "Interrompido",
   "Stopped by an error (see the log)": "Interrompido por um erro (veja o log)",
   "Not saved": "Não salvo",
-  "A folder is being synchronized": "Uma pasta está sendo sincronizada",
-  "Wait for the import to finish": "Aguarde a importação terminar",
   "Appearance": "Aparência",
   "Appearance Mode": "Modo de aparência",
   "Sync with System": "Sincronizar com o sistema",
@@ -2204,5 +2202,6 @@
   "Finish Lightroom catalog import before adding photos": "Conclua a importação do catálogo do Lightroom antes de adicionar fotos",
   "Queued: it starts when the task ahead of it ends": "Na fila: começa quando a tarefa anterior terminar",
   "Another library was opened: nothing was done": "Outra biblioteca foi aberta: nada foi feito",
+  "Photos of the folder changed while it was read: nothing was done": "As fotos da pasta mudaram durante a leitura: nada foi feito",
   "Starts next": "Começa em seguida"
 }
