@@ -548,8 +548,10 @@ fn move_folders(s: &mut Session, p: &Value) -> Result<Value> {
     if let Some(why) = batch_refusal(&folders, into) {
         return Err(crate::EngineError::Other(why));
     }
-    // (the first move drops the redo history; a batch that ends up undone gets it back)
-    let saved_redo = s.redo.clone();
+    // The first move drops the redo history, and a batch that ends up undone gets it back. With the
+    // sidecar repairs done first every queue is empty, so taking it loses nothing either way.
+    s.repair_sidecars_with(&crate::rename::RealFs).map_err(|e| crate::EngineError::Other(e.to_string()))?;
+    let saved_redo = std::mem::take(&mut s.redo);
     let mut places = Vec::new();
     let mut relinked = 0;
     for from in &folders {
@@ -564,18 +566,8 @@ fn move_folders(s: &mut Session, p: &Value) -> Result<Value> {
                         break;
                     }
                 }
-                if !places.is_empty() {
-                    if back.is_empty() {
-                        // nothing changed after all: what could be redone still can. Their sidecar
-                        // repairs were completed by the repair the first move starts with.
-                        s.redo = saved_redo;
-                        for e in &mut s.redo {
-                            e.retry_sidecars.clear();
-                        }
-                    } else {
-                        s.redo.clear();
-                    }
-                }
+                // nothing changed after all when every folder went back: what could be redone still can
+                s.redo = if places.is_empty() || back.is_empty() { saved_redo } else { Vec::new() };
                 return Err(crate::EngineError::Other(format!("{e}{back}")));
             }
         }
