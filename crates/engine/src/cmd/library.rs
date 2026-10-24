@@ -468,7 +468,8 @@ pub fn specs() -> Vec<CommandSpec> {
                         }
                         // the last one named is the one a single-album action takes
                         let Some(own) = albums.pop() else { return Err(bad(C, "`ids` names no album")) };
-                        // the albums of the source: albums left over in the filter would be ignored
+                        // the albums of the source: the filter bar has no album chip, so albums left over in the
+                        // filter would narrow the next source unseen (or be ignored)
                         s.filter.albums.clear();
                         s.filter.album = None;
                         (LibrarySource::Album(own), albums, Vec::new())
@@ -656,6 +657,10 @@ pub fn specs() -> Vec<CommandSpec> {
                     if s.source == LibrarySource::LibraryFolder {
                         f.library_folder = None;
                         f.library_folders.clear();
+                    }
+                    // the album(s) shown are what the grid shows: albums in the filter would be ignored
+                    if matches!(s.source, LibrarySource::Album(_)) {
+                        f.albums.clear();
                     }
                     s.filter = f;
                 }
