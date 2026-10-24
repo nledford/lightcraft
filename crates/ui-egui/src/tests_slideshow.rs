@@ -84,18 +84,22 @@ fn slideshow_advances_pauses_and_ends() {
 #[test]
 fn next_slides_are_prepared_before_they_are_due() {
     let mut h = grid();
-    // a long slide: anything rendered for the next ones is rendered ahead of time
+    // A long slide: anything rendered for the next ones is rendered ahead of time. Simulated time
+    // runs one frame per loop turn whatever the renders cost, so on a loaded machine a render that
+    // takes seconds spans thousands of frames, and the slide would come due while it waits (the
+    // engine caps a slide at two minutes). Pausing keeps the slide up however many frames pass;
+    // the slides ahead are prepared while paused all the same.
     run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 1, "preparePreviews": true, "seed": 7}));
+    run(&mut h, "slideshow.togglePause", json!({}));
+    assert!(play(&h).is_paused());
     let ahead = play(&h).upcoming(crate::panels::slideshow::AHEAD);
     assert_eq!(ahead.len(), 2);
-    let start = h.time();
     // the slide up and the next two; their renders can finish in any order
     let current = photo_up(&h);
     assert!(
         h.step_until(SETTLE, |h| has_slide(h, current) && ahead.iter().all(|id| has_slide(h, *id))),
         "the slide up and the next two slides are rendered"
     );
-    assert!(h.time() - start < 60.0, "before the first is due");
     assert_eq!(photo_up(&h), current, "still on the first slide");
     h.settle(SETTLE);
 
