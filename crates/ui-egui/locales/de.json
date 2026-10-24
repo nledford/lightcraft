@@ -3441,5 +3441,6 @@
   "An import is running. Drop photos when it has finished": "Ein Import läuft. Lege die Fotos ab, wenn er fertig ist",
   "Finish Lightroom catalog import before adding photos": "Schließe den Import des Lightroom-Katalogs ab, bevor du Fotos hinzufügst",
   "Queued: it starts when the task ahead of it ends": "In der Warteschlange: startet, wenn die Aufgabe davor endet",
-  "Another library was opened: nothing was done": "Eine andere Bibliothek wurde geöffnet: es wurde nichts getan"
+  "Another library was opened: nothing was done": "Eine andere Bibliothek wurde geöffnet: es wurde nichts getan",
+  "Starts next": "Startet als Nächstes"
 }

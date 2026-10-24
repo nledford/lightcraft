@@ -307,5 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Dokąd zaimportować katalog Lightroom „{catalog}”?",
   "Merge into the open library “{library}” ({count} photo{})": "Scal z otwartą biblioteką „{library}” (zdjęcia: {count}){:.0}",
   "Queued: it starts after {n} more": "W kolejce: rozpocznie się po {n} kolejnych",
-  "{n} more missing, left alone: synchronize again to review them": "Brakuje jeszcze {n}, pozostawiono bez zmian: zsynchronizuj ponownie, aby je przejrzeć"
+  "{n} more missing, left alone: synchronize again to review them": "Brakuje jeszcze {n}, pozostawiono bez zmian: zsynchronizuj ponownie, aby je przejrzeć",
+  "Starts after {n} more": "Rozpocznie się po {n} kolejnych",
+  "Remove from Queue: {label}": "Usuń z kolejki: {label}"
 }

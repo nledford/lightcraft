@@ -2409,5 +2409,6 @@
   "An import is running. Drop photos when it has finished": "Import už běží. Fotky přetáhněte, až skončí",
   "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky",
   "Queued: it starts when the task ahead of it ends": "Ve frontě: začne, až skončí úloha před ní",
-  "Another library was opened: nothing was done": "Byla otevřena jiná knihovna: nic se neprovedlo"
+  "Another library was opened: nothing was done": "Byla otevřena jiná knihovna: nic se neprovedlo",
+  "Starts next": "Začne jako další"
 }

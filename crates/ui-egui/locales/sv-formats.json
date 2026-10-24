@@ -307,5 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Vart ska Lightroom-katalogen ”{catalog}” importeras?",
   "Merge into the open library “{library}” ({count} photo{})": "Slå samman med det öppna biblioteket ”{library}” ({count} foto{:.0})",
   "Queued: it starts after {n} more": "I kö: startar efter {n} till",
-  "{n} more missing, left alone: synchronize again to review them": "{n} fler saknas och lämnades orörda: synkronisera igen för att granska dem"
+  "{n} more missing, left alone: synchronize again to review them": "{n} fler saknas och lämnades orörda: synkronisera igen för att granska dem",
+  "Starts after {n} more": "Startar efter {n} till",
+  "Remove from Queue: {label}": "Ta bort från kön: {label}"
 }

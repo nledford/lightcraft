@@ -2236,5 +2236,6 @@
   "Finish Lightroom catalog import before adding photos": "Hoàn tất nhập danh mục Lightroom trước khi thêm ảnh",
   "Import dropped files without review": "Nhập các tệp đã thả mà không xem lại",
   "Queued: it starts when the task ahead of it ends": "Trong hàng đợi: bắt đầu khi tác vụ trước nó kết thúc",
-  "Another library was opened: nothing was done": "Đã mở thư viện khác: không có gì được thực hiện"
+  "Another library was opened: nothing was done": "Đã mở thư viện khác: không có gì được thực hiện",
+  "Starts next": "Bắt đầu tiếp theo"
 }

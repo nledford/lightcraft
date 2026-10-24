@@ -8,6 +8,7 @@
   was queued. Before, it was refused ("Wait for the import to finish", "A folder is being synchronized").
 - Photos dropped on the window, or an import review confirmed, while another import runs also wait in line instead of
   being refused with "An import is running"; a drop is still refused while a folder is being scanned for the review.
+- A task waiting in line shows in the activity stack at once: its name, "Starts next" or "Starts after N more", and ✕ to take it out of the line, so a mistaken one can be withdrawn. This holds for a waiting preview build too.
 - A waiting import checks for duplicates against the library as it is when its turn comes, so nothing is added twice.
 - A waiting Synchronize Folder looks at its folder again when its turn comes. It removes or relinks only the photos
   its dialog showed: one that went missing while it waited is left alone, and the message at the end says so.

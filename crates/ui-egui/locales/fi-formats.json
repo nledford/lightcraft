@@ -307,5 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Minne Lightroom-luettelo ”{catalog}” tuodaan?",
   "Merge into the open library “{library}” ({count} photo{})": "Yhdistä avoimeen kirjastoon ”{library}” (kuvia: {count}{:.0})",
   "Queued: it starts after {n} more": "Jonossa: alkaa {n} muun jälkeen",
-  "{n} more missing, left alone: synchronize again to review them": "{n} muuta puuttuu ja jätettiin ennalleen: synkronoi uudelleen tarkistaaksesi ne"
+  "{n} more missing, left alone: synchronize again to review them": "{n} muuta puuttuu ja jätettiin ennalleen: synkronoi uudelleen tarkistaaksesi ne",
+  "Starts after {n} more": "Alkaa {n} muun jälkeen",
+  "Remove from Queue: {label}": "Poista jonosta: {label}"
 }

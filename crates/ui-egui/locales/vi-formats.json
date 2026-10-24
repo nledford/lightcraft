@@ -307,5 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Nhập danh mục Lightroom «{catalog}» vào đâu?",
   "Merge into the open library “{library}” ({count} photo{})": "Gộp vào thư viện đang mở «{library}» ({count} ảnh{:.0})",
   "Queued: it starts after {n} more": "Trong hàng đợi: bắt đầu sau {n} tác vụ nữa",
-  "{n} more missing, left alone: synchronize again to review them": "Còn {n} mục bị thiếu được giữ nguyên: hãy đồng bộ hóa lại để xem xét"
+  "{n} more missing, left alone: synchronize again to review them": "Còn {n} mục bị thiếu được giữ nguyên: hãy đồng bộ hóa lại để xem xét",
+  "Starts after {n} more": "Bắt đầu sau {n} tác vụ nữa",
+  "Remove from Queue: {label}": "Xóa khỏi hàng đợi: {label}"
 }
