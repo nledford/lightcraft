@@ -2430,5 +2430,6 @@
   "Finish Lightroom catalog import before adding photos": "Slutför importen av Lightroom-katalogen innan du lägger till foton",
   "Import dropped files without review": "Importera släppta filer utan granskning",
   "Queued: it starts when the task ahead of it ends": "I kö: startar när uppgiften före är klar",
-  "Another library was opened: nothing was done": "Ett annat bibliotek öppnades: ingenting gjordes"
+  "Another library was opened: nothing was done": "Ett annat bibliotek öppnades: ingenting gjordes",
+  "Starts next": "Startar härnäst"
 }

@@ -264,6 +264,39 @@ fn a_direct_drop_while_an_import_runs_waits_in_line() {
     assert_eq!(photos(&h), 2, "the dropped folder's two photos");
 }
 
+/// Given an import that runs and two more waiting in line behind it, then each waiting one has a row saying when it
+/// starts and a ✕ named for it; ✕ takes that one out of the line and leaves the running import alone.
+#[test]
+fn a_waiting_import_shows_a_row_and_its_cross_takes_it_out_of_the_line() {
+    let dir = Scratch::new("waiting-rows");
+    let mut h = app(&dir);
+    h.app.ui.settings.import_dropped_directly = true;
+    write_png(&dir.path("more/c.png"), 3);
+    let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
+    drop_files(&mut h, &[dir.path("trip")], false);
+    drop_files(&mut h, &[dir.path("more")], false);
+    let waiting = h.app.session.activity.waiting();
+    assert_eq!(waiting.len(), 2, "{waiting:?}");
+    let (first, second) = (waiting[0].id, waiting[1].id);
+    for _ in 0..3 {
+        h.step();
+    }
+    let drawn = |h: &Headless, id: &str| h.app.widgets.iter().any(|(w, _)| w == id);
+    assert!(drawn(&h, &format!("activity:row:{first}")) && drawn(&h, &format!("activity:row:{second}")), "a row each: {:?}", h.app.widgets);
+    assert!(said(&h, "Starts next") && said(&h, "Starts after 1 more"), "{:?}", h.painted_text());
+    let cross = format!("activity:cancel:{second}");
+    assert!(drawn(&h, &cross), "✕ on the waiting row");
+    assert_eq!(h.request("ui.clickWidget", json!({"id": cross}), T)["ok"], true);
+    for _ in 0..4 {
+        h.step();
+    }
+    assert_eq!(h.app.session.activity.waiting().iter().map(|t| t.id).collect::<Vec<_>>(), vec![first], "only the first still waits");
+    assert!(!drawn(&h, &format!("activity:row:{second}")), "its row is gone");
+    assert!(h.app.session.activity.list().iter().any(|t| !t.waiting && t.kind == "import"), "the running import is untouched");
+    assert!(!hold.is_cancelled());
+    drop(hold);
+}
+
 /// A drop while a scan runs would open a review whose OK replaces the import the scan starts: it is
 /// refused instead, and the card says so.
 #[test]

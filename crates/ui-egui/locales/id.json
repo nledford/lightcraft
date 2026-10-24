@@ -2340,5 +2340,6 @@
   "Finish Lightroom catalog import before adding photos": "Selesaikan impor katalog Lightroom sebelum menambahkan foto",
   "Import dropped files without review": "Impor file yang dijatuhkan tanpa tinjauan",
   "Queued: it starts when the task ahead of it ends": "Dalam antrean: dimulai saat tugas di depannya selesai",
-  "Another library was opened: nothing was done": "Pustaka lain dibuka: tidak ada yang dilakukan"
+  "Another library was opened: nothing was done": "Pustaka lain dibuka: tidak ada yang dilakukan",
+  "Starts next": "Dimulai berikutnya"
 }

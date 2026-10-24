@@ -307,5 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Куда импортировать каталог Lightroom «{catalog}»?",
   "Merge into the open library “{library}” ({count} photo{})": "Объединить с открытой библиотекой «{library}» (фото: {count}){:.0}",
   "Queued: it starts after {n} more": "В очереди: начнётся после ещё {n}",
-  "{n} more missing, left alone: synchronize again to review them": "Не хватает ещё {n}, оставлены как есть: синхронизируйте снова, чтобы их просмотреть"
+  "{n} more missing, left alone: synchronize again to review them": "Не хватает ещё {n}, оставлены как есть: синхронизируйте снова, чтобы их просмотреть",
+  "Starts after {n} more": "Начнётся после ещё {n}",
+  "Remove from Queue: {label}": "Убрать из очереди: {label}"
 }

@@ -2735,5 +2735,6 @@
   "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება",
   "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი",
   "Queued: it starts when the task ahead of it ends": "რიგშია: დაიწყება, როცა წინა ამოცანა დასრულდება",
-  "Another library was opened: nothing was done": "სხვა ბიბლიოთეკა გაიხსნა: არაფერი გაკეთებულა"
+  "Another library was opened: nothing was done": "სხვა ბიბლიოთეკა გაიხსნა: არაფერი გაკეთებულა",
+  "Starts next": "დაიწყება შემდეგი"
 }

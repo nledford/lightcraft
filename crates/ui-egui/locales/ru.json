@@ -2350,5 +2350,6 @@
   "An import is running. Drop photos when it has finished": "Импорт уже выполняется. Перетащите фото, когда он закончится",
   "Finish Lightroom catalog import before adding photos": "Завершите импорт каталога Lightroom, прежде чем добавлять фото",
   "Queued: it starts when the task ahead of it ends": "В очереди: начнётся, когда закончится задача перед ней",
-  "Another library was opened: nothing was done": "Открыта другая библиотека: ничего не сделано"
+  "Another library was opened: nothing was done": "Открыта другая библиотека: ничего не сделано",
+  "Starts next": "Начнётся следующей"
 }

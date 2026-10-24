@@ -307,5 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "Ke mana katalog Lightroom “{catalog}” diimpor?",
   "Merge into the open library “{library}” ({count} photo{})": "Gabungkan ke pustaka yang terbuka “{library}” ({count} foto{:.0})",
   "Queued: it starts after {n} more": "Dalam antrean: dimulai setelah {n} lagi",
-  "{n} more missing, left alone: synchronize again to review them": "{n} lagi hilang dan dibiarkan: sinkronkan lagi untuk memeriksanya"
+  "{n} more missing, left alone: synchronize again to review them": "{n} lagi hilang dan dibiarkan: sinkronkan lagi untuk memeriksanya",
+  "Starts after {n} more": "Dimulai setelah {n} lagi",
+  "Remove from Queue: {label}": "Hapus dari antrean: {label}"
 }

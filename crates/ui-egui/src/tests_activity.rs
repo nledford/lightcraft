@@ -533,10 +533,10 @@ fn immediate_library_commands_and_auto_sync_show_completion() {
     assert!(h.app.ui.toast.is_none());
 }
 
-/// Given a preview build running and another waiting in line behind it, then the stack shows the running build only,
-/// and the waiting one starts by itself, in a frame, when the build ahead of it ends.
+/// Given a preview build running and another waiting in line behind it, then the stack shows both (the waiting one
+/// with ✕), and the waiting one starts by itself, in a frame, when the build ahead of it ends.
 #[test]
-fn a_task_waiting_in_line_has_no_row_and_starts_when_the_lane_frees() {
+fn a_task_waiting_in_line_has_a_row_and_starts_when_the_lane_frees() {
     use lightcraft_engine::cmd::previews::PreviewBuild;
     use std::sync::atomic::Ordering;
 
@@ -550,7 +550,10 @@ fn a_task_waiting_in_line_has_no_row_and_starts_when_the_lane_frees() {
     assert_eq!(h.app.session.activity.list().len(), 2);
     wait_visible(&mut h);
     assert!(has(&h, &format!("activity:row:{}", running.id())));
-    assert!(!has(&h, &format!("activity:row:{waiting}")) && rows(&h) == 1, "a waiting task draws no row");
+    assert!(
+        has(&h, &format!("activity:row:{waiting}")) && has(&h, &format!("activity:cancel:{waiting}")) && rows(&h) == 2,
+        "a waiting task draws a row with ✕"
+    );
     // the lane frees with no command asked: the frame loop starts it
     build.finished.store(true, Ordering::Release);
     drop(running);

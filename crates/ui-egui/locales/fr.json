@@ -2391,5 +2391,6 @@
   "Open a library first, then drop the presets again": "Ouvrez d'abord une bibliothèque, puis déposez à nouveau les préréglages",
   "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :",
   "Queued: it starts when the task ahead of it ends": "En file : démarre à la fin de la tâche précédente",
-  "Another library was opened: nothing was done": "Une autre bibliothèque a été ouverte : rien n’a été fait"
+  "Another library was opened: nothing was done": "Une autre bibliothèque a été ouverte : rien n’a été fait",
+  "Starts next": "Démarre ensuite"
 }
