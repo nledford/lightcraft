@@ -1016,3 +1016,27 @@ fn a_link_the_library_was_opened_through_is_found_when_reached_through_another_l
     assert!(e.contains("holds the open library"), "{e}");
     assert!(dir.0.join("lnk").exists(), "the link stayed");
 }
+
+#[cfg(unix)]
+#[test]
+fn a_folder_reached_through_a_link_moves_the_photos_stored_under_its_real_path() {
+    let dir = Scratch::new("srclink");
+    std::fs::create_dir_all(dir.0.join("real/Trip")).unwrap();
+    std::fs::write(dir.0.join("real/Trip/a.jpg"), b"x").unwrap();
+    std::os::unix::fs::symlink(dir.0.join("real"), dir.0.join("alias")).unwrap();
+    let mut s = Session::new();
+    // (the scratch folder itself may sit behind a link, as /var does on a Mac: the photo is stored as the disk spells it)
+    let real = dir.0.canonicalize().unwrap().join("real");
+    let at = |rel: &str| real.join(rel).to_string_lossy().to_string();
+    // the photo was added through the real path; the folder is moved through the link
+    add(&mut s, &at("Trip/a.jpg"));
+    s.execute("folder.rename", &json!({"path": dir.path("alias/Trip"), "name": "Holiday"})).unwrap();
+    assert!(dir.0.join("real/Holiday/a.jpg").is_file());
+    let photo = s.catalog.photos().next().unwrap();
+    assert_eq!(photo.source, Source::File { path: at("Holiday/a.jpg") }, "the library follows the folder");
+    // undo and redo keep it
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.catalog.photos().next().unwrap().source, Source::File { path: at("Trip/a.jpg") });
+    s.execute("edit.redo", &json!({})).unwrap();
+    assert_eq!(s.catalog.photos().next().unwrap().source, Source::File { path: at("Holiday/a.jpg") });
+}

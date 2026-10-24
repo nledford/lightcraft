@@ -484,15 +484,41 @@ fn check_places(from: &str, to: &str) -> std::result::Result<(), String> {
     }
 }
 
+/// The destination is taken: refused unless it only differs from `from` by letter case.
+fn check_free(from: &str, to: &str) -> std::result::Result<(), String> {
+    let case_only = from != to && from.to_lowercase() == to.to_lowercase();
+    if Path::new(to).exists() && !case_only {
+        return Err(format!("{to} already exists"));
+    }
+    Ok(())
+}
+
+/// Every refusal a rename of `from` to `to` would make that can be known before it is tried: the places, a taken
+/// destination and, where the system says which disk a folder is on, a move to another disk. A move that goes on
+/// to change anything first (finishing sidecar repairs) calls this before it does.
+fn check_before_moving(from: &str, to: &str) -> std::result::Result<(), String> {
+    check_places(from, to)?;
+    check_free(from, to)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let parent = Path::new(to).parent().filter(|p| !p.as_os_str().is_empty());
+        if let (Ok(src), Some(Ok(dst))) = (std::fs::symlink_metadata(from), parent.map(std::fs::metadata))
+            && src.dev() != dst.dev()
+        {
+            return Err(move_error(from, to, &std::io::ErrorKind::CrossesDevices.into()));
+        }
+    }
+    Ok(())
+}
+
 /// [`rename_folder_on_disk`] with the file-system rename given, so a test can make it fail the
 /// way a disk does (another device, no permission).
 pub(crate) fn rename_folder_with(from: &str, to: &str, rename: &dyn Fn(&Path, &Path) -> std::io::Result<()>) -> std::result::Result<(), String> {
     let (src, dst) = (Path::new(from), Path::new(to));
     check_places(from, to)?;
+    check_free(from, to)?;
     let case_only = from != to && from.to_lowercase() == to.to_lowercase();
-    if dst.exists() && !case_only {
-        return Err(format!("{to} already exists"));
-    }
     if case_only {
         let tmp = src.with_file_name(format!(".lc-rename-{}", std::process::id()));
         if tmp.exists() {
@@ -714,15 +740,26 @@ pub(crate) fn move_folder(s: &mut Session, from: &str, to: &str) -> std::result:
             return Err(library_refusal(from, &at, &lib));
         }
     }
+    // A refusal that is already known changes nothing, the repairs included.
+    check_before_moving(from, to)?;
     // Repairs retain their exact old paths, including those on surviving history entries.
     // Complete them before the directory moves; an unavailable repair leaves it in place.
     s.repair_sidecars_with(&crate::rename::RealFs).map_err(|e| e.to_string())?;
     rename_folder_on_disk(from, to)?;
+    // photos are stored under the spelling they were added with: the folder as written, or as the disk has it
+    // (a link in the path to the folder, or to its parent, resolved); each keeps the spelling it has
+    let (real_src, real_dst) = (resolved(src), resolved(dst));
     let mut ops: Vec<Op> = s
         .catalog
         .photos()
         .filter_map(|p| match &p.source {
-            lightcraft_catalog::Source::File { path } => Path::new(path).strip_prefix(src).ok().map(|rel| (p.id, p.file_name.clone(), dst.join(rel))),
+            lightcraft_catalog::Source::File { path } => {
+                let path = Path::new(path);
+                match path.strip_prefix(src) {
+                    Ok(rel) => Some((p.id, p.file_name.clone(), dst.join(rel))),
+                    Err(_) => path.strip_prefix(&real_src).ok().map(|rel| (p.id, p.file_name.clone(), real_dst.join(rel))),
+                }
+            }
             _ => None,
         })
         .map(|(id, file_name, np)| Op::Relink {
@@ -734,7 +771,25 @@ pub(crate) fn move_folder(s: &mut Session, from: &str, to: &str) -> std::result:
         .collect();
     let n = ops.len();
     // what the library knows about the folder (and those inside it) goes along, in the same step
-    ops.extend(s.catalog.folder_records_follow(from, to));
+    let records = s.catalog.folder_records_follow(from, to);
+    // (the second pass may clear what the first already cleared at the destination, after the first carried
+    // something there: a clear of a key the first pass cleared is left out)
+    let cleared: std::collections::HashSet<String> = records
+        .iter()
+        .filter_map(|o| match o {
+            Op::SetFolderRecord { folder, record: None } => Some(folder.clone()),
+            _ => None,
+        })
+        .collect();
+    ops.extend(records);
+    if real_src != src {
+        ops.extend(
+            s.catalog
+                .folder_records_follow(&real_src.to_string_lossy(), &real_dst.to_string_lossy())
+                .into_iter()
+                .filter(|o| !matches!(o, Op::SetFolderRecord { folder, record: None } if cleared.contains(folder))),
+        );
+    }
     let name = Path::new(to).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
     let renamed = src.parent() == dst.parent();
     let label = if renamed { format!("Rename Folder to “{name}”") } else { format!("Move Folder “{name}”") };
