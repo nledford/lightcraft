@@ -259,7 +259,7 @@ pub struct Services {
     /// Open dialog for a monitor ICC profile (`.icc` / `.icm`; Settings ▸ Monitor; desktop only).
     pub pick_display_profile: Option<PickFiles>,
     /// The profile of the screen showing the window, used while none is chosen in Settings ▸
-    /// Display (macOS, whose windows aren't colour-managed: issue #787).
+    /// Monitor (macOS, whose windows aren't colour-managed: issue #787).
     pub screen_profile: Option<ScreenProfileFn>,
     /// Save dialog for an exported `.lcpreset` file.
     pub save_preset_file: Option<SaveFile>,
