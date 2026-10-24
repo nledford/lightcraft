@@ -475,7 +475,9 @@ fn check_places(from: &str, to: &str) -> std::result::Result<(), String> {
     if !src.is_dir() {
         return Err(source_refusal(from, &real_probe));
     }
-    if dst != src && dst.starts_with(src) {
+    // as written, and as the disk has it: a link in the destination's path can lead back into the folder
+    let (real_src, real_dst) = (resolved(src), resolved(dst));
+    if (dst != src && dst.starts_with(src)) || (real_dst != real_src && real_dst.starts_with(&real_src)) {
         return Err(format!("{} can't be moved into itself. Nothing was moved.", quoted(from)));
     }
     match dst.parent().filter(|p| !p.as_os_str().is_empty()) {

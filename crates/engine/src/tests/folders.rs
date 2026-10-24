@@ -1040,3 +1040,30 @@ fn a_folder_reached_through_a_link_moves_the_photos_stored_under_its_real_path()
     s.execute("edit.redo", &json!({})).unwrap();
     assert_eq!(s.catalog.photos().next().unwrap().source, Source::File { path: at("Holiday/a.jpg") });
 }
+
+#[cfg(unix)]
+#[test]
+fn a_label_carried_through_a_link_survives_an_old_record_at_the_destination() {
+    let dir = Scratch::new("linklabel");
+    // the disk's own spelling, so both passes over the folder's records name the destination alike
+    let root = dir.0.canonicalize().unwrap();
+    let at = |rel: &str| root.join(rel).to_string_lossy().to_string();
+    std::fs::create_dir_all(root.join("real/Trip")).unwrap();
+    std::fs::create_dir_all(root.join("real/Archive/Trip")).unwrap();
+    std::os::unix::fs::symlink(root.join("real"), root.join("alias")).unwrap();
+    std::fs::write(root.join("real/Trip/a.jpg"), b"x").unwrap();
+    std::fs::write(root.join("real/Archive/Trip/b.jpg"), b"x").unwrap();
+    let mut s = Session::new();
+    // Given a folder labeled through a link, and an old record left where it is going
+    add(&mut s, &at("alias/Trip/a.jpg"));
+    add(&mut s, &at("real/Archive/Trip/b.jpg"));
+    s.execute("folder.label", &json!({"path": at("alias/Trip"), "label": "red"})).unwrap();
+    s.execute("folder.label", &json!({"path": at("real/Archive/Trip"), "label": "blue"})).unwrap();
+    s.execute("library.removeFolder", &json!({"path": at("real/Archive/Trip")})).unwrap();
+    std::fs::remove_dir_all(root.join("real/Archive/Trip")).unwrap();
+    // When it is moved there through the link
+    s.execute("folder.move", &json!({"path": at("alias/Trip"), "into": at("real/Archive")})).unwrap();
+    // Then it keeps its own label, not the old record's, and not none
+    assert!(root.join("real/Archive/Trip/a.jpg").is_file());
+    assert_eq!(listed_label(&mut s, &at("real/Archive/Trip")).as_deref(), Some("red"));
+}
