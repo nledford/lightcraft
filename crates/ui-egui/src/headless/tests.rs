@@ -4185,7 +4185,7 @@ fn display_profile_converts_previews() {
     h.step();
     assert!(h.app.display_error.as_deref().is_some_and(|e| e.contains("not a valid ICC profile")), "{:?}", h.app.display_error);
     assert_eq!(h.app.renderer.display_id(), None);
-    // the Display tab shows it
+    // the Monitor tab shows it
     let r = h.request("engine.execute", json!({"command": "app.settings", "params": {"tab": "display"}}), t);
     assert_eq!(r["ok"], true, "{r}");
     h.step();
