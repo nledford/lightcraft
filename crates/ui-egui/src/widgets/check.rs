@@ -162,12 +162,13 @@ pub struct Radio<'a, V> {
     label: &'a str,
     enabled: bool,
     tooltip: Option<&'a str>,
+    translated: bool,
 }
 
 impl<'a, V: PartialEq> Radio<'a, V> {
     /// A radio for `value`, addressable as `radio:{id}`.
     pub fn new(id: &'a str, current: &'a mut V, value: V, label: &'a str) -> Self {
-        Radio { id, current, value, label, enabled: true, tooltip: None }
+        Radio { id, current, value, label, enabled: true, tooltip: None, translated: false }
     }
 
     pub fn enabled(mut self, enabled: bool) -> Self {
@@ -177,6 +178,13 @@ impl<'a, V: PartialEq> Radio<'a, V> {
 
     pub fn tooltip(mut self, text: &'a str) -> Self {
         self.tooltip = Some(text);
+        self
+    }
+
+    /// The label is already in the chosen language (a `tr_format!` result with a value in it), so
+    /// it is drawn as it is instead of being looked up as an English key.
+    pub fn translated(mut self) -> Self {
+        self.translated = true;
         self
     }
 
@@ -194,7 +202,7 @@ impl<'a, V: PartialEq> Radio<'a, V> {
                 form: Form::Round,
                 on,
                 emphasis: Emphasis::Normal,
-                translated: false,
+                translated: self.translated,
                 accessible_name: None,
             },
         );
