@@ -2236,5 +2236,11 @@
   "Queued: it starts when the task ahead of it ends": "Trong hàng đợi: bắt đầu khi tác vụ trước nó kết thúc",
   "Another library was opened: nothing was done": "Đã mở thư viện khác: không có gì được thực hiện",
   "Photos of the folder changed while it was read: nothing was done": "Ảnh trong thư mục đã thay đổi trong lúc đọc: không có gì được thực hiện",
-  "Starts next": "Bắt đầu tiếp theo"
+  "Starts next": "Bắt đầu tiếp theo",
+  "Queue without review": "Đưa vào hàng đợi không xem lại",
+  "Review…": "Xem lại…",
+  "A folder is already being scanned": "Một thư mục đang được quét",
+  "Without review: add in place": "Không xem lại: thêm tại chỗ",
+  "Without review: copy into the library": "Không xem lại: sao chép vào thư viện",
+  "Close the open dialog, then choose Review… again": "Hãy đóng hộp thoại đang mở, rồi chọn lại Xem lại…"
 }

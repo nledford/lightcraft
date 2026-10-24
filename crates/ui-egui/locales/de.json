@@ -3441,5 +3441,11 @@
   "Queued: it starts when the task ahead of it ends": "In der Warteschlange: startet, wenn die Aufgabe davor endet",
   "Another library was opened: nothing was done": "Eine andere Bibliothek wurde geöffnet: es wurde nichts getan",
   "Photos of the folder changed while it was read: nothing was done": "Fotos des Ordners haben sich beim Lesen geändert: es wurde nichts getan",
-  "Starts next": "Startet als Nächstes"
+  "Starts next": "Startet als Nächstes",
+  "Queue without review": "Ohne Prüfung einreihen",
+  "Review…": "Prüfen…",
+  "A folder is already being scanned": "Ein Ordner wird bereits durchsucht",
+  "Without review: add in place": "Ohne Prüfung: am Speicherort hinzufügen",
+  "Without review: copy into the library": "Ohne Prüfung: in die Bibliothek kopieren",
+  "Close the open dialog, then choose Review… again": "Schließe den geöffneten Dialog und wähle dann erneut Prüfen…"
 }

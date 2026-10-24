@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "In coda: parte dopo altre attività ({n})",
   "Left alone: {n} (synchronize again to review them)": "Lasciati invariati: {n} (sincronizza di nuovo per rivederli)",
   "Starts after {n} more": "Parte dopo altre attività ({n})",
-  "Remove from Queue: {label}": "Rimuovi dalla coda: {label}"
+  "Remove from Queue: {label}": "Rimuovi dalla coda: {label}",
+  "Without review: copy to {destination}": "Senza revisione: copia in {destination}"
 }

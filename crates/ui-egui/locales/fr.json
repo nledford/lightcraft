@@ -2391,5 +2391,11 @@
   "Queued: it starts when the task ahead of it ends": "En file : démarre à la fin de la tâche précédente",
   "Another library was opened: nothing was done": "Une autre bibliothèque a été ouverte : rien n’a été fait",
   "Photos of the folder changed while it was read: nothing was done": "Les photos du dossier ont changé pendant la lecture : rien n’a été fait",
-  "Starts next": "Démarre ensuite"
+  "Starts next": "Démarre ensuite",
+  "Queue without review": "Mettre en file sans vérifier",
+  "Review…": "Vérifier…",
+  "A folder is already being scanned": "Un dossier est déjà en cours d'analyse",
+  "Without review: add in place": "Sans vérification : ajouter sur place",
+  "Without review: copy into the library": "Sans vérification : copier dans la bibliothèque",
+  "Close the open dialog, then choose Review… again": "Fermez la boîte de dialogue ouverte, puis choisissez à nouveau Vérifier…"
 }

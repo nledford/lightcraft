@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "W kolejce: rozpocznie się po kolejnych zadaniach ({n})",
   "Left alone: {n} (synchronize again to review them)": "Pominięto: {n} (zsynchronizuj ponownie, aby je sprawdzić)",
   "Starts after {n} more": "Rozpocznie się po kolejnych zadaniach ({n})",
-  "Remove from Queue: {label}": "Usuń z kolejki: {label}"
+  "Remove from Queue: {label}": "Usuń z kolejki: {label}",
+  "Without review: copy to {destination}": "Bez sprawdzania: kopiuj do {destination}"
 }

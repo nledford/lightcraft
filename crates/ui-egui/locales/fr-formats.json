@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "En file : démarre après {n} autre(s) tâche(s)",
   "Left alone: {n} (synchronize again to review them)": "Laissés tels quels : {n} (synchronisez à nouveau pour les examiner)",
   "Starts after {n} more": "Démarre après {n} autre(s) tâche(s)",
-  "Remove from Queue: {label}": "Retirer de la file : {label}"
+  "Remove from Queue: {label}": "Retirer de la file : {label}",
+  "Without review: copy to {destination}": "Sans vérification : copier vers {destination}"
 }

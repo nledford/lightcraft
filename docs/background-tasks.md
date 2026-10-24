@@ -70,6 +70,12 @@ Jobs that must not run side by side share a lane (`activity::Lane`). There are t
   Import lists its folder only when nothing runs, rescans or waits in this lane; files it finds after something
   started meanwhile wait in line, quietly. A drop while a scan runs or an import's review waits behind a dialog is
   still refused.
+  While this lane is busy, the stack's row of the review's folder scan (kind `scan`, "Scanning folder") has Queue
+  without review: the scan is let go and the folder waits as an import asked as the last confirmed review brought its
+  files in (`import_queue::plan`: add in place, or copy with its destination, folders, names and DNG conversion, never Move; with none,
+  add in place, or copy for a card). Its waiting row says so ("Without review: add in place", "…copy to <folder>") and
+  has Review…, which takes it out of the line and scans it for the usual review, or is refused with a toast while
+  another folder is being scanned or a finished scan's review waits for a dialog to close. The notes of the last review and of the queued rows are kept in memory only.
 
 A call that sets `queue: true` while its lane is busy does not fail:
 `Activity::enqueue` keeps what it was asked (`Request`: the command and its parameters, with the photos written out)

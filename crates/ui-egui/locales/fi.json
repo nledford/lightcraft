@@ -2328,5 +2328,11 @@
   "Queued: it starts when the task ahead of it ends": "Jonossa: alkaa, kun sen edellä oleva tehtävä päättyy",
   "Another library was opened: nothing was done": "Toinen kirjasto avattiin: mitään ei tehty",
   "Photos of the folder changed while it was read: nothing was done": "Kansion valokuvat muuttuivat lukemisen aikana: mitään ei tehty",
-  "Starts next": "Alkaa seuraavaksi"
+  "Starts next": "Alkaa seuraavaksi",
+  "Queue without review": "Lisää jonoon ilman tarkistusta",
+  "Review…": "Tarkista…",
+  "A folder is already being scanned": "Kansiota skannataan jo",
+  "Without review: add in place": "Ilman tarkistusta: lisää paikalleen",
+  "Without review: copy into the library": "Ilman tarkistusta: kopioi kirjastoon",
+  "Close the open dialog, then choose Review… again": "Sulje avoin valintaikkuna ja valitse sitten Tarkista… uudelleen"
 }

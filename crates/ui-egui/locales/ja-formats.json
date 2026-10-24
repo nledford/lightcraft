@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "キューに追加: あと {n} 件の後に開始します",
   "Left alone: {n} (synchronize again to review them)": "そのまま: {n} 件（再度同期して確認してください）",
   "Starts after {n} more": "あと {n} 件の後に開始します",
-  "Remove from Queue: {label}": "キューから削除: {label}"
+  "Remove from Queue: {label}": "キューから削除: {label}",
+  "Without review: copy to {destination}": "確認なし: {destination} にコピー"
 }

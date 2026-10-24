@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "Ve frontě: začne po dalších úlohách: {n}",
   "Left alone: {n} (synchronize again to review them)": "Ponecháno: {n} (pro kontrolu synchronizujte znovu)",
   "Starts after {n} more": "Začne po dalších úlohách: {n}",
-  "Remove from Queue: {label}": "Odebrat z fronty: {label}"
+  "Remove from Queue: {label}": "Odebrat z fronty: {label}",
+  "Without review: copy to {destination}": "Bez kontroly: kopírovat do {destination}"
 }

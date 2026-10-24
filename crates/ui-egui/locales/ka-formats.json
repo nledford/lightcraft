@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "რიგშია: დაიწყება კიდევ {n}-ის შემდეგ",
   "Left alone: {n} (synchronize again to review them)": "უცვლელი დარჩა: {n} (გადასახედად თავიდან დაასინქრონეთ)",
   "Starts after {n} more": "დაიწყება კიდევ {n}-ის შემდეგ",
-  "Remove from Queue: {label}": "რიგიდან ამოღება: {label}"
+  "Remove from Queue: {label}": "რიგიდან ამოღება: {label}",
+  "Without review: copy to {destination}": "გადახედვის გარეშე: კოპირება: {destination}"
 }

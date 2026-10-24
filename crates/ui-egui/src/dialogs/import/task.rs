@@ -1,6 +1,7 @@
 use super::scan::wait_in_line;
 use super::{
-    ImportDialog, ImportUprightMode, ImportWarning, ImportWarningCode, LightcraftApp, Ordering, Request, Value, drop_blocked, json, library_busy,
+    ImportDialog, ImportUprightMode, ImportWarning, ImportWarningCode, LightcraftApp, Ordering, Remembered, Request, Value, drop_blocked, json,
+    library_busy,
 };
 
 /// Files per batch in the browser build (each batch joins the catalog as it is ready, so the
@@ -252,9 +253,15 @@ pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String>
     }
     // the review's thumbnails are done with, whether it runs now or later
     app.renderer.forget_imports();
+    // (what a folder queued without a review is asked: the way these files come in, never the batch's own choices;
+    // kept once the import is taken, not when the line is full)
+    let how = Remembered::of(&params);
     if waits {
-        return wait_in_line(app, &queue, &params, false);
+        let queued = wait_in_line(app, &queue, &params, false)?;
+        app.last_import = Some(how);
+        return Ok(queued);
     }
+    app.last_import = Some(how);
     let total = queue.len();
     app.import = Some(ImportTask::new(queue, params, undo0, false));
     Ok(json!({"importing": total}))

@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "Jonossa: alkaa {n} muun jälkeen",
   "Left alone: {n} (synchronize again to review them)": "Jätetty ennalleen: {n} (synkronoi uudelleen tarkistaaksesi)",
   "Starts after {n} more": "Alkaa {n} muun jälkeen",
-  "Remove from Queue: {label}": "Poista jonosta: {label}"
+  "Remove from Queue: {label}": "Poista jonosta: {label}",
+  "Without review: copy to {destination}": "Ilman tarkistusta: kopioi kohteeseen {destination}"
 }

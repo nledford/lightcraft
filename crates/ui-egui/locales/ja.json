@@ -2357,5 +2357,11 @@
   "Queued: it starts when the task ahead of it ends": "キューに追加: 前のタスクが終わると開始します",
   "Another library was opened: nothing was done": "別のライブラリが開かれました: 何も行われていません",
   "Photos of the folder changed while it was read: nothing was done": "読み取り中にフォルダ内の写真が変更されました: 何も行われていません",
-  "Starts next": "次に開始します"
+  "Starts next": "次に開始します",
+  "Queue without review": "確認せずにキューに追加",
+  "Review…": "確認…",
+  "A folder is already being scanned": "別のフォルダをスキャン中です",
+  "Without review: add in place": "確認なし: 現在の場所から追加",
+  "Without review: copy into the library": "確認なし: ライブラリにコピー",
+  "Close the open dialog, then choose Review… again": "開いているダイアログを閉じてから、もう一度「確認…」を選んでください"
 }

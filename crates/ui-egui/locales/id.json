@@ -2340,5 +2340,11 @@
   "Queued: it starts when the task ahead of it ends": "Dalam antrean: dimulai saat tugas di depannya selesai",
   "Another library was opened: nothing was done": "Pustaka lain dibuka: tidak ada yang dilakukan",
   "Photos of the folder changed while it was read: nothing was done": "Foto di folder berubah saat dibaca: tidak ada yang dilakukan",
-  "Starts next": "Dimulai berikutnya"
+  "Starts next": "Dimulai berikutnya",
+  "Queue without review": "Antrekan tanpa tinjauan",
+  "Review…": "Tinjau…",
+  "A folder is already being scanned": "Sebuah folder sedang dipindai",
+  "Without review: add in place": "Tanpa tinjauan: tambahkan di lokasi asli",
+  "Without review: copy into the library": "Tanpa tinjauan: salin ke pustaka",
+  "Close the open dialog, then choose Review… again": "Tutup dialog yang terbuka, lalu pilih Tinjau… lagi"
 }

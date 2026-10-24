@@ -2735,5 +2735,11 @@
   "Queued: it starts when the task ahead of it ends": "რიგშია: დაიწყება, როცა წინა ამოცანა დასრულდება",
   "Another library was opened: nothing was done": "სხვა ბიბლიოთეკა გაიხსნა: არაფერი გაკეთებულა",
   "Photos of the folder changed while it was read: nothing was done": "საქაღალდის ფოტოები წაკითხვისას შეიცვალა: არაფერი გაკეთებულა",
-  "Starts next": "დაიწყება შემდეგი"
+  "Starts next": "დაიწყება შემდეგი",
+  "Queue without review": "რიგში დამატება გადახედვის გარეშე",
+  "Review…": "გადახედვა…",
+  "A folder is already being scanned": "საქაღალდე უკვე სკანირდება",
+  "Without review: add in place": "გადახედვის გარეშე: ადგილზე დამატება",
+  "Without review: copy into the library": "გადახედვის გარეშე: ბიბლიოთეკაში კოპირება",
+  "Close the open dialog, then choose Review… again": "დახურეთ გახსნილი დიალოგი და ხელახლა აირჩიეთ „გადახედვა…“"
 }

@@ -28,6 +28,7 @@ mod frame_rate;
 pub mod headless;
 pub mod i18n;
 pub mod icons;
+mod import_queue;
 pub mod lightroom_import;
 pub mod links;
 pub mod menus;
@@ -298,6 +299,10 @@ pub struct LightcraftApp {
     pub import: Option<import::ImportTask>,
     /// A folder scan in progress (feeds the import review).
     pub scan: Option<import::ScanTask>,
+    /// How the last confirmed import review brought its files in (this run only): what "Queue without review" asks.
+    pub(crate) last_import: Option<import_queue::Remembered>,
+    /// The imports waiting in line that were queued without a review, by their task id.
+    pub(crate) unreviewed: Vec<import::Unreviewed>,
     /// A Synchronize Folder scan in progress (feeds its dialog).
     pub sync: Option<sync::SyncTask>,
     /// `session.folder_changes` came from the Synchronize Folder dialog (and goes with it).

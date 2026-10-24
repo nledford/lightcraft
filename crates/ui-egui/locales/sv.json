@@ -2430,5 +2430,11 @@
   "Queued: it starts when the task ahead of it ends": "I kö: startar när uppgiften före är klar",
   "Another library was opened: nothing was done": "Ett annat bibliotek öppnades: ingenting gjordes",
   "Photos of the folder changed while it was read: nothing was done": "Fotona i mappen ändrades medan den lästes: ingenting gjordes",
-  "Starts next": "Startar härnäst"
+  "Starts next": "Startar härnäst",
+  "Queue without review": "Köa utan granskning",
+  "Review…": "Granska…",
+  "A folder is already being scanned": "En mapp skannas redan",
+  "Without review: add in place": "Utan granskning: lägg till på plats",
+  "Without review: copy into the library": "Utan granskning: kopiera till biblioteket",
+  "Close the open dialog, then choose Review… again": "Stäng den öppna dialogrutan och välj sedan Granska… igen"
 }

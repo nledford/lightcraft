@@ -2359,5 +2359,11 @@
   "Queued: it starts when the task ahead of it ends": "En cola: empieza cuando termine la tarea anterior",
   "Another library was opened: nothing was done": "Se abrió otra biblioteca: no se hizo nada",
   "Photos of the folder changed while it was read: nothing was done": "Las fotos de la carpeta cambiaron mientras se leía: no se hizo nada",
-  "Starts next": "Empieza la siguiente"
+  "Starts next": "Empieza la siguiente",
+  "Queue without review": "Poner en cola sin revisar",
+  "Review…": "Revisar…",
+  "A folder is already being scanned": "Ya se está analizando una carpeta",
+  "Without review: add in place": "Sin revisar: añadir sin mover",
+  "Without review: copy into the library": "Sin revisar: copiar en la biblioteca",
+  "Close the open dialog, then choose Review… again": "Cierra el cuadro de diálogo abierto y elige Revisar… de nuevo"
 }

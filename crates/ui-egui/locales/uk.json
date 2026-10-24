@@ -2355,5 +2355,11 @@
   "Queued: it starts when the task ahead of it ends": "У черзі: почнеться, коли завершиться попереднє завдання",
   "Another library was opened: nothing was done": "Відкрито іншу бібліотеку: нічого не зроблено",
   "Photos of the folder changed while it was read: nothing was done": "Фотографії в теці змінилися під час читання: нічого не зроблено",
-  "Starts next": "Почнеться наступним"
+  "Starts next": "Почнеться наступним",
+  "Queue without review": "Поставити в чергу без перевірки",
+  "Review…": "Перевірити…",
+  "A folder is already being scanned": "Тека вже сканується",
+  "Without review: add in place": "Без перевірки: додати на місці",
+  "Without review: copy into the library": "Без перевірки: копіювати до бібліотеки",
+  "Close the open dialog, then choose Review… again": "Закрийте відкрите вікно та ще раз виберіть «Перевірити…»"
 }
