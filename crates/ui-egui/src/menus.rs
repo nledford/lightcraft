@@ -580,7 +580,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             };
             // (where the host has no system setting to read, following would turn off a choice made
             // for nothing, and report a system that is not there)
-            if follow == Some(true) && app.services.system_reduce_motion.is_none() {
+            if follow == Some(true) && !app.system_reduce_motion_available() {
                 return Some(Err("view.reduceMotion: this system has no Reduce Motion setting to follow".into()));
             }
             app.ui.settings.reduce_motion = if follow == Some(true) { None } else { Some(on.unwrap_or(!app.reduce_motion())) };
