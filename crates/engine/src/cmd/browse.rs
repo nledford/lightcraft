@@ -548,6 +548,8 @@ fn move_folders(s: &mut Session, p: &Value) -> Result<Value> {
     if let Some(why) = batch_refusal(&folders, into) {
         return Err(crate::EngineError::Other(why));
     }
+    // (the first move drops the redo history; a batch that ends up undone gets it back)
+    let saved_redo = s.redo.clone();
     let mut places = Vec::new();
     let mut relinked = 0;
     for from in &folders {
@@ -563,7 +565,16 @@ fn move_folders(s: &mut Session, p: &Value) -> Result<Value> {
                     }
                 }
                 if !places.is_empty() {
-                    s.redo.clear();
+                    if back.is_empty() {
+                        // nothing changed after all: what could be redone still can. Their sidecar
+                        // repairs were completed by the repair the first move starts with.
+                        s.redo = saved_redo;
+                        for e in &mut s.redo {
+                            e.retry_sidecars.clear();
+                        }
+                    } else {
+                        s.redo.clear();
+                    }
                 }
                 return Err(crate::EngineError::Other(format!("{e}{back}")));
             }

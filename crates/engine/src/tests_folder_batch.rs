@@ -193,3 +193,25 @@ fn more_than_200_folders_at_once_are_refused() {
     let e = Session::new().execute("folder.move", &json!({"paths": paths, "into": archive})).unwrap_err().to_string();
     assert!(e.contains("at most 200"), "{e}");
 }
+
+/// A batch that fails after some folders moved, and puts them back, leaves the history as it was:
+/// what had been undone before can still be redone.
+#[test]
+fn a_batch_that_fails_late_keeps_the_redo_history() {
+    let dir = Scratch::new("redo-late");
+    let (a, c, archive) = (dir.dir("a"), dir.dir("c"), dir.dir("archive"));
+    let b = dir.dir("b");
+    let mut s = Session::new();
+    s.open_library(dir.0.join("b").join("lib"), false).unwrap();
+    add(&mut s, &format!("{a}/one.jpg"));
+    add(&mut s, &format!("{c}/two.jpg"));
+    s.execute("folder.move", &json!({"path": c, "into": archive.clone()})).unwrap();
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.redo.len(), 1);
+    // `a` moves, then the library's own folder refuses and `a` goes back
+    s.execute("folder.move", &json!({"paths": [a, b], "into": archive})).unwrap_err();
+    assert!(dir.0.join("a").is_dir());
+    assert_eq!(s.redo.len(), 1, "the undone move is still there to redo");
+    s.execute("edit.redo", &json!({})).unwrap();
+    assert!(dir.0.join("archive/c").is_dir() && !dir.0.join("c").exists());
+}
