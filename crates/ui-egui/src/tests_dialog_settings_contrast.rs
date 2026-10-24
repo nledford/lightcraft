@@ -74,13 +74,24 @@ fn text_colour(h: &Headless, part: &str) -> Color32 {
     h.view.painted_shapes().iter().find_map(|shape| find(shape, part)).unwrap_or_else(|| panic!("no text with {part:?} is drawn"))
 }
 
-/// The most any pixel of `rect` stands out from `ground` (one pixel per point here).
-fn strongest(image: &egui::ColorImage, rect: egui::Rect, ground: Color32) -> f32 {
+/// How much of an edge stands `ratio` against `ground`: the largest share, over the rows of `rect` (or its
+/// columns, when `horizontal` is false), of that line's pixels that do. One bright antialiased pixel does not
+/// make a border; a line that is mostly at the ratio does (one pixel per point here).
+fn edge_share(image: &egui::ColorImage, rect: egui::Rect, ground: Color32, ratio: f32, horizontal: bool) -> f32 {
     let [w, h] = image.size;
     let (x0, x1) = (rect.left().floor().max(0.0) as usize, (rect.right().ceil().max(0.0) as usize).min(w));
     let (y0, y1) = (rect.top().floor().max(0.0) as usize, (rect.bottom().ceil().max(0.0) as usize).min(h));
-    (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))).map(|(x, y)| contrast(image.pixels[y * w + x], ground)).fold(1.0, f32::max)
+    let stands = |x: usize, y: usize| contrast(image.pixels[y * w + x], ground) >= ratio;
+    if horizontal {
+        (y0..y1).map(|y| (x0..x1).filter(|x| stands(*x, y)).count() as f32 / (x1 - x0).max(1) as f32).fold(0.0, f32::max)
+    } else {
+        (x0..x1).map(|x| (y0..y1).filter(|y| stands(x, *y)).count() as f32 / (y1 - y0).max(1) as f32).fold(0.0, f32::max)
+    }
 }
+
+/// Share of a straight edge that must stand the ratio; a radio button's ring is a curve, so it gets half.
+const STRAIGHT: f32 = 0.75;
+const CURVED: f32 = 0.5;
 
 #[test]
 fn a_colour_is_made_legible_only_where_it_is_not() {
@@ -148,7 +159,8 @@ fn the_lines_that_say_where_a_control_is_stand_out_in_every_theme() {
         let field = rect(&h, "field:externalEditor");
         let edge =
             egui::Rect::from_min_max(egui::pos2(field.center().x - 20.0, field.top() - 1.0), egui::pos2(field.center().x + 20.0, field.top() + 2.0));
-        assert!(strongest(&image, edge, t.chrome) >= 3.0, "{kind:?}: a text box's border is {:.2}:1", strongest(&image, edge, t.chrome));
+        let share = edge_share(&image, edge, t.chrome, 3.0, true);
+        assert!(share >= STRAIGHT, "{kind:?}: only {share:.2} of a text box's border stands 3:1");
         // A button's border: the top edge of Performance's "Clear Cache"
         show(&mut h, "performance");
         let image = h.paint();
@@ -157,14 +169,16 @@ fn the_lines_that_say_where_a_control_is_stand_out_in_every_theme() {
             egui::pos2(button.center().x - 20.0, button.top() - 1.0),
             egui::pos2(button.center().x + 20.0, button.top() + 2.0),
         );
-        assert!(strongest(&image, edge, t.chrome) >= 3.0, "{kind:?}: a button's border is {:.2}:1", strongest(&image, edge, t.chrome));
+        let share = edge_share(&image, edge, t.chrome, 3.0, true);
+        assert!(share >= STRAIGHT, "{kind:?}: only {share:.2} of a button's border stands 3:1");
         // A checkbox's border: the left edge of its box (unticked: the GPU is off here)
         show(&mut h, "performance");
         let image = h.paint();
         let check = rect(&h, "check:settings.gpu");
         let side =
             egui::Rect::from_min_max(egui::pos2(check.left() - 1.0, check.center().y - 2.0), egui::pos2(check.left() + 5.0, check.center().y + 2.0));
-        assert!(strongest(&image, side, t.chrome) >= 3.0, "{kind:?}: a checkbox's border is {:.2}:1", strongest(&image, side, t.chrome));
+        let share = edge_share(&image, side, t.chrome, 3.0, false);
+        assert!(share >= STRAIGHT, "{kind:?}: only {share:.2} of a checkbox's border stands 3:1");
         // A radio button on a theme's card, which is on the card's own fill: the one not chosen
         show(&mut h, "interface");
         let image = h.paint();
@@ -172,7 +186,8 @@ fn the_lines_that_say_where_a_control_is_stand_out_in_every_theme() {
         let radio = rect(&h, other);
         let ring =
             egui::Rect::from_min_max(egui::pos2(radio.left() - 1.0, radio.center().y - 2.0), egui::pos2(radio.left() + 4.0, radio.center().y + 2.0));
-        assert!(strongest(&image, ring, t.inset) >= 3.0, "{kind:?}: a radio button on a card is {:.2}:1", strongest(&image, ring, t.inset));
+        let share = edge_share(&image, ring, t.inset, 3.0, false);
+        assert!(share >= CURVED, "{kind:?}: only {share:.2} of a radio button's ring on a card stands 3:1");
     }
 }
 
@@ -198,18 +213,31 @@ fn a_text_box_in_use_is_outlined_so_it_stands_out_in_every_theme() {
             egui::Rect::from_min_max(egui::pos2(field.center().x - 20.0, field.top() - 1.0), egui::pos2(field.center().x + 20.0, field.top() + 2.0));
         let outline = added_by_focus(&unfocused, &focused, edge);
         assert!(!outline.is_empty(), "{kind:?}: the text box in use looks the same as when it is not");
-        let best = outline.iter().map(|c| contrast(*c, t.chrome)).fold(1.0, f32::max);
-        assert!(best >= 3.0, "{kind:?}: a text box in use is outlined {best:.2}:1");
+        // (along the edge's busiest row, most of its pixels are ones focus added at 3:1)
+        let columns = (edge.right().ceil() - edge.left().floor()).max(1.0);
+        let share = outline.iter().filter(|(_, c)| contrast(*c, t.chrome) >= 3.0).fold(
+            std::collections::HashMap::<usize, usize>::new(),
+            |mut rows, (y, _)| {
+                *rows.entry(*y).or_default() += 1;
+                rows
+            },
+        );
+        let best = share.values().copied().max().unwrap_or(0) as f32 / columns;
+        assert!(best >= STRAIGHT, "{kind:?}: only {best:.2} of a text box's edge in use is outlined at 3:1");
     }
 }
 
-/// The colours of the pixels of `rect` that differ between `before` and `after`.
-fn added_by_focus(before: &egui::ColorImage, after: &egui::ColorImage, rect: egui::Rect) -> Vec<Color32> {
+/// The row and colour of the pixels of `rect` that differ between `before` and `after`.
+fn added_by_focus(before: &egui::ColorImage, after: &egui::ColorImage, rect: egui::Rect) -> Vec<(usize, Color32)> {
     let [w, h] = after.size;
     assert_eq!(before.size, after.size);
     let (x0, x1) = (rect.left().floor().max(0.0) as usize, (rect.right().ceil().max(0.0) as usize).min(w));
     let (y0, y1) = (rect.top().floor().max(0.0) as usize, (rect.bottom().ceil().max(0.0) as usize).min(h));
-    (y0..y1).flat_map(|y| (x0..x1).map(move |x| y * w + x)).filter(|i| before.pixels[*i] != after.pixels[*i]).map(|i| after.pixels[i]).collect()
+    (y0..y1)
+        .flat_map(|y| (x0..x1).map(move |x| y * w + x))
+        .filter(|i| before.pixels[*i] != after.pixels[*i])
+        .map(|i| (i / w, after.pixels[i]))
+        .collect()
 }
 
 #[test]
