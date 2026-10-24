@@ -49,10 +49,15 @@ impl Lane {
 
 /// What a job was asked: the command and its parameters, with everything that depends on the moment (the
 /// selection, the photos in view) written out, so that running it later does the same work.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Request {
     pub command: String,
     pub params: Value,
+    /// What it works on, for its row while it waits (a folder's name), worded as the frontend shows it; empty: nothing
+    /// more than its label.
+    pub subject: String,
+    /// What else is known of it while it waits (how many photos, how they come in), after the subject.
+    pub facts: String,
 }
 
 /// A task waiting in line ([`Activity::enqueue`]), as [`Activity::take_ready`] hands it over to be started.
@@ -75,13 +80,14 @@ impl Waiting {
             done: 0,
             total: 0,
             unit: Unit::Count,
-            detail: String::new(),
+            detail: capped(&self.request.subject),
             cancellable: true,
             cancelling: false,
             age_ms: millis(self.queued.elapsed()),
             waiting: true,
             place,
             lane: Some(self.lane),
+            facts: capped(&self.request.facts),
         }
     }
 }
@@ -166,6 +172,8 @@ pub struct TaskInfo {
     /// Its place in its lane's line, from 1; 0 for a running task.
     pub place: usize,
     pub lane: Option<Lane>,
+    /// Waiting tasks: what else is known of the task besides what it works on (`detail`).
+    pub facts: String,
 }
 
 struct Entry {
@@ -245,6 +253,7 @@ impl Entry {
             waiting: false,
             place: 0,
             lane: Lane::of(self.kind),
+            facts: String::new(),
         }
     }
 }
@@ -622,7 +631,7 @@ mod tests {
     }
 
     fn request(command: &str) -> Request {
-        Request { command: command.into(), params: serde_json::json!({}) }
+        Request { command: command.into(), params: serde_json::json!({}), ..Default::default() }
     }
 
     #[test]
@@ -710,13 +719,27 @@ mod tests {
         assert!(a.take_ready().is_none());
     }
 
+    /// Given a task asked for with a subject and facts, when it waits, then its row says them (`detail`, `facts`),
+    /// capped like any detail; a task asked for without says nothing.
+    #[test]
+    fn a_waiting_task_says_what_it_is_about() {
+        let a = Activity::default();
+        let _running = a.start("import", "Importing", Cancel::Yes);
+        let named = Request { subject: "é".repeat(300), facts: "3 photos".into(), ..request("app:import") };
+        a.enqueue("import", "Importing", named).unwrap();
+        a.enqueue("import", "Importing", request("app:import")).unwrap();
+        let rows = a.waiting();
+        assert_eq!((rows[0].detail.chars().count(), rows[0].facts.as_str()), (200, "3 photos"));
+        assert_eq!((rows[1].detail.as_str(), rows[1].facts.as_str()), ("", ""));
+    }
+
     /// The engine starts only the requests it can run; one it can't (an app import) holds its lane for the app, and a
     /// later one in that lane never jumps it. Other lanes go on.
     #[test]
     fn each_frontend_starts_only_what_it_can_run_and_no_task_jumps_its_line() {
         let a = Activity::default();
-        let app = |p: u64| Request { command: "app:import".into(), params: serde_json::json!({ "n": p }) };
-        let engine = |p: u64| Request { command: "library.import".into(), params: serde_json::json!({ "n": p }) };
+        let app = |p: u64| Request { command: "app:import".into(), params: serde_json::json!({ "n": p }), ..Default::default() };
+        let engine = |p: u64| Request { command: "library.import".into(), params: serde_json::json!({ "n": p }), ..Default::default() };
         let (first, _) = a.enqueue("import", "Importing", app(1)).unwrap();
         let (second, _) = a.enqueue("import", "Importing", engine(2)).unwrap();
         let (previews, _) = a.enqueue("previews", "Building previews", request("library.buildPreviews")).unwrap();

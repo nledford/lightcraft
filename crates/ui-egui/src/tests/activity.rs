@@ -113,6 +113,7 @@ fn count_text_by_unit() {
         waiting: false,
         place: 0,
         lane: None,
+        facts: String::new(),
     };
     assert_eq!(count_text(&t), "3 of 25");
     (t.done, t.total, t.unit) = (12 * 1_048_576, 340 * 1_048_576, Unit::Bytes);

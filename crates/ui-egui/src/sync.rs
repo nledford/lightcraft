@@ -347,6 +347,8 @@ fn sync_request(path: &str, name: &str, disk: bool, choice: SyncChoice, shown: &
             "importNew": choice.import_new, "relinkMoved": choice.relink_moved, "removeMissing": choice.remove_missing, "readMetadata": choice.read_metadata,
             "missing": shown.missing, "moved": shown.moved, "metadata": shown.metadata,
         }),
+        subject: name.to_string(),
+        facts: String::new(),
     }
 }
 

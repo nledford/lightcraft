@@ -28,8 +28,40 @@ fn scan_guard(app: &LightcraftApp, progress: &ScanProgress, browse: bool) -> lig
 /// `library.import` params.
 pub const IMPORT_REQUEST: &str = "app:import";
 
-fn import_request(paths: &[String], params: &Value, auto: bool) -> Request {
-    Request { command: IMPORT_REQUEST.into(), params: json!({"paths": paths, "params": params, "auto": auto}) }
+/// `sources`: the folders or files the person chose, which name the import; `counted`: `paths` are the photos the
+/// review counted (dropped folders are not counted until they are read).
+fn import_request(paths: &[String], params: &Value, auto: bool, sources: &[String], counted: bool) -> Request {
+    Request {
+        command: IMPORT_REQUEST.into(),
+        params: json!({"paths": paths, "params": params, "auto": auto}),
+        subject: subject_of(sources),
+        facts: facts_of(counted.then_some(paths.len()), params["mode"].as_str().unwrap_or("add")),
+    }
+}
+
+/// What an import is about, for its rows: the source folder's (or file's) name, or how many sources there are. Empty
+/// when it is not known where the photos come from.
+fn subject_of(sources: &[String]) -> String {
+    match sources {
+        [] => String::new(),
+        [one] => {
+            std::path::Path::new(one.trim_end_matches(['/', '\\'])).file_name().map_or_else(|| one.clone(), |n| n.to_string_lossy().into_owned())
+        }
+        many => crate::i18n::tr_format!("{} item{}", many.len(), "s"),
+    }
+}
+
+/// What else an import waiting in line says: how many photos (when the review counted them) and how they come in.
+fn facts_of(photos: Option<usize>, mode: &str) -> String {
+    let how = match mode {
+        "copy" => crate::i18n::tr("Copy"),
+        "move" => crate::i18n::tr("Move"),
+        _ => crate::i18n::tr("Add in place"),
+    };
+    match photos {
+        Some(n) => format!("{} · {how}", crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n)),
+        None => how.to_string(),
+    }
 }
 
 /// The library lane is taken: an import (or the reading of a Local folder) or a Synchronize Folder runs, or waits
@@ -46,8 +78,9 @@ pub(crate) fn library_busy(app: &LightcraftApp) -> bool {
 
 /// Put an import of `paths` with `params` in line behind what runs in the library lane, and say so (an Auto Import
 /// quietly: nobody asked for it).
-pub(super) fn wait_in_line(app: &mut LightcraftApp, paths: &[String], params: &Value, auto: bool) -> Result<Value, String> {
-    let (id, place) = app.session.activity.enqueue("import", "Importing", import_request(paths, params, auto))?;
+fn wait_in_line(app: &mut LightcraftApp, request: Request) -> Result<Value, String> {
+    let auto = request.params["auto"].as_bool().unwrap_or(false);
+    let (id, place) = app.session.activity.enqueue("import", "Importing", request)?;
     if !auto {
         app.queued_toast(place as u64);
     }
@@ -71,7 +104,7 @@ pub(crate) fn auto_import_listed(app: &mut LightcraftApp, listing: Vec<(String, 
         o.remove("paths");
     }
     if library_busy(app) {
-        if let Err(e) = wait_in_line(app, &paths, &params, true) {
+        if let Err(e) = wait_in_line(app, import_request(&paths, &params, true, &[], true)) {
             log::warn!("auto import: {e}");
         }
         return;

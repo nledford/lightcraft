@@ -421,7 +421,11 @@ fn a_synchronize_refused_for_a_full_line_keeps_what_its_dialog_showed() {
     tick_remove_missing(&mut h);
     let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
     for _ in 0..MAX_WAITING {
-        h.app.session.activity.enqueue("import", "Importing", Request { command: "app:import".into(), params: json!({}) }).unwrap();
+        h.app
+            .session
+            .activity
+            .enqueue("import", "Importing", Request { command: "app:import".into(), params: json!({}), ..Default::default() })
+            .unwrap();
     }
     let dlg = h.app.ui.dialog.take().expect("the dialog is open");
     assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_err(), "no room in the line");

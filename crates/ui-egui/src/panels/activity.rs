@@ -120,7 +120,40 @@ pub(crate) fn cancel(app: &mut LightcraftApp, id: u64) {
 
 /// What ✕ on `task`'s row is called, for screen readers and its tooltip.
 pub(crate) fn cross_name(task: &TaskInfo) -> String {
-    if task.waiting { tr_format!("Remove from Queue: {label}", label = tr(&task.label)) } else { tr("Cancel").to_string() }
+    if task.waiting { tr_format!("Remove from Queue: {label}", label = waiting_name(task)) } else { tr("Cancel").to_string() }
+}
+
+/// A waiting task named for the person: its label, and what it works on (a folder's name) when it says.
+fn waiting_name(task: &TaskInfo) -> String {
+    if task.detail.is_empty() { tr(&task.label).to_string() } else { format!("{} · {}", tr(&task.label), task.detail) }
+}
+
+/// A waiting task's second line: what it works on and what else is known of it, then when it starts. The timing stays
+/// whole; the name and the facts are what give way when the line is too long.
+fn waiting_line(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) {
+    // (counted as the Queued toast counts: the waiting tasks ahead of it, after the running one)
+    let starts = if task.place <= 1 { tr("Starts next").to_string() } else { tr_format!("Starts after {n} more", n = task.place - 1) };
+    let head = [task.detail.as_str(), task.facts.as_str()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · ");
+    let font = t.font(11.0);
+    let at = format!("activity:starts:{}", task.id);
+    if head.is_empty() {
+        let r = ui.add(egui::Label::new(RichText::new(starts).font(font).color(t.text_dim)).truncate());
+        register(ui, at, r.rect);
+        return;
+    }
+    let tail = format!(" · {starts}");
+    let measure = |text: &str| ui.painter().layout_no_wrap(text.to_string(), font.clone(), t.text_dim).size().x;
+    let tail_w = measure(&tail);
+    let head_w = (measure(&head) + 1.0).min((width - tail_w - 2.0).max(40.0));
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 0.0;
+        ui.allocate_ui_with_layout(vec2(head_w, 14.0), Layout::left_to_right(Align::Center), |ui| {
+            ui.set_width(head_w);
+            ui.add(egui::Label::new(RichText::new(head).font(font.clone()).color(t.text_dim)).truncate());
+        });
+        let r = ui.add(egui::Label::new(RichText::new(tail).font(font).color(t.text_dim)).wrap_mode(egui::TextWrapMode::Extend));
+        register(ui, at, r.rect);
+    });
 }
 
 /// One task: name and ✕, the bar, the detail line (a waiting one: name and ✕, when it starts). True when ✕ was clicked.
@@ -145,13 +178,12 @@ fn row(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) -> bool {
                 clicked = resp.on_hover_text(name).clicked();
             }
         });
-        let line = if task.waiting {
-            // (counted as the Queued toast counts: the waiting tasks ahead of it, after the running one)
-            if task.place <= 1 { tr("Starts next").to_string() } else { tr_format!("Starts after {n} more", n = task.place - 1) }
-        } else {
-            bar(ui, task, width);
-            detail_line(task)
-        };
+        if task.waiting {
+            waiting_line(ui, t, task, width);
+            return;
+        }
+        bar(ui, task, width);
+        let line = detail_line(task);
         if !line.is_empty() {
             ui.add(egui::Label::new(RichText::new(line).font(t.font(11.0)).color(t.text_dim)).truncate());
         }
