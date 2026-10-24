@@ -335,9 +335,10 @@ impl ImportJob {
             // the XMP sidecar (or a raw's embedded XMP), read before copying: its capture time files
             // and names the copy when the file itself has none
             let raw = info.kind == MediaKind::Raw;
-            let packet = crate::sidecar::find_sidecar_for_import(&stems, self.naming, &path)
-                .and_then(|f| std::fs::read_to_string(f).ok())
-                .or_else(|| info.xmp.clone().filter(|_| raw));
+            let sidecar_file = crate::sidecar::find_sidecar_for_import(&stems, self.naming, &path);
+            let file_packet = sidecar_file.as_ref().and_then(|f| std::fs::read_to_string(f).ok());
+            let from_file = file_packet.is_some();
+            let packet = file_packet.or_else(|| info.xmp.clone().filter(|_| raw));
             let target = crate::crs::Target::for_file(info.kind, &info.format, info.preview_only.is_some(), &info.meta.camera);
             let sidecar = packet.and_then(|x| match crate::sidecar::parse_sidecar(&x, target) {
                 Ok(sc) => Some(sc),
@@ -393,8 +394,20 @@ impl ImportJob {
                     };
                     // Copy as DNG: the copied raw becomes a DNG (the copy is ours to replace)
                     let dng = opts.convert_dng && mode == ImportMode::Copy && raw && !info.format.eq_ignore_ascii_case("DNG");
+                    // Copy: a sidecar that holds a kind this import leaves unread goes with the copy
+                    let bring_sidecar = sidecar_file
+                        .as_ref()
+                        .filter(|_| {
+                            mode == ImportMode::Copy
+                                && from_file
+                                && sidecar.as_ref().is_some_and(|sc| opts.read.over(ReadFromPhotos::ALL).skipped_in(sc))
+                        })
+                        .map(|f| {
+                            let stem = crate::import_move::sidecars_of(Path::new(&path)).into_iter().find(|(p, _)| p == f).is_none_or(|(_, s)| s);
+                            (f.clone(), stem)
+                        });
                     plan.slots.push(Slot::Transfer);
-                    plan.transfers.push(Transfer { path, info, sidecar, dir, how, dng, family });
+                    plan.transfers.push(Transfer { path, info, sidecar, dir, how, dng, bring_sidecar, family });
                     continue;
                 }
                 (ImportMode::Move, _) => {

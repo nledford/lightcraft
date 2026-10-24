@@ -26,6 +26,8 @@ pub(super) struct Transfer {
     pub(super) how: How,
     /// Copy as DNG.
     pub(super) dng: bool,
+    /// Copy: the source's sidecar (and whether it is named after the stem) that goes with the copy.
+    pub(super) bring_sidecar: Option<(PathBuf, bool)>,
     /// The folder (lowercase) and [`name_family`]: transfers of one family can take each other's
     /// names, so they never run at the same time.
     pub(super) family: (String, String),
@@ -138,7 +140,7 @@ pub(super) fn run_transfers(
 
 /// Copy or move one planned file (and Copy as DNG); its item.
 fn run_transfer(t: Transfer, file_bytes: Option<&crate::merge::ByteReader>) -> PreparedItem {
-    let Transfer { path, mut info, sidecar, dir, how, dng, .. } = t;
+    let Transfer { path, mut info, sidecar, dir, how, dng, bring_sidecar, .. } = t;
     let mut placed = None;
     let mut stored = match how {
         How::Place { name } => match crate::import_move::place(Path::new(&path), &dir, &name) {
@@ -166,6 +168,13 @@ fn run_transfer(t: Transfer, file_bytes: Option<&crate::merge::ByteReader>) -> P
             }
             Err(e) => log::warn!("import {path}: copy as DNG: {e}"),
         }
+    }
+    // what this import leaves unread is in the source's sidecar: it goes with the copy, which is nothing without it
+    if let Some((sc, stem)) = &bring_sidecar
+        && let Err(e) = crate::import_move::copy_sidecar_beside(sc, *stem, Path::new(&stored))
+    {
+        let _ = std::fs::remove_file(&stored);
+        return PreparedItem::Failed(path, e);
     }
     PreparedItem::Ready(Box::new(ReadyFile { path, stored, info, sidecar, placed }))
 }

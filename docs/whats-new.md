@@ -883,8 +883,10 @@
   without the kinds that were left in that photo's file. Not for: a Lightroom catalog import, which always reads
   everything (the catalog's own account is laid over the files'); Read Metadata from File, which you ask for
   and which reads everything into the library (the sidecar is still not written for the kinds that were left); and
-  photos already browsed in Local, which keep what was read when they were first shown. With Copy, the sidecar is
-  not copied with the photo (as before), so what was not read is then only at the source.
+  photos already browsed in Local, which keep what was read when they were first shown. Copy does not copy sidecars,
+  with one exception: when a sidecar holds a kind that was not read, it is copied beside the copy (named for it, as
+  the photo's own sidecar), so what was left is not only at the source. Like the photo's copy, it stays if the import
+  is undone, and a sidecar that can't be copied fails that photo's import, leaving no copy of it.
 
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI

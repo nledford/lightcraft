@@ -368,3 +368,65 @@ fn a_photo_that_was_read_whole_is_written_as_ever() {
     assert_eq!((meta.keywords.len(), meta.rating), (0, Some(0)), "the library's word is the sidecar's");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+fn copy_import(s: &mut Session, src: &Path, dest: &Path, read: Value) -> Value {
+    let p = json!({"paths": [src.to_string_lossy()], "mode": "copy", "destination": dest.to_string_lossy(), "organize": "flat", "read": read});
+    s.execute("library.import", &p).unwrap()
+}
+
+/// Given a Copy import that leaves the keywords unread, and a photo whose keywords are only in the sidecar beside
+/// it, when it runs, then the sidecar is copied beside the copy (the copy is all that is left of the photo once the
+/// source is gone), and undoing the import leaves the photo copy and the sidecar copy where they are.
+#[test]
+fn a_copy_brings_the_sidecar_when_it_holds_what_was_left_unread() {
+    let (src, dest) = (temp_dir("copy-src"), temp_dir("copy-dest"));
+    a_photo_with_metadata(&src, "one", 1);
+    let mut s = Session::new().with_fs();
+    let r = copy_import(&mut s, &src, &dest, json!({"keywords": false}));
+    assert_eq!(r["imported"].as_array().map(Vec::len), Some(1), "{r}");
+    let copied = std::fs::read_to_string(dest.join("one.xmp")).expect("the sidecar went with the copy");
+    assert_eq!(copied, std::fs::read_to_string(src.join("one.xmp")).unwrap());
+    assert!(copied.contains("fjord"));
+    assert!(src.join("one.xmp").exists(), "the source's own is untouched");
+    s.undo_step().unwrap();
+    assert_eq!(s.catalog.photos().count(), 0);
+    assert!(dest.join("one.png").exists() && dest.join("one.xmp").exists(), "undo leaves the files, as it does for any copy");
+    let _ = std::fs::remove_dir_all(src);
+    let _ = std::fs::remove_dir_all(dest);
+}
+
+/// An import that reads everything, or a photo with no sidecar beside it, copies the photo alone, as ever.
+#[test]
+fn a_copy_leaves_the_sidecar_when_nothing_in_it_was_left_unread() {
+    for (read, sidecar) in [(json!({}), true), (json!({"keywords": false}), false)] {
+        let (src, dest) = (temp_dir("copy-none-src"), temp_dir("copy-none-dest"));
+        a_photo_with_metadata(&src, "one", 1);
+        if !sidecar {
+            std::fs::remove_file(src.join("one.xmp")).unwrap();
+        }
+        let mut s = Session::new().with_fs();
+        let r = copy_import(&mut s, &src, &dest, read);
+        assert_eq!(r["imported"].as_array().map(Vec::len), Some(1), "{r}");
+        assert!(dest.join("one.png").exists() && !dest.join("one.xmp").exists());
+        let _ = std::fs::remove_dir_all(src);
+        let _ = std::fs::remove_dir_all(dest);
+    }
+}
+
+/// A sidecar that can't be put beside the copy (a different one is there already) fails the file: nothing of it is
+/// imported, no photo copy is left, and the report says so.
+#[test]
+fn a_sidecar_that_cannot_be_copied_fails_the_file_and_leaves_no_copy() {
+    let (src, dest) = (temp_dir("copy-fail-src"), temp_dir("copy-fail-dest"));
+    a_photo_with_metadata(&src, "one", 1);
+    std::fs::write(dest.join("one.png"), b"another photo").unwrap();
+    std::fs::write(dest.join("one-1.xmp"), b"another sidecar").unwrap();
+    let mut s = Session::new().with_fs();
+    let r = copy_import(&mut s, &src, &dest, json!({"keywords": false}));
+    assert_eq!(r["imported"].as_array().map(Vec::len), Some(0), "{r}");
+    assert_eq!(r["failed"].as_array().map(Vec::len), Some(1), "{r}");
+    assert!(!dest.join("one-1.png").exists(), "no half-copied photo");
+    assert_eq!(s.catalog.photos().count(), 0);
+    let _ = std::fs::remove_dir_all(src);
+    let _ = std::fs::remove_dir_all(dest);
+}

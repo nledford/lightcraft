@@ -182,6 +182,15 @@ impl ReadFromPhotos {
         }
         sc
     }
+
+    /// Whether a sidecar says something of a kind that is not read: what an import leaves in it, and so what a Copy
+    /// has to bring along with the photo ([`Self::of_the_sidecar`] leaves it out of the library).
+    pub(crate) fn skipped_in(&self, sc: &crate::sidecar::SidecarData) -> bool {
+        // (of the same sidecar: what it takes out is what is skipped; its warnings go with the develop settings)
+        let mut read = self.of_the_sidecar(sc.clone());
+        read.warnings.clone_from(&sc.warnings);
+        read != *sc
+    }
 }
 
 /// What one import says about what it reads: each kind, or `None` for the library's choice.
