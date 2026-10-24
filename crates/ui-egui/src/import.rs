@@ -452,8 +452,8 @@ fn scan_guard(app: &LightcraftApp, progress: &ScanProgress, browse: bool) -> lig
 /// `library.import` params.
 pub const IMPORT_REQUEST: &str = "app:import";
 
-fn import_request(paths: &[String], params: &Value) -> Request {
-    Request { command: IMPORT_REQUEST.into(), params: json!({"paths": paths, "params": params}) }
+fn import_request(paths: &[String], params: &Value, auto: bool) -> Request {
+    Request { command: IMPORT_REQUEST.into(), params: json!({"paths": paths, "params": params, "auto": auto}) }
 }
 
 /// The library lane is taken: an import (or the reading of a Local folder) or a Synchronize Folder runs, or waits
@@ -468,11 +468,40 @@ pub(crate) fn library_busy(app: &LightcraftApp) -> bool {
         || app.session.activity.lane_waiting(Lane::Library)
 }
 
-/// Put an import of `paths` with `params` in line behind what runs in the library lane, and say so.
-fn wait_in_line(app: &mut LightcraftApp, paths: &[String], params: &Value) -> Result<Value, String> {
-    let (id, place) = app.session.activity.enqueue("import", "Importing", import_request(paths, params))?;
-    app.queued_toast(place as u64);
+/// Put an import of `paths` with `params` in line behind what runs in the library lane, and say so (an Auto Import
+/// quietly: nobody asked for it).
+fn wait_in_line(app: &mut LightcraftApp, paths: &[String], params: &Value, auto: bool) -> Result<Value, String> {
+    let (id, place) = app.session.activity.enqueue("import", "Importing", import_request(paths, params, auto))?;
+    if !auto {
+        app.queued_toast(place as u64);
+    }
     Ok(json!({"queued": id, "place": place}))
+}
+
+/// The watched folder was listed (Auto Import): import what is new in it, as an Auto Import. The engine has noted
+/// those files as tried by now, so while the library lane is taken (it was free when the listing began) they wait in
+/// line instead of being dropped.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn auto_import_listed(app: &mut LightcraftApp, listing: Vec<(String, u64)>) {
+    // no room in the line: leave the folder to its next listing, because the scan below notes its files as tried
+    if library_busy(app) && app.session.activity.waiting().len() >= lightcraft_engine::activity::MAX_WAITING {
+        return;
+    }
+    let p = json!({"listing": listing, "start": false});
+    let Ok(r) = app.session.execute("library.autoImportScan", &p) else { return };
+    let Some(mut params) = r.get("import").cloned() else { return };
+    let paths: Vec<String> = params["paths"].as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
+    if let Some(o) = params.as_object_mut() {
+        o.remove("paths");
+    }
+    if library_busy(app) {
+        if let Err(e) = wait_in_line(app, &paths, &params, true) {
+            log::warn!("auto import: {e}");
+        }
+        return;
+    }
+    let undo0 = app.session.undo.len();
+    app.import = Some(ImportTask::new(paths, params, undo0, false).auto());
 }
 
 /// Settings → Import → "Show the import review when a camera or card is connected", called with
@@ -722,10 +751,6 @@ pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String>
     if !d.in_library(app) {
         return Err("another library was opened since the photos were scanned: nothing was imported".into());
     }
-    // a browse scan that finishes starts its own import, replacing this one
-    if app.scan.as_ref().is_some_and(|t| t.browse) {
-        return Err(crate::i18n::tr("An import is running").to_string());
-    }
     let queue = d.selected_paths();
     if queue.is_empty() {
         return Err("no photos selected".into());
@@ -778,7 +803,7 @@ pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String>
     // the review's thumbnails are done with, whether it runs now or later
     app.renderer.forget_imports();
     if waits {
-        return wait_in_line(app, &queue, &params);
+        return wait_in_line(app, &queue, &params, false);
     }
     let total = queue.len();
     app.import = Some(ImportTask::new(queue, params, undo0, false));
@@ -793,7 +818,7 @@ pub fn start_paths(app: &mut LightcraftApp, paths: Vec<String>) -> Result<Value,
     }
     let params = json!({"mode": "add"});
     if library_busy(app) {
-        return wait_in_line(app, &paths, &params);
+        return wait_in_line(app, &paths, &params, false);
     }
     let undo0 = app.session.undo.len();
     let total = paths.len();
@@ -813,7 +838,11 @@ pub fn start_request(app: &mut LightcraftApp, ctx: &egui::Context, request: &Req
         return Err("an import is running".into());
     }
     let undo0 = app.session.undo.len();
+    let auto = request.params["auto"].as_bool().unwrap_or(false);
     let mut task = ImportTask::new(paths, request.params["params"].clone(), undo0, false);
+    if auto {
+        task = task.auto();
+    }
     begin(app, ctx, &mut task)?;
     app.import = Some(task);
     Ok(())

@@ -246,6 +246,72 @@ fn a_waiting_review_never_replaces_a_running_import() {
     assert_eq!(photos(&h), 3, "the running import's photo arrives, then the review's two");
 }
 
+/// Given a Local folder being read, when an import review is confirmed, then its OK waits in line like any import
+/// asked for while the lane is taken (it is not refused with "An import is running"), and runs when the read ends.
+#[test]
+fn a_review_confirmed_while_a_local_folder_is_read_waits_in_line() {
+    let dir = Scratch::new("review-browse");
+    let mut h = app(&dir);
+    crate::import::open(&mut h.app, vec![dir.path("trip")]).unwrap();
+    assert!(h.step_until(SETTLE, |h| h.app.scan.is_none()), "the scan ends");
+    h.step();
+    let Some(review) = h.app.ui.dialog.clone() else { panic!("the review is open") };
+    let _browse = crate::import::stall_scan_of(&mut h.app, true);
+    let r = crate::panels::dialogs::confirm_dialog(&mut h.app, &review);
+    assert!(r.as_ref().is_ok_and(|v| v["queued"].as_u64().is_some()), "the review's OK waits in line: {r:?}");
+    h.app.scan = None;
+    assert!(h.step_until(SETTLE, |h| h.app.import.is_none() && h.app.session.activity.list().is_empty()), "it ran");
+    assert_eq!(photos(&h), 2, "the review's two photos");
+}
+
+/// Given Auto Import's folder listing that comes in while another import runs, then what it found waits in line and
+/// is imported when that import ends: the files are not offered again (the engine has noted them as tried).
+#[test]
+fn an_auto_import_that_finds_files_while_an_import_runs_waits_in_line() {
+    let dir = Scratch::new("auto-waits");
+    let mut h = app(&dir);
+    write_png(&dir.path("watched/w.png"), 7);
+    let watched = dir.path("watched");
+    h.app.session.import_defaults.auto_folder = Some(watched.clone());
+    let listing = || lightcraft_engine::cmd::library::list_auto_import_folder(&watched).unwrap();
+    // (a file is taken once its size has stayed the same between two listings)
+    crate::import::auto_import_listed(&mut h.app, listing());
+    let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
+    crate::import::auto_import_listed(&mut h.app, listing());
+    assert_eq!(h.app.session.activity.waiting().iter().map(|t| t.kind).collect::<Vec<_>>(), vec!["import"], "it waits in line");
+    assert!(h.app.ui.toast.is_none(), "an Auto Import is quiet: {:?}", h.app.ui.toast);
+    drop(hold);
+    assert!(h.step_until(SETTLE, |h| h.app.import.is_none() && h.app.session.activity.list().is_empty()), "it ran");
+    assert_eq!(photos(&h), 1, "w.png came in");
+}
+
+/// Given a line that is full, when Auto Import's listing comes in while an import runs, then the folder is left to its
+/// next listing (its files aren't noted as tried), and imported once there is room.
+#[test]
+fn an_auto_import_with_no_room_in_line_is_left_for_the_next_listing() {
+    use lightcraft_engine::activity::{Cancel, MAX_WAITING, Request};
+    let dir = Scratch::new("auto-full");
+    let mut h = app(&dir);
+    write_png(&dir.path("watched/w.png"), 7);
+    let watched = dir.path("watched");
+    h.app.session.import_defaults.auto_folder = Some(watched.clone());
+    let listing = || lightcraft_engine::cmd::library::list_auto_import_folder(&watched).unwrap();
+    let hold = h.app.session.activity.start("import", "Importing", Cancel::Yes);
+    for _ in 0..MAX_WAITING {
+        h.app.session.activity.enqueue("import", "Importing", Request { command: "app:import".into(), params: json!({}) }).unwrap();
+    }
+    crate::import::auto_import_listed(&mut h.app, listing());
+    crate::import::auto_import_listed(&mut h.app, listing());
+    assert_eq!(h.app.session.activity.waiting().len(), MAX_WAITING, "no room: nothing was added");
+    h.app.session.activity.cancel_all();
+    crate::import::auto_import_listed(&mut h.app, listing());
+    crate::import::auto_import_listed(&mut h.app, listing());
+    assert_eq!(h.app.session.activity.waiting().iter().map(|t| t.kind).collect::<Vec<_>>(), vec!["import"], "now it waits in line");
+    drop(hold);
+    assert!(h.step_until(SETTLE, |h| h.app.import.is_none() && h.app.session.activity.list().is_empty()), "it ran");
+    assert_eq!(photos(&h), 1, "w.png came in");
+}
+
 /// Given an import that runs, when photos are dropped directly on the window, then they are not refused: they wait in
 /// line behind it and are imported when it ends.
 #[test]

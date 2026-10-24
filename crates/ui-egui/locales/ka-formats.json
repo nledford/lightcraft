@@ -307,7 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "სად გადავიტანოთ Lightroom-ის კატალოგი „{catalog}“?",
   "Merge into the open library “{library}” ({count} photo{})": "გაერთიანება ღია ბიბლიოთეკასთან „{library}“ (ფოტოები: {count}){:.0}",
   "Queued: it starts after {n} more": "რიგშია: დაიწყება კიდევ {n}-ის შემდეგ",
-  "{n} more missing, left alone: synchronize again to review them": "კიდევ {n} აკლია და ხელუხლებლად დარჩა: გადასახედად ხელახლა მოახდინეთ სინქრონიზაცია",
+  "Left alone: {n} (synchronize again to review them)": "უცვლელი დარჩა: {n} (გადასახედად თავიდან დაასინქრონეთ)",
   "Starts after {n} more": "დაიწყება კიდევ {n}-ის შემდეგ",
   "Remove from Queue: {label}": "რიგიდან ამოღება: {label}"
 }

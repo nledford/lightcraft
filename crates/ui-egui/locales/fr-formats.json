@@ -306,8 +306,8 @@
   "Added {n} photo{}": "{n} photo{} ajoutée(s)",
   "Where should the Lightroom catalog “{catalog}” go?": "Où importer le catalogue Lightroom « {catalog} » ?",
   "Merge into the open library “{library}” ({count} photo{})": "Fusionner avec la bibliothèque ouverte « {library} » ({count} photo{})",
-  "Queued: it starts after {n} more": "En file : démarre après {n} autres",
-  "{n} more missing, left alone: synchronize again to review them": "{n} autres manquantes, laissées telles quelles : synchronisez à nouveau pour les examiner",
-  "Starts after {n} more": "Démarre après {n} autres",
+  "Queued: it starts after {n} more": "En file : démarre après {n} autre(s) tâche(s)",
+  "Left alone: {n} (synchronize again to review them)": "Laissés tels quels : {n} (synchronisez à nouveau pour les examiner)",
+  "Starts after {n} more": "Démarre après {n} autre(s) tâche(s)",
   "Remove from Queue: {label}": "Retirer de la file : {label}"
 }

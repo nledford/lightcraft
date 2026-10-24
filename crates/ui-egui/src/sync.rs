@@ -6,8 +6,9 @@
 //!
 //! A Synchronize asked for while an import or another synchronize runs waits in line behind it (the library lane,
 //! [`lightcraft_engine::activity::Lane::Library`]). When its turn comes it scans the folder again ([`SyncRescan`]) and
-//! then runs as it was asked, but it removes or relinks only the photos its dialog showed: one that went missing
-//! meanwhile was never shown to the person, so it is left alone, and the end says so.
+//! then runs as it was asked, but it removes, relinks or reads sidecars of only the photos its dialog showed: one that
+//! went missing, moved or got a sidecar update meanwhile was never shown to the person, so it is left alone, and the
+//! end says so.
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -242,19 +243,23 @@ pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
     let choice = SyncChoice { import_new: *import_new, relink_moved: *relink_moved, remove_missing: *remove_missing, read_metadata: *read_metadata };
     // (an import readies its files against the library as it was: both could add the same file)
     if crate::import::library_busy(app) {
-        // what the dialog showed: only these are removed or relinked, whenever the run comes
+        // what the dialog showed: only these are removed, relinked or read, whenever the run comes
         let shown = app
             .session
             .folder_changes
             .as_ref()
             .filter(|c| lightcraft_catalog::query::folder_key(&c.path) == lightcraft_catalog::query::folder_key(path));
-        let (missing, moved): (Vec<u64>, Vec<u64>) =
-            shown.map(|c| (c.missing.iter().map(|m| m.id).collect(), c.moved.iter().map(|m| m.id).collect())).unwrap_or_default();
-        let request = sync_request(path, name, *disk, choice, &missing, &moved);
+        let shown = shown.map(|c| Shown {
+            missing: c.missing.iter().map(|m| m.id).collect(),
+            moved: c.moved.iter().map(|m| m.id).collect(),
+            metadata: c.metadata.iter().map(|m| m.id).collect(),
+        });
+        let request = sync_request(path, name, *disk, choice, &shown.unwrap_or_default());
+        // (the dialog's scan is let go only once the line has room: refused, the dialog stays open holding it)
+        let (id, place) = app.session.activity.enqueue("sync", "Synchronizing folder", request)?;
         if std::mem::take(&mut app.sync_owns_changes) {
             app.session.folder_changes = None;
         }
-        let (id, place) = app.session.activity.enqueue("sync", "Synchronizing folder", request)?;
         app.queued_toast(place as u64);
         return Ok(json!({"queued": id, "place": place}));
     }
@@ -284,7 +289,7 @@ pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
 }
 
 /// Hand the work of a synchronize to a worker thread, its steps committed between frames ([`poll_run`]). `left_alone`:
-/// photos found missing (or moved) that its dialog never showed, said at the end.
+/// photos found missing, moved or with a sidecar update that its dialog never showed, said at the end.
 fn run(
     app: &mut LightcraftApp,
     name: &str,
@@ -324,15 +329,23 @@ fn run(
 /// The command of a Synchronize Folder's request ([`Request`]): the app runs it ([`start_request`]).
 pub const SYNC_REQUEST: &str = "app:synchronize";
 
-/// What a synchronize was asked, to run it later in line or again: the folder, the dialog's choices, and the missing
-/// and moved photos it showed (the only ones it may remove or relink).
-fn sync_request(path: &str, name: &str, disk: bool, choice: SyncChoice, missing: &[u64], moved: &[u64]) -> Request {
+/// The photos a Synchronize Folder dialog listed: the only ones its run may act on if it waits in line.
+#[derive(Default)]
+struct Shown {
+    missing: Vec<u64>,
+    moved: Vec<u64>,
+    metadata: Vec<u64>,
+}
+
+/// What a synchronize was asked, to run it later in line or again: the folder, the dialog's choices, and the missing,
+/// moved and metadata-updated photos it showed (the only ones it may remove, relink or read).
+fn sync_request(path: &str, name: &str, disk: bool, choice: SyncChoice, shown: &Shown) -> Request {
     Request {
         command: SYNC_REQUEST.into(),
         params: json!({
             "path": path, "name": name, "disk": disk,
             "importNew": choice.import_new, "relinkMoved": choice.relink_moved, "removeMissing": choice.remove_missing, "readMetadata": choice.read_metadata,
-            "missing": missing, "moved": moved,
+            "missing": shown.missing, "moved": shown.moved, "metadata": shown.metadata,
         }),
     }
 }
@@ -341,9 +354,10 @@ fn sync_request(path: &str, name: &str, disk: bool, choice: SyncChoice, missing:
 pub struct SyncRescan {
     name: String,
     choice: SyncChoice,
-    /// The missing and moved photos its dialog showed.
+    /// The missing, moved and metadata-updated photos its dialog showed.
     missing: std::collections::HashSet<u64>,
     moved: std::collections::HashSet<u64>,
+    metadata: std::collections::HashSet<u64>,
     /// The library it was asked in ([`lightcraft_engine::Session::library_generation`]): its photo ids mean nothing in
     /// another one.
     library: u64,
@@ -381,23 +395,26 @@ pub fn start_request(app: &mut LightcraftApp, _ctx: &egui::Context, request: &Re
     let guard = app.session.activity.start("sync", "Synchronizing folder", Cancel::Flag(progress.files.cancel.clone()));
     guard.detail(&name);
     let library = app.session.library_generation();
-    app.sync_queued = Some(SyncRescan { name, choice, missing: ids("missing"), moved: ids("moved"), library, progress, rx, guard });
+    app.sync_queued =
+        Some(SyncRescan { name, choice, missing: ids("missing"), moved: ids("moved"), metadata: ids("metadata"), library, progress, rx, guard });
     Ok(())
 }
 
-/// Run the waiting synchronize once its scan is in (called every frame): only the missing and moved photos its dialog
-/// showed are acted on.
+/// Run the waiting synchronize once its scan is in (called every frame): only the missing, moved and metadata-updated
+/// photos its dialog showed are acted on.
 pub fn poll_rescan(app: &mut LightcraftApp, ctx: &egui::Context) {
     let Some(task) = app.sync_queued.as_ref() else { return };
     let (done, total) = task.progress.counts();
     task.guard.progress(done as u64, total as u64);
     ctx.request_repaint_after(std::time::Duration::from_millis(100));
     let got = task.rx.try_recv();
-    if matches!(got, Err(std::sync::mpsc::TryRecvError::Empty)) && !task.guard.is_cancelled() {
+    // (another library opened: it ends at once, not when a scan of the old library's folder is done)
+    let stale = task.library != app.session.library_generation();
+    if matches!(got, Err(std::sync::mpsc::TryRecvError::Empty)) && !task.guard.is_cancelled() && !stale {
         return;
     }
     let Some(task) = app.sync_queued.take() else { return };
-    let SyncRescan { name, choice, missing, moved, library, progress, guard, .. } = task;
+    let SyncRescan { name, choice, missing, moved, metadata, library, progress, guard, .. } = task;
     if library != app.session.library_generation() {
         // another library was opened while it scanned: its photos are not these
         progress.files.cancel.store(true, Ordering::Relaxed);
@@ -421,12 +438,14 @@ pub fn poll_rescan(app: &mut LightcraftApp, ctx: &egui::Context) {
         app.toast(ctx, format!("{name}: {why}"));
         return;
     }
-    // only what the person saw is removed or relinked; what they would have been asked about is said
-    let (missing_before, moved_before) = (changes.missing.len(), changes.moved.len());
+    // only what the person saw is removed, relinked or read; what they would have been asked about is said
+    let (missing_before, moved_before, metadata_before) = (changes.missing.len(), changes.moved.len(), changes.metadata.len());
     changes.missing.retain(|m| missing.contains(&m.id));
     changes.moved.retain(|m| moved.contains(&m.id));
+    changes.metadata.retain(|m| metadata.contains(&m.id));
     let left_alone = if choice.remove_missing { missing_before - changes.missing.len() } else { 0 }
-        + if choice.relink_moved { moved_before - changes.moved.len() } else { 0 };
+        + if choice.relink_moved { moved_before - changes.moved.len() } else { 0 }
+        + if choice.read_metadata { metadata_before - changes.metadata.len() } else { 0 };
     match SyncJob::start(&mut app.session, changes, choice) {
         Ok((work, commit)) => {
             // (a fresh count, the same ✕: its row's flag stops the run as it stopped the scan)
@@ -457,7 +476,8 @@ pub struct SyncRun {
     stopping: bool,
     /// Its row in the activity stack (its ✕ is Cancel).
     guard: TaskGuard,
-    /// Photos found missing or moved that its dialog never showed (a run that waited in line): left alone, and said.
+    /// Photos found missing, moved or with a sidecar update that its dialog never showed (a run that waited in line):
+    /// left alone, and said.
     left_alone: usize,
 }
 
@@ -548,7 +568,7 @@ pub fn poll_run(app: &mut LightcraftApp, ctx: &egui::Context) {
         parts.push(format!("{}: {e}", crate::i18n::tr("Not saved")));
     }
     if left_alone > 0 {
-        parts.push(crate::i18n::tr_format!("{n} more missing, left alone: synchronize again to review them", n = left_alone));
+        parts.push(crate::i18n::tr_format!("Left alone: {n} (synchronize again to review them)", n = left_alone));
     }
     let text = if parts.is_empty() { crate::i18n::tr("The library is up to date with this folder.").to_string() } else { parts.join(" · ") };
     if not_saved.is_empty() && !crashed {

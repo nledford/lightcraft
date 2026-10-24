@@ -118,6 +118,11 @@ pub(crate) fn cancel(app: &mut LightcraftApp, id: u64) {
     let _ = app.session.execute("activity.cancel", &json!({"id": id}));
 }
 
+/// What ✕ on `task`'s row is called, for screen readers and its tooltip.
+pub(crate) fn cross_name(task: &TaskInfo) -> String {
+    if task.waiting { tr_format!("Remove from Queue: {label}", label = tr(&task.label)) } else { tr("Cancel").to_string() }
+}
+
 /// One task: name and ✕, the bar, the detail line (a waiting one: name and ✕, when it starts). True when ✕ was clicked.
 fn row(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) -> bool {
     let mut clicked = false;
@@ -133,7 +138,7 @@ fn row(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) -> bool {
             });
             if cross {
                 let (rect, resp) = ui.allocate_exact_size(vec2(CROSS, CROSS), Sense::click());
-                let name = if task.waiting { tr_format!("Remove from Queue: {label}", label = tr(&task.label)) } else { tr("Cancel").to_string() };
+                let name = cross_name(task);
                 crate::widgets::announce(&resp, name.clone());
                 paint(ui.painter(), rect.shrink(2.0), Icon::Close, if resp.hovered() { t.text } else { t.icon });
                 register(ui, format!("activity:cancel:{}", task.id), rect);

@@ -307,7 +307,7 @@
   "Where should the Lightroom catalog “{catalog}” go?": "¿Dónde debe ir el catálogo de Lightroom “{catalog}”?",
   "Merge into the open library “{library}” ({count} photo{})": "Combinar con la biblioteca abierta “{library}” ({count} foto{})",
   "Queued: it starts after {n} more": "En cola: empieza tras {n} más",
-  "{n} more missing, left alone: synchronize again to review them": "Faltan {n} más, sin tocar: sincroniza de nuevo para revisarlas",
+  "Left alone: {n} (synchronize again to review them)": "Sin tocar: {n} (sincroniza de nuevo para revisarlos)",
   "Starts after {n} more": "Empieza tras {n} más",
   "Remove from Queue: {label}": "Quitar de la cola: {label}"
 }

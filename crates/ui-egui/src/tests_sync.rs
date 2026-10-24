@@ -21,8 +21,8 @@
 //! * A Synchronize Folder and an import never run at once: one asked for while the other runs waits in line behind it
 //!   and starts by itself, planning its work then (an import checks for duplicates against the library as it is
 //!   when it starts; a synchronize scans the folder again).
-//! * A synchronize that waited removes or relinks only the photos its dialog showed: a photo that went missing while
-//!   it waited stays, and the end says so.
+//! * A synchronize that waited removes, relinks or reads sidecars of only the photos its dialog showed: a photo that
+//!   went missing, moved or got a sidecar update while it waited stays as it is, and the end says so.
 //! * The dialog's own scan doesn't hold up an import: it only reads.
 
 use std::time::Duration;
@@ -366,7 +366,72 @@ fn a_waiting_synchronize_removes_only_the_missing_photos_its_dialog_showed() {
     assert!(h.step_until(SETTLE, idle), "it ran");
     assert_eq!(in_library(&h), vec!["a.png", "c.png"], "b (shown) was removed, a (gone since) was not");
     let said = h.app.ui.toast.iter().map(|t| t.0.clone()).collect::<String>();
-    assert!(said.contains("1 more missing"), "{said}");
+    assert!(said.contains("Left alone: 1"), "{said}");
+}
+
+/// A sidecar dated an hour from now, so that it is newer than the photo whatever the clock's grain.
+fn write_sidecar(png: &str, rating: u8) {
+    let xmp = std::path::Path::new(png).with_extension("xmp");
+    let body = format!(
+        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="{rating}"/>
+</rdf:RDF></x:xmpmeta>"#
+    );
+    std::fs::write(&xmp, body).unwrap();
+    let f = std::fs::File::options().write(true).open(&xmp).unwrap();
+    f.set_modified(std::time::SystemTime::now() + Duration::from_secs(3600)).unwrap();
+}
+
+fn rating_of(h: &Headless, file: &str) -> u8 {
+    h.app.session.catalog.photos().find(|p| p.file_name == file).map(|p| p.rating).unwrap_or_else(|| panic!("no {file}"))
+}
+
+/// Given a synchronize that will read the one sidecar update its dialog showed (a), waiting behind an import, when
+/// another photo's sidecar (b) changes while it waits, then at its turn it reads a's sidecar only: reading replaces a
+/// photo's rating, labels, metadata and edits, which nobody agreed to for b. The end says one more was left alone.
+#[test]
+fn a_waiting_synchronize_reads_only_the_sidecars_its_dialog_showed() {
+    let dir = Scratch::new("reviewed-meta");
+    let mut h = imported_folder(&dir, || write_sidecar(&dir.path("trip/a.png"), 4));
+    open_and_scan(&mut h, &dir.path("trip"));
+    assert_eq!(counts(&h).metadata, 1, "the dialog shows a's update");
+    let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
+    let mut dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    if let Dialog::SynchronizeFolder { read_metadata, .. } = &mut dlg {
+        *read_metadata = true;
+    }
+    let r = crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg);
+    assert!(r.as_ref().is_ok_and(|v| v.get("queued").is_some()), "it waits for the import: {r:?}");
+    write_sidecar(&dir.path("trip/b.png"), 5);
+    drop(hold);
+    assert!(h.step_until(SETTLE, idle), "it ran");
+    assert_eq!((rating_of(&h, "a.png"), rating_of(&h, "b.png")), (4, 0), "a (shown) was read, b (changed since) was not");
+    let said = h.app.ui.toast.iter().map(|t| t.0.clone()).collect::<String>();
+    assert!(said.contains("Left alone: 1"), "{said}");
+}
+
+/// Given a line that is full, when a synchronize is confirmed while an import runs, then it is refused with the dialog
+/// still holding what it showed: confirmed again once there is room, it removes the missing photo it listed.
+#[test]
+fn a_synchronize_refused_for_a_full_line_keeps_what_its_dialog_showed() {
+    use lightcraft_engine::activity::{MAX_WAITING, Request};
+    let dir = Scratch::new("full-line");
+    let mut h = changed_folder(&dir);
+    open_and_scan(&mut h, &dir.path("trip"));
+    tick_remove_missing(&mut h);
+    let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
+    for _ in 0..MAX_WAITING {
+        h.app.session.activity.enqueue("import", "Importing", Request { command: "app:import".into(), params: json!({}) }).unwrap();
+    }
+    let dlg = h.app.ui.dialog.take().expect("the dialog is open");
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_err(), "no room in the line");
+    h.app.session.activity.cancel_all();
+    assert!(h.app.session.activity.waiting().is_empty());
+    let r = crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg);
+    assert!(r.as_ref().is_ok_and(|v| v.get("queued").is_some()), "now it waits: {r:?}");
+    drop(hold);
+    assert!(h.step_until(SETTLE, idle), "it ran");
+    assert_eq!(in_library(&h), vec!["a.png", "c.png"], "b, which the dialog showed missing, was removed");
 }
 
 /// Given a Local folder being read, when a synchronize is confirmed, then it waits: the read becomes an import when
