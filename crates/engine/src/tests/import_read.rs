@@ -395,6 +395,24 @@ fn a_copy_brings_the_sidecar_when_it_holds_what_was_left_unread() {
     let _ = std::fs::remove_dir_all(dest);
 }
 
+/// A sidecar named for the whole file (`one.png.XMP`, in whatever letter case the disk has it) is copied under the
+/// copy's whole name, not as a stem-named `one.xmp` beside it. (The mistake this guards against showed only on a disk
+/// that ignores letter case, as on macOS and Windows.)
+#[test]
+fn a_sidecar_named_for_the_whole_file_keeps_that_style_beside_the_copy() {
+    let (src, dest) = (temp_dir("copy-full-src"), temp_dir("copy-full-dest"));
+    a_photo_with_metadata(&src, "one", 1);
+    std::fs::rename(src.join("one.xmp"), src.join("one.png.XMP")).unwrap();
+    let mut s = Session::new().with_fs();
+    let r = copy_import(&mut s, &src, &dest, json!({"keywords": false}));
+    assert_eq!(r["imported"].as_array().map(Vec::len), Some(1), "{r}");
+    let names: Vec<String> = std::fs::read_dir(&dest).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().to_lowercase()).collect();
+    assert!(names.contains(&"one.png.xmp".to_string()), "the sidecar keeps the whole-name style: {names:?}");
+    assert!(!names.contains(&"one.xmp".to_string()), "and no stem-named sidecar appears: {names:?}");
+    let _ = std::fs::remove_dir_all(src);
+    let _ = std::fs::remove_dir_all(dest);
+}
+
 /// An import that reads everything, or a photo with no sidecar beside it, copies the photo alone, as ever.
 #[test]
 fn a_copy_leaves_the_sidecar_when_nothing_in_it_was_left_unread() {
