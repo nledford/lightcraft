@@ -1527,6 +1527,46 @@ fn a_jpeg_cut_short_imports_marked_truncated_and_reload_clears_it() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The import review marks a JPEG cut short, and the import's report lists it (its source path)
+/// next to the photos it imported; whole files are in neither.
+#[test]
+fn import_review_and_report_name_the_jpegs_cut_short() {
+    use serde_json::json;
+    let dir = std::env::temp_dir().join(format!("lc-cut-jpeg-review-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let (lib, files) = (dir.join("lib"), dir.join("files"));
+    std::fs::create_dir_all(&files).unwrap();
+    let rgb: Vec<u8> = (0..160 * 96 * 3).map(|i| (i * 7 % 251) as u8).collect();
+    let whole = encode_jpeg(&EncodeImage::new(160, 96, 3, Samples::U8(&rgb)), 90, ChromaSubsampling::S420, &EncodeMeta::default()).unwrap();
+    let (cut_path, whole_path) = (files.join("cut.jpg"), files.join("whole.jpg"));
+    std::fs::write(&cut_path, &whole[..whole.len() / 2]).unwrap();
+    std::fs::write(&whole_path, &whole).unwrap();
+    let mut s = crate::Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    let paths = json!([cut_path.to_string_lossy(), whole_path.to_string_lossy()]);
+    let scan = s.execute("library.importPreview", &json!({"paths": paths})).unwrap();
+    let flags: Vec<(String, bool)> = scan["candidates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| (c["name"].as_str().unwrap().to_string(), c["truncated"].as_bool().unwrap_or(false)))
+        .collect();
+    assert!(flags.contains(&("cut.jpg".into(), true)) && flags.contains(&("whole.jpg".into(), false)), "{flags:?}");
+    assert!(scan["candidates"].as_array().unwrap().iter().all(|c| c["error"].is_null()), "{scan}");
+    let r = s.execute("library.import", &json!({"paths": paths})).unwrap();
+    assert_eq!(r["imported"].as_array().map(Vec::len), Some(2), "{r}");
+    assert_eq!(r["truncated"], json!([cut_path.to_string_lossy()]), "{r}");
+    // a cut file first browsed in Local and then imported for real is reported too
+    let browsed = files.join("browsed.jpg");
+    std::fs::write(&browsed, &whole[..whole.len() / 2]).unwrap();
+    s.execute("library.import", &json!({"paths": [browsed.to_string_lossy()], "local": true})).unwrap();
+    let r = s.execute("library.import", &json!({"paths": [browsed.to_string_lossy()]})).unwrap();
+    assert_eq!(r["imported"].as_array().map(Vec::len), Some(1), "{r}");
+    assert_eq!(r["truncated"], json!([browsed.to_string_lossy()]), "{r}");
+    drop(s);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A raw's preview window that stops before the JPEG's end (a pointer that lies about the
 /// length) is not shown from the data present: the caller falls back to the whole file.
 #[test]

@@ -19,6 +19,11 @@
   photo, and the line can be dragged: pressing it picks the region under the pointer (Highlights, Lights, Darks or
   Shadows) and moving up or down changes that slider, as one undo step. Hovering the line names the region first.
 
+### Damaged JPEGs are marked, and can be found
+- A JPEG that was cut short now says so. Info shows "Damaged file: cut short, shown from the data present"; the
+  import review puts a "Damaged" badge on it; the message after an import counts them ("· 2 damaged"); and a
+  smart album can collect them with the rule File → Damaged File.
+
 ## 2026-10-23
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts

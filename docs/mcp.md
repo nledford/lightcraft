@@ -249,6 +249,10 @@ there; `catalog.query` lists it with `truncated: true`. Reload sets it back to `
 file with no picture data yet, and a cut JPEG of a kind only the slower decoder reads (CMYK, 12-bit, lossless,
 separate scans per colour), is still reported in `library.import`'s `failed` list.
 
+`library.importPreview` marks such a candidate with `truncated: true`, and `library.import` lists the source paths
+of the cut files it imported in `truncated` (omitted when there are none). The smart-album rule field `truncated`
+(Damaged File, `is` true / false) finds them afterwards.
+
 ## Resources
 
 `resources/list` / `resources/read` serve JSON snapshots:
