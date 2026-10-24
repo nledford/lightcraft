@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::query::Filter;
 use crate::rules::{AlbumPass, MAX_ALBUM_DEPTH};
-use crate::{Album, AlbumId, Aspects, Catalog, PhotoId};
+use crate::{AlbumId, Aspects, Catalog, PhotoId};
 
 /// The most photos an edit may touch for the counts to follow it photo by photo.
 const MAX_FOLLOWED: usize = 256;
@@ -130,7 +130,7 @@ impl AlbumTally {
     fn counted(cat: &Catalog) -> AlbumTally {
         let heights = chain_heights(cat);
         let height_of = |id: AlbumId| heights.get(&id).copied().flatten().filter(|h| *h <= MAX_ALBUM_DEPTH);
-        let mut smart: Vec<AlbumId> = cat.albums().filter(|a| a.is_smart()).map(|a| a.id).collect();
+        let mut smart: Vec<AlbumId> = cat.albums().filter(|a| a.is_smart() && !a.folder).map(|a| a.id).collect();
         smart.sort_by_key(|id| height_of(*id).unwrap_or(usize::MAX));
         let held_by = |id: AlbumId| {
             let mut held = Members::none();
@@ -228,12 +228,13 @@ fn chain_heights(cat: &Catalog) -> HashMap<AlbumId, Option<usize>> {
     }
     let tests = |id: AlbumId| -> Vec<AlbumId> {
         let tested = cat.album(id).and_then(|a| a.smart.as_deref()).map(Filter::albums_tested).unwrap_or_default();
-        tested.into_iter().filter(|t| cat.album(*t).is_some_and(Album::is_smart)).collect()
+        // (a folder of albums leads to the smart albums inside it, which its photos are gathered from)
+        tested.into_iter().flat_map(|t| cat.album_members(t)).filter(|t| cat.album(*t).is_some_and(|a| a.is_smart() && !a.folder)).collect()
     };
     let frame = |id: AlbumId| Frame { id, tests: tests(id), next: 0, tallest: 0, loops: false };
     let mut done: HashMap<AlbumId, Option<usize>> = HashMap::new();
     let mut open: HashSet<AlbumId> = HashSet::new();
-    for root in cat.albums().filter(|a| a.is_smart()).map(|a| a.id) {
+    for root in cat.albums().filter(|a| a.is_smart() && !a.folder).map(|a| a.id) {
         if done.contains_key(&root) {
             continue;
         }

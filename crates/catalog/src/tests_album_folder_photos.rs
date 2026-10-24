@@ -20,6 +20,8 @@
 //! - Given a damaged library (a folder that also has rules, an album inside a plain album), then
 //!   every question about the folder gives the same answer, and only what the sidebar lists counts.
 
+use serde_json::json;
+
 use crate::*;
 
 fn photo(c: &mut Catalog, name: &str) -> PhotoId {
@@ -290,6 +292,30 @@ fn a_folder_with_rules_is_still_a_folder() {
     let holds = |id: PhotoId| c.album_contains(f, c.photo(id).unwrap());
     assert!(holds(a) && !holds(b));
     assert_eq!((shown(&c, f), c.album_photos(f), c.album_count(f)), (vec![a], vec![a], 1));
+    // the whole count leaves it out, as it does every folder
+    assert!(!crate::tally::AlbumTally::of(&c).counts().contains_key(&f));
+}
+
+/// A smart album limited to a folder, and a smart album inside that folder that tests it: a loop through the folder
+/// (a library file saved anyway). The whole count must give each of them the count it gets alone.
+#[test]
+fn a_loop_through_a_folder_is_counted_by_its_rules() {
+    let mut c = Catalog::new();
+    let [a, b, _d, _e] = ["a.jpg", "b.jpg", "d.jpg", "e.jpg"].map(|n| photo(&mut c, n));
+    let f = folder(&mut c, "F", None);
+    album(&mut c, "Plain", Some(f), &[a, b]);
+    let view = c.alloc_album_id();
+    let inner = c.alloc_album_id();
+    let not_in_view = json!({"match": "all", "rules": [{"field": "album", "op": "isNot", "value": view.0}]});
+    let limited = Filter { album: Some(f), ..Default::default() };
+    c.apply(Op::AddAlbum { album: Album { smart: Some(Box::new(limited)), ..Album::new(view, "View") } }).unwrap();
+    let rule_set = Some(serde_json::from_value(not_in_view).unwrap());
+    let rules = Filter { rule_set, ..Default::default() };
+    c.apply(Op::AddAlbum { album: Album { parent: Some(f), smart: Some(Box::new(rules)), ..Album::new(inner, "Inside") } }).unwrap();
+    let together = crate::tally::AlbumTally::of(&c);
+    for id in [view, inner] {
+        assert_eq!(together.counts().get(&id).copied(), Some(c.album_count(id)), "album {id:?}");
+    }
 }
 
 /// A library file that puts an album inside a plain album: the sidebar lists nothing under an
