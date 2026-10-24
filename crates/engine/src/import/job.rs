@@ -402,10 +402,8 @@ impl ImportJob {
                                 && from_file
                                 && sidecar.as_ref().is_some_and(|sc| opts.read.over(ReadFromPhotos::ALL).skipped_in(sc))
                         })
-                        .map(|f| {
-                            let stem = crate::import_move::sidecars_of(Path::new(&path)).into_iter().find(|(p, _)| p == f).is_none_or(|(_, s)| s);
-                            (f.clone(), stem)
-                        });
+                        // (named after the stem when its own stem is the photo's: the name it was found under, in any case)
+                        .map(|f| (f.clone(), f.file_stem() == Path::new(&path).file_stem()));
                     plan.slots.push(Slot::Transfer);
                     plan.transfers.push(Transfer { path, info, sidecar, dir, how, dng, bring_sidecar, family });
                     continue;
