@@ -215,3 +215,70 @@ fn a_batch_that_fails_late_keeps_the_redo_history() {
     s.execute("edit.redo", &json!({})).unwrap();
     assert!(dir.0.join("archive/c").is_dir() && !dir.0.join("c").exists());
 }
+
+/// The real disk, except that chosen folder moves fail (`(from, to)` pairs), to take a step half way.
+struct Flaky {
+    fail: Vec<(String, String)>,
+}
+
+impl crate::rename::MoveFs for Flaky {
+    fn exists(&self, p: &std::path::Path) -> bool {
+        crate::rename::RealFs.exists(p)
+    }
+    fn is_file(&self, p: &std::path::Path) -> bool {
+        crate::rename::RealFs.is_file(p)
+    }
+    fn same_file(&self, a: &std::path::Path, b: &std::path::Path) -> bool {
+        crate::rename::RealFs.same_file(a, b)
+    }
+    fn rename_no_replace(&self, a: &std::path::Path, b: &std::path::Path) -> std::io::Result<()> {
+        crate::rename::RealFs.rename_no_replace(a, b)
+    }
+    fn copy_no_replace(&self, a: &std::path::Path, b: &std::path::Path) -> std::io::Result<()> {
+        crate::rename::RealFs.copy_no_replace(a, b)
+    }
+    fn remove_file(&self, p: &std::path::Path) -> std::io::Result<()> {
+        crate::rename::RealFs.remove_file(p)
+    }
+    fn stem_sibling(&self, sidecar: &std::path::Path) -> Option<String> {
+        crate::rename::RealFs.stem_sibling(sidecar)
+    }
+    fn move_folder(&self, from: &str, to: &str) -> Result<(), String> {
+        if self.fail.iter().any(|(f, t)| f == from && t == to) {
+            return Err(format!("{from} → {to}: injected failure"));
+        }
+        crate::cmd::browse::folder_on_disk(from, to)
+    }
+}
+
+#[test]
+fn an_undo_whose_rollback_fails_keeps_the_history_and_the_photos_matching_the_disk() {
+    let dir = Scratch::new("rollback");
+    let (mut s, a, b, archive) = two_folders(&dir);
+    std::fs::write(dir.0.join("a/one.jpg"), b"1").unwrap();
+    std::fs::write(dir.0.join("b/two.jpg"), b"2").unwrap();
+    s.execute("folder.label", &json!({"path": a.clone(), "label": "red"})).unwrap();
+    s.execute("folder.move", &json!({"paths": [a.clone(), b.clone()], "into": archive})).unwrap();
+    assert_eq!(photo_paths(&s), [dir.path("archive/a/one.jpg"), dir.path("archive/b/two.jpg")]);
+    let steps = s.undo.len();
+    // Undo puts `a` back, then `b` can't go, and `a` can't be sent back to the archive
+    let flaky = Flaky { fail: vec![(dir.path("archive/b"), b.clone()), (a.clone(), dir.path("archive/a"))] };
+    let e = s.undo_step_with(&flaky).unwrap_err().to_string();
+    assert!(e.contains(&dir.path("archive/b")) || e.contains("can't move the folder back"), "{e}");
+    assert!(e.contains(&format!("{a} (")) && e.contains("could not be moved back"), "the stranded folder is named: {e}");
+    // `a` is where Undo put it, and the library follows it; `b` never moved
+    assert!(dir.0.join("a/one.jpg").exists() && dir.0.join("archive/b/two.jpg").exists());
+    assert_eq!(photo_paths(&s), [dir.path("a/one.jpg"), dir.path("archive/b/two.jpg")], "the catalog matches the disk");
+    assert_eq!(s.undo.len(), steps, "the step is still there to try again");
+    assert!(s.catalog.folder_record(&a).is_some_and(|r| r.label.is_some()), "the folder's label stays with it");
+    assert!(s.catalog.folder_record(&dir.path("archive/a")).is_none());
+    assert!(s.redo.is_empty());
+    // the retry doesn't try to move `a` again and finishes the step
+    s.undo_step_with(&Flaky { fail: Vec::new() }).unwrap();
+    assert_eq!(photo_paths(&s), [dir.path("a/one.jpg"), dir.path("b/two.jpg")]);
+    assert!(dir.0.join("a/one.jpg").exists() && dir.0.join("b/two.jpg").exists() && !dir.0.join("archive/a").exists());
+    // and Redo takes both back into the archive
+    s.redo_step_with(&Flaky { fail: Vec::new() }).unwrap();
+    assert_eq!(photo_paths(&s), [dir.path("archive/a/one.jpg"), dir.path("archive/b/two.jpg")]);
+    assert!(dir.0.join("archive/a/one.jpg").exists() && dir.0.join("archive/b/two.jpg").exists());
+}

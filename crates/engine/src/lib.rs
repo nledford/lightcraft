@@ -144,6 +144,9 @@ pub struct UndoEntry {
     pub(crate) retry_inverse: Vec<Op>,
     /// Sidecars still separated from their photo after a failed move or rollback.
     pub(crate) retry_sidecars: Vec<rename::SidecarMove>,
+    /// Folders of `folders` a failed history step left at their `to` (moving them back also failed): a
+    /// retry doesn't move them again, and the photos below them were relinked to follow.
+    pub(crate) folders_done: Vec<FolderMove>,
 }
 
 /// The one photo an undo step changes, when it changes exactly one through its edit, rating, flag,
@@ -634,7 +637,14 @@ impl Session {
         let fwd = op.clone();
         let inv = self.apply_catalog(op)?;
         self.pending_log.push(fwd);
-        self.undo.push(UndoEntry { label: label.to_string(), op: inv, folders: Vec::new(), retry_inverse: Vec::new(), retry_sidecars: Vec::new() });
+        self.undo.push(UndoEntry {
+            label: label.to_string(),
+            op: inv,
+            folders: Vec::new(),
+            retry_inverse: Vec::new(),
+            retry_sidecars: Vec::new(),
+            folders_done: Vec::new(),
+        });
         self.commits = self.commits.wrapping_add(1);
         if self.undo.len() > 1000 {
             let mut dropped = self.undo.remove(0);
@@ -700,7 +710,14 @@ impl Session {
         let tail = self.undo.split_off(from);
         let folders = tail.iter().flat_map(|e| e.folders.iter().cloned()).collect();
         let ops = tail.into_iter().rev().map(|e| e.op).collect();
-        self.undo.push(UndoEntry { label: label.to_string(), op: Op::Batch { ops }, folders, retry_inverse: Vec::new(), retry_sidecars: Vec::new() });
+        self.undo.push(UndoEntry {
+            label: label.to_string(),
+            op: Op::Batch { ops },
+            folders,
+            retry_inverse: Vec::new(),
+            retry_sidecars: Vec::new(),
+            folders_done: Vec::new(),
+        });
         true
     }
 
@@ -774,6 +791,7 @@ impl Session {
             folders: Vec::new(),
             retry_inverse: Vec::new(),
             retry_sidecars: Vec::new(),
+            folders_done: Vec::new(),
         });
     }
 
@@ -804,6 +822,7 @@ impl Session {
             folders: e.folders.iter().map(FolderMove::reversed).collect(),
             retry_inverse: Vec::new(),
             retry_sidecars: Vec::new(),
+            folders_done: Vec::new(),
         });
         Ok(e.label)
     }
@@ -829,6 +848,7 @@ impl Session {
             folders: e.folders.iter().map(FolderMove::reversed).collect(),
             retry_inverse: Vec::new(),
             retry_sidecars: Vec::new(),
+            folders_done: Vec::new(),
         });
         Ok(e.label)
     }
@@ -866,19 +886,31 @@ impl Session {
         }
         rename::retry_sidecars(fs, &mut entry.retry_sidecars).map_err(|e| EngineError::Other(format!("can't move the files back: {e}")))?;
         let op = &entry.op;
-        let folders = entry.folders.as_slice();
+        let folders = entry.folders.clone();
         for (i, f) in folders.iter().enumerate() {
-            if let Err(e) = cmd::browse::folder_on_disk(&f.from, &f.to) {
+            if entry.folders_done.contains(f) {
+                continue;
+            }
+            if let Err(e) = fs.move_folder(&f.from, &f.to) {
                 // all or none: the ones already moved go back
-                for done in folders.iter().take(i).rev() {
-                    let _ = cmd::browse::folder_on_disk(&done.to, &done.from);
+                let mut stuck = Vec::new();
+                for done in folders.iter().take(i).rev().filter(|d| !entry.folders_done.contains(d)) {
+                    if let Err(back) = fs.move_folder(&done.to, &done.from) {
+                        stuck.push((done.clone(), back));
+                    }
                 }
-                return Err(EngineError::Other(format!("can't move the folder back: {e}")));
+                let mut message = format!("can't move the folder back: {e}");
+                if !stuck.is_empty() {
+                    // like files that can't be moved back: the library follows them (a logged change outside
+                    // the history), and a retry leaves them where they are
+                    message.push_str(&self.follow_stuck_folders(entry, &stuck));
+                }
+                return Err(EngineError::Other(message));
             }
         }
         let undo_folder = || {
-            for f in folders.iter().rev() {
-                let _ = cmd::browse::folder_on_disk(&f.to, &f.from);
+            for f in folders.iter().rev().filter(|f| !entry.folders_done.contains(f)) {
+                let _ = fs.move_folder(&f.to, &f.from);
             }
         };
         let moves = self.file_moves(op);
@@ -919,6 +951,55 @@ impl Session {
                 undo_folder();
                 Err(e)
             }
+        }
+    }
+
+    /// Folders a history step moved but could not put back after a later folder failed: they stay at their new place,
+    /// the photos below them follow (a logged change outside the history; its inverse is kept for the other history
+    /// direction) and `entry` remembers them so a retry skips them. The sentence for the error message.
+    fn follow_stuck_folders(&mut self, entry: &mut UndoEntry, stuck: &[(FolderMove, String)]) -> String {
+        let moves: Vec<FolderMove> = stuck.iter().map(|(f, _)| f.clone()).collect();
+        let under = |path: &str| moves.iter().any(|f| !f.to.is_empty() && std::path::Path::new(path).starts_with(&f.to));
+        let mut keep = Vec::new();
+        rename::set_file_ops_where(&entry.op, &under, &mut keep);
+        // what the library keeps about a folder (its color label…) follows it too
+        for f in &moves {
+            if !f.from.is_empty() && !f.to.is_empty() {
+                keep.extend(self.catalog.folder_records_follow(&f.from, &f.to));
+            }
+        }
+        let n = stuck.len();
+        let s = if n == 1 { "" } else { "s" };
+        let list: Vec<String> = stuck.iter().map(|(f, why)| format!("{} ({why})", f.to)).collect();
+        let fix = Op::Batch { ops: keep };
+        let followed = match self.apply_catalog(fix.clone()) {
+            Ok(inv) => {
+                self.pending_log.push(fix);
+                let mut inverses = match inv {
+                    Op::Batch { ops } => ops,
+                    op => vec![op],
+                };
+                inverses.append(&mut entry.retry_inverse);
+                entry.retry_inverse = inverses;
+                Ok(())
+            }
+            Err(e) => Err(e),
+        };
+        // the folders stay put either way: a retry must not try to move them again
+        for f in &moves {
+            cmd::browse::follow_folder(self, &f.from, &f.to);
+        }
+        entry.folders_done.extend(moves);
+        match followed {
+            Ok(()) => format!(
+                ". {n} folder{s} could not be moved back and stay{} at the new place; the library now points there: {}",
+                if n == 1 { "s" } else { "" },
+                list.join(", ")
+            ),
+            Err(e) => format!(
+                ". {n} folder{s} could not be moved back and the library could not follow ({e}); relink with Find Missing Photos: {}",
+                list.join(", ")
+            ),
         }
     }
 
