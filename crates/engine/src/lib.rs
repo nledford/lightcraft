@@ -200,7 +200,8 @@ fn clock_minute(now: &str) -> &str {
     now.get(..16).unwrap_or(now)
 }
 
-/// Whether a query can change membership without a catalog edit, including the smart albums it tests.
+/// Whether a query can change membership without a catalog edit, including the smart albums it tests (and the ones
+/// inside a folder of albums it tests, at any depth).
 fn filter_depends_on_clock(filter: &Filter, catalog: &Catalog) -> bool {
     if filter.depends_on_now() {
         return true;
@@ -211,7 +212,12 @@ fn filter_depends_on_clock(filter: &Filter, catalog: &Catalog) -> bool {
         if !seen.insert(id) {
             continue;
         }
-        let Some(smart) = catalog.album(id).and_then(|album| album.smart.as_deref()) else { continue };
+        let Some(album) = catalog.album(id) else { continue };
+        if album.folder {
+            pending.extend(catalog.album_members(id));
+            continue;
+        }
+        let Some(smart) = album.smart.as_deref() else { continue };
         if smart.depends_on_now() {
             return true;
         }
