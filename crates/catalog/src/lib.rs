@@ -65,6 +65,12 @@ pub enum CatalogError {
     /// version doesn't know). Nothing was read into the session and nothing was modified.
     #[error("this library was written by a newer version of LightCraft ({0}); update LightCraft to open it. The library was left unchanged.")]
     Newer(String),
+    /// A batch failed, and rolling back what it had applied failed too: the catalog is not as it was, and part of
+    /// the batch stays. `remaining` is what is left of the rollback (applied in order, it takes the catalog back to
+    /// where it was before the batch), so the change can still be undone, and the batch itself is the record to keep
+    /// of it: replaying the batch from the same catalog fails the same way and leaves the same changes.
+    #[error("{cause}; the change was only partly taken back, so part of it stays")]
+    PartlyApplied { cause: Box<CatalogError>, remaining: Box<Op> },
 }
 
 pub type Result<T> = std::result::Result<T, CatalogError>;
@@ -284,7 +290,7 @@ pub struct Catalog {
     /// What the library keeps about its folders (folder identity → record), see [`folders`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     folder_records: BTreeMap<String, FolderRecord>,
-    /// Increments on every applied op.
+    /// Increments on every applied op, and when a batch fails and part of it stays ([`CatalogError::PartlyApplied`]).
     #[serde(skip)]
     pub revision: u64,
     /// Which photos the latest ops touched ([`Catalog::touched_since`]).
@@ -348,6 +354,10 @@ struct Changes {
     /// outside (a library just loaded takes a range of its own, so that nothing kept from another library is
     /// taken for this one's): nothing is known of how the catalog got to where it is.
     seen: u64,
+    /// The inverses of a failed batch's ops that could not be applied when it was rolled back, in the order they
+    /// are to be applied (see [`CatalogError::PartlyApplied`]). Empty unless a rollback is under way or has just
+    /// failed; [`Catalog::apply`] hands it out.
+    leftover: Vec<Op>,
 }
 
 impl PartialEq for Changes {
@@ -610,13 +620,30 @@ impl Catalog {
         self.albums.get_mut(&id).ok_or(CatalogError::NoAlbum(id))
     }
 
-    /// Apply an op; returns its inverse. On error nothing changes.
+    /// Apply an op; returns its inverse. On error nothing changes, with one exception: a batch that fails and cannot be
+    /// rolled back whole is [`CatalogError::PartlyApplied`], and what it did stays (its caller must record the op).
     pub fn apply(&mut self, op: Op) -> Result<Op> {
         if self.changes.seen != self.revision {
             // the revision was set from outside: what is remembered is of another past
             self.changes = Changes { floor: self.revision, seen: self.revision, ..Default::default() };
         }
-        let inv = self.apply_inner(op)?;
+        let inv = match self.apply_inner(op) {
+            Ok(inv) => inv,
+            Err(cause) => {
+                let left = std::mem::take(&mut self.changes.leftover);
+                return Err(if left.is_empty() {
+                    cause
+                } else {
+                    // (the catalog changed, and what the ops that did it noted was made for this revision: it makes
+                    // one, and anything may be taken to have changed)
+                    let made = self.revision.saturating_add(1);
+                    self.revision = made;
+                    self.changes.broad = made;
+                    self.changes.seen = made;
+                    CatalogError::PartlyApplied { cause: Box::new(cause), remaining: Box::new(Op::Batch { ops: left }) }
+                });
+            }
+        };
         self.revision += 1;
         self.changes.seen = self.revision;
         Ok(inv)
@@ -960,10 +987,19 @@ impl Catalog {
                     match self.apply_inner(op) {
                         Ok(inv) => inverses.push(inv),
                         Err(e) => {
-                            // roll back what was applied
-                            for inv in inverses.into_iter().rev() {
-                                let _ = self.apply_inner(inv);
+                            // roll back what was applied: first what a batch inside this one could not take back
+                            // (it was done last), then the inverses, newest first
+                            let mut todo = std::mem::take(&mut self.changes.leftover);
+                            todo.extend(inverses.into_iter().rev());
+                            let mut left = Vec::new();
+                            for inv in todo {
+                                if self.apply_inner(inv.clone()).is_err() {
+                                    // (the same goes for an inverse that is a batch and failed part-way)
+                                    left.append(&mut self.changes.leftover);
+                                    left.push(inv);
+                                }
                             }
+                            self.changes.leftover = left;
                             return Err(e);
                         }
                     }
