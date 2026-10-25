@@ -1674,7 +1674,7 @@ fn general_interaction(
             && let Some(q) = resp.interact_pointer_pos()
         {
             let n = map.norm(q);
-            if let Ok(r) = app.run("pointColor.pick", json!({"x": n.x, "y": n.y})) {
+            if let Some(r) = app.act("pointColor.pick", json!({"x": n.x, "y": n.y})) {
                 app.ui.point_color = r["index"].as_u64().unwrap_or(0) as usize;
             }
             app.ui.tool.clear();
@@ -2891,8 +2891,8 @@ fn eye_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response
         let half = ((sb - sa) / 2.0).abs() / per_long;
         if half.x > 0.002 && half.y > 0.002 {
             let c = map.norm(sa.lerp(sb, 0.5));
-            let r = app.run("redeye.add", json!({"center": [c.x, c.y], "rx": half.x, "ry": half.y, "pet": app.ui.eye_pet}));
-            if let Ok(v) = r {
+            let r = app.act("redeye.add", json!({"center": [c.x, c.y], "rx": half.x, "ry": half.y, "pet": app.ui.eye_pet}));
+            if let Some(v) = r {
                 app.ui.eye = v["index"].as_u64().unwrap_or(0) as usize;
             }
         }
