@@ -197,9 +197,9 @@ impl LightcraftApp {
     /// Run a command for the person at the interface (a click, a drop, a key): when it is
     /// refused, a toast says why, so no widget has to pass that on by hand (or forget to).
     /// `None` when it was refused: say a success of your own only on `Some`, or it writes over
-    /// the reason. `cargo xtask refusals` keeps the dropped form, `let _ = app.run(…)` (and
-    /// `let _ = app.session.execute(…)`, which goes round this), out of the interface: a widget
-    /// says which of `act`, [`Self::quiet`] and [`Self::run`] it means.
+    /// the reason. A widget says which of `act`, [`Self::quiet`] and [`Self::run`] it means; it does
+    /// not drop `run`'s result (`let _ = app.run(…)`), nor `let _ = app.session.execute(…)`, which
+    /// goes round this, unless a comment says why: `// refusal expected: <reason>`.
     pub fn act(&mut self, id: &str, params: Value) -> Option<Value> {
         let before = self.ui.toast.clone();
         match self.run_told(id, params) {

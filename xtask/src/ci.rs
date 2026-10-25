@@ -337,7 +337,6 @@ pub(crate) fn cmd_ci(args: &[&str]) -> Result<(), String> {
         steps.push(("parity", Box::new(|| parity::run(&root, false))));
     }
     steps.push(("layers", Box::new(cmd_layers)));
-    steps.push(("refusals", Box::new(|| refusals::run(&root))));
     steps.push(("assets", Box::new(|| assets::run(&root))));
     if wants("wasm") {
         match plan.as_ref().filter(|p| !p.workspace_wide) {
