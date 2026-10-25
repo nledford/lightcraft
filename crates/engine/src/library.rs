@@ -4,6 +4,7 @@
 //! ```text
 //! LightCraft Library/
 //!   catalog.snap   catalog.log      (lightcraft-catalog journal)
+//!   segments/      (the snapshot's photos: JSON files that catalog.snap lists)
 //!   presets.json   view.json        (user presets + favourites; last source/sort/selection)
 //!   prefs.json     (library preferences: XMP sidecars, import defaults, cache size, last export)
 //!   thumbs/        (rendered thumbnail cache, safe to delete)
@@ -740,6 +741,7 @@ impl Session {
         let unlogged = if persisted.is_err() { self.pending_log.len() as u64 } else { 0 };
         let Some(lib) = self.library.as_mut() else { return Ok(()) };
         let before = lib.journal.seq();
+        let saved = unlogged == 0 && persisted.is_ok();
         let snapshot = lib.journal.snapshot_with_unlogged(&self.catalog, unlogged);
         if unlogged > 0 && lib.journal.seq() == before + unlogged {
             // the snapshot holds the queued ops: they are saved, never append them again
@@ -751,6 +753,14 @@ impl Session {
         }
         let result = match (persisted, snapshot) {
             (_, Ok(())) => Ok(()),
+            // everything is in the log and only the compaction failed (a library whose upgrade is
+            // put off, with no room to keep its old files): the next open replays the log, so
+            // closing (also to switch libraries) is not refused for it
+            (_, Err(s)) if saved => {
+                log::warn!("library: closed without compacting: {s}");
+                lib.last_error = Some(format!("compaction: {s}"));
+                Ok(())
+            }
             // neither the log nor the snapshot took the queued ops
             (Err(EngineError::NotSaved(e)), Err(s)) if lib.journal.seq() == before => Err(EngineError::NotSaved(format!("{e}; snapshot: {s}"))),
             (_, Err(s)) => Err(s.into()),
