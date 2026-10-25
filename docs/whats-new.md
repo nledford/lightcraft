@@ -19,6 +19,20 @@
   nothing. It also does nothing, and says so, when a photo of its folder is changed in the library (a rating, an edit)
   while it scans, because what it saw is no longer what is there.
 
+### Waiting imports and syncs say which folder they are
+- A task waiting in line, and the import or Synchronize Folder that is running, name their folder in the activity stack
+  ("Rome"; "3 items" when an import has several sources). A waiting import also says how many photos the review chose
+  and how they come in, beside when it starts: "Rome · 3 photos · Copy · Starts next". ✕ and screen readers name the
+  folder too ("Remove from Queue: Importing · Rome").
+- While another import or synchronize holds the library, the import review's button says "Queue 3 Photos" (or "Queue
+  Move 3 Photos"), the Synchronize Folder dialog's says "Queue Synchronize", and both say what they start after
+  ("Starts after: Importing · Oslo").
+- A drop that is refused says why instead of "An import is running": a folder is still being scanned for the import
+  review, a folder is still being read for the Local view, or an import review is waiting to open.
+- Opening or creating a library while tasks wait in line asks first ("Switch library while tasks are waiting?") and
+  names them; after a switch that dropped them, a message says how many ("Waiting tasks dropped: 2").
+- A full waiting line is refused in the window's language ("Too many tasks are waiting (100): wait for some to finish").
+
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
   minute, even when no catalog edit occurred. This fixes stale photos remaining in the grid and stale counts for

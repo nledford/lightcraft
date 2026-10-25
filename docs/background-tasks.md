@@ -64,20 +64,26 @@ Jobs that must not run side by side share a lane (`activity::Lane`). There are t
   folder is changed in the library (a rating, an edit) while it scans, it stops without doing anything and a toast says
   so (at once for a new library, even if the old folder's scan is still going). The focus points and face regions the
   background searches add don't count as changes.
-  A toast says it was queued when it was put in line. The dialog's own scan ("Looking for changes", kind `scan`) only
+  A toast says it was queued when it was put in line. A queued task names its folder (`Request::subject`, shown as
+  the row's `detail`, and kept when it starts) and a waiting import says what else is known of it (`Request::facts`,
+  shown as `facts`: how many photos the review counted and how they come in). While the lane is busy the import
+  review and the Synchronize dialog offer "Queue …" and say what they start after. The dialog's own scan ("Looking for changes", kind `scan`) only
   reads and holds up nothing. These requests are the app's (`app:import`, `app:synchronize`): the app starts them
   (`LightcraftApp::start_waiting`, every frame), and the engine leaves them alone (`Activity::take_ready_if`). Auto
   Import lists its folder only when nothing runs, rescans or waits in this lane; files it finds after something
   started meanwhile wait in line, quietly. A drop while a scan runs or an import's review waits behind a dialog is
-  still refused.
+  still refused, and says which of the three it is.
 
 A call that sets `queue: true` while its lane is busy does not fail:
 `Activity::enqueue` keeps what it was asked (`Request`: the command and its parameters, with the photos written out)
 and `Session::start_waiting` runs it, under the id it had in line, once the lane is free. The engine calls it after
 every command and the app every frame. `activity.list` shows a waiting task after the running ones (`waiting`,
-`place`, `lane`); the activity stack in the app draws a waiting task too, at once, as a row without a bar ("Starts next" or "Starts after N more") with ✕, "Remove from Queue", which runs `activity.cancel`. `activity.cancel` takes a waiting task out
+`place`, `lane`); the activity stack in the app draws a waiting task too, at once, as a row without a bar (its folder, what is known of it, and "Starts next" or "Starts after N more") with ✕, "Remove from Queue", which runs `activity.cancel`. `activity.cancel` takes a waiting task out
 of the line, `activity.cancel {all: true}` empties it, and opening another library drops it: the photos it names
-belong to the old one. At most `MAX_WAITING` (100) tasks wait. Without `queue` a call is refused while its lane is
+belong to the old one. Opening another library while tasks wait asks first in the app (an agent says `dropWaiting: true` to agree; without it
+`app.openLibrary` and `app.newLibrary` return `asked: true` and the question is up), and the switch says how many it
+dropped. At most `MAX_WAITING` (100) tasks wait; the app's own refusals of a full line say so in the window's language,
+the engine's (`Activity::line_full_error`) stays English. Without `queue` a call is refused while its lane is
 busy, as before. A waiting task whose start fails (there is no smart previews folder any more, say) is logged (the app's own, an import or a Synchronize Folder, also says why in a toast) and the next in line goes on.
 
 ## Examples in the code
