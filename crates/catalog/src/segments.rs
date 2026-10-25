@@ -28,8 +28,8 @@
 //! **Crash safety.** Segments are written under names no snapshot lists yet, each fsynced; then
 //! `catalog.snap` is replaced atomically, which is the commit; then the files it no longer lists
 //! are removed. A crash before the commit leaves the old snapshot with all its segments; after
-//! it, the new one with all of its. Segment files nothing lists are removed when the library is
-//! opened.
+//! it, the new one with all of its. Segment files nothing lists (a crash can leave some) are not
+//! removed yet.
 //!
 //! **A damaged segment** (wrong size or CRC, unreadable, photos it shouldn't hold) fails the open
 //! with an error naming the file, and nothing is modified.
@@ -37,10 +37,11 @@
 //! **Stores without segments** ([`Store::segmented`] is false: the browser's) keep the photos in
 //! `catalog.snap` itself, as formats up to 10 did. Either layout is read wherever it is found.
 //!
-//! This module is the writer and reader of the segments, used by [`crate::journal`] for format 11
-//! (the journal that calls it comes in the next change; until then only the tests below do).
+//! This module is the writer and reader of the segments, used by [`crate::journal`] for format 11.
+//! The journal does not yet keep the baseline between snapshots, so each one writes every segment;
+//! writing only the ones whose photos changed comes in the next change.
 
-#![allow(dead_code, reason = "called by the journal in the change that brings format 11")]
+#![allow(dead_code, reason = "the journal calls the rest of it (keeping the baseline, listing the folder) in the next changes")]
 
 use std::collections::BTreeMap;
 use std::ops::Bound;
@@ -122,7 +123,7 @@ enum Step {
 pub(crate) struct Size {
     /// At most this many (the journal's policy states it).
     pub per: usize,
-    /// And about this many bytes (the journal's policy states it too; 0: any).
+    /// And about this many bytes (0: any; the journal does not set it yet).
     pub bytes: u64,
     /// What a photo's record takes on average, as far as known (0: not known), for photos that
     /// are in no segment yet.
@@ -442,7 +443,7 @@ pub(crate) fn write(store: &mut dyn Store, photos: &Photos, on_disk: &OnDisk<'_>
 }
 
 /// Remove segment files (ones that are not, or no longer, listed). Failing to is not an error:
-/// what stays is removed when the library is next opened.
+/// what stays is left where it is.
 pub(crate) fn discard(store: &mut dyn Store, names: &[String]) {
     for name in names {
         if valid_name(name.strip_suffix(".tmp").unwrap_or(name))
