@@ -251,6 +251,6 @@ fn view_options_headings_are_registered_under_their_english_names_in_every_langu
         for _ in 0..4 {
             h.step();
         }
-        assert_eq!(headings(&h), ["Loupe View", "Loupe Info 1", "Loupe Info 2"], "{}", locale.name());
+        assert_eq!(headings(&h), ["Loupe View", "Loupe Info 1", "Loupe Info 2", "General"], "{}", locale.name());
     }
 }
