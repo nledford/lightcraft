@@ -694,9 +694,10 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                 }
                 continue;
             }
-            // an export that can't start (e.g. no folder) says why instead of doing nothing
+            // an export that can't start (e.g. no folder), or a view that can't be saved as a smart
+            // album, says why instead of doing nothing
             if let Err(e) = app.run(&f, json!({}))
-                && matches!(f.as_str(), "app.export" | "app.exportPrevious")
+                && matches!(f.as_str(), "app.export" | "app.exportPrevious" | "dialog.newSmartAlbum")
             {
                 app.toast(ctx, e);
             }
