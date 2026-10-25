@@ -388,10 +388,19 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
     let (fire, aliased) = pressed_commands(app, ctx);
     for (id, params) in aliased {
+        // a key of this frame opened a dialog (Shift+E): the keys after it are the dialog's, not commands behind it
+        if app.ui.dialog.is_some() {
+            break;
+        }
         fire_alias(app, ctx, id, params);
     }
     let rotate_fires = fire.iter().any(|f| f == "crop.rotateAspect");
     for f in fire {
+        // a key of this frame opened a dialog: the keys handled after it (aliases first, then the
+        // rest, whatever order they were pressed in) are the dialog's, not commands behind it
+        if app.ui.dialog.is_some() {
+            break;
+        }
         fire_command(app, ctx, &f, rotate_fires);
     }
 }
@@ -491,7 +500,7 @@ fn cull(app: &mut LightcraftApp, id: &str, mut params: serde_json::Value, advanc
     use crate::panels::compare;
     compare::target_active(app, &mut params);
     let was = app.session.active();
-    let ok = key_act(app, id, params).is_some();
+    let ok = app.act(id, params).is_some();
     if ok && (advance || app.ui.auto_advance) {
         compare::advance(app, was);
     }
@@ -518,7 +527,7 @@ fn fire_alias(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, params: se
         cull(app, id, params, advance);
     } else {
         // a command that can't run (an export with no folder…) says why instead of doing nothing
-        key_act(app, id, params);
+        app.act(id, params);
     }
 }
 
@@ -539,7 +548,7 @@ fn flag_toast(app: &mut LightcraftApp, ctx: &egui::Context, flag: lightcraft_cat
 fn fire_command(app: &mut LightcraftApp, ctx: &egui::Context, f: &str, rotate_fires: bool) {
     // a slideshow: ←/→ step (a cut)
     if app.ui.slideshow.is_some() && matches!(f, "library.next" | "library.previous") {
-        key_act(app, if f == "library.next" { "slideshow.next" } else { "slideshow.previous" }, json!({}));
+        app.act(if f == "library.next" { "slideshow.next" } else { "slideshow.previous" }, json!({}));
         return;
     }
     if fire_rating_key(app, ctx, f) || fire_grid_key(app, f) || fire_flag_key(app, ctx, f) {
@@ -547,7 +556,7 @@ fn fire_command(app: &mut LightcraftApp, ctx: &egui::Context, f: &str, rotate_fi
     }
     // in the full-screen preview (no panels) I cycles the info overlay instead
     if f == "panel.info" && app.ui.fullscreen {
-        key_act(app, "view.infoOverlay", json!({}));
+        app.act("view.infoOverlay", json!({}));
         return;
     }
     if (f == "photo.delete" && delete_key(app, ctx)) || (f == "tool.brush" && brush_key(app, ctx)) || context_key_skipped(app, f, rotate_fires) {
@@ -559,7 +568,7 @@ fn fire_command(app: &mut LightcraftApp, ctx: &egui::Context, f: &str, rotate_fi
     }
     // a command that can't run (an export with no folder, nothing to undo…) says why
     // instead of doing nothing; its success is said only when it went through
-    if key_act(app, f, json!({})).is_some() {
+    if app.act(f, json!({})).is_some() {
         match f {
             "photo.pick" => flag_toast(app, ctx, lightcraft_catalog::Flag::Pick),
             "photo.reject" => flag_toast(app, ctx, lightcraft_catalog::Flag::Reject),
@@ -601,13 +610,13 @@ fn fire_grid_key(app: &mut LightcraftApp, f: &str) -> bool {
         cull(app, "photo.flag", json!({"flag": "pick"}), true);
     } else if f == "view.softProof" && library_grid(app) {
         // S in a grid: expand / collapse the stack (Lightroom's Library binding)
-        key_act(app, "stack.toggle", json!({}));
+        app.act("stack.toggle", json!({}));
     } else if f == "grid:first" || f == "grid:last" {
         // Home / End in a grid: make the first / last photo of the view the active, selected one
         let vis = app.session.visible_cloned();
         let edge = if f == "grid:first" { vis.first() } else { vis.last() };
         if let Some(id) = edge {
-            key_act(app, "library.select", json!({"ids": [id.0], "active": id.0}));
+            app.act("library.select", json!({"ids": [id.0], "active": id.0}));
         }
     } else if let Some(step) = f.strip_prefix("grid:extend:") {
         extend_selection(app, step.parse::<i64>().unwrap_or(0));
@@ -633,7 +642,7 @@ fn extend_selection(app: &mut LightcraftApp, step: i64) {
         .and_then(|pos| usize::try_from(pos).ok())
         .and_then(|pos| vis.get(pos));
     if let Some(id) = neighbour {
-        key_act(app, "library.select", json!({"ids": [id.0], "mode": "add"}));
+        app.act("library.select", json!({"ids": [id.0], "mode": "add"}));
     }
 }
 
@@ -670,13 +679,13 @@ fn delete_key(app: &mut LightcraftApp, ctx: &egui::Context) -> bool {
     match app.ui.right {
         R::Masking => {
             if app.session.active_mask.is_some() {
-                key_act(app, "mask.delete", json!({}));
+                app.act("mask.delete", json!({}));
             }
             return true;
         }
         R::Remove => {
             if app.session.active_spot.is_some() {
-                key_act(app, "spot.delete", json!({}));
+                app.act("spot.delete", json!({}));
             }
             return true;
         }
@@ -711,7 +720,7 @@ fn brush_key(app: &mut LightcraftApp, ctx: &egui::Context) -> bool {
     if !library_grid(app) {
         return false;
     }
-    if let Some(r) = key_act(app, "album.toggleTarget", json!({})) {
+    if let Some(r) = app.act("album.toggleTarget", json!({})) {
         let n = app.session.selected().len();
         let what = crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n);
         let name = r["name"].as_str().unwrap_or("Quick Collection").to_string();
@@ -737,7 +746,7 @@ fn context_key_skipped(app: &mut LightcraftApp, f: &str, rotate_fires: bool) -> 
         // swap once: twice would put the crop straight back (issue #1866).
         "photo.reject" if right == R::Crop => {
             if !rotate_fires {
-                key_act(app, "crop.rotateAspect", json!({}));
+                app.act("crop.rotateAspect", json!({}));
             }
             true
         }
@@ -747,21 +756,21 @@ fn context_key_skipped(app: &mut LightcraftApp, f: &str, rotate_fires: bool) -> 
         "crop.lockAspect" => right != R::Crop,
         // / refreshes the selected spot's source in the Remove tool (the filmstrip elsewhere)
         "view.filmstrip" if right == R::Remove && app.session.active_spot.is_some() => {
-            key_act(app, "spot.refreshSource", json!({}));
+            app.act("spot.refreshSource", json!({}));
             true
         }
         // Shift+O cycles the mask overlay colour while masking (the crop overlay elsewhere)
         "view.cropOverlay" if right == R::Masking => {
-            key_act(app, "view.maskOverlayColor", json!({}));
+            app.act("view.maskOverlayColor", json!({}));
             true
         }
         // while cropping: O cycles the guides, Shift+O their orientation
         "view.maskOverlay" if right == R::Crop => {
-            key_act(app, "view.cropOverlay", json!({}));
+            app.act("view.cropOverlay", json!({}));
             true
         }
         "view.cropOverlay" if right == R::Crop => {
-            key_act(app, "view.cropOverlayOrientation", json!({}));
+            app.act("view.cropOverlayOrientation", json!({}));
             true
         }
         _ => false,
@@ -788,13 +797,6 @@ fn up_down_key(app: &mut LightcraftApp, ctx: &egui::Context, f: &str) {
 
 pub(crate) fn library_grid(app: &LightcraftApp) -> bool {
     matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid)
-}
-
-/// Runs a key's command for the person ([`LightcraftApp::act`]: a refusal says why). With a
-/// dialog open the keys still reach here, but the person is typing at the dialog, not asking for
-/// the command behind it: a refusal there says nothing.
-fn key_act(app: &mut LightcraftApp, id: &str, params: serde_json::Value) -> Option<serde_json::Value> {
-    if app.ui.dialog.is_some() { app.quiet(id, params) } else { app.act(id, params) }
 }
 
 #[cfg(test)]

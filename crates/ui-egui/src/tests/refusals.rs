@@ -164,8 +164,8 @@ fn a_reason_is_capitalised_only_when_it_starts_with_a_word() {
     }
 }
 
-/// With a dialog open the keys behind it still run their commands, but nobody asked: a refused
-/// one says nothing there, and says why once the dialog is gone.
+/// With a dialog open the keys are the dialog's and reach no command behind it, so nothing is said
+/// about a refusal there; once the dialog is gone, the same key says why.
 #[test]
 fn a_refused_key_behind_a_dialog_says_nothing() {
     let mut h = headless(lightcraft_engine::Session::with_demo(), json!({"view": "photoGrid"}));
