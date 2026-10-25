@@ -589,11 +589,7 @@ impl WebApp {
                 // what the import did, not what was submitted: duplicates and unsupported files add nothing,
                 // a drop that only finds duplicates says nothing (as the desktop import's toast does when it
                 // shows where they are), and one whose files could not be read says so
-                Ok(report) => {
-                    if let Some(notice) = lightcraft_ui_egui::i18n::dropped_photos_outcome(&report) {
-                        self.app.toast(ctx, notice);
-                    }
-                }
+                Ok(report) => self.app.toast_dropped_photos(ctx, &report),
                 Err(e) => {
                     log::warn!("import: {e}");
                     self.app.toast_error(ctx, lightcraft_ui_egui::i18n::dropped_import_failed(&e));

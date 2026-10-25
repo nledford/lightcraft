@@ -88,7 +88,8 @@
   a hint such as "Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo" stays over
   five.
 - Messages that tell you something failed (a command that couldn't run, a refused drop, a scan that failed) stay
-  at least 6 seconds, including some that used to vanish after 1.4 seconds.
+  at least 6 seconds, including some that used to vanish after 1.4 seconds. In the web version, a dropped photo that
+  couldn't be read is among them.
 - Rest the pointer on a toast and it stays; after you move away it stays another second and a half. It never takes
   a click from what is underneath it.
 - A toast fades in over a fraction of a second, as it already faded out.

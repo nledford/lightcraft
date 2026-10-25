@@ -260,3 +260,27 @@ fn the_same_text_shown_again_under_a_still_pointer_keeps_its_fade_and_hover() {
     assert_eq!(again.shown_at, first.shown_at, "no fade-in again");
     assert!(again.hovered);
 }
+
+/// What the web build shows for a drop of photos: a file that could not be read is a failure, so
+/// it stays 6 s like every error; a clean import keeps the regular reading time.
+#[test]
+fn a_drop_with_an_unreadable_file_is_an_error_toast_and_a_clean_one_is_not() {
+    let mut h = app();
+    let c = ctx(&h);
+    let failed = json!({"imported": [1, 2, 3], "restored": [], "failed": ["broken.jpg"]});
+    h.app.toast_dropped_photos(&c, &failed);
+    let t = h.app.ui.toast.clone().expect("the outcome is told");
+    assert!(t.until - t.shown_at >= 6.0, "an unreadable file stays like an error: {}", t.until - t.shown_at);
+
+    let mut h = app();
+    let c = ctx(&h);
+    let clean = json!({"imported": [1], "restored": [], "failed": []});
+    h.app.toast_dropped_photos(&c, &clean);
+    let t = h.app.ui.toast.clone().expect("the outcome is told");
+    assert!(t.until - t.shown_at < 6.0, "{}", t.until - t.shown_at);
+
+    let mut h = app();
+    let c = ctx(&h);
+    h.app.toast_dropped_photos(&c, &json!({"imported": [], "restored": [], "failed": [], "duplicates": [4]}));
+    assert!(!shown(&h), "duplicates only say nothing");
+}

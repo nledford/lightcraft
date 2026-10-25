@@ -535,6 +535,18 @@ impl LightcraftApp {
         self.ui.show_toast(t, text.into(), secs.max(ERROR_TOAST_SECONDS), None);
     }
 
+    /// The toast for what a drop of photos came to (`library.import`'s report, via
+    /// [`i18n::dropped_photos_outcome`]): an error toast when a file could not be read, so it stays at
+    /// least 6 s like every other failure, otherwise the regular one. Nothing for duplicates only.
+    pub fn toast_dropped_photos(&mut self, ctx: &egui::Context, report: &serde_json::Value) {
+        let Some(notice) = i18n::dropped_photos_outcome(report) else { return };
+        if i18n::dropped_photos_failed(report) {
+            self.toast_error(ctx, notice);
+        } else {
+            self.toast(ctx, notice);
+        }
+    }
+
     /// The process is about to end (settings and library are saved by then): make sure nothing is
     /// inside the GPU driver when it does (issue #620: a render running on a worker thread while
     /// the process exits crashes in the driver). No GPU work starts from here on; the render
