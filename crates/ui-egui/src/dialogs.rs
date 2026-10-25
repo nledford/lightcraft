@@ -51,8 +51,8 @@ pub const ABOUT_TABS: &[(&str, &str)] = &[("about", "About"), ("contributors", "
 /// Help ▸ What's New (docs/whats-new.md).
 pub const WHATS_NEW: &str = include_str!("../../../docs/whats-new.md");
 
-/// The import review's button: its verb (Import, Move, Queue, Queue Move) and how many photos it takes. Where a verb
-/// phrase can end in a noun (French "Mettre le déplacement en file"), the catalogs word it as a label with its count.
+/// The import review's button: its verb (Import, Move, Queue, Queue Move) and how many photos it takes. The catalogs
+/// word it as a label with its count where a verb phrase can end in a noun (French, Italian, Brazilian Portuguese).
 pub(crate) fn photo_count_label(verb: &str, n: usize) -> String {
     crate::i18n::tr_format!("{verb} {n} Photo{}", if n == 1 { "" } else { "s" }, verb = crate::i18n::tr(verb), n = n)
 }

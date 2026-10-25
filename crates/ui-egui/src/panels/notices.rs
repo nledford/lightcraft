@@ -545,7 +545,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             && let Err(e) = crate::dialogs::settings::confirm_switch(app, &prompt)
         {
             // from the library chooser: the error goes where it goes for a failed open there, and the chooser stays
-            if app.library_problem.is_some() {
+            if app.library_problem.as_ref().is_some_and(|p| p.chooser.is_some() && !p.dismissed) {
                 super::library_problem::failed(app, Some(prompt.path.clone()), e);
             } else {
                 app.toast_error(ctx, e);
