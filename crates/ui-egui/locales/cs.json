@@ -2403,8 +2403,6 @@
   "Drop to import": "Pusťte pro import",
   "Dropped Files": "Přetažené soubory",
   "Import dropped files without review": "Importovat přetažené soubory bez kontroly",
-  "An import is running": "Import už běží",
-  "An import is running. Drop photos when it has finished": "Import už běží. Fotky přetáhněte, až skončí",
   "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky",
   "Queued: it starts when the task ahead of it ends": "Ve frontě: začne, až skončí úloha před ní",
   "Another library was opened: nothing was done": "Byla otevřena jiná knihovna: nic se neprovedlo",
@@ -2412,5 +2410,8 @@
   "Starts next": "Začne jako další",
   "Queue": "Zařadit do fronty",
   "Queue Move": "Zařadit přesun do fronty",
-  "Queue Synchronize": "Zařadit synchronizaci do fronty"
+  "Queue Synchronize": "Zařadit synchronizaci do fronty",
+  "A folder is still being scanned for the import review: drop photos when it has finished": "Složka se ještě prohledává pro kontrolu importu. Fotky přetáhněte, až skončí",
+  "A folder is still being read for the Local view: drop photos when it has finished": "Složka se ještě načítá pro zobrazení Místní soubory. Fotky přetáhněte, až skončí",
+  "An import review is waiting to open: drop photos when it is closed": "Kontrola importu čeká na otevření. Fotky přetáhněte, až ji zavřete"
 }

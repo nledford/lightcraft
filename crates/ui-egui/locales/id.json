@@ -2328,8 +2328,6 @@
   "Mask Overlay": "Overlay masker",
   "Mask Pins": "Pin masker",
   "Photo Counts": "Jumlah foto",
-  "An import is running": "Impor sedang berjalan",
-  "An import is running. Drop photos when it has finished": "Impor sedang berjalan. Jatuhkan foto setelah selesai",
   "Close the open dialog to drop files here": "Tutup dialog yang terbuka untuk menjatuhkan file di sini",
   "Close the open dialog, then drop the files again": "Tutup dialog yang terbuka, lalu jatuhkan file lagi",
   "Drop to import": "Jatuhkan untuk mengimpor",
@@ -2343,5 +2341,8 @@
   "Starts next": "Dimulai berikutnya",
   "Queue": "Antrekan",
   "Queue Move": "Antrekan pemindahan",
-  "Queue Synchronize": "Antrekan sinkronisasi"
+  "Queue Synchronize": "Antrekan sinkronisasi",
+  "A folder is still being scanned for the import review: drop photos when it has finished": "Folder masih dipindai untuk tinjauan impor. Jatuhkan foto setelah selesai",
+  "A folder is still being read for the Local view: drop photos when it has finished": "Folder masih dibaca untuk tampilan Lokal. Jatuhkan foto setelah selesai",
+  "An import review is waiting to open: drop photos when it is closed": "Tinjauan impor menunggu untuk dibuka. Jatuhkan foto setelah ditutup"
 }

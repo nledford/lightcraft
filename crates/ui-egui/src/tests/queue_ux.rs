@@ -223,3 +223,34 @@ fn the_synchronize_dialog_says_when_it_will_wait() {
     assert!(says(&h, "Queue Synchronize"), "{:?}", h.painted_text());
     assert!(says(&h, "Starts after: Importing"), "{:?}", h.painted_text());
 }
+
+/// Given a finished scan whose review waits behind another dialog, a folder being scanned for the review, or a folder
+/// being read for the Local view, when photos are dropped or started, then each says its own reason, in the window's
+/// language, and not "an import is running".
+#[test]
+fn a_refused_drop_says_why_per_cause_in_the_windows_language() {
+    let mut h = app();
+    assert_eq!(crate::import::drop_refusal(&h.app), None);
+    h.app.review_pending = Some(crate::state::Dialog::Import { opts: Box::new(review("/photos/Rome", 1)) });
+    let pending = crate::import::start_paths(&mut h.app, vec!["/photos/Oslo".into()]).expect_err("refused");
+    assert_eq!(pending, "An import review is waiting to open: drop photos when it is closed");
+    h.app.review_pending = None;
+    let scan = crate::import::stall_scan_of(&mut h.app, false);
+    let reviewing = crate::import::start_paths(&mut h.app, vec!["/photos/Oslo".into()]).expect_err("refused");
+    drop(scan);
+    h.app.scan = None;
+    let scan = crate::import::stall_scan_of(&mut h.app, true);
+    let reading = crate::import::drop_refusal(&h.app).expect("refused");
+    drop(scan);
+    h.app.scan = None;
+    assert_eq!(reviewing, "A folder is still being scanned for the import review: drop photos when it has finished");
+    assert_eq!(reading, "A folder is still being read for the Local view: drop photos when it has finished");
+    assert!(![&pending, &reviewing, &reading].iter().any(|t| t.contains("An import is running")));
+    // the same, in German: from the catalog's own text
+    crate::i18n::set_language(crate::i18n::Locale::De);
+    h.app.review_pending = Some(crate::state::Dialog::Import { opts: Box::new(review("/photos/Rome", 1)) });
+    let german = crate::import::drop_refusal(&h.app).expect("refused");
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    assert_eq!(german, crate::i18n::Locale::De.tr("An import review is waiting to open: drop photos when it is closed"));
+    assert_ne!(german, pending, "translated");
+}

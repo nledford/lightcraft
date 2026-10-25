@@ -2278,8 +2278,6 @@
   "Drop to import": "Upuść, aby zaimportować",
   "Dropped Files": "Upuszczone pliki",
   "Import dropped files without review": "Importuj upuszczone pliki bez przeglądu",
-  "An import is running": "Import jest w toku",
-  "An import is running. Drop photos when it has finished": "Import jest w toku. Upuść zdjęcia, gdy się zakończy",
   "Finish Lightroom catalog import before adding photos": "Zakończ import katalogu Lightrooma, zanim dodasz zdjęcia",
   "Queued: it starts when the task ahead of it ends": "W kolejce: rozpocznie się po zakończeniu poprzedniego zadania",
   "Another library was opened: nothing was done": "Otwarto inną bibliotekę: nic nie zrobiono",
@@ -2287,5 +2285,8 @@
   "Starts next": "Rozpocznie się jako następne",
   "Queue": "Dodaj do kolejki",
   "Queue Move": "Dodaj przeniesienie do kolejki",
-  "Queue Synchronize": "Dodaj synchronizację do kolejki"
+  "Queue Synchronize": "Dodaj synchronizację do kolejki",
+  "A folder is still being scanned for the import review: drop photos when it has finished": "Folder jest jeszcze skanowany na potrzeby przeglądu importu. Upuść zdjęcia, gdy się zakończy",
+  "A folder is still being read for the Local view: drop photos when it has finished": "Folder jest jeszcze odczytywany na potrzeby widoku Lokalne. Upuść zdjęcia, gdy się zakończy",
+  "An import review is waiting to open: drop photos when it is closed": "Przegląd importu czeka na otwarcie. Upuść zdjęcia, gdy zostanie zamknięty"
 }

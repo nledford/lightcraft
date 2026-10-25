@@ -1,7 +1,5 @@
-use super::scan::wait_in_line;
-use super::{
-    ImportDialog, ImportUprightMode, ImportWarning, ImportWarningCode, LightcraftApp, Ordering, Request, Value, drop_blocked, json, library_busy,
-};
+use super::scan::{drop_refusal, import_request, subject_of, wait_in_line};
+use super::{ImportDialog, ImportUprightMode, ImportWarning, ImportWarningCode, LightcraftApp, Ordering, Request, Value, json, library_busy};
 
 /// Files per batch in the browser build (each batch joins the catalog as it is ready, so the
 /// progress window updates); the desktop's worker uses [`lightcraft_engine::import::batch_size`].
@@ -271,8 +269,8 @@ pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String>
 /// Start importing `paths` (files or folders) in the background, e.g. dropped on the window; in line, like
 /// [`start`], while the library lane is taken.
 pub fn start_paths(app: &mut LightcraftApp, paths: Vec<String>) -> Result<Value, String> {
-    if drop_blocked(app) {
-        return Err(crate::i18n::tr("An import is running").to_string());
+    if let Some(why) = drop_refusal(app) {
+        return Err(why);
     }
     let params = json!({"mode": "add"});
     if library_busy(app) {

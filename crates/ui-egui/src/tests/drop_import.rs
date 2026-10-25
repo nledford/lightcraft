@@ -961,8 +961,9 @@ fn a_drop_while_a_scan_runs_is_refused() {
     write_png(&dir.path("more/c.png"), 3);
     let _scan = crate::import::stall_scan(&mut h.app);
     drop_files(&mut h, &[dir.path("more/c.png")], true);
-    assert!(said(&h, "An import is running"), "{:?}", h.painted_text());
-    assert!(!said(&h, "review"), "{:?}", h.painted_text());
+    assert!(said(&h, "A folder is still being scanned for the import review: drop photos when it has finished"), "{:?}", h.painted_text());
+    assert!(!said(&h, "An import is running"), "the scan is the reason, not an import");
+    assert!(!said(&h, "Drop to review"), "{:?}", h.painted_text());
     drop_files(&mut h, &[dir.path("more")], false);
     for _ in 0..30 {
         h.step();
@@ -997,7 +998,7 @@ fn a_drop_while_a_browse_scan_runs_is_refused_in_both_modes() {
         write_png(&dir.path("more/c.png"), 3);
         let _scan = crate::import::stall_scan_of(&mut h.app, true);
         drop_files(&mut h, &[dir.path("more/c.png")], true);
-        assert!(said(&h, "An import is running"), "{:?}", h.painted_text());
+        assert!(said(&h, "A folder is still being read for the Local view: drop photos when it has finished"), "{:?}", h.painted_text());
         drop_files(&mut h, &[dir.path("more")], false);
         for _ in 0..30 {
             h.step();
@@ -1151,7 +1152,7 @@ fn a_new_drop_outside_the_barrier_is_refused_while_an_older_drop_waits_for_an_im
         assert!(h.app.scan.is_some() && h.app.import.is_none(), "the original stalled import scan survives B");
         assert!(h.app.ui.dialog.is_none());
         assert_eq!(photos(&h), 0);
-        assert!(h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("An import is running")), "B is refused immediately: {:?}", h.app.ui.toast);
+        assert!(h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("still being scanned for the import review")), "B is refused immediately: {:?}", h.app.ui.toast);
         assert_eq!(h.app.dropped_files.len(), 1, "B cannot inherit A's protected provenance");
         drop(stalled); // Channel-only fixture: no worker/process to stop.
         assert!(h.step_until(T, |h| h.app.scan.is_none()), "the original stalled scan ends");

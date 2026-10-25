@@ -2344,8 +2344,6 @@
   "Drop to import": "Отпустите для импорта",
   "Dropped Files": "Перетащенные файлы",
   "Import dropped files without review": "Импортировать перетащенные файлы без проверки",
-  "An import is running": "Импорт уже выполняется",
-  "An import is running. Drop photos when it has finished": "Импорт уже выполняется. Перетащите фото, когда он закончится",
   "Finish Lightroom catalog import before adding photos": "Завершите импорт каталога Lightroom, прежде чем добавлять фото",
   "Queued: it starts when the task ahead of it ends": "В очереди: начнётся, когда закончится задача перед ней",
   "Another library was opened: nothing was done": "Открыта другая библиотека: ничего не сделано",
@@ -2353,5 +2351,8 @@
   "Starts next": "Начнётся следующей",
   "Queue": "В очередь",
   "Queue Move": "В очередь: переместить",
-  "Queue Synchronize": "В очередь: синхронизировать"
+  "Queue Synchronize": "В очередь: синхронизировать",
+  "A folder is still being scanned for the import review: drop photos when it has finished": "Папка ещё сканируется для проверки импорта. Перетащите фото, когда это закончится",
+  "A folder is still being read for the Local view: drop photos when it has finished": "Папка ещё читается для вида «Локальное». Перетащите фото, когда это закончится",
+  "An import review is waiting to open: drop photos when it is closed": "Проверка импорта ждёт открытия. Перетащите фото, когда она будет закрыта"
 }

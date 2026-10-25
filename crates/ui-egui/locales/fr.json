@@ -2349,8 +2349,6 @@
   "Drop to import": "Déposez pour importer",
   "Dropped Files": "Fichiers déposés",
   "Import dropped files without review": "Importer les fichiers déposés sans vérification",
-  "An import is running": "Une importation est en cours",
-  "An import is running. Drop photos when it has finished": "Une importation est en cours. Déposez les photos quand elle sera terminée",
   "Finish Lightroom catalog import before adding photos": "Terminez l'importation du catalogue Lightroom avant d'ajouter des photos",
   "The library is empty: the catalog's photos, collections and edits become its first.": "La bibliothèque est vide : les photos, collections et retouches du catalogue seront les premières.",
   "The catalog's photos, collections and edits join the ones already in this library.": "Les photos, collections et retouches du catalogue rejoignent celles déjà présentes dans cette bibliothèque.",
@@ -2394,5 +2392,8 @@
   "Starts next": "Démarre ensuite",
   "Queue": "Mettre en file",
   "Queue Move": "Mettre le déplacement en file",
-  "Queue Synchronize": "Mettre la synchronisation en file"
+  "Queue Synchronize": "Mettre la synchronisation en file",
+  "A folder is still being scanned for the import review: drop photos when it has finished": "Un dossier est encore analysé pour la vérification de l'importation. Déposez les photos quand ce sera terminé",
+  "A folder is still being read for the Local view: drop photos when it has finished": "Un dossier est encore lu pour la vue Local. Déposez les photos quand ce sera terminé",
+  "An import review is waiting to open: drop photos when it is closed": "La vérification de l'importation attend de s'ouvrir. Déposez les photos quand elle sera fermée"
 }
