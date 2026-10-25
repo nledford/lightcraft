@@ -289,6 +289,27 @@ impl Session {
         Ok(())
     }
 
+    /// `op` removes a photo whose file is on its way to another folder (the undo of its import), or
+    /// points it at another file (the undo of Convert to DNG): the move's finish finds no photo at
+    /// the old place to point at the new one.
+    pub(crate) fn detaches_moving_photo(&self, op: &Op) -> bool {
+        let mut pending = vec![op];
+        while let Some(op) = pending.pop() {
+            match op {
+                Op::Batch { ops } => pending.extend(ops),
+                Op::RemovePhoto { id } | Op::Relink { id, .. } => {
+                    if let Some(Source::File { path }) = self.catalog.photo(*id).map(|p| &p.source)
+                        && self.is_moving(path)
+                    {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
     /// The file `path` is on its way to another folder (its sidecar waits until it arrives).
     pub(crate) fn is_moving(&self, path: &str) -> bool {
         Weak::upgrade(&self.moving).is_some_and(|t| t.holds(path))

@@ -853,7 +853,11 @@ impl Session {
         rename::validate_sidecars(fs, &entry.retry_sidecars).map_err(|e| EngineError::Other(format!("can't move the files back: {e}")))?;
         // Repair discarded file steps before another path change can stale their exact paths.
         // Unrelated metadata history must remain usable while a sidecar is still unwritable.
-        if entry.folder.is_some() || !entry.retry_sidecars.is_empty() || !self.file_moves(&entry.op).is_empty() {
+        if entry.folder.is_some()
+            || !entry.retry_sidecars.is_empty()
+            || !self.file_moves(&entry.op).is_empty()
+            || self.detaches_moving_photo(&entry.op)
+        {
             self.refuse_while_moving()?;
             self.repair_sidecars_with(fs).map_err(|e| EngineError::Other(format!("can't move the files back: {e}")))?;
         }
