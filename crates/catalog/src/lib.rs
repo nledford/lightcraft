@@ -1229,6 +1229,8 @@ mod tests_scale;
 #[cfg(test)]
 mod tests_stored;
 #[cfg(test)]
+mod tests_stored_settings;
+#[cfg(test)]
 mod tests_tally;
 #[cfg(test)]
 mod tests_torn_append;
