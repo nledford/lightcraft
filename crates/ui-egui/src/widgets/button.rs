@@ -448,7 +448,8 @@ impl<'a> Button<'a> {
             ui.ctx().accesskit_node_builder(resp.id, |node| node.set_busy());
         }
         if let Some(w) = &self.widget {
-            crate::widgets::register(ui, w.clone(), rect);
+            // the real response: its id is the AccessKit node a Focus or Click action targets
+            crate::widgets::register_response(w.clone(), rect, &resp);
         }
         let state = if !enabled {
             State::Disabled

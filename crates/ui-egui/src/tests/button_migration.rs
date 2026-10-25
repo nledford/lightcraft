@@ -180,3 +180,24 @@ fn denoise_cancel_pending_action_button_drops_the_request() {
     drop(h);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A `Button` with an automation id registers its own response, not a hover probe: the id the
+/// registry holds is the AccessKit node a screen reader's Focus or Click action targets, and the
+/// prompts' buttons depend on it.
+#[test]
+fn a_button_registers_its_real_response_for_automation() {
+    let ctx = egui::Context::default();
+    crate::theme::install_fonts(&ctx);
+    let raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))), ..Default::default() };
+    let mut response = None;
+    let mut out = ctx.run_ui(raw, |ui| {
+        response = Some(crate::button::Button::new("Quit").widget("button:probe").show(ui));
+    });
+    out.textures_delta.clear();
+    let response = response.expect("the frame ran");
+    let (rects, hits) = crate::widgets::take_registries(&ctx);
+    assert!(rects.iter().any(|(id, rect)| id == "button:probe" && *rect == response.rect), "registered at its rectangle: {rects:?}");
+    let (_, hit) = hits.iter().find(|(id, _)| id == "button:probe").expect("a widget hit is recorded");
+    assert_eq!(hit.id, response.id, "the hit is the button's own egui id");
+    assert_eq!(hit.layer_id, response.layer_id);
+}
