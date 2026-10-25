@@ -398,6 +398,25 @@ fn a_background_move_shows_its_progress_and_holds_back_other_moves_until_it_ends
 }
 
 #[test]
+fn a_background_move_refused_for_another_running_move_says_so_in_a_toast() {
+    let (root, trip, home) = folders("background-refused");
+    let mut h = app(&[(trip.join("beach.png"), false), (home.join("garden.png"), false)]);
+    let (beach, garden) = (id_of(&h, "beach.png"), id_of(&h, "garden.png"));
+    h.app.run("photo.moveToFolder", json!({"ids": [beach], "folder": home.to_string_lossy(), "background": true})).unwrap();
+    // a menu, key or button that asks for the move in the background drops the returned error: the toast is what the person sees
+    let e = h.app.run("photo.moveToFolder", json!({"ids": [garden], "folder": trip.to_string_lossy(), "background": true})).unwrap_err();
+    assert!(e.contains("being moved"), "{e}");
+    assert_eq!(toast(&h), e, "said where the person sees it");
+    // and it stays up for 6 s of the app clock
+    h.app.ui.toast = None;
+    let _ = h.app.run("photo.moveToFolder", json!({"ids": [garden], "folder": trip.to_string_lossy(), "background": true}));
+    let expires = h.app.ui.toast.as_ref().map(|(_, until, _)| *until).expect("a toast");
+    assert!((expires - (h.app.tick_now() + 6.0)).abs() < 1.0, "{expires}");
+    settle(&mut h);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn quit_anyway_quits_while_a_move_without_a_stop_button_runs() {
     let (root, _trip, _home) = folders("quit");
     let mut h = app(&[]);

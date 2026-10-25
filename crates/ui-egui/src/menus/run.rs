@@ -170,7 +170,13 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
     let ctx = app.tasks.repaint.clone().unwrap_or_default();
     if id == "photo.moveToFolder" && p.get("background").and_then(Value::as_bool) == Some(true) {
         // the files move on a worker thread; `ui.inspect` → `move` says how it ended
-        return Some(crate::move_task::start(app, &ctx, p));
+        let r = crate::move_task::start(app, &ctx, p);
+        // `run_typed` hands this result back untouched, and a menu, key or button caller drops it: the toast is what
+        // tells the person why nothing moved (another move running, Local photos…)
+        if let Err(e) = &r {
+            app.toast_error(&ctx, e.clone());
+        }
+        return Some(r);
     }
     const PARTS: [fn(&mut LightcraftApp, &egui::Context, &str, &Value) -> Option<Result<Value, String>>; 12] = [
         ui_commands_1,
