@@ -156,6 +156,43 @@ fn removing_a_face_model_asks_first() {
     assert!(!has(&h, &remove), "and its Remove button is gone with it");
 }
 
+/// Given a model whose Remove was answered yes (so the row stops drawing the button), when the same
+/// model is installed again, then its new Remove button does not take the focus the question left
+/// behind: Space does nothing until the person tabs to it.
+#[test]
+fn a_model_installed_again_after_remove_does_not_take_the_focus() {
+    let dir = TempFolder::new("settings-trust-faces-again");
+    let mut h = demo();
+    h.app.session.face_models_dir = Some(dir.0.join("models"));
+    if h.app.session.execute("faces.models.list", &json!({})).unwrap()["runtime"] != true {
+        lightcraft_testkit::skip!(Model, "this build cannot run recognition models: there is nothing to install or remove");
+        return;
+    }
+    let model = dir.0.join("Mine.onnx");
+    std::fs::write(&model, lightcraft_faces::synthetic::tiny_embedder_model(512)).unwrap();
+    let install = |h: &mut Headless| {
+        let r = h.app.run("faces.models.install", json!({"path": model.to_string_lossy(), "acknowledged": true, "activate": false})).unwrap();
+        h.app.caches.faces_epoch += 1;
+        r["installed"]["id"].as_str().unwrap().to_string()
+    };
+    let id = install(&mut h);
+    show(&mut h, "faces");
+    let remove = format!("faces:remove:{id}");
+    click(&mut h, &remove);
+    click(&mut h, &format!("{remove}:confirm"));
+    assert!(!has(&h, &remove), "the model is removed and its Remove button is gone");
+    // some frames pass with no Remove button
+    steps(&mut h);
+    steps(&mut h);
+    // When it is installed again
+    assert_eq!(install(&mut h), id);
+    steps(&mut h);
+    assert!(has(&h, &remove), "its Remove button is back");
+    // Then nothing has the focus: Space does not open the question
+    key(&mut h, "Space");
+    assert!(!has(&h, &format!("{remove}:confirm")), "the new Remove button took the focus the old question left behind");
+}
+
 fn write_png(path: &str, seed: u8) {
     let (w, h) = (24usize, 16usize);
     let data: Vec<[u8; 4]> = (0..w * h).map(|i| [(i % w * 9) as u8, (i / w * 13) as u8, seed, 255]).collect();

@@ -94,15 +94,18 @@ pub(crate) fn ask_first(t: &Tokens, id: &str, button: egui::Response, question: 
         });
     });
     // However the question closed (yes, Keep, Esc, a click elsewhere), the focus goes back to the
-    // button it was about, unless the click elsewhere put it on another widget.
+    // button it was about, unless the click elsewhere put it on another widget. Only in the frame
+    // after the question was last drawn: a button that was not drawn since (a model's Remove while
+    // the model was gone) left its entry behind, and the button coming back is not that question's.
     let ctx = button.ctx.clone();
     let was_open = egui::Id::unique(("ask-first", id));
-    if let Some(ids) = ids {
-        ctx.data_mut(|d| d.insert_temp(was_open, ids));
-    } else if let Some((confirm, keep)) = ctx.data(|d| d.get_temp::<(egui::Id, egui::Id)>(was_open)) {
-        ctx.data_mut(|d| d.remove::<(egui::Id, egui::Id)>(was_open));
+    let frame = ctx.cumulative_frame_nr();
+    if let Some((confirm, keep)) = ids {
+        ctx.data_mut(|d| d.insert_temp(was_open, (confirm, keep, frame)));
+    } else if let Some((confirm, keep, shown)) = ctx.data(|d| d.get_temp::<(egui::Id, egui::Id, u64)>(was_open)) {
+        ctx.data_mut(|d| d.remove::<(egui::Id, egui::Id, u64)>(was_open));
         let focused = ctx.memory(|m| m.focused());
-        if focused.is_none() || focused == Some(keep) || focused == Some(confirm) {
+        if frame.saturating_sub(shown) <= 1 && (focused.is_none() || focused == Some(keep) || focused == Some(confirm)) {
             button.request_focus();
         }
     }
