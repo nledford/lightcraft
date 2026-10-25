@@ -369,14 +369,15 @@ fn a_full_line_is_refused_in_the_language_of_the_window() {
     }
 }
 
-/// Given a waiting import whose facts are long in the window's language, then its row stays inside the stack and the
-/// timing is whole: the name and the facts are what give way.
+/// Given a waiting import whose folder name is far longer than the stack is wide, then its row stays inside the stack
+/// and the timing is whole: the name and the facts are what give way (cut with "…").
 #[test]
 fn a_waiting_row_with_long_facts_stays_inside_the_stack_with_its_timing_whole() {
+    let long = "A_very_long_folder_name_for_a_holiday_in_the_old_town_with_all_the_family_2026";
     let mut h = app();
     let _running = h.app.session.activity.start("import", "Importing", Cancel::Yes);
     crate::import::start(&mut h.app, &review("/photos/Rome", 3)).expect("waits");
-    crate::import::start(&mut h.app, &review("/photos/Lisbon", 3)).expect("waits");
+    crate::import::start(&mut h.app, &review(&format!("/photos/{long}"), 3)).expect("waits");
     crate::i18n::set_language(crate::i18n::Locale::De);
     for _ in 0..4 {
         h.step();
@@ -388,7 +389,8 @@ fn a_waiting_row_with_long_facts_stays_inside_the_stack_with_its_timing_whole() 
     let at = |what: &str| h.app.widgets.iter().find(|(w, _)| *w == format!("activity:{what}:{id}")).map(|(_, r)| *r).expect("drawn");
     let (row, timing) = (at("row"), at("starts"));
     assert!(timing.right() <= row.right() + 0.5, "the timing ends inside its row: {timing:?} in {row:?}");
-    assert!(row.width() <= crate::panels::activity::WIDTH, "{row:?}");
+    // (rows are laid out in the stack's width less its frame: 280 less a margin and a stroke each side)
+    assert!(row.width() <= crate::panels::activity::WIDTH - 18.0 + 0.5, "{row:?}");
     assert!(painted.iter().any(|t| t.ends_with(&after)), "the timing is whole: {painted:?}");
 }
 
@@ -438,12 +440,25 @@ fn the_library_chooser_stays_until_the_switch_is_confirmed() {
         c.over = Some(h.app.session.library_generation());
     }
     h.app.library_problem = Some(chooser);
+    let drawn = |h: &Headless, id: &str| h.app.widgets.iter().any(|(w, _)| *w == id);
+    for _ in 0..4 {
+        h.step();
+    }
+    assert!(drawn(&h, "button:libraryOpen"), "the list is drawn before the question");
     crate::panels::library_problem::open(&mut h.app, Some(dir.join("other").to_string_lossy().into_owned()));
     assert!(h.app.switch_prompt.is_some(), "asked");
     for _ in 0..4 {
         h.step();
     }
+    assert!(!drawn(&h, "button:libraryOpen"), "the list is not drawn under the question");
+    // (the list takes no keys while the question is up: Esc would keep the library, Return open the selection)
+    for key in ["Escape", "Enter"] {
+        assert_eq!(h.request("ui.key", json!({"key": key}), T)["ok"], true, "{key}");
+        h.step();
+        h.step();
+    }
     assert!(h.app.library_problem.is_some(), "the chooser stays while the question is up");
+    assert!(h.app.switch_prompt.is_some(), "and so does the question");
     click(&mut h, "button:switchAnyway");
     assert_eq!(library_dir(&h), Some(dir.join("other")));
     assert!(h.app.library_problem.is_none(), "closed once the library opened");
