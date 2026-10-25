@@ -489,6 +489,7 @@ pub(crate) fn follow_folder(s: &mut Session, from: &str, to: &str) {
     follow_library_folder(&mut s.filter.library_folder, from, to);
     if let Some(f) = s.shelved_filter.as_mut() {
         follow_library_folder(&mut f.library_folder, from, to);
+        follow_library_folder(&mut f.folder, from, to);
     }
     for other in &mut s.filter.library_folders {
         let mut chosen = Some(std::mem::take(other));
