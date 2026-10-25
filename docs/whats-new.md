@@ -16,6 +16,9 @@
   `docs/catalog-persistence.md`). A damaged segment is named when the library is opened, and nothing is modified. Copy
   or back up the whole library folder: `catalog.snap` alone no longer holds the photos. (The browser build keeps its
   photos in `catalog.snap`.)
+- Segment files that a crash left beside a library are removed the next time it is opened, and a library folder that has
+  segment files but no `catalog.snap` (a folder copied in part, or a `catalog.snap` that was removed) is no longer
+  opened as a new, empty library: LightCraft says that the snapshot is missing and changes nothing.
 - Libraries are upgraded when first opened (catalog format 11) and can't be opened by earlier versions afterwards.
   The photos of a library in a folder on disk are split into segments only once the segments written read back the
   same. A library from before format 10 whose upgrade can't be written (a full disk, a folder that can't be written

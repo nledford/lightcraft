@@ -218,8 +218,8 @@ impl Store for Filmed {
 }
 
 /// Given a compaction that rewrites, adds and drops segments, when the program crashes before
-/// any one of its writes, then opening the library gives every change made so far, and the
-/// library goes on from there.
+/// any one of its writes, then opening the library gives every change made so far, and leaves
+/// no segment file behind that the snapshot doesn't list.
 #[test]
 fn a_crash_at_any_point_of_a_compaction_loses_nothing() {
     let store = Filmed::default();
@@ -248,9 +248,11 @@ fn a_crash_at_any_point_of_a_compaction_loses_nothing() {
     frames.push(crash_copy(&store.files));
     assert!(frames.len() >= 6, "{} writes", frames.len());
     for (k, frame) in frames.iter().enumerate() {
-        let (j2, back, report) = Journal::open(Box::new(frame.clone())).unwrap();
+        let (mut j2, back, report) = Journal::open(Box::new(frame.clone())).unwrap();
         assert_eq!((report.failed, report.damaged.clone()), (0, None), "crash before write {k}");
         assert_eq!(back.to_snapshot(), expected.to_snapshot(), "crash before write {k}");
+        j2.remove_unlisted_segments();
+        assert_eq!(segment_files(frame), listed(frame), "crash before write {k}: a segment file nothing lists");
         // and the library goes on from there
         drop(j2);
         let (mut j3, mut c3, _) = Journal::open(Box::new(frame.clone())).unwrap();
@@ -365,6 +367,184 @@ fn a_snapshot_with_a_bad_segment_list_is_refused() {
     v["segments"][0]["bytes"] = u64::MAX.into();
     bad.set(SNAPSHOT, serde_json::to_vec(&v).unwrap());
     assert!(Journal::open(Box::new(bad)).is_err());
+}
+
+/// Segment files that the snapshot doesn't list (left by a crash) are removed when the opener,
+/// holding the library to itself, asks for it; opening alone removes nothing (to a second
+/// program, the segments the first is writing for its next snapshot look the same). Other files
+/// in the folder are never touched.
+#[test]
+fn unlisted_segment_files_are_removed_on_request_only() {
+    let (m, j, c) = library(8, 4);
+    drop(j);
+    m.set(&segment_file("99-99"), b"left by a crash".to_vec());
+    m.set(&format!("{}.tmp", segment_file("99-100")), b"half written".to_vec());
+    m.set("presets.json", b"[]".to_vec());
+    m.set("segments/notes.txt", b"mine".to_vec());
+    let (mut j, back, _) = Journal::open(Box::new(m.clone())).unwrap();
+    assert_same(&back, &c);
+    assert_eq!(segment_files(&m).len(), listed(&m).len() + 2, "opening removed files");
+    j.remove_unlisted_segments();
+    assert_eq!(segment_files(&m), listed(&m));
+    assert_eq!(m.get("presets.json").as_deref(), Some(&b"[]"[..]));
+    assert_eq!(m.get("segments/notes.txt").as_deref(), Some(&b"mine"[..]));
+}
+
+/// Given segment files without the snapshot that lists them (a folder copied or synced in part,
+/// a `catalog.snap` that was removed), when the folder is opened, then it is refused and nothing
+/// is touched: the photos are in those files, and a new empty library must not replace them.
+#[test]
+fn segments_without_their_snapshot_are_not_a_new_library() {
+    let (m, j, _c) = library(12, 4);
+    drop(j);
+    for with_log in [true, false] {
+        let lost = crash_copy(&m);
+        lost.files.lock().unwrap().remove(SNAPSHOT);
+        if !with_log {
+            lost.files.lock().unwrap().remove(LOG);
+        }
+        let files = lost.files.lock().unwrap().clone();
+        let e = Journal::open(Box::new(lost.clone())).map(|_| ()).unwrap_err();
+        assert!(matches!(&e, CatalogError::Corrupt(msg) if msg.contains(SNAPSHOT) && msg.contains("3 segment")), "{e}");
+        assert_eq!(*lost.files.lock().unwrap(), files);
+    }
+}
+
+/// Given a library that so far is only a log (it never had a snapshot), when its first snapshot
+/// gets as far as writing segments and no further (the write of `catalog.snap` fails, or the
+/// program stops there), then nothing of it is lost and it opens once the snapshot can be
+/// written: the log holds every change from the first, so the segment files are not "photos
+/// without their snapshot".
+#[test]
+fn a_log_only_library_survives_a_first_snapshot_that_did_not_finish() {
+    let ops = add(1..=5);
+    let log: String = ops.iter().enumerate().map(|(k, op)| crate::journal::encode_record(k as u64 + 1, op) + "\n").collect();
+    let mut expected = Catalog::new();
+    for op in ops {
+        expected.apply(op).unwrap();
+    }
+    // the write of `catalog.snap` fails: the library is not worked in as it is (a log states no
+    // defaults for what would be added to it), and is left as it was, with no segment
+    let store = Watched::default();
+    store.files.set(LOG, log.clone().into_bytes());
+    *store.fail.lock().unwrap() = Some(SNAPSHOT.into());
+    let e = Journal::open(Box::new(store.clone())).err().expect("refused");
+    assert!(matches!(&e, CatalogError::Io(why) if why.contains("can't be upgraded")), "{e}");
+    assert!(segment_files(&store.files).is_empty() && store.files.get(SNAPSHOT).is_none());
+    assert_eq!(store.files.get(LOG), Some(log.clone().into_bytes()));
+    *store.fail.lock().unwrap() = None;
+    let (_, c, r) = Journal::open(Box::new(store.clone())).unwrap();
+    assert_eq!((c.to_snapshot(), r.replayed, r.upgraded_from), (expected.to_snapshot(), 5, Some(0)));
+
+    // the program stopped between the segments and `catalog.snap`: the log and a segment file
+    let m = MemStore::new();
+    m.set(LOG, log.into_bytes());
+    m.set(&segment_file("1-5"), b"written, never listed".to_vec());
+    let (_, c, r) = Journal::open(Box::new(m.clone())).unwrap();
+    assert_eq!((c.to_snapshot(), r.upgraded_from), (expected.to_snapshot(), Some(0)));
+    assert!(!listed(&m).contains(&segment_file("1-5")), "written over a file that was there");
+    assert_same(&reopen(&m), &expected);
+
+    // a log that doesn't start at the first change is no such library: refused
+    let (m, mut j, mut c) = library(12, 4);
+    run(&mut j, &mut c, vec![Op::SetRating { id: PhotoId(1), rating: 1 }]);
+    drop(j);
+    m.files.lock().unwrap().remove(SNAPSHOT);
+    assert!(matches!(Journal::open(Box::new(m)).map(|_| ()), Err(CatalogError::Corrupt(_))));
+}
+
+/// Given a snapshot whose `catalog.snap` was replaced although the store reported an error (so
+/// the journal still takes the old segments to be the listed ones), when unlisted segments are
+/// removed, then the ones the file on disk lists stay, and the library opens.
+#[test]
+fn cleaning_up_goes_by_the_snapshot_on_disk() {
+    let (m, j, _c) = library(12, 4);
+    drop(j);
+    let store = Lying { files: m.clone(), lie: Arc::new(Mutex::new(false)) };
+    let (mut j, mut c, _) = Journal::open(Box::new(store.clone())).unwrap();
+    j.policy.segment_photos = 4;
+    run(&mut j, &mut c, vec![Op::SetRating { id: PhotoId(3), rating: 5 }]);
+    *store.lie.lock().unwrap() = true;
+    assert!(j.snapshot(&c).is_err());
+    *store.lie.lock().unwrap() = false;
+    assert_same(&reopen(&crash_copy(&m)), &c);
+    j.remove_unlisted_segments();
+    assert_same(&reopen(&crash_copy(&m)), &c);
+    j.snapshot(&c).unwrap();
+    assert_same(&reopen(&m), &c);
+}
+
+/// A store whose replace of `catalog.snap` takes effect and then reports an error.
+#[derive(Clone)]
+struct Lying {
+    files: MemStore,
+    lie: Arc<Mutex<bool>>,
+}
+
+impl Store for Lying {
+    fn read(&mut self, name: &str) -> std::io::Result<Option<Vec<u8>>> {
+        self.files.read(name)
+    }
+    fn write_atomic(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+        self.files.write_atomic(name, data)?;
+        if name == SNAPSHOT && *self.lie.lock().unwrap() {
+            return Err(std::io::Error::other("the connection dropped"));
+        }
+        Ok(())
+    }
+    fn write_new_with(&mut self, name: &str, fill: &mut dyn FnMut(&mut dyn std::io::Write) -> std::io::Result<()>) -> std::io::Result<u64> {
+        self.files.write_new_with(name, fill)
+    }
+    fn sync(&mut self) -> std::io::Result<()> {
+        self.files.sync()
+    }
+    fn append(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+        self.files.append(name, data)
+    }
+    fn truncate(&mut self, name: &str, len: u64) -> std::io::Result<()> {
+        self.files.truncate(name, len)
+    }
+    fn remove(&mut self, name: &str) -> std::io::Result<()> {
+        self.files.remove(name)
+    }
+    fn list(&mut self) -> std::io::Result<Vec<String>> {
+        self.files.list()
+    }
+    fn segmented(&self) -> bool {
+        true
+    }
+    fn describe(&self) -> String {
+        "lying".into()
+    }
+}
+
+/// Given an older one-file `catalog.snap` put back over a folder that has segments (a restored
+/// backup), when it is opened, then the one file is what opens, and the segment files, which may
+/// be all there is of the newer catalog, are left alone in that session: also when the opener
+/// asks for unlisted ones to be removed, and though the one file is split into segments of its
+/// own. (They go when the library, by then in segments, is next opened and cleaned.)
+#[test]
+fn segments_beside_a_one_file_snapshot_are_left_alone() {
+    let (m, j, _c) = library(12, 4);
+    drop(j);
+    let newer = segment_files(&m);
+    let newer_bytes: Vec<Vec<u8>> = newer.iter().map(|n| m.get(n).unwrap()).collect();
+    let old = include_str!("fixtures/v10-catalog.snap.json");
+    m.set(SNAPSHOT, old.as_bytes().to_vec());
+    m.set(LOG, Vec::new());
+    let (mut j, back, r) = Journal::open(Box::new(m.clone())).unwrap();
+    assert_eq!((back.len(), r.upgraded_from), (3, Some(10)));
+    j.remove_unlisted_segments();
+    for (name, bytes) in newer.iter().zip(&newer_bytes) {
+        assert_eq!(m.get(name).as_ref(), Some(bytes), "{name}");
+    }
+    // the split wrote segments of its own, under names none of those files has
+    assert!(listed(&m).is_disjoint(&newer));
+    drop(j);
+    let (mut j, back, _) = Journal::open(Box::new(m.clone())).unwrap();
+    assert_eq!(back.len(), 3);
+    j.remove_unlisted_segments();
+    assert_eq!(segment_files(&m), listed(&m));
 }
 
 /// A snapshot whose list of segments doesn't add up to the photos it states (an entry removed)
@@ -1029,20 +1209,21 @@ fn segments_are_json_files_in_a_folder_of_their_own() {
     j.snapshot(&c).unwrap();
     assert_eq!(names(&dir.join("segments")), ["1-13.json", "5-13.json", "9-13.json"]);
     drop(j);
-    // left by a crash, and a file that is somebody else's: opening removes none of them
+    // left by a crash, and a file that is somebody else's
     for (name, bytes) in [("77-1.json", "x"), ("77-2.json.tmp", "x"), ("notes.txt", "mine")] {
         std::fs::write(dir.join("segments").join(name), bytes).unwrap();
     }
-    let (j, back, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
+    let (mut j, back, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
     assert_same(&back, &c);
-    assert_eq!(names(&dir.join("segments")), ["1-13.json", "5-13.json", "77-1.json", "77-2.json.tmp", "9-13.json", "notes.txt"]);
+    j.remove_unlisted_segments();
+    assert_eq!(names(&dir.join("segments")), ["1-13.json", "5-13.json", "9-13.json", "notes.txt"]);
     drop(j);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The segments folder has to be a folder of the library's own. A file of that name, or a link
 /// to a folder elsewhere, is an error that names it (and nothing in the folder linked to is
-/// listed, read or removed).
+/// listed, read or removed); a folder that can't be read is an error too, never "no segments".
 #[test]
 fn a_segments_folder_that_is_not_one_is_an_error_that_says_so() {
     let temp = |name: &str| {
@@ -1053,6 +1234,12 @@ fn a_segments_folder_that_is_not_one_is_an_error_that_says_so() {
     };
     // a file named `segments`: the snapshot fails and says why; the changes stay in the log
     let dir = temp("file");
+    std::fs::write(dir.join("segments"), b"not a folder").unwrap();
+    // (no library is started in a folder like that: it says what is in the way)
+    let e = Journal::open(Box::new(FsStore::open(&dir).unwrap())).map(|_| ()).unwrap_err();
+    assert!(e.to_string().contains("segments") && e.to_string().contains("not a folder"), "{e}");
+    std::fs::remove_file(dir.join("segments")).unwrap();
+    drop(Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap());
     std::fs::write(dir.join("segments"), b"not a folder").unwrap();
     let (mut j, mut c, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
     run(&mut j, &mut c, add(1..=12));
@@ -1065,6 +1252,7 @@ fn a_segments_folder_that_is_not_one_is_an_error_that_says_so() {
 
     #[cfg(unix)]
     {
+        use std::os::unix::fs::PermissionsExt;
         // a link to a folder elsewhere: what is in there is not the library's
         let (dir, elsewhere) = (temp("link"), temp("elsewhere"));
         std::fs::write(elsewhere.join("2024-10.json"), b"somebody's").unwrap();
@@ -1073,11 +1261,29 @@ fn a_segments_folder_that_is_not_one_is_an_error_that_says_so() {
         let (mut j, mut c, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
         run(&mut j, &mut c, add(1..=12));
         assert!(j.snapshot(&c).unwrap_err().to_string().contains("not a folder"));
+        j.remove_unlisted_segments();
         drop(j);
         assert_eq!(std::fs::read(elsewhere.join("2024-10.json")).unwrap(), b"somebody's");
         for d in [dir, elsewhere] {
             let _ = std::fs::remove_dir_all(d);
         }
+
+        // segments that can't be listed, and no snapshot: refused, not opened as a new library
+        let dir = temp("unreadable");
+        let (mut j, mut c, _) = Journal::open(Box::new(FsStore::open(&dir).unwrap())).unwrap();
+        j.policy.segment_photos = 4;
+        run(&mut j, &mut c, add(1..=12));
+        j.snapshot(&c).unwrap();
+        drop(j);
+        std::fs::remove_file(dir.join(SNAPSHOT)).unwrap();
+        std::fs::remove_file(dir.join(LOG)).unwrap();
+        std::fs::set_permissions(dir.join("segments"), std::fs::Permissions::from_mode(0o300)).unwrap();
+        let refused = Journal::open(Box::new(FsStore::open(&dir).unwrap())).map(|_| ());
+        std::fs::set_permissions(dir.join("segments"), std::fs::Permissions::from_mode(0o700)).unwrap();
+        // (a process that may read anything, as root in a container, lists it: then it is refused for the segments it holds)
+        assert!(refused.is_err(), "opened as a new library");
+        assert!(!dir.join(SNAPSHOT).exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 

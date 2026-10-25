@@ -128,11 +128,15 @@ reads them on several threads.
 - **What a compaction writes.** Every segment, each under a name no snapshot lists and each fsynced, then
   `catalog.snap` is replaced atomically, which is the commit, then the files it no longer lists are removed. A crash
   at any point leaves a snapshot with all its segments. (Rewriting only the segments whose photos changed is a later
-  change.) A crash can leave segment files nothing lists; they are never read, never written over, and nothing
-  removes them yet.
+  change.) A crash can leave segment files nothing lists. They are never read and never written over, and they are
+  removed when the library is next opened by a program that holds its lock (to a second program, the segments the
+  first is writing for its next snapshot look the same). Only segment files are ever removed: not other files in the
+  folder, and not the files of a one-file `catalog.snap` put back over a newer folder, which may be all there is of
+  the newer catalog (they go when the library, by then in segments, is next opened).
 - **Checks on open.** Each segment's size, CRC-32, photo count and range of ids, and the total number of photos, must
   be what `catalog.snap` states. A damaged or missing segment fails the open with an error naming the file, and
-  nothing is modified.
+  nothing is modified. Segment files without a `catalog.snap` are refused, not opened as a new library, unless the
+  log holds every change from the first (a library whose first snapshot never finished).
 - **Upgrade.** A one-file library (formats up to 10) is split when first opened: the segments are written, read back
   and compared with the photos that were loaded, and only then does the new `catalog.snap` replace the old one. If
   they don't read back the same, the one file stays: a format 10 library opens from it as before (and the next open,

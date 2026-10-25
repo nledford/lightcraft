@@ -323,7 +323,7 @@ pub struct Journal {
     /// where there are no segments).
     inline_photos: bool,
     /// The snapshot read when the library was opened listed segments (see
-    /// [`Journal::keep_replaced`]).
+    /// [`Journal::remove_unlisted_segments`]).
     opened_with_segments: bool,
     log_records: u64,
     log_bytes: u64,
@@ -632,6 +632,12 @@ fn may_list(store: &mut dyn Store, names: &[String]) -> bool {
     listed_on_disk(store).is_none_or(|listed| listed.iter().any(|s| names.contains(&s.name)))
 }
 
+/// Whether `log` starts with the catalog's first change: then it holds the whole catalog.
+fn log_from_the_start(log: Option<&[u8]>) -> bool {
+    let first = log.unwrap_or_default().split(|b| *b == b'\n').find(|l| !l.iter().all(u8::is_ascii_whitespace));
+    first.and_then(|l| std::str::from_utf8(l).ok()).and_then(|l| decode_record(l.trim_end_matches('\r'))).is_some_and(|(seq, _)| seq == 1)
+}
+
 impl Journal {
     /// Open (or create) the catalog in `store`: load the snapshot, replay the log, repair a torn
     /// tail. Fails if the snapshot is unreadable or a newer LightCraft's (then nothing is
@@ -646,6 +652,19 @@ impl Journal {
         let snap = store.read(SNAPSHOT).map_err(io)?;
         let log = store.read(LOG).map_err(io)?;
         report.created = snap.is_none() && log.is_none();
+        // Segment files without the snapshot that lists them (a folder copied or synced in part,
+        // a `catalog.snap` that was removed): they hold the photos, and opening this as a new
+        // library would abandon them. Not so when the log holds every change from the first: a
+        // library that never had a snapshot, whose first one got as far as writing segments.
+        if snap.is_none()
+            && store.segmented()
+            && !log_from_the_start(log.as_deref())
+            && let n @ 1.. = segments::files(store.as_mut()).map_err(io)?
+        {
+            return Err(CatalogError::Corrupt(format!(
+                "{SNAPSHOT} is missing, but {n} segment file(s) of a catalog are here ({SEGMENT_PREFIX}…{SEGMENT_SUFFIX})"
+            )));
+        }
         let head_bytes = snap.as_ref().map_or(0, |b| b.len() as u64);
         let mut listed = Vec::new();
         let mut stated = None;
@@ -1406,6 +1425,27 @@ impl Journal {
     /// The segments `catalog.snap` lists.
     pub fn segments(&self) -> &[Segment] {
         &self.segments
+    }
+
+    /// Remove the segment files the snapshot doesn't list: what a crash left between writing
+    /// segments and committing the snapshot, or between the commit and removing the old ones.
+    ///
+    /// Only for a caller that has the library to itself (it holds the library's lock): to anyone
+    /// else, the segments another program is writing for its next snapshot look the same. And
+    /// only when the library was opened from a snapshot that lists segments: files beside a
+    /// one-file `catalog.snap` (an older one put back over a newer folder) may be all there is of
+    /// the newer catalog, and are left alone for as long as this journal is open.
+    ///
+    /// What "the snapshot lists" is read from `catalog.snap` as it is on disk, together with what
+    /// this journal takes it to list (the two differ after a snapshot whose outcome it never
+    /// learned); if the file can't be read, nothing is removed.
+    pub fn remove_unlisted_segments(&mut self) {
+        if self.pending.is_some() || !self.store.segmented() || !self.opened_with_segments || self.segments.is_empty() {
+            return;
+        }
+        let Some(mut listed) = listed_on_disk(self.store.as_mut()) else { return };
+        listed.extend(self.segments.iter().cloned());
+        segments::discard_unlisted(self.store.as_mut(), &listed);
     }
 
     pub fn seq(&self) -> u64 {

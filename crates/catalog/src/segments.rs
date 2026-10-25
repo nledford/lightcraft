@@ -28,8 +28,8 @@
 //! **Crash safety.** Segments are written under names no snapshot lists yet, each fsynced; then
 //! `catalog.snap` is replaced atomically, which is the commit; then the files it no longer lists
 //! are removed. A crash before the commit leaves the old snapshot with all its segments; after
-//! it, the new one with all of its. Segment files nothing lists (a crash can leave some) are not
-//! removed yet.
+//! it, the new one with all of its. Segment files nothing lists (a crash can leave some) are
+//! removed on request by an opener that holds the library's lock, and left alone otherwise.
 //!
 //! **A damaged segment** (wrong size or CRC, unreadable, photos it shouldn't hold) fails the open
 //! with an error naming the file, and nothing is modified.
@@ -41,7 +41,7 @@
 //! The journal does not yet keep the baseline between snapshots, so each one writes every segment;
 //! writing only the ones whose photos changed comes in the next change.
 
-#![allow(dead_code, reason = "the journal calls the rest of it (keeping the baseline, listing the folder) in the next changes")]
+#![allow(dead_code, reason = "the journal calls the rest of it (keeping the baseline) in the next change")]
 
 use std::collections::BTreeMap;
 use std::ops::Bound;
@@ -443,7 +443,7 @@ pub(crate) fn write(store: &mut dyn Store, photos: &Photos, on_disk: &OnDisk<'_>
 }
 
 /// Remove segment files (ones that are not, or no longer, listed). Failing to is not an error:
-/// what stays is left where it is.
+/// what stays is removed when an opener that holds the library's lock asks for it.
 pub(crate) fn discard(store: &mut dyn Store, names: &[String]) {
     for name in names {
         if valid_name(name.strip_suffix(".tmp").unwrap_or(name))
