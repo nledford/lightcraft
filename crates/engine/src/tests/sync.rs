@@ -605,6 +605,22 @@ fn a_renamed_photo_with_no_content_hash_is_relinked_when_its_file_is_unmistakabl
 }
 
 #[test]
+fn a_file_replaced_after_the_scan_is_not_relinked_to_the_photo() {
+    // a scan of a big folder takes minutes before it is confirmed: what stands at the new path by
+    // then may no longer be the photo's content
+    let dir = Scratch::new("replaced-after-scan");
+    let mut s = library(&dir);
+    let a = s.catalog.photos().find(|p| p.file_name == "a.png").unwrap().id;
+    std::fs::rename(dir.path("trip/a.png"), dir.path("trip/day1/a-renamed.png")).unwrap();
+    let r = scan(&mut s, &dir.path("trip"));
+    assert_eq!(r["moved"][0]["to"], dir.path("trip/day1/a-renamed.png"), "{r}");
+    write_png(&dir.path("trip/day1/a-renamed.png"), 9);
+    let r = s.execute("folder.synchronize", &json!({"path": dir.path("trip"), "scanned": true, "removeMissing": false})).unwrap();
+    assert_eq!(r["relinked"], 0, "{r}");
+    assert_eq!(s.catalog.photo(a).unwrap().source, lightcraft_catalog::Source::File { path: dir.path("trip/a.png") });
+}
+
+#[test]
 fn renamed_duplicates_are_each_relinked() {
     let dir = Scratch::new("dups");
     let mut s = library(&dir);

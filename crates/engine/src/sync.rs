@@ -141,6 +141,12 @@ pub struct FolderMoved {
     pub id: u64,
     pub from: String,
     pub to: String,
+    /// The content hash the scan read at `to`. Synchronizing relinks only while the file there
+    /// still has it: a scan of a big folder is confirmed minutes later, and a file put in its
+    /// place by then is not the photo. `None` when the scan had no file probe, and then there is
+    /// nothing to compare. Not part of the command's reply.
+    #[serde(skip)]
+    pub hash: Option<String>,
 }
 
 /// What [`synchronize`] does with the changes found.
@@ -293,7 +299,10 @@ pub fn scan_with(input: SyncInput, progress: &SyncProgress) -> FolderChanges {
     let missing = std::mem::take(&mut changes.missing);
     for m in missing {
         match moved_from.get(&m.path) {
-            Some(to) => changes.moved.push(FolderMoved { id: m.id, from: m.path, to: to.clone() }),
+            Some(to) => {
+                let hash = out.probes.get(to).and_then(|p| p.content_hash.clone());
+                changes.moved.push(FolderMoved { id: m.id, from: m.path, to: to.clone(), hash });
+            }
             None => changes.missing.push(m),
         }
     }
@@ -788,11 +797,22 @@ impl SyncWork {
         if cancel.load(Relaxed) {
             return;
         }
-        // still where the scan found it, and still gone from where the photo says
-        let checked = moved.len();
-        let relink: Vec<(PhotoId, String)> =
-            moved.into_iter().filter(|m| Path::new(&m.to).is_file() && !Path::new(&m.from).exists()).map(|m| (PhotoId(m.id), m.to)).collect();
-        step(checked);
+        // still where the scan found it (the same content, when the scan read it), and still gone
+        // from where the photo says
+        let mut relink: Vec<(PhotoId, String)> = Vec::with_capacity(moved.len());
+        for m in moved {
+            // each file is read again when the scan hashed it: this can take a while on a share
+            if cancel.load(Relaxed) {
+                return;
+            }
+            let still_the_file = Path::new(&m.to).is_file()
+                && !Path::new(&m.from).exists()
+                && m.hash.as_deref().is_none_or(|h| crate::cmd::missing::file_hash(&m.to).is_some_and(|now| base_hash(&now) == base_hash(h)));
+            if still_the_file {
+                relink.push((PhotoId(m.id), m.to));
+            }
+            step(1);
+        }
         if !relink.is_empty() && !send(SyncStep::Relink(relink)) {
             return;
         }
