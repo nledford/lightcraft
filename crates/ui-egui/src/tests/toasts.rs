@@ -173,3 +173,18 @@ fn the_same_text_on_two_topics_stays_two_toasts() {
     ui.push_toast_on(1.0, "save", "Saved", 7.0, None);
     assert_eq!(texts(&ui), vec!["Done", "Saved"]);
 }
+
+/// Given three toasts where the middle one is taller than the view, when they are drawn, then the older short one still
+/// shows, and the widgets are `toast:0` and `toast:1` with none missing between.
+#[test]
+fn a_toast_too_tall_for_the_view_is_skipped_and_an_older_short_one_still_shows() {
+    let mut h = demo();
+    let now = h.app.last_time;
+    h.app.ui.push_toast(now, "Old and short", now + 30.0, None);
+    h.app.ui.push_toast(now, "a very tall message\n".repeat(80), now + 30.0, None);
+    h.app.ui.push_toast(now, "New and short", now + 30.0, None);
+    h.step();
+    h.step();
+    let ids: Vec<&str> = h.app.widgets.iter().map(|(w, _)| w.as_str()).filter(|w| w.starts_with("toast:")).collect();
+    assert_eq!(ids, vec!["toast:0", "toast:1"], "the newest and the older short one, contiguous");
+}

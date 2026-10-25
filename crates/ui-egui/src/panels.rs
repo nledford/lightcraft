@@ -108,6 +108,8 @@ pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
     // the edge the next one goes against; the newest has none: it is centred where the single toast always was
     let mut edge: Option<f32> = None;
     let x = canvas.center().x;
+    // the widget ids count the toasts drawn, so `toast:1` is always the one above `toast:0` even when one between is skipped
+    let mut shown = 0;
     for (i, (text, until, label, _)) in app.ui.toasts.iter().rev().enumerate() {
         let fade = ((until - now) / 0.25).clamp(0.0, 1.0) as f32;
         let (background, foreground) = label.map(crate::theme::label_toast_colors).unwrap_or((egui::Color32::from_black_alpha(200), t.text));
@@ -121,14 +123,15 @@ pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
             (Some(y), false) => Rect::from_min_size(pos2(x - size.x / 2.0, y - size.y), size),
         };
         // the older ones never go past the canvas: a burst of long messages keeps those that fit (the newest is drawn
-        // as the single toast always was, whatever room there is)
+        // as the single toast always was, whatever room there is); one too tall is skipped, and a shorter older one may still fit
         if i > 0 && !canvas.contains_rect(r) {
-            break;
+            continue;
         }
         edge = Some(if top { r.bottom() + TOAST_GAP } else { r.top() - TOAST_GAP });
         painter.rect_filled(r, 6.0, background.gamma_multiply(fade));
         painter.galley(r.center() - galley.size() / 2.0, galley, foreground);
-        crate::widgets::register(ctx, format!("toast:{i}"), r);
+        crate::widgets::register_geometry(ctx, format!("toast:{shown}"), r);
+        shown += 1;
     }
     ctx.request_repaint_after(std::time::Duration::from_millis(30));
 }
