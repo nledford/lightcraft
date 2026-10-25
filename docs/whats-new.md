@@ -1,5 +1,16 @@
 # What's new in LightCraft
 
+## 2026-10-25
+
+### Import from Folder… offers the photos you browsed in Local
+- A folder you browsed in Local no longer shows its photos as "In library" and out of reach in the Import review:
+  they are offered, checked, and importing them brings the browsed photos (with their edits) into the library where
+  they are. Copy and Move still leave them out, since they can't be copied from where they already are, and the
+  review says keywords and presets apply to new files only when they are set for such photos.
+- A copy you only browsed in Local (another path with the same content) no longer makes the import report "already in
+  the library", even after the library photo was permanently deleted and the library reopened, and a library photo
+  with the same content is matched before a browsed copy is promoted. Several browsed copies of one file import once.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
