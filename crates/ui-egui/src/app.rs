@@ -275,6 +275,11 @@ impl LightcraftApp {
                 if id == "faces.detect" && e.kind == ErrorKind::ModelMissing(AiModel::FaceDetector) {
                     panels::faces::offer_detector(self);
                 }
+                // a move running in the background is in the way: said wherever the command came from (a menu, a key, a
+                // button), since the status line isn't drawn
+                if e.kind == ErrorKind::MoveInProgress {
+                    self.toast_move_in_progress(&e.message);
+                }
             }
             Ok(v) if id == "faces.detect" => self.ui.status = detect_summary(v),
             Ok(v) if id == "faces.renamePerson" => {
@@ -527,6 +532,13 @@ impl LightcraftApp {
     pub fn toast_error(&mut self, _ctx: &egui::Context, text: impl Into<String>) {
         let t = self.tick_now();
         self.ui.toast = Some((text.into(), t + 6.0, None));
+    }
+
+    /// Tell the person that a background move of photos is in the way of what they asked (stays 6 s). The time is the
+    /// app clock's, which a menu click that arrives before the next frame reads as well.
+    fn toast_move_in_progress(&mut self, text: &str) {
+        let now = self.tick_now();
+        self.ui.toast = Some((text.to_string(), now + 6.0, None));
     }
 
     /// Called as the app exits, before the library is saved and closed: a move whose worker has

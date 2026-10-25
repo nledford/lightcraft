@@ -373,6 +373,14 @@ fn a_background_move_shows_its_progress_and_holds_back_other_moves_until_it_ends
     // and, until it ends, another move waits for it, and Quit asks first
     let e = h.app.run("photo.moveToFolder", json!({"ids": [garden], "folder": trip.to_string_lossy()})).unwrap_err();
     assert!(e.contains("being moved"), "{e}");
+    assert_eq!(toast(&h), e, "said where the person sees it: the status line isn't drawn");
+    // so is a change that would take the moving photo out of the library, whichever menu or button asked
+    h.app.ui.toast = None;
+    h.app.run("library.select", json!({"ids": [beach]})).unwrap();
+    let e = h.app.run("photo.deletePermanently", json!({"ids": [beach]})).unwrap_err();
+    assert_eq!(e, "1 photo is being moved to another folder: wait for the move to finish");
+    assert_eq!(toast(&h), e);
+    assert!(h.app.session.catalog.photo(lightcraft_catalog::PhotoId(beach)).is_some());
     assert!(!crate::panels::notices::may_close(&mut h.app), "Quit asks while the move runs");
     assert!(format!("{:?}", h.app.quit_prompt).contains("Moving photos"), "{:?}", h.app.quit_prompt);
     h.app.quit_prompt = None;

@@ -110,7 +110,10 @@
   and a toast says how it ended. The photos move as one step Edit ▸ Undo takes back.
 - While a move runs, editing, rating and keywording go on as usual; the moving photos' XMP sidecars are written once
   they arrive. Another move, a rename, Undo or Redo of a file move and opening another library are refused until it
-  ends, with a message saying so.
+  ends, and so is anything that would take a moving photo out of the library or point it at another file: Delete
+  Permanently, Empty Recently Deleted, importing a file again as a new photo over its trashed record, Convert to DNG,
+  Find Missing Photos, Locate and the Undo of those steps. A message pops up saying how many photos are moving, and
+  nothing is changed; try again once the move is done.
 - Quitting while photos are moving asks first. Quitting anyway cuts the move short: the files that had already
   moved stay in the new folder while the library still points at the old places, so use File ▸ Find Missing Photos…
   and choose the new folder to relink them. A file that was half copied to another disk leaves a hidden

@@ -284,15 +284,21 @@ impl Session {
     /// two would work on the same files, and the move's photos belong to this library.
     pub(crate) fn refuse_while_moving(&self) -> Result<()> {
         if self.move_running() {
-            return Err(EngineError::Other("photos are being moved to another folder: wait for the move to finish".into()));
+            return Err(EngineError::MoveInProgress("photos are being moved to another folder: wait for the move to finish".into()));
         }
         Ok(())
     }
 
-    /// `op` removes a photo whose file is on its way to another folder (the undo of its import), or
-    /// points it at another file (the undo of Convert to DNG): the move's finish finds no photo at
-    /// the old place to point at the new one.
-    pub(crate) fn detaches_moving_photo(&self, op: &Op) -> bool {
+    /// The photos `op` removes whose file is on its way to another folder (the undo of its import,
+    /// Delete Permanently, Empty Recently Deleted, the import's purge of a trashed photo), or
+    /// points at another file (Convert to DNG, Find Missing Photos, Locate, a Synchronize relink,
+    /// the undo of any of them): the move's finish finds no photo at the old place to point at the
+    /// new one, and a later undo would bring the photo back at a path the files have left.
+    pub(crate) fn detached_moving_photos(&self, op: &Op) -> Vec<PhotoId> {
+        let mut found = Vec::new();
+        if !self.move_running() {
+            return found;
+        }
         let mut pending = vec![op];
         while let Some(op) = pending.pop() {
             match op {
@@ -300,14 +306,25 @@ impl Session {
                 Op::RemovePhoto { id } | Op::Relink { id, .. } => {
                     if let Some(Source::File { path }) = self.catalog.photo(*id).map(|p| &p.source)
                         && self.is_moving(path)
+                        && !found.contains(id)
                     {
-                        return true;
+                        found.push(*id);
                     }
                 }
                 _ => {}
             }
         }
-        false
+        found
+    }
+
+    /// Refuse a change that would detach `moving` (see [`Session::detached_moving_photos`]),
+    /// saying how many photos it is. Nothing to refuse when the list is empty.
+    pub(crate) fn refuse_detaching(&self, moving: &[PhotoId]) -> Result<()> {
+        match moving.len() {
+            0 => Ok(()),
+            1 => Err(EngineError::MoveInProgress("1 photo is being moved to another folder: wait for the move to finish".into())),
+            n => Err(EngineError::MoveInProgress(format!("{n} photos are being moved to another folder: wait for the move to finish"))),
+        }
     }
 
     /// The file `path` is on its way to another folder (its sidecar waits until it arrives).

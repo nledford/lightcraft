@@ -121,6 +121,11 @@ pub enum EngineError {
     /// The work was cancelled (by the person, an agent or a newer request): not a failure.
     #[error("{0}")]
     Cancelled(String),
+    /// A background move of photos is running and this change would clash with it (open another
+    /// library, move other files, take a moving photo out of the library or point it at another
+    /// file): nothing was changed ([`ErrorKind::MoveInProgress`]).
+    #[error("{0}")]
+    MoveInProgress(String),
     /// The feature needs `model`, which is not installed (or still downloading): a frontend
     /// offers its download (terms first) on [`ErrorKind::ModelMissing`], not on the message.
     #[error("{msg}")]
@@ -639,6 +644,7 @@ impl Session {
 
     /// Apply an op as one undoable step.
     pub fn commit(&mut self, label: &str, op: Op) -> Result<()> {
+        self.refuse_detaching(&self.detached_moving_photos(&op))?;
         let fwd = op.clone();
         let inv = self.apply_catalog(op)?;
         self.pending_log.push(fwd);
@@ -851,13 +857,11 @@ impl Session {
         // The entry is detached from self.undo/self.redo: include it before any global
         // repair can retire, then retry revalidates it before moving its own packets.
         rename::validate_sidecars(fs, &entry.retry_sidecars).map_err(|e| EngineError::Other(format!("can't move the files back: {e}")))?;
+        // A step that would take a moving photo out of the library or point it at another file says how many.
+        self.refuse_detaching(&self.detached_moving_photos(&entry.op))?;
         // Repair discarded file steps before another path change can stale their exact paths.
         // Unrelated metadata history must remain usable while a sidecar is still unwritable.
-        if entry.folder.is_some()
-            || !entry.retry_sidecars.is_empty()
-            || !self.file_moves(&entry.op).is_empty()
-            || self.detaches_moving_photo(&entry.op)
-        {
+        if entry.folder.is_some() || !entry.retry_sidecars.is_empty() || !self.file_moves(&entry.op).is_empty() {
             self.refuse_while_moving()?;
             self.repair_sidecars_with(fs).map_err(|e| EngineError::Other(format!("can't move the files back: {e}")))?;
         }
