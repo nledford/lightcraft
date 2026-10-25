@@ -85,7 +85,7 @@ fn menu_text(sc: &str, mac: bool) -> String {
 /// One editable command row: its label and id, a click-to-record shortcut button, and buttons
 /// that clear or restore it. The restore button is enabled when a saved binding exists or the
 /// declared default is currently yielded to another command.
-fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, b: &Bindable, sc: Option<&str>, mac: bool) {
+pub(crate) fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, b: &Bindable, sc: Option<&str>, mac: bool) {
     // a declared key that yields to another command's saved key counts as changed: ↺ takes it back
     let changed = app.ui.settings.keymap.contains_key(b.id) || (sc.is_none() && b.default.is_some());
     let mut name = RichText::new(crate::i18n::tr(b.label)).color(t.text);
@@ -110,6 +110,10 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, b: &Bindable, sc:
         }
     };
     let r = crate::widgets::text_button_sized(ui, &format!("shortcut-{}", b.id), &text, recording, 110.0, 24.0, ink);
+    // the button is a fixed 110 pt and cuts what is wider (a spelled-out shortcut, a longer language's
+    // "Press keys…"); hovering shows it whole. The text is measured as the button lays it out.
+    let cut = crate::widgets::one_line(ui.painter(), &text, t.semibold(11.5), ink.unwrap_or(t.text), 110.0 - 12.0).elided;
+    let r = if cut { r.on_hover_text(&text) } else { r };
     if r.clicked() {
         app.recording_shortcut = if recording { None } else { Some(b.id.to_string()) };
     }

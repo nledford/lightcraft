@@ -485,3 +485,44 @@ fn a_focused_section_eye_shows_the_focus_ring() {
     assert_eq!(eye.len(), 1, "the eye has it next");
     assert!(eye[0].width() < 30.0 && header[0].width() > 100.0, "a small ring on the eye, not the header: {eye:?} / {header:?}");
 }
+
+/// A keymap row's shortcut button is 110 pt wide and cuts a long spelled-out shortcut with "…", so
+/// pointer users get the whole shortcut on hover. One that fits (an unset "—", "Press keys…" in English) has nothing more to say.
+#[test]
+fn a_keymap_shortcut_shows_its_full_text_on_hover() {
+    let shortcut = "Ctrl+Shift+Alt+Right";
+    let bindable = crate::shortcuts::bindable().first().copied().expect("a bindable command");
+    let button = format!("button:shortcut-{}", bindable.id);
+    // the button's own accessible name is the shortcut too: only a tooltip adds a second node with it
+    let nodes_with = |nodes: &[(String, String, Option<String>)], text: &str| nodes.iter().filter(|n| n.1 == text).count();
+    let hover = |sc: Option<&str>, recording: bool| {
+        let rig = Rig::new();
+        rig.ctx.all_styles_mut(|s| s.interaction.tooltip_delay = 0.0);
+        let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
+        if recording {
+            app.recording_shortcut = Some(bindable.id.to_string());
+        }
+        let t = Tokens::get(&rig.ctx);
+        let mut draw = |events: Vec<egui::Event>| {
+            let (_, nodes) = rig.frame(events, |ui| crate::panels::keymap::row(&mut app, ui, &t, &bindable, sc, false));
+            nodes
+        };
+        draw(Vec::new());
+        let at = crate::widgets::take_registry(&rig.ctx).into_iter().find(|r| r.0 == button).expect("the shortcut button is registered").1.center();
+        let moved = vec![egui::Event::PointerMoved(at)];
+        for _ in 0..3 {
+            draw(moved.clone());
+        }
+        draw(Vec::new())
+    };
+    let nodes = hover(Some(shortcut), false);
+    assert_eq!(nodes_with(&nodes, shortcut), 2, "the button's name and the tooltip both say {shortcut}: {nodes:?}");
+    let nodes = hover(Some("Ctrl+Z"), false);
+    assert_eq!(nodes_with(&nodes, "Ctrl+Z"), 1, "a shortcut that fits has no tooltip: {nodes:?}");
+    let nodes = hover(None, false);
+    assert_eq!(nodes_with(&nodes, "—"), 1, "an unset shortcut has no tooltip: {nodes:?}");
+    let nodes = hover(Some(shortcut), true);
+    let press = crate::i18n::tr("Press keys…");
+    assert_eq!(nodes_with(&nodes, shortcut), 0, "a shortcut being recorded is not shown: {nodes:?}");
+    assert_eq!(nodes_with(&nodes, press), 1, "\"Press keys…\" fits the button and has no tooltip: {nodes:?}");
+}
