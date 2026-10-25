@@ -2395,5 +2395,7 @@
   "Queue Synchronize": "Mettre la synchronisation en file",
   "A folder is still being scanned for the import review: drop photos when it has finished": "Un dossier est encore analysé pour la vérification de l'importation. Déposez les photos quand ce sera terminé",
   "A folder is still being read for the Local view: drop photos when it has finished": "Un dossier est encore lu pour la vue Local. Déposez les photos quand ce sera terminé",
-  "An import review is waiting to open: drop photos when it is closed": "La vérification de l'importation attend de s'ouvrir. Déposez les photos quand elle sera fermée"
+  "An import review is waiting to open: drop photos when it is closed": "La vérification de l'importation attend de s'ouvrir. Déposez les photos quand elle sera fermée",
+  "Switch library while tasks are waiting?": "Changer de bibliothèque pendant que des tâches attendent ?",
+  "Switch Library": "Changer de bibliothèque"
 }

@@ -2361,5 +2361,7 @@
   "Queue Synchronize": "キューに追加（同期）",
   "A folder is still being scanned for the import review: drop photos when it has finished": "読み込み確認のためにフォルダーをスキャン中です。完了してから写真をドロップしてください",
   "A folder is still being read for the Local view: drop photos when it has finished": "ローカル表示のためにフォルダーを読み取り中です。完了してから写真をドロップしてください",
-  "An import review is waiting to open: drop photos when it is closed": "読み込み確認が開くのを待っています。閉じてから写真をドロップしてください"
+  "An import review is waiting to open: drop photos when it is closed": "読み込み確認が開くのを待っています。閉じてから写真をドロップしてください",
+  "Switch library while tasks are waiting?": "待機中のタスクがありますが、ライブラリを切り替えますか？",
+  "Switch Library": "ライブラリを切り替える"
 }

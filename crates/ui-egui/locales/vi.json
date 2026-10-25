@@ -2240,5 +2240,7 @@
   "Queue Synchronize": "Xếp hàng đồng bộ hóa",
   "A folder is still being scanned for the import review: drop photos when it has finished": "Thư mục vẫn đang được quét để xem lại lần nhập. Hãy thả ảnh khi hoàn tất",
   "A folder is still being read for the Local view: drop photos when it has finished": "Thư mục vẫn đang được đọc cho chế độ xem Cục bộ. Hãy thả ảnh khi hoàn tất",
-  "An import review is waiting to open: drop photos when it is closed": "Bản xem lại lần nhập đang chờ mở. Hãy thả ảnh sau khi đóng nó"
+  "An import review is waiting to open: drop photos when it is closed": "Bản xem lại lần nhập đang chờ mở. Hãy thả ảnh sau khi đóng nó",
+  "Switch library while tasks are waiting?": "Chuyển thư viện khi còn tác vụ đang chờ trong hàng đợi?",
+  "Switch Library": "Chuyển thư viện"
 }

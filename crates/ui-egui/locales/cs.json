@@ -2413,5 +2413,7 @@
   "Queue Synchronize": "Zařadit synchronizaci do fronty",
   "A folder is still being scanned for the import review: drop photos when it has finished": "Složka se ještě prohledává pro kontrolu importu. Fotky přetáhněte, až skončí",
   "A folder is still being read for the Local view: drop photos when it has finished": "Složka se ještě načítá pro zobrazení Místní soubory. Fotky přetáhněte, až skončí",
-  "An import review is waiting to open: drop photos when it is closed": "Kontrola importu čeká na otevření. Fotky přetáhněte, až ji zavřete"
+  "An import review is waiting to open: drop photos when it is closed": "Kontrola importu čeká na otevření. Fotky přetáhněte, až ji zavřete",
+  "Switch library while tasks are waiting?": "Přepnout knihovnu, když úlohy čekají ve frontě?",
+  "Switch Library": "Přepnout knihovnu"
 }

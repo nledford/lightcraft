@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Lasciati invariati: {n} (sincronizza di nuovo per rivederli)",
   "Starts after {n} more": "Parte dopo altre attività ({n})",
   "Remove from Queue: {label}": "Rimuovi dalla coda: {label}",
-  "Starts after: {what}": "Parte dopo: {what}"
+  "Starts after: {what}": "Parte dopo: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "1 attività è in coda: {names}. Cambiando libreria viene scartata.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n} attività sono in coda: {names}. Cambiando libreria vengono scartate.",
+  "Waiting tasks dropped: {n}": "Attività in coda scartate: {n}"
 }

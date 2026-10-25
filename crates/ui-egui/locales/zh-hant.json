@@ -2162,5 +2162,7 @@
   "Queue Synchronize": "加入佇列（同步）",
   "A folder is still being scanned for the import review: drop photos when it has finished": "正在掃描資料夾以供匯入預覽。掃描完成後再拖放照片",
   "A folder is still being read for the Local view: drop photos when it has finished": "正在讀取資料夾以供「本機」檢視使用。讀取完成後再拖放照片",
-  "An import review is waiting to open: drop photos when it is closed": "匯入預覽正等待開啟。關閉後再拖放照片"
+  "An import review is waiting to open: drop photos when it is closed": "匯入預覽正等待開啟。關閉後再拖放照片",
+  "Switch library while tasks are waiting?": "要在有工作排隊等待時切換照片庫嗎？",
+  "Switch Library": "切換照片庫"
 }

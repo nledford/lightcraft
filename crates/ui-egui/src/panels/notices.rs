@@ -102,11 +102,12 @@ enum Choice {
 /// the main view or a `Middle` dialog. The control channel and raw keyboard/event handlers do not
 /// go through that hit test, however: they must consult this explicit barrier as well.
 pub(crate) fn prompt_layer(app: &LightcraftApp) -> Option<egui::LayerId> {
-    let id = match (&app.quit_prompt, app.notices.is_empty()) {
-        (Some(QuitPrompt::Tasks(_)), _) => "quit-tasks",
-        (Some(QuitPrompt::Unsaved(_)), _) => "quit-unsaved",
-        (None, false) => "settings-notice",
-        (None, true) => return None,
+    let id = match (&app.switch_prompt, &app.quit_prompt, app.notices.is_empty()) {
+        (Some(_), _, _) => "switch-tasks",
+        (None, Some(QuitPrompt::Tasks(_)), _) => "quit-tasks",
+        (None, Some(QuitPrompt::Unsaved(_)), _) => "quit-unsaved",
+        (None, None, false) => "settings-notice",
+        (None, None, true) => return None,
     };
     Some(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique(id)))
 }
@@ -138,10 +139,11 @@ struct PromptKey {
 /// Identity of the prompt currently owning input: its layer, text and, for the settings-notice
 /// queue, the number of notices remaining, including the one shown. `None` when no prompt is up.
 fn prompt_key(app: &LightcraftApp) -> Option<PromptKey> {
-    let (layer, text, queue_len) = match (&app.quit_prompt, app.notices.first()) {
-        (Some(prompt), _) => (prompt_layer(app)?, prompt.text().to_string(), 0),
-        (None, Some(text)) => (prompt_layer(app)?, text.clone(), app.notices.len()),
-        (None, None) => return None,
+    let (layer, text, queue_len) = match (&app.switch_prompt, &app.quit_prompt, app.notices.first()) {
+        (Some(prompt), _, _) => (prompt_layer(app)?, prompt.text.clone(), 0),
+        (None, Some(prompt), _) => (prompt_layer(app)?, prompt.text().to_string(), 0),
+        (None, None, Some(text)) => (prompt_layer(app)?, text.clone(), app.notices.len()),
+        (None, None, None) => return None,
     };
     Some(PromptKey { layer, text, queue_len })
 }
@@ -528,6 +530,19 @@ fn window(ctx: &egui::Context, id: &str, title: &str, text: &str, buttons: &[(&s
 /// and re-checks for unsaved changes; quit-with-unsaved retries, quits or cancels; a settings
 /// notice is removed when acknowledged. Returns without drawing when no prompt is up.
 pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
+    if let Some(prompt) = app.switch_prompt.clone() {
+        let buttons = [("switchAnyway", "Switch Library", Choice::QuitAnyway), ("switchCancel", "Cancel", Choice::Cancel)];
+        let Some(i) = window(ctx, "switch-tasks", "Switch library while tasks are waiting?", &prompt.text, &buttons, &mut app.notice_input) else {
+            return;
+        };
+        app.switch_prompt = None;
+        if matches!(buttons[i].2, Choice::QuitAnyway)
+            && let Err(e) = crate::dialogs::settings::confirm_switch(app, &prompt)
+        {
+            app.toast_error(ctx, e);
+        }
+        return;
+    }
     if let Some(QuitPrompt::Tasks(text)) = app.quit_prompt.clone() {
         let buttons = [("quitAnyway", "Quit Anyway", Choice::QuitAnyway), ("quitCancel", "Cancel", Choice::Cancel)];
         let Some(i) = window(ctx, "quit-tasks", "Quit while tasks are running?", &text, &buttons, &mut app.notice_input) else {

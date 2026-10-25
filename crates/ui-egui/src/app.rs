@@ -44,6 +44,7 @@ impl LightcraftApp {
             updates_rt: Default::default(),
             quit_prompt: None,
             notice_input: Default::default(),
+            switch_prompt: None,
             quit_confirmed: false,
             control_rx: None,
             pending_screenshots: vec![],
@@ -295,6 +296,11 @@ impl LightcraftApp {
         } else {
             i18n::tr_format!("Queued: it starts after {n} more", n = place - 1)
         };
+        self.say(text);
+    }
+
+    /// A toast from code that has no frame context at hand.
+    pub(crate) fn say(&mut self, text: String) {
         let now = self.tick_now();
         self.ui.toast = Some((text, now + TOAST_SECONDS, None));
     }

@@ -2434,5 +2434,7 @@
   "Queue Synchronize": "Köa synkronisering",
   "A folder is still being scanned for the import review: drop photos when it has finished": "En mapp läses fortfarande för importgranskningen. Släpp fotona när den är klar",
   "A folder is still being read for the Local view: drop photos when it has finished": "En mapp läses fortfarande för vyn Lokalt. Släpp fotona när den är klar",
-  "An import review is waiting to open: drop photos when it is closed": "Importgranskningen väntar på att öppnas. Släpp fotona när den är stängd"
+  "An import review is waiting to open: drop photos when it is closed": "Importgranskningen väntar på att öppnas. Släpp fotona när den är stängd",
+  "Switch library while tasks are waiting?": "Byta bibliotek medan uppgifter väntar i kön?",
+  "Switch Library": "Byt bibliotek"
 }

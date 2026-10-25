@@ -772,24 +772,29 @@ pub fn hold_dropped(app: &mut LightcraftApp, ctx: &egui::Context, photos: Vec<St
     None
 }
 
+/// A library is open: the problem is over, and the files that came with the command line are imported.
+pub(crate) fn opened(app: &mut LightcraftApp) {
+    let files = app.library_problem.take().map(|p| p.pending_import).unwrap_or_default();
+    // in the background, like files dropped on the window (issue #374)
+    if !files.is_empty()
+        && let Err(e) = crate::import::start_paths(app, files)
+    {
+        log::warn!("import: {e}");
+    }
+}
+
 /// Open `path` (`None`: ask for a folder) through `app.openLibrary`; on success the problem is
 /// over (and command-line files are imported), else it shows the new error.
-fn open(app: &mut LightcraftApp, path: Option<String>) {
+pub(crate) fn open(app: &mut LightcraftApp, path: Option<String>) {
     let params = match &path {
         Some(p) => json!({"path": p}),
         None => json!({}),
     };
     match app.run("app.openLibrary", params) {
         Ok(serde_json::Value::Null) => {} // folder dialog cancelled
-        Ok(_) => {
-            let files = app.library_problem.take().map(|p| p.pending_import).unwrap_or_default();
-            // in the background, like files dropped on the window (issue #374)
-            if !files.is_empty()
-                && let Err(e) = crate::import::start_paths(app, files)
-            {
-                log::warn!("import: {e}");
-            }
-        }
+        // asked about the tasks waiting in line first: the problem stays until the switch is confirmed
+        Ok(v) if v["asked"] == true => {}
+        Ok(_) => opened(app),
         Err(e) => {
             // a failed switch reopens the library that was open behind the launch list
             let generation = app.session.library.as_ref().map(|_| app.session.library_generation());

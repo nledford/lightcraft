@@ -2332,5 +2332,7 @@
   "Queue Synchronize": "Lisää synkronointi jonoon",
   "A folder is still being scanned for the import review: drop photos when it has finished": "Kansiota luetaan vielä tuonnin tarkistusta varten. Pudota kuvat, kun se on valmis",
   "A folder is still being read for the Local view: drop photos when it has finished": "Kansiota luetaan vielä Paikallinen-näkymää varten. Pudota kuvat, kun se on valmis",
-  "An import review is waiting to open: drop photos when it is closed": "Tuonnin tarkistus odottaa avautumista. Pudota kuvat, kun se on suljettu"
+  "An import review is waiting to open: drop photos when it is closed": "Tuonnin tarkistus odottaa avautumista. Pudota kuvat, kun se on suljettu",
+  "Switch library while tasks are waiting?": "Vaihdetaanko kirjastoa, vaikka tehtäviä odottaa jonossa?",
+  "Switch Library": "Vaihda kirjastoa"
 }

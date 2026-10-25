@@ -2366,5 +2366,7 @@
   "Queue Synchronize": "Metti in coda la sincronizzazione",
   "A folder is still being scanned for the import review: drop photos when it has finished": "Una cartella è ancora in analisi per la verifica dell'importazione. Trascina le foto quando ha finito",
   "A folder is still being read for the Local view: drop photos when it has finished": "Una cartella è ancora in lettura per la vista Locale. Trascina le foto quando ha finito",
-  "An import review is waiting to open: drop photos when it is closed": "La verifica dell'importazione è in attesa di aprirsi. Trascina le foto quando è chiusa"
+  "An import review is waiting to open: drop photos when it is closed": "La verifica dell'importazione è in attesa di aprirsi. Trascina le foto quando è chiusa",
+  "Switch library while tasks are waiting?": "Cambiare libreria mentre ci sono attività in coda?",
+  "Switch Library": "Cambia libreria"
 }

@@ -2359,5 +2359,7 @@
   "Queue Synchronize": "У чергу: синхронізація",
   "A folder is still being scanned for the import review: drop photos when it has finished": "Теку ще скануємо для перевірки імпорту. Перетягніть фото, коли це завершиться",
   "A folder is still being read for the Local view: drop photos when it has finished": "Тека ще читається для подання «Локальні». Перетягніть фото, коли це завершиться",
-  "An import review is waiting to open: drop photos when it is closed": "Перевірка імпорту чекає на відкриття. Перетягніть фото, коли її закриють"
+  "An import review is waiting to open: drop photos when it is closed": "Перевірка імпорту чекає на відкриття. Перетягніть фото, коли її закриють",
+  "Switch library while tasks are waiting?": "Змінити бібліотеку, поки завдання чекають у черзі?",
+  "Switch Library": "Змінити бібліотеку"
 }

@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Pominięto: {n} (zsynchronizuj ponownie, aby je sprawdzić)",
   "Starts after {n} more": "Rozpocznie się po kolejnych zadaniach ({n})",
   "Remove from Queue: {label}": "Usuń z kolejki: {label}",
-  "Starts after: {what}": "Rozpocznie się po: {what}"
+  "Starts after: {what}": "Rozpocznie się po: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "W kolejce czeka 1 zadanie: {names}. Przełączenie biblioteki je odrzuci.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "W kolejce czekają zadania: {n}: {names}. Przełączenie biblioteki je odrzuci.",
+  "Waiting tasks dropped: {n}": "Odrzucone zadania z kolejki: {n}"
 }

@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Оставлено без изменений: {n} (синхронизируйте снова, чтобы проверить)",
   "Starts after {n} more": "Начнётся после ещё {n}",
   "Remove from Queue: {label}": "Убрать из очереди: {label}",
-  "Starts after: {what}": "Начнётся после: {what}"
+  "Starts after: {what}": "Начнётся после: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "В очереди ждёт задача: {names}. При смене библиотеки она будет отброшена.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "В очереди ждёт задач: {n} — {names}. При смене библиотеки они будут отброшены.",
+  "Waiting tasks dropped: {n}": "Отброшено задач из очереди: {n}"
 }

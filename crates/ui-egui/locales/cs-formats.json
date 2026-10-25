@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Ponecháno: {n} (pro kontrolu synchronizujte znovu)",
   "Starts after {n} more": "Začne po dalších úlohách: {n}",
   "Remove from Queue: {label}": "Odebrat z fronty: {label}",
-  "Starts after: {what}": "Začne po: {what}"
+  "Starts after: {what}": "Začne po: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "Ve frontě čeká 1 úloha: {names}. Přepnutí knihovny ji zahodí.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "Ve frontě čekají úlohy: {n}: {names}. Přepnutí knihovny je zahodí.",
+  "Waiting tasks dropped: {n}": "Zahozené čekající úlohy: {n}"
 }

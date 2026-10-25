@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Jätetty ennalleen: {n} (synkronoi uudelleen tarkistaaksesi)",
   "Starts after {n} more": "Alkaa {n} muun jälkeen",
   "Remove from Queue: {label}": "Poista jonosta: {label}",
-  "Starts after: {what}": "Alkaa tämän jälkeen: {what}"
+  "Starts after: {what}": "Alkaa tämän jälkeen: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "1 tehtävä odottaa jonossa: {names}. Kirjaston vaihtaminen hylkää sen.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "Jonossa odottavia tehtäviä: {n}: {names}. Kirjaston vaihtaminen hylkää ne.",
+  "Waiting tasks dropped: {n}": "Hylättyjä odottavia tehtäviä: {n}"
 }

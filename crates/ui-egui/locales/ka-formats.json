@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "უცვლელი დარჩა: {n} (გადასახედად თავიდან დაასინქრონეთ)",
   "Starts after {n} more": "დაიწყება კიდევ {n}-ის შემდეგ",
   "Remove from Queue: {label}": "რიგიდან ამოღება: {label}",
-  "Starts after: {what}": "დაიწყება ამის შემდეგ: {what}"
+  "Starts after: {what}": "დაიწყება ამის შემდეგ: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "რიგში ელოდება 1 ამოცანა: {names}. ბიბლიოთეკის შეცვლა მას გააუქმებს.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "რიგში ელოდება ამოცანები ({n}): {names}. ბიბლიოთეკის შეცვლა მათ გააუქმებს.",
+  "Waiting tasks dropped: {n}": "გაუქმებული მოლოდინის ამოცანები: {n}"
 }

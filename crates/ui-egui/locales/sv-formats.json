@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Lämnade orörda: {n} (synkronisera igen för att granska dem)",
   "Starts after {n} more": "Startar efter {n} till",
   "Remove from Queue: {label}": "Ta bort från kön: {label}",
-  "Starts after: {what}": "Startar efter: {what}"
+  "Starts after: {what}": "Startar efter: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "1 uppgift väntar i kön: {names}. Om du byter bibliotek tas den bort.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n} uppgifter väntar i kön: {names}. Om du byter bibliotek tas de bort.",
+  "Waiting tasks dropped: {n}": "Väntande uppgifter som togs bort: {n}"
 }

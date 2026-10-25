@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Unangetastet: {n} (zum Prüfen erneut synchronisieren)",
   "Starts after {n} more": "Startet nach {n} weiteren",
   "Remove from Queue: {label}": "Aus der Warteschlange entfernen: {label}",
-  "Starts after: {what}": "Startet nach: {what}"
+  "Starts after: {what}": "Startet nach: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "1 Aufgabe wartet in der Warteschlange: {names}. Beim Wechseln der Bibliothek wird sie verworfen.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n} Aufgaben warten in der Warteschlange: {names}. Beim Wechseln der Bibliothek werden sie verworfen.",
+  "Waiting tasks dropped: {n}": "Verworfene wartende Aufgaben: {n}"
 }

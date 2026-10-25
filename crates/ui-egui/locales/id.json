@@ -2344,5 +2344,7 @@
   "Queue Synchronize": "Antrekan sinkronisasi",
   "A folder is still being scanned for the import review: drop photos when it has finished": "Folder masih dipindai untuk tinjauan impor. Jatuhkan foto setelah selesai",
   "A folder is still being read for the Local view: drop photos when it has finished": "Folder masih dibaca untuk tampilan Lokal. Jatuhkan foto setelah selesai",
-  "An import review is waiting to open: drop photos when it is closed": "Tinjauan impor menunggu untuk dibuka. Jatuhkan foto setelah ditutup"
+  "An import review is waiting to open: drop photos when it is closed": "Tinjauan impor menunggu untuk dibuka. Jatuhkan foto setelah ditutup",
+  "Switch library while tasks are waiting?": "Ganti pustaka saat tugas masih mengantre?",
+  "Switch Library": "Ganti pustaka"
 }

@@ -2739,5 +2739,7 @@
   "Queue Synchronize": "სინქრონიზაციის რიგში დამატება",
   "A folder is still being scanned for the import review: drop photos when it has finished": "საქაღალდე ჯერ კიდევ სკანირდება იმპორტის გადასახედად. ფოტოები ჩააგდეთ, როცა დასრულდება",
   "A folder is still being read for the Local view: drop photos when it has finished": "საქაღალდე ჯერ კიდევ იკითხება ლოკალური ხედისთვის. ფოტოები ჩააგდეთ, როცა დასრულდება",
-  "An import review is waiting to open: drop photos when it is closed": "იმპორტის გადახედვა გასახსნელად ელოდება. ფოტოები ჩააგდეთ, როცა დაიხურება"
+  "An import review is waiting to open: drop photos when it is closed": "იმპორტის გადახედვა გასახსნელად ელოდება. ფოტოები ჩააგდეთ, როცა დაიხურება",
+  "Switch library while tasks are waiting?": "გადავერთოთ ბიბლიოთეკაზე, სანამ ამოცანები რიგშია?",
+  "Switch Library": "ბიბლიოთეკის შეცვლა"
 }

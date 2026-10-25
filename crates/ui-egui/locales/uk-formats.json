@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Залишено без змін: {n} (синхронізуйте знову, щоб переглянути)",
   "Starts after {n} more": "Почнеться після ще {n}",
   "Remove from Queue: {label}": "Прибрати з черги: {label}",
-  "Starts after: {what}": "Почнеться після: {what}"
+  "Starts after: {what}": "Почнеться після: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "1 завдання чекає в черзі: {names}. Зміна бібліотеки скасує його.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "Завдання чекають у черзі ({n}): {names}. Зміна бібліотеки скасує їх.",
+  "Waiting tasks dropped: {n}": "Скасовано завдань із черги: {n}"
 }

@@ -310,5 +310,8 @@
   "Left alone: {n} (synchronize again to review them)": "Sin tocar: {n} (sincroniza de nuevo para revisarlos)",
   "Starts after {n} more": "Empieza tras {n} más",
   "Remove from Queue: {label}": "Quitar de la cola: {label}",
-  "Starts after: {what}": "Empieza tras: {what}"
+  "Starts after: {what}": "Empieza tras: {what}",
+  "1 task is waiting in line: {names}. Switching libraries drops it.": "1 tarea espera en la cola: {names}. Cambiar de biblioteca la descarta.",
+  "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n} tareas esperan en la cola: {names}. Cambiar de biblioteca las descarta.",
+  "Waiting tasks dropped: {n}": "Tareas en espera descartadas: {n}"
 }

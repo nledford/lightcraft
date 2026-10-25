@@ -254,3 +254,92 @@ fn a_refused_drop_says_why_per_cause_in_the_windows_language() {
     assert_eq!(german, crate::i18n::Locale::De.tr("An import review is waiting to open: drop photos when it is closed"));
     assert_ne!(german, pending, "translated");
 }
+
+fn library_app(tag: &str) -> (Headless, std::path::PathBuf) {
+    let dir = std::env::temp_dir().join(format!("lc-queue-ux-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut session = lightcraft_engine::Session::new().with_fs();
+    session.open_library(dir.join("first"), false).unwrap();
+    let mut h = Headless::new(LightcraftApp::new(session, Services::default()), [1200.0, 800.0], 1.0);
+    h.settle(T);
+    (h, dir)
+}
+
+/// A preview build running with another waiting behind it: the line holds one task.
+fn hold_a_line(h: &mut Headless) -> lightcraft_engine::activity::TaskGuard {
+    let running = h.app.session.activity.start("previews", "Building previews", Cancel::Yes);
+    let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({}), ..Default::default() };
+    h.app.session.activity.enqueue("previews", "Building previews", request).unwrap();
+    running
+}
+
+fn library_dir(h: &Headless) -> Option<std::path::PathBuf> {
+    h.app.session.library.as_ref().map(|l| l.dir.clone())
+}
+
+fn click(h: &mut Headless, id: &str) {
+    h.step();
+    h.step();
+    assert_eq!(h.request("ui.clickWidget", json!({"id": id}), T)["ok"], true, "{id}");
+    for _ in 0..4 {
+        h.step();
+    }
+}
+
+/// Given a task waiting in line, when another library is opened, then the person is asked first, as quitting asks:
+/// Cancel keeps the library and the line; Switch Library goes, drops the line and says how many were dropped.
+#[test]
+fn switching_libraries_asks_before_dropping_the_line() {
+    let (mut h, dir) = library_app("switch-asks");
+    let _running = hold_a_line(&mut h);
+    let first = library_dir(&h);
+    let r = h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
+    assert_eq!(r["asked"], true, "{r}");
+    h.step();
+    h.step();
+    let said = "1 task is waiting in line: Building previews. Switching libraries drops it.";
+    assert!(h.painted_text().iter().any(|t| t == said), "{:?}", h.painted_text());
+    assert_eq!((library_dir(&h), h.app.session.activity.waiting().len()), (first.clone(), 1), "nothing changed yet");
+    click(&mut h, "button:switchCancel");
+    assert_eq!((library_dir(&h), h.app.session.activity.waiting().len()), (first, 1), "cancel keeps both");
+    assert!(h.app.switch_prompt.is_none());
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks again");
+    click(&mut h, "button:switchAnyway");
+    assert_eq!(library_dir(&h), Some(dir.join("second")));
+    assert!(h.app.session.activity.waiting().is_empty());
+    assert_eq!(h.app.ui.toast.as_ref().map(|t| t.0.as_str()), Some("Waiting tasks dropped: 1"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given Open Library with a task waiting, then it asks too and Cancel leaves everything as it was.
+#[test]
+fn opening_a_library_asks_before_dropping_the_line() {
+    let (mut h, dir) = library_app("open-asks");
+    let mut other = lightcraft_engine::Session::new().with_fs();
+    other.open_library(dir.join("other"), false).unwrap();
+    other.close_library().unwrap();
+    drop(other);
+    let _running = hold_a_line(&mut h);
+    let first = library_dir(&h);
+    let r = h.app.run("app.openLibrary", json!({"path": dir.join("other").to_string_lossy()})).expect("asks");
+    assert_eq!(r["asked"], true, "{r}");
+    click(&mut h, "button:switchCancel");
+    assert_eq!((library_dir(&h), h.app.session.activity.waiting().len()), (first, 1));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given a control call that has already agreed (`dropWaiting`), then the library switches without a question and the
+/// toast says how many waiting tasks were dropped. With nothing waiting there is no question and no toast.
+#[test]
+fn a_switch_that_agreed_to_drop_the_line_says_how_many_went() {
+    let (mut h, dir) = library_app("switch-agreed");
+    let quiet = h.app.run("app.newLibrary", json!({"path": dir.join("quiet").to_string_lossy()})).expect("opens");
+    assert!(quiet.get("asked").is_none(), "{quiet}");
+    assert!(h.app.ui.toast.as_ref().is_none_or(|t| !t.0.contains("dropped")), "{:?}", h.app.ui.toast);
+    let _running = hold_a_line(&mut h);
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy(), "dropWaiting": true})).expect("opens");
+    assert_eq!(library_dir(&h), Some(dir.join("second")));
+    assert_eq!(h.app.ui.toast.as_ref().map(|t| t.0.as_str()), Some("Waiting tasks dropped: 1"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

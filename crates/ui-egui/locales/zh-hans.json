@@ -2205,5 +2205,7 @@
   "Queue Synchronize": "加入队列（同步）",
   "A folder is still being scanned for the import review: drop photos when it has finished": "正在扫描文件夹以供导入预览。扫描完成后再拖放照片",
   "A folder is still being read for the Local view: drop photos when it has finished": "正在读取文件夹以供“本地”视图使用。读取完成后再拖放照片",
-  "An import review is waiting to open: drop photos when it is closed": "导入预览正等待打开。关闭后再拖放照片"
+  "An import review is waiting to open: drop photos when it is closed": "导入预览正等待打开。关闭后再拖放照片",
+  "Switch library while tasks are waiting?": "要在有任务排队等待时切换图库吗？",
+  "Switch Library": "切换图库"
 }
