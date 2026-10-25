@@ -258,7 +258,7 @@ pub(crate) fn refusal(folder: &str, problems: &[Left]) -> String {
         fixes.push("rename the clashing photos");
     }
     if !missing.is_empty() {
-        fixes.push("reconnect the disk or use File ▸ Find Missing Photos…");
+        fixes.push("reconnect the disk or use File → Find Missing Photos…");
     }
     text += &format!("To go on: {}, or leave these photos out of the move.", fixes.join(", "));
     text

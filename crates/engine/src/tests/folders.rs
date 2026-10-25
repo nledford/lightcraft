@@ -680,7 +680,8 @@ fn moving_to_a_missing_folder_or_a_missing_original_is_refused() {
     std::fs::create_dir_all(dir.0.join("out")).unwrap();
     std::fs::remove_file(dir.path("in/a.jpg")).unwrap();
     let e = s.execute("photo.moveToFolder", &json!({"ids": [a.0], "folder": dir.path("out")})).unwrap_err().to_string();
-    assert!(e.contains("a.jpg is missing or offline") && e.contains("Find Missing Photos"), "{e}");
+    assert!(e.contains("a.jpg is missing or offline"), "{e}");
+    assert!(e.contains("use File → Find Missing Photos…") && !e.contains('▸'), "the menu path uses → (no UI font has ▸, which draws as a box): {e}");
     assert!(!e.contains("invalid parameters") && !e.contains('`'), "plain words for the person: {e}");
     assert_eq!(file_of(&s, a), dir.path("in/a.jpg"));
 }
