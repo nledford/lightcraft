@@ -77,7 +77,7 @@ pub(super) fn move_problems_body(ui: &mut egui::Ui, name: &str, problems: &[crat
         ui.label(crate::i18n::tr("Rename a clashing photo, or choose another folder, to move it too."));
     }
     if any(&[MoveProblemKind::Missing]) {
-        ui.label(crate::i18n::tr("Reconnect the disk or use File ▸ Find Missing Photos…, then try again."));
+        ui.label(crate::i18n::tr("Reconnect the disk or use File → Find Missing Photos…, then try again."));
     }
     if any(&[MoveProblemKind::Unmovable]) {
         ui.label(crate::i18n::tr("A photo with no file can't be moved. A Local photo can, once you use Add to My Photos."));

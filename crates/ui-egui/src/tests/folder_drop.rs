@@ -429,6 +429,19 @@ fn a_file_that_is_offline_is_found_before_the_move_and_asks_even_when_not_asking
 }
 
 #[test]
+fn the_offline_question_names_the_menu_with_an_arrow_the_fonts_can_draw() {
+    let (root, trip, home, mut h, beach, _) = trip_with_two("offline-arrow");
+    std::fs::remove_file(trip.join("dunes.png")).unwrap();
+    drop_both(&mut h, beach, &home);
+    h.step();
+    let shown = h.painted_text().join("\n");
+    let line = crate::i18n::tr("Reconnect the disk or use File → Find Missing Photos…, then try again.");
+    assert!(shown.contains(line), "the dialog shows the line through tr: {shown}");
+    assert!(line.contains('→') && !line.contains('▸'), "no UI font has ▸, which draws as a box: {line}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn a_folder_that_is_gone_says_so_in_plain_words_at_the_drop() {
     let (root, _trip, home, mut h, beach, _) = trip_with_two("gone");
     let target = folder_row(&h, &home).expect("the Home row");
