@@ -17,13 +17,8 @@
 //! library costs nothing. Before a file is erased, every photo of that name in the library is
 //! checked, links included.
 //!
-//! `photo.trashFiles` and `library.emptyRecentlyDeleted {files: "trash"}`, the commands that run
-//! these steps, come in the next pull request; until then nothing calls them, so no file is
-//! moved or erased by the app, and the unit tests are their only caller.
-
-// (`photo.trashFiles`, the next pull request, is the caller of `work` and everything it reaches;
-// until then only the tests use them)
-#![cfg_attr(not(test), allow(dead_code))]
+//! `photo.trashFiles` and `library.emptyRecentlyDeleted {files: "trash"}` run these steps one
+//! after the other on the session's thread (`cmd/trash.rs`).
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;

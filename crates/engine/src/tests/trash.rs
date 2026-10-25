@@ -1,6 +1,8 @@
-//! The plan and the work of Move Files to Trash (`photo.trashFiles` runs them; the command is the
-//! next pull request): the one place where taking a photo out of the library also touches its
-//! file. Nothing calls them yet, so these tests drive them the way the command will.
+//! Moving photos' files to the Trash (`photo.trashFiles`, and `library.emptyRecentlyDeleted`
+//! with `files: "trash"`): the one place where taking a photo out of the library also touches its
+//! file. Delete, Delete Permanently, Empty Recently Deleted and Remove Folder from Library never
+//! do. Most tests drive the plan and the work the way the commands do; the last ones the
+//! commands themselves.
 //!
 //! The tests use a Trash of their own (a folder in a scratch directory): none of them puts
 //! anything in the real one.
@@ -784,4 +786,129 @@ fn a_file_a_redo_could_not_take_is_taken_at_the_next_redo() {
     assert!(!exists(&a) && !has(&s, id));
     s.execute("edit.undo", &json!({})).unwrap();
     assert!(exists(&a) && in_bin(&dir).is_empty());
+}
+
+// ---- The commands
+
+#[test]
+fn the_selection_is_what_goes_without_ids_and_ids_win_when_given() {
+    let dir = Scratch::new("selection");
+    let paths: Vec<String> = (1..=3).map(|i| dir.file(&format!("p{i}.jpg"), "x")).collect();
+    let mut s = session(&dir);
+    let ids: Vec<u64> = paths.iter().map(|p| add(&mut s, p)).collect();
+    select(&mut s, &[ids[0], ids[2]]);
+    let steps = s.undo.len();
+    let r = s.execute("photo.trashFiles", &json!({})).unwrap();
+    assert_eq!(r["removed"], 2);
+    assert!(!exists(&paths[0]) && exists(&paths[1]) && !exists(&paths[2]));
+    assert_eq!(s.undo.len(), steps + 1);
+    assert_eq!(s.undo.last().unwrap().label, "Move 2 Photos' Files to Trash");
+    assert_eq!(s.selection.active, Some(PhotoId(ids[1])), "the photo left is the one selected");
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert!(paths.iter().all(|p| exists(p)));
+    // named photos go whatever is selected
+    select(&mut s, &[ids[0]]);
+    let r = s.execute("photo.trashFiles", &json!({"ids": [ids[1]]})).unwrap();
+    assert_eq!(r["removed"], 1);
+    assert!(exists(&paths[0]) && !exists(&paths[1]));
+}
+
+#[test]
+fn everything_in_recently_deleted_goes_at_once_and_undo_brings_it_back_there() {
+    let dir = Scratch::new("deleted-all");
+    let paths: Vec<String> = (1..=3).map(|i| dir.file(&format!("p{i}.jpg"), "x")).collect();
+    let mut s = session(&dir);
+    let ids: Vec<u64> = paths.iter().map(|p| add(&mut s, p)).collect();
+    run(&mut s, "photo.delete", &ids, json!({})).unwrap();
+    assert!(paths.iter().all(|p| exists(p)), "Delete touches no file");
+    trash(&mut s, &[ids[0]]);
+    let steps = s.undo.len();
+    let r = s.execute("library.emptyRecentlyDeleted", &json!({"files": "trash"})).unwrap();
+    assert_eq!((r["deleted"].as_u64(), r["trashed"].as_u64()), (Some(2), Some(2)), "{r}");
+    assert!(!exists(&paths[1]) && !exists(&paths[2]));
+    assert_eq!(s.undo.len(), steps + 1);
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert!(exists(&paths[1]) && s.catalog.photo(PhotoId(ids[1])).unwrap().deleted);
+    assert!(s.execute("library.emptyRecentlyDeleted", &json!({"files": "shred"})).is_err());
+    assert!(exists(&paths[1]), "a refused answer moves nothing");
+}
+
+#[test]
+fn the_other_ways_out_of_the_library_still_leave_every_file() {
+    let dir = Scratch::new("untouched");
+    let paths: Vec<String> = (1..=4).map(|i| dir.file(&format!("d{i}/p.jpg"), "x")).collect();
+    let mut s = session(&dir);
+    let ids: Vec<u64> = paths.iter().map(|p| add(&mut s, p)).collect();
+    run(&mut s, "photo.delete", &[ids[0], ids[1], ids[2]], json!({})).unwrap();
+    run(&mut s, "photo.deletePermanently", &[ids[0]], json!({})).unwrap();
+    s.execute("library.emptyRecentlyDeleted", &json!({})).unwrap();
+    s.execute("library.removeFolder", &json!({"path": dir.at("d4")})).unwrap();
+    assert!(paths.iter().all(|p| exists(p)), "no file was touched");
+    assert!(in_bin(&dir).is_empty());
+}
+
+#[test]
+fn erasing_is_asked_for_by_name_and_only_for_disks_without_a_trash() {
+    let dir = Scratch::new("no-trash-param");
+    let (far, locked) = (dir.file("nas/b.jpg", "B"), dir.file("locked.jpg", "L"));
+    let mut s = session(&dir);
+    let (ib, il) = (add(&mut s, &far), add(&mut s, &locked));
+    // nothing asked: the photo and its file stay, and the answer names the photo
+    let r = run(&mut s, "photo.trashFiles", &[ib], json!({})).unwrap();
+    assert_eq!((r["removed"].as_u64(), r["noTrash"].clone()), (Some(0), json!([ib])), "{r}");
+    assert!(has(&s, ib) && exists(&far));
+    // an answer that is neither keep nor delete moves nothing
+    assert!(run(&mut s, "photo.trashFiles", &[ib], json!({"noTrash": "shred"})).is_err());
+    assert!(has(&s, ib) && exists(&far));
+    let r = run(&mut s, "photo.trashFiles", &[ib], json!({"noTrash": "delete"})).unwrap();
+    assert_eq!((r["removed"].as_u64(), r["erased"].as_u64()), (Some(1), Some(1)), "{r}");
+    assert!(!has(&s, ib) && !exists(&far));
+    // a file the Trash can't take is never erased instead
+    assert!(run(&mut s, "photo.trashFiles", &[il], json!({"noTrash": "delete"})).is_err());
+    assert!(exists(&locked) && has(&s, il));
+}
+
+#[test]
+fn empty_recently_deleted_takes_the_same_answer_about_disks_without_a_trash() {
+    let dir = Scratch::new("empty-no-trash");
+    let (near, far) = (dir.file("a.jpg", "A"), dir.file("nas/b.jpg", "B"));
+    let mut s = session(&dir);
+    let (ia, ib) = (add(&mut s, &near), add(&mut s, &far));
+    // a bad answer is an error whatever Recently Deleted holds
+    assert!(s.execute("library.emptyRecentlyDeleted", &json!({"files": "trash", "noTrash": "shred"})).is_err());
+    run(&mut s, "photo.delete", &[ia, ib], json!({})).unwrap();
+    assert!(s.execute("library.emptyRecentlyDeleted", &json!({"files": "trash", "noTrash": "shred"})).is_err());
+    // …also when the files are to stay: nothing is taken out of the library on a guess
+    assert!(s.execute("library.emptyRecentlyDeleted", &json!({"noTrash": "shred"})).is_err());
+    assert!(exists(&near) && exists(&far) && has(&s, ia) && has(&s, ib));
+    // by default the photo on the disk without a Trash stays, in Recently Deleted, with its file
+    let r = s.execute("library.emptyRecentlyDeleted", &json!({"files": "trash"})).unwrap();
+    assert_eq!((r["deleted"].as_u64(), r["noTrash"].clone()), (Some(1), json!([ib])), "{r}");
+    assert!(!has(&s, ia) && has(&s, ib) && exists(&far));
+    // asked for by name, its file is erased
+    let r = s.execute("library.emptyRecentlyDeleted", &json!({"files": "trash", "noTrash": "delete"})).unwrap();
+    assert_eq!((r["deleted"].as_u64(), r["erased"].as_u64()), (Some(1), Some(1)), "{r}");
+    assert!(!has(&s, ib) && !exists(&far));
+}
+
+#[test]
+fn the_photos_named_must_be_there_and_a_browsed_photo_is_refused() {
+    let dir = Scratch::new("ids");
+    let local_path = dir.file("local.jpg", "L");
+    let mut s = session(&dir);
+    let id = s.catalog.alloc_photo_id();
+    let mut p = Photo::new(id, Source::File { path: local_path.clone() }, "local.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    p.local = true;
+    s.commit("Browse", Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let e = run(&mut s, "photo.trashFiles", &[id.0], json!({})).unwrap_err().to_string();
+    assert!(e.contains("My Photos"), "{e}");
+    // an empty list is an error and does not fall back to the selection; a photo that is not there
+    select(&mut s, &[id.0]);
+    let e = s.execute("photo.trashFiles", &json!({"ids": []})).unwrap_err().to_string();
+    assert!(e.contains("no photos"), "{e}");
+    let e = s.execute("photo.trashFiles", &json!({"ids": [4242]})).unwrap_err().to_string();
+    assert!(e.contains("4242"), "{e}");
+    assert!(s.execute("photo.trashFiles", &json!({"ids": "all"})).is_err());
+    assert!(s.execute("photo.trashFiles", &json!({"ids": [1.5]})).is_err());
+    assert!(exists(&local_path) && has(&s, id.0));
 }
