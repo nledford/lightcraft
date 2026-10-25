@@ -76,6 +76,8 @@ pub(crate) fn display_label(chip: &FilterChip, filter: &lightcraft_catalog::Filt
             }
         } else if prefix == "Imported" {
             filter.imported.as_ref().map_or_else(|| value.to_string(), |date| date_group_label(date, false))
+        } else if let Some(names) = several_names(prefix, filter, catalog) {
+            names.join(&format!(" {} ", tr("or")))
         } else {
             value.to_string()
         };
@@ -85,6 +87,18 @@ pub(crate) fn display_label(chip: &FilterChip, filter: &lightcraft_catalog::Filt
         return format!("{} {value}", tr("Rating"));
     }
     tr(&chip.label).to_string()
+}
+
+/// The names a Keyword, Album or Folder chip lists, as the engine's `filter_chips` builds them, so
+/// the caller can join them with the language's own "or". `None` for any other chip.
+fn several_names(prefix: &str, filter: &lightcraft_catalog::Filter, catalog: &lightcraft_catalog::Catalog) -> Option<Vec<String>> {
+    let names: Vec<String> = match prefix {
+        "Keyword" => filter.keywords_wanted(),
+        "Folder" => filter.library_folders_wanted().iter().map(|d| lightcraft_catalog::folders::folder_label(d)).collect(),
+        "Album" => filter.albums_wanted().iter().map(|a| catalog.album(*a).map_or_else(|| format!("album {}", a.0), |a| a.name.clone())).collect(),
+        _ => return None,
+    };
+    (!names.is_empty()).then_some(names)
 }
 
 /// Draws the strip; does nothing without chips.
