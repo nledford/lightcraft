@@ -168,7 +168,8 @@
   LightCraft also makes the order for the current sort in the background as soon as a view is shown, so the first big
   view in that sort (All Photos after an import that started in Picks, say) no longer freezes the window for the sort
   (about 0.4 s at 324,000 photos) once the background sort is done, about half a second after the first view; before
-  that it sorts as it did. The order of the photos is the same as before.
+  that it sorts as it did. While that sort runs, the activity stack lists it as "Sorting the library". The order of the
+  photos is the same as before.
   Photos added or removed (an import, an undone import) go into or out of that order, even after more changes than
   LightCraft remembers one by one, instead of sorting the whole library again.
 
