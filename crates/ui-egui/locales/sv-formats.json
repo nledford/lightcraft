@@ -251,7 +251,7 @@
   "{size} GB": "{size} GB",
   "{stage}… {:.0}%": "{stage}… {:.0} %",
   "{s} s of AV1 video": "{s} s AV1-video",
-  "{verb} {n} Photo{}": "{verb} {n} foto{}",
+  "{verb} {n} Photo{}": "{verb} foton: {n}{:.0}",
   "{weekday}, {day}": "{weekday} {day}",
   "{weekday}, {day} {month} {year}": "{weekday} {day} {month} {year}",
   "{what} merge added": "{what}-sammanfogning tillagd",

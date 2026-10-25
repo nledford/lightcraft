@@ -555,12 +555,12 @@ fn the_switch_question_goes_when_another_library_is_opened() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Given the review's button for each verb, then the count comes as a label's value in French, Italian and Brazilian
-/// Portuguese, never straight after the verb's noun ("Mettre le déplacement en file 3 photos").
+/// Given the review's button for each verb, then the count comes as a label's value in French, Italian, Brazilian
+/// Portuguese, Indonesian and Swedish, never straight after the verb's noun ("Mettre le déplacement en file 3 photos").
 #[test]
 fn the_review_button_puts_the_count_after_a_label() {
     use crate::i18n::{Locale, set_language};
-    for locale in [Locale::Fr, Locale::It, Locale::PtBr] {
+    for locale in [Locale::Fr, Locale::It, Locale::PtBr, Locale::Id, Locale::Sv] {
         set_language(locale);
         for verb in ["Import", "Move", "Queue", "Queue Move"] {
             let said = crate::panels::dialogs::photo_count_label(verb, 3);
