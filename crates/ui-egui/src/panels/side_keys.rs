@@ -120,6 +120,15 @@ pub(crate) fn owns_keys(app: &mut LightcraftApp, ctx: &egui::Context) -> bool {
     !ctx.input(|i| i.modifiers.command || i.modifiers.ctrl || i.modifiers.alt)
 }
 
+/// Forget the rows drawn so far, this frame's and the last one's: they are another library's, so the
+/// next [`begin`] has no row to put the cursor on until the sidebar has been drawn again.
+pub(crate) fn forget_rows(ctx: &egui::Context) {
+    with(ctx, |n| {
+        n.rows.clear();
+        n.prev.clear();
+    });
+}
+
 /// A key press or typed text, in the order it came.
 enum Typed {
     Key(Key),

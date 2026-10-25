@@ -496,3 +496,22 @@ fn coming_in_again_starts_at_the_shown_row_and_a_new_library_forgets_the_cursor(
     h.step();
     assert_eq!(h.app.ui.sidebar_cursor, None, "a library's cursor is not the next one's");
 }
+
+/// Given the keys are on, when another library opens in the frame the sidebar is next drawn, then
+/// the cursor starts at the shown row of that library's rows, not at the row the last library's
+/// rows showed (an id of the last library may name another row in this one).
+#[test]
+fn a_library_opened_while_the_keys_are_on_starts_the_cursor_from_its_own_rows() {
+    let mut h = app();
+    toggle(&mut h);
+    let first = cursor_row(&h);
+    // the next library shows another source; no frame is drawn between, so the last frame's rows
+    // still show the old one when the sidebar next begins
+    h.app.session.execute("library.source", &json!({"kind": "recentlyAdded"})).unwrap();
+    h.app.shown_library = None;
+    h.step();
+    h.step();
+    h.step();
+    assert_ne!(first.as_deref(), Some("source:recentlyAdded"));
+    assert_eq!(cursor_row(&h).as_deref(), Some("source:recentlyAdded"), "the shown row of this library, not of the last one");
+}
