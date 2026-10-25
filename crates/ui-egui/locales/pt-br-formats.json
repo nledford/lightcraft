@@ -126,7 +126,7 @@
   "{n} selected photos · {pages} pages": "{n} fotos selecionadas · {pages} páginas",
   "{sel_n} selected · {counted}": "{sel_n} selecionadas · {counted}",
   "{stage}… {:.0}%": "{stage}… {:.0}%",
-  "{verb} {n} Photo{}": "{verb} {n} foto{}",
+  "{verb} {n} Photo{}": "{verb}: {n} foto{}",
   "{weekday}, {day}": "{weekday}, {day}",
   "{weekday}, {day} {month} {year}": "{weekday}, {day}/{month}/{year}",
   "{what} merge added": "{what} mesclagem adicionada",

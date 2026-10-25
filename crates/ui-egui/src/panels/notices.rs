@@ -530,6 +530,11 @@ fn window(ctx: &egui::Context, id: &str, title: &str, text: &str, buttons: &[(&s
 /// and re-checks for unsaved changes; quit-with-unsaved retries, quits or cancels; a settings
 /// notice is removed when acknowledged. Returns without drawing when no prompt is up.
 pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
+    // The question is about the library that was open when it was asked: once another one is open (a control call
+    // switched), answering would drop that library's waiting tasks without asking.
+    if app.switch_prompt.as_ref().is_some_and(|p| p.generation != app.session.library_generation()) {
+        app.switch_prompt = None;
+    }
     if let Some(prompt) = app.switch_prompt.clone() {
         let buttons = [("switchAnyway", "Switch Library", Choice::QuitAnyway), ("switchCancel", "Cancel", Choice::Cancel)];
         let Some(i) = window(ctx, "switch-tasks", "Switch library while tasks are waiting?", &prompt.text, &buttons, &mut app.notice_input) else {
@@ -539,7 +544,12 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         if matches!(buttons[i].2, Choice::QuitAnyway)
             && let Err(e) = crate::dialogs::settings::confirm_switch(app, &prompt)
         {
-            app.toast_error(ctx, e);
+            // from the library chooser: the error goes where it goes for a failed open there, and the chooser stays
+            if app.library_problem.is_some() {
+                super::library_problem::failed(app, Some(prompt.path.clone()), e);
+            } else {
+                app.toast_error(ctx, e);
+            }
         }
         return;
     }

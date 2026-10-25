@@ -795,29 +795,32 @@ pub(crate) fn open(app: &mut LightcraftApp, path: Option<String>) {
         // asked about the tasks waiting in line first: the problem stays until the switch is confirmed
         Ok(v) if v["asked"] == true => {}
         Ok(_) => opened(app),
-        Err(e) => {
-            // a failed switch reopens the library that was open behind the launch list
-            let generation = app.session.library.as_ref().map(|_| app.session.library_generation());
-            if let Some(path) = path.as_deref() {
-                app.recent_checks.failed(path);
+        Err(e) => failed(app, path, e),
+    }
+}
+
+/// Opening `path` failed with `e`: the problem window shows the error (and the chooser marks the library unavailable).
+pub(crate) fn failed(app: &mut LightcraftApp, path: Option<String>, e: String) {
+    // a failed switch reopens the library that was open behind the launch list
+    let generation = app.session.library.as_ref().map(|_| app.session.library_generation());
+    if let Some(path) = path.as_deref() {
+        app.recent_checks.failed(path);
+    }
+    if let Some(p) = app.library_problem.as_mut() {
+        if let Some(c) = p.chooser.as_mut() {
+            if c.over.is_some() {
+                c.over = generation;
             }
-            if let Some(p) = app.library_problem.as_mut() {
-                if let Some(c) = p.chooser.as_mut() {
-                    if c.over.is_some() {
-                        c.over = generation;
-                    }
-                    if let Some(l) = c.libraries.iter_mut().find(|l| path.as_deref() == Some(l.path.as_str())) {
-                        l.unavailable = Some(e.clone());
-                        l.checking = false;
-                    }
-                }
-                if let Some(path) = path {
-                    p.path = path;
-                }
-                p.error = e;
-                p.dismissed = false;
+            if let Some(l) = c.libraries.iter_mut().find(|l| path.as_deref() == Some(l.path.as_str())) {
+                l.unavailable = Some(e.clone());
+                l.checking = false;
             }
         }
+        if let Some(path) = path {
+            p.path = path;
+        }
+        p.error = e;
+        p.dismissed = false;
     }
 }
 

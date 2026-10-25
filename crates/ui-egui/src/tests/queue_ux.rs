@@ -451,14 +451,17 @@ fn the_library_chooser_stays_until_the_switch_is_confirmed() {
         h.step();
     }
     assert!(!drawn(&h, "button:libraryOpen"), "the list is not drawn under the question");
-    // (the list takes no keys while the question is up: Esc would keep the library, Return open the selection)
-    for key in ["Escape", "Enter"] {
-        assert_eq!(h.request("ui.key", json!({"key": key}), T)["ok"], true, "{key}");
-        h.step();
-        h.step();
-    }
-    assert!(h.app.library_problem.is_some(), "the chooser stays while the question is up");
-    assert!(h.app.switch_prompt.is_some(), "and so does the question");
+    // (the list takes no keys while the question is up: Return would open the list's selection, but it goes to the
+    // question, whose focus rests on Cancel; Cancel keeps the library and the list)
+    let _ = h.request("ui.key", json!({"key": "Enter"}), T);
+    h.step();
+    h.step();
+    assert!(h.app.library_problem.is_some(), "the chooser stays while the question is answered");
+    assert!(h.app.switch_prompt.is_none(), "Return went to the question and it answered Cancel");
+    assert_ne!(library_dir(&h), Some(dir.join("other")), "nothing was opened by the list's own keys");
+    // asked again, and answered with its button
+    crate::panels::library_problem::open(&mut h.app, Some(dir.join("other").to_string_lossy().into_owned()));
+    assert!(h.app.switch_prompt.is_some(), "asked again");
     click(&mut h, "button:switchAnyway");
     assert_eq!(library_dir(&h), Some(dir.join("other")));
     assert!(h.app.library_problem.is_none(), "closed once the library opened");
@@ -479,4 +482,91 @@ fn the_switch_question_names_only_the_first_few_waiting_tasks() {
     assert!(text.starts_with("7 tasks are waiting in line: ") && text.contains(", +2 more. Switching"), "{text}");
     assert_eq!(text.matches("Building previews").count(), 5, "{text}");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given the question about the waiting tasks up over an open library, when a shortcut's key is pressed, then the
+/// library is not acted on: the question has the keyboard until it is answered.
+#[test]
+fn the_switch_question_takes_the_keyboard() {
+    let (mut h, dir) = library_app("switch-keys");
+    let _running = hold_a_line(&mut h);
+    let panel = h.app.ui.left_panel;
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
+    h.step();
+    h.step();
+    // (the question is a prompt: the barrier refuses a key aimed past it, or drops it; either way nothing is acted on)
+    let _ = h.request("ui.key", json!({"key": "F7"}), T);
+    h.step();
+    h.step();
+    assert_eq!(h.app.ui.left_panel, panel, "F7 (Left Panel) did nothing under the question");
+    click(&mut h, "button:switchCancel");
+    assert_eq!(h.request("ui.key", json!({"key": "F7"}), T)["ok"], true);
+    h.step();
+    h.step();
+    assert_ne!(h.app.ui.left_panel, panel, "and works again once it is answered");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given the library chooser up and the question asked from it, when the chosen library can't be opened after Switch
+/// Library, then the chooser stays and shows the error, as it does for a failed open without the question.
+#[test]
+fn a_failed_switch_from_the_chooser_shows_its_error_in_the_chooser() {
+    let (mut h, dir) = library_app("chooser-fails");
+    let mut other = lightcraft_engine::Session::new().with_fs();
+    other.open_library(dir.join("other"), false).unwrap();
+    other.close_library().unwrap();
+    drop(other);
+    let _running = hold_a_line(&mut h);
+    let mut chooser = crate::panels::library_problem::LibraryProblem::choose_later(&h.app.ui.settings);
+    if let Some(c) = chooser.chooser.as_mut() {
+        c.over = Some(h.app.session.library_generation());
+    }
+    h.app.library_problem = Some(chooser);
+    h.step();
+    let target = dir.join("other");
+    crate::panels::library_problem::open(&mut h.app, Some(target.to_string_lossy().into_owned()));
+    assert!(h.app.switch_prompt.is_some(), "asked");
+    // (it can't be opened by the time the question is answered)
+    std::fs::remove_dir_all(&target).unwrap();
+    std::fs::write(&target, b"not a library").unwrap();
+    let first = library_dir(&h);
+    click(&mut h, "button:switchAnyway");
+    assert_eq!(library_dir(&h), first, "the library stays open");
+    assert_eq!(h.app.session.activity.waiting().len(), 1, "and its line");
+    let problem = h.app.library_problem.as_ref().expect("the chooser stays");
+    assert!(!problem.error.is_empty(), "it says why");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given the question up, when a control call switches libraries anyway (`dropWaiting`), then the question goes: it was
+/// about the library that is gone, and answering it would drop the new library's tasks unasked.
+#[test]
+fn the_switch_question_goes_when_another_library_is_opened() {
+    let (mut h, dir) = library_app("switch-stale");
+    let _running = hold_a_line(&mut h);
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
+    assert!(h.app.switch_prompt.is_some());
+    h.app.run("app.newLibrary", json!({"path": dir.join("third").to_string_lossy(), "dropWaiting": true})).expect("switches");
+    assert_eq!(library_dir(&h), Some(dir.join("third")));
+    h.step();
+    h.step();
+    assert!(h.app.switch_prompt.is_none(), "the question is about the first library");
+    assert!(!h.app.widgets.iter().any(|(w, _)| *w == "button:switchAnyway"), "and is not drawn");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given the review's button for each verb, then the count comes as a label's value in French, Italian and Brazilian
+/// Portuguese, never straight after the verb's noun ("Mettre le déplacement en file 3 photos").
+#[test]
+fn the_review_button_puts_the_count_after_a_label() {
+    use crate::i18n::{Locale, set_language};
+    for locale in [Locale::Fr, Locale::It, Locale::PtBr] {
+        set_language(locale);
+        for verb in ["Import", "Move", "Queue", "Queue Move"] {
+            let said = crate::panels::dialogs::photo_count_label(verb, 3);
+            let verb = locale.tr(verb);
+            assert!(said.starts_with(verb) && !said.starts_with(&format!("{verb} 3")), "{locale:?}: {said}");
+        }
+    }
+    set_language(Locale::En);
 }

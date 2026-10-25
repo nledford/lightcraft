@@ -144,6 +144,8 @@ pub struct SwitchPrompt {
     pub path: String,
     pub create: bool,
     pub text: String,
+    /// The library that was open when it was asked (`Session::library_generation`).
+    pub generation: u64,
 }
 
 pub struct LightcraftApp {

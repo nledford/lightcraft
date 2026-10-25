@@ -74,7 +74,7 @@ fn ask_before_dropping_the_line(app: &mut LightcraftApp, path: &str, create: boo
     } else {
         crate::i18n::tr_format!("{n} tasks are waiting in line: {names}. Switching libraries drops them.", n = waiting.len(), names = names)
     };
-    app.switch_prompt = Some(crate::SwitchPrompt { path: path.to_string(), create, text });
+    app.switch_prompt = Some(crate::SwitchPrompt { path: path.to_string(), create, text, generation: app.session.library_generation() });
     json!({"opened": false, "asked": true, "waiting": waiting.len()})
 }
 

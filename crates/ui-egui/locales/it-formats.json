@@ -164,7 +164,7 @@
   "{pid} (missing)": "{pid} (mancante)",
   "{sel_n} selected · {counted}": "Selezionate: {sel_n} · {counted}",
   "{stage}… {:.0}%": "{stage}… {:.0}%",
-  "{verb} {n} Photo{}": "{verb} {n} foto{:.0}",
+  "{verb} {n} Photo{}": "{verb}: {n} foto{:.0}",
   "{weekday}, {day}": "{weekday} {day}",
   "{weekday}, {day} {month} {year}": "{weekday} {day}/{month:02}/{year}",
   "{what} merge added": "Unione {what} aggiunta",
