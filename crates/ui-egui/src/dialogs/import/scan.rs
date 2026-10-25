@@ -76,6 +76,20 @@ pub(crate) fn library_busy(app: &LightcraftApp) -> bool {
         || app.session.activity.lane_waiting(Lane::Library)
 }
 
+/// What a task asked for now would start after, as its dialog says it ("Importing · Rome"): what runs in the library
+/// lane, else the last task waiting there. `None` when the lane is free.
+pub(crate) fn lane_ahead_text(app: &LightcraftApp) -> Option<String> {
+    if !library_busy(app) {
+        return None;
+    }
+    let rows = app.session.activity.list();
+    let in_lane = |t: &&lightcraft_engine::activity::TaskInfo| t.lane == Some(Lane::Library);
+    let ahead = rows.iter().filter(in_lane).find(|t| !t.waiting).or_else(|| rows.iter().rev().find(in_lane));
+    // (a Local folder being read holds the lane with a row of its own kind, which has no lane)
+    let reading = || app.scan.as_ref().is_some_and(|t| t.browse).then(|| crate::i18n::tr("Reading folder").to_string());
+    Some(ahead.map(crate::panels::activity::waiting_name).or_else(reading).unwrap_or_else(|| crate::i18n::tr("Importing").to_string()))
+}
+
 /// Put an import of `paths` with `params` in line behind what runs in the library lane, and say so (an Auto Import
 /// quietly: nobody asked for it).
 fn wait_in_line(app: &mut LightcraftApp, request: Request) -> Result<Value, String> {

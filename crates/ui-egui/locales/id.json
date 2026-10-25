@@ -2340,5 +2340,8 @@
   "Queued: it starts when the task ahead of it ends": "Dalam antrean: dimulai saat tugas di depannya selesai",
   "Another library was opened: nothing was done": "Pustaka lain dibuka: tidak ada yang dilakukan",
   "Photos of the folder changed while it was read: nothing was done": "Foto di folder berubah saat dibaca: tidak ada yang dilakukan",
-  "Starts next": "Dimulai berikutnya"
+  "Starts next": "Dimulai berikutnya",
+  "Queue": "Antrekan",
+  "Queue Move": "Antrekan pemindahan",
+  "Queue Synchronize": "Antrekan sinkronisasi"
 }

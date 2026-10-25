@@ -2203,5 +2203,8 @@
   "Queued: it starts when the task ahead of it ends": "Na fila: começa quando a tarefa anterior terminar",
   "Another library was opened: nothing was done": "Outra biblioteca foi aberta: nada foi feito",
   "Photos of the folder changed while it was read: nothing was done": "As fotos da pasta mudaram durante a leitura: nada foi feito",
-  "Starts next": "Começa em seguida"
+  "Starts next": "Começa em seguida",
+  "Queue": "Colocar na fila",
+  "Queue Move": "Colocar a movimentação na fila",
+  "Queue Synchronize": "Colocar a sincronização na fila"
 }

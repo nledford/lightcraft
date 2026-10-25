@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "In der Warteschlange: startet nach {n} weiteren",
   "Left alone: {n} (synchronize again to review them)": "Unangetastet: {n} (zum Prüfen erneut synchronisieren)",
   "Starts after {n} more": "Startet nach {n} weiteren",
-  "Remove from Queue: {label}": "Aus der Warteschlange entfernen: {label}"
+  "Remove from Queue: {label}": "Aus der Warteschlange entfernen: {label}",
+  "Starts after: {what}": "Startet nach: {what}"
 }

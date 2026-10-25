@@ -327,12 +327,28 @@ fn cancel_label(dlg: &Dialog, sam: &SamState) -> &'static str {
     }
 }
 
-/// The label of a dialog's confirm button (empty: it has none).
-fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamState) -> String {
+/// What an import or a synchronize asked for now would wait for while the library lane is busy (it waits in line,
+/// and its button says so, and after what).
+fn lane_ahead(app: &LightcraftApp, dlg: &Dialog) -> Option<String> {
+    let waits = match dlg {
+        Dialog::Import { .. } => true,
+        Dialog::SynchronizeFolder { counts: Some(c), .. } => !c.up_to_date(),
+        _ => false,
+    };
+    if waits { crate::import::lane_ahead_text(app) } else { None }
+}
+
+/// The label of a dialog's confirm button (empty: it has none); `queues`: the job it starts waits in line.
+fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamState, queues: bool) -> String {
     let label = match dlg {
         Dialog::Import { opts } => {
             let n = opts.selected_paths().len();
-            let verb = if opts.copy && opts.move_files { "Move" } else { "Import" };
+            let verb = match (queues, opts.copy && opts.move_files) {
+                (true, true) => "Queue Move",
+                (true, false) => "Queue",
+                (false, true) => "Move",
+                (false, false) => "Import",
+            };
             return crate::i18n::tr_format!("{verb} {n} Photo{}", if n == 1 { "" } else { "s" }, verb = crate::i18n::tr(verb), n = n);
         }
         Dialog::LightroomResult { first: Some(_), .. } => "Show in Library",
@@ -356,6 +372,7 @@ fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamSta
         Dialog::LightroomCatalog { .. } => "Import Lightroom Catalog…",
         d @ Dialog::LightroomDestination { .. } => crate::lightroom_destination::ok_label(d),
         Dialog::SynchronizeFolder { .. } if informational => "Close",
+        Dialog::SynchronizeFolder { .. } if queues => "Queue Synchronize",
         Dialog::SynchronizeFolder { .. } => "Synchronize",
         Dialog::SamModel { .. } => return sam_ok_label(dlg, sam).to_string(),
         Dialog::RenamePerson { from, to, .. } if person_rename_plan(&app.session.catalog, from, to).needs_merge => "Merge",
@@ -399,7 +416,8 @@ fn button_row(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &Dialog, close: &mut 
     let informational = is_informational(dlg);
     let sam = SamState::of(app);
     let cancel = cancel_label(dlg, &sam);
-    let ok = ok_label(app, dlg, informational, &sam);
+    let ahead = lane_ahead(app, dlg);
+    let ok = ok_label(app, dlg, informational, &sam, ahead.is_some());
     let ok = ok.as_str();
     let can_confirm = can_confirm(app, dlg, informational);
     let primary = !informational && can_confirm && confirm_style(dlg) == ConfirmStyle::Primary;
@@ -423,7 +441,19 @@ fn button_row(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &Dialog, close: &mut 
     if !ok.is_empty() {
         buttons_w += ok_button.desired_size(ui).x;
     }
-    ui.add_space((ui.available_width() - buttons_w).max(0.0));
+    if let Some(what) = &ahead {
+        // what the line waits for, in the room the buttons leave
+        let room = (ui.available_width() - buttons_w - gap).max(0.0);
+        let (row_h, t) = (ui.spacing().interact_size.y, Tokens::get(ui.ctx()));
+        let line = crate::i18n::tr_format!("Starts after: {what}", what = what);
+        ui.allocate_ui_with_layout(egui::vec2(room, row_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.set_width(room);
+            let r = ui.add(egui::Label::new(egui::RichText::new(line).size(11.0).color(t.text_dim)).truncate());
+            crate::widgets::register(ui, "dialog:startsAfter", r.rect);
+        });
+    } else {
+        ui.add_space((ui.available_width() - buttons_w).max(0.0));
+    }
     if !informational && cancel_button.show(ui).clicked() {
         *close = true;
     }

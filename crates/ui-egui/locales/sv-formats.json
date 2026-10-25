@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "I kö: startar efter {n} till",
   "Left alone: {n} (synchronize again to review them)": "Lämnade orörda: {n} (synkronisera igen för att granska dem)",
   "Starts after {n} more": "Startar efter {n} till",
-  "Remove from Queue: {label}": "Ta bort från kön: {label}"
+  "Remove from Queue: {label}": "Ta bort från kön: {label}",
+  "Starts after: {what}": "Startar efter: {what}"
 }

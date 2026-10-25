@@ -2362,5 +2362,8 @@
   "Queued: it starts when the task ahead of it ends": "In coda: parte quando finisce l'attività precedente",
   "Another library was opened: nothing was done": "È stata aperta un'altra libreria: non è stato fatto nulla",
   "Photos of the folder changed while it was read: nothing was done": "Le foto della cartella sono cambiate durante la lettura: non è stato fatto nulla",
-  "Starts next": "Parte subito dopo"
+  "Starts next": "Parte subito dopo",
+  "Queue": "Metti in coda",
+  "Queue Move": "Metti in coda lo spostamento",
+  "Queue Synchronize": "Metti in coda la sincronizzazione"
 }

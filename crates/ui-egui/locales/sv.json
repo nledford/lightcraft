@@ -2430,5 +2430,8 @@
   "Queued: it starts when the task ahead of it ends": "I kö: startar när uppgiften före är klar",
   "Another library was opened: nothing was done": "Ett annat bibliotek öppnades: ingenting gjordes",
   "Photos of the folder changed while it was read: nothing was done": "Fotona i mappen ändrades medan den lästes: ingenting gjordes",
-  "Starts next": "Startar härnäst"
+  "Starts next": "Startar härnäst",
+  "Queue": "Köa",
+  "Queue Move": "Köa flytt",
+  "Queue Synchronize": "Köa synkronisering"
 }

@@ -2357,5 +2357,8 @@
   "Queued: it starts when the task ahead of it ends": "キューに追加: 前のタスクが終わると開始します",
   "Another library was opened: nothing was done": "別のライブラリが開かれました: 何も行われていません",
   "Photos of the folder changed while it was read: nothing was done": "読み取り中にフォルダ内の写真が変更されました: 何も行われていません",
-  "Starts next": "次に開始します"
+  "Starts next": "次に開始します",
+  "Queue": "キューに追加",
+  "Queue Move": "キューに追加（移動）",
+  "Queue Synchronize": "キューに追加（同期）"
 }

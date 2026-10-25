@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "Dalam antrean: dimulai setelah {n} lagi",
   "Left alone: {n} (synchronize again to review them)": "Dibiarkan: {n} (sinkronkan lagi untuk meninjau)",
   "Starts after {n} more": "Dimulai setelah {n} lagi",
-  "Remove from Queue: {label}": "Hapus dari antrean: {label}"
+  "Remove from Queue: {label}": "Hapus dari antrean: {label}",
+  "Starts after: {what}": "Dimulai setelah: {what}"
 }

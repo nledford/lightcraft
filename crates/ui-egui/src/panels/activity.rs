@@ -123,8 +123,8 @@ pub(crate) fn cross_name(task: &TaskInfo) -> String {
     if task.waiting { tr_format!("Remove from Queue: {label}", label = waiting_name(task)) } else { tr("Cancel").to_string() }
 }
 
-/// A waiting task named for the person: its label, and what it works on (a folder's name) when it says.
-fn waiting_name(task: &TaskInfo) -> String {
+/// A task named for the person: its label, and what it works on (a folder's name) when it says.
+pub(crate) fn waiting_name(task: &TaskInfo) -> String {
     if task.detail.is_empty() { tr(&task.label).to_string() } else { format!("{} · {}", tr(&task.label), task.detail) }
 }
 

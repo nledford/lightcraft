@@ -2409,5 +2409,8 @@
   "Queued: it starts when the task ahead of it ends": "Ve frontě: začne, až skončí úloha před ní",
   "Another library was opened: nothing was done": "Byla otevřena jiná knihovna: nic se neprovedlo",
   "Photos of the folder changed while it was read: nothing was done": "Fotografie ve složce se během čtení změnily: nic se neprovedlo",
-  "Starts next": "Začne jako další"
+  "Starts next": "Začne jako další",
+  "Queue": "Zařadit do fronty",
+  "Queue Move": "Zařadit přesun do fronty",
+  "Queue Synchronize": "Zařadit synchronizaci do fronty"
 }

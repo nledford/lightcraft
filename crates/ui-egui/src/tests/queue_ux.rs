@@ -49,6 +49,17 @@ fn sync_dialog(name: &str) -> crate::state::Dialog {
     }
 }
 
+fn says(h: &Headless, text: &str) -> bool {
+    h.painted_text().iter().any(|t| t == text)
+}
+
+fn open_review(h: &mut Headless, d: ImportDialog) {
+    h.app.ui.dialog = Some(crate::state::Dialog::Import { opts: Box::new(d) });
+    for _ in 0..4 {
+        h.step();
+    }
+}
+
 /// Given an import running, when reviews of different folders are confirmed and a folder is dropped, then each waiting
 /// task says which folder it is (several sources are counted rather than named) and what else is known: how many
 /// photos, and how they come in.
@@ -163,4 +174,52 @@ fn a_waiting_synchronize_names_its_folder() {
     assert!(r.as_ref().is_ok_and(|v| v.get("queued").is_some()), "{r:?}");
     let rows = h.app.session.activity.waiting();
     assert_eq!((rows[0].kind, rows[0].detail.as_str(), rows[0].facts.as_str()), ("sync", "Rome", ""));
+}
+
+/// Given the library lane free, then the review's button says "Import" and nothing says it will wait. Given an
+/// import running, then it says "Queue" and names what it starts after; a move is told as one.
+#[test]
+fn the_review_says_when_the_import_will_wait() {
+    let mut h = app();
+    open_review(&mut h, review("/photos/Rome", 3));
+    assert!(says(&h, "Import 3 Photos"), "{:?}", h.painted_text());
+    assert!(!h.painted_text().iter().any(|t| t.starts_with("Starts after")), "{:?}", h.painted_text());
+    let running = h.app.session.activity.start("import", "Importing", Cancel::Yes);
+    running.detail("Oslo");
+    h.step();
+    h.step();
+    assert!(says(&h, "Queue 3 Photos"), "{:?}", h.painted_text());
+    assert!(says(&h, "Starts after: Importing · Oslo"), "{:?}", h.painted_text());
+    let mut d = review("/photos/Rome", 1);
+    d.copy = true;
+    d.move_files = true;
+    open_review(&mut h, d);
+    assert!(says(&h, "Queue Move 1 Photo"), "{:?}", h.painted_text());
+}
+
+/// Given a free lane, then nothing is ahead; given an import running with another waiting behind it, then a task
+/// asked for now starts after the running one, as it is named on its row.
+#[test]
+fn what_a_new_task_starts_after_is_the_running_one() {
+    let mut h = app();
+    assert_eq!(crate::import::lane_ahead_text(&h.app), None);
+    let hold = h.app.session.activity.start("import", "Importing", Cancel::Yes);
+    hold.detail("Oslo");
+    crate::import::start(&mut h.app, &review("/photos/Lisbon", 1)).expect("waits");
+    assert_eq!(crate::import::lane_ahead_text(&h.app).as_deref(), Some("Importing · Oslo"));
+}
+
+/// The same for the single-folder Synchronize dialog.
+#[test]
+fn the_synchronize_dialog_says_when_it_will_wait() {
+    let mut h = app();
+    h.app.ui.dialog = Some(sync_dialog("Rome"));
+    h.step();
+    h.step();
+    assert!(says(&h, "Synchronize"), "{:?}", h.painted_text());
+    let _running = h.app.session.activity.start("import", "Importing", Cancel::Yes);
+    h.step();
+    h.step();
+    assert!(says(&h, "Queue Synchronize"), "{:?}", h.painted_text());
+    assert!(says(&h, "Starts after: Importing"), "{:?}", h.painted_text());
 }

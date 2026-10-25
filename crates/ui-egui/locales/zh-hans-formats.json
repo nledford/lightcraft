@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "已加入队列：再过 {n} 个后开始",
   "Left alone: {n} (synchronize again to review them)": "未处理：{n}（再次同步以查看）",
   "Starts after {n} more": "再过 {n} 个后开始",
-  "Remove from Queue: {label}": "从队列中移除：{label}"
+  "Remove from Queue: {label}": "从队列中移除：{label}",
+  "Starts after: {what}": "在此之后开始：{what}"
 }

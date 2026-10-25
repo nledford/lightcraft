@@ -309,5 +309,6 @@
   "Queued: it starts after {n} more": "Trong hàng đợi: bắt đầu sau {n} tác vụ nữa",
   "Left alone: {n} (synchronize again to review them)": "Để nguyên: {n} (đồng bộ lại để xem xét)",
   "Starts after {n} more": "Bắt đầu sau {n} tác vụ nữa",
-  "Remove from Queue: {label}": "Xóa khỏi hàng đợi: {label}"
+  "Remove from Queue: {label}": "Xóa khỏi hàng đợi: {label}",
+  "Starts after: {what}": "Bắt đầu sau: {what}"
 }
