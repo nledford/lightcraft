@@ -124,6 +124,21 @@ impl FsStore {
     fn folder_of(&self, name: &str) -> io::Result<PathBuf> {
         Ok(self.path(name)?.parent().map_or_else(|| self.dir.clone(), Path::to_path_buf))
     }
+    /// The folder of `name`, if it is the library's own and there: `Ok(None)` when the segments
+    /// folder isn't there (yet), an error when it is a file or a link (to a folder elsewhere).
+    /// Nothing is created, so reading, cutting and removing never make a folder.
+    fn existing_folder_of(&self, name: &str) -> io::Result<Option<PathBuf>> {
+        let folder = self.folder_of(name)?;
+        if folder == self.dir {
+            return Ok(Some(folder));
+        }
+        match std::fs::symlink_metadata(&folder) {
+            Ok(m) if m.is_dir() => Ok(Some(folder)),
+            Ok(_) => Err(io::Error::other(format!("{} is not a folder", folder.display()))),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(io::Error::new(e.kind(), format!("{}: {e}", folder.display()))),
+        }
+    }
     /// Make the folder's entries durable. Where a folder can't be opened to be synced (Windows,
     /// where `rename` is journaled by NTFS anyway) nothing is asked of it; on POSIX a failure is
     /// the caller's to know.
@@ -275,6 +290,9 @@ pub(crate) fn create_staging(tmp: &std::path::Path) -> io::Result<std::fs::File>
 
 impl Store for FsStore {
     fn read(&mut self, name: &str) -> io::Result<Option<Vec<u8>>> {
+        if self.existing_folder_of(name)?.is_none() {
+            return Ok(None);
+        }
         match std::fs::read(self.path(name)?) {
             Ok(b) => Ok(Some(b)),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
@@ -327,6 +345,10 @@ impl Store for FsStore {
     fn append(&mut self, name: &str, data: &[u8]) -> io::Result<()> {
         use std::io::Write;
         if self.appender.as_ref().is_none_or(|(n, _)| n != name) {
+            // (a file in a folder of the library's own: the segments folder is made by a write, not here)
+            if self.existing_folder_of(name)?.is_none() {
+                return Err(io::Error::new(io::ErrorKind::NotFound, format!("{name:?}: its folder is not there")));
+            }
             let path = self.path(name)?;
             check_regular_directory_entry(&path)?;
             let existed = path.exists();
@@ -351,6 +373,9 @@ impl Store for FsStore {
         if self.appender.as_ref().is_some_and(|(n, _)| n == name) {
             self.appender = None;
         }
+        if self.existing_folder_of(name)?.is_none() {
+            return Ok(());
+        }
         let path = self.path(name)?;
         check_regular_directory_entry(&path)?;
         let f = match std::fs::OpenOptions::new().write(true).open(path) {
@@ -368,14 +393,8 @@ impl Store for FsStore {
             self.appender = None;
         }
         // (a file in a folder of the library's own, as for writing and listing: never through a link)
-        let folder = self.folder_of(name)?;
-        if folder != self.dir {
-            match std::fs::symlink_metadata(&folder) {
-                Ok(m) if m.is_dir() => {}
-                Ok(_) => return Err(io::Error::other(format!("{} is not a folder", folder.display()))),
-                Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
-                Err(e) => return Err(io::Error::new(e.kind(), format!("{}: {e}", folder.display()))),
-            }
+        if self.existing_folder_of(name)?.is_none() {
+            return Ok(());
         }
         match std::fs::remove_file(self.path(name)?) {
             Ok(()) => Ok(()),
@@ -658,5 +677,69 @@ mod tests_listing {
             assert_eq!(is_listed_file(entry.file_type()).unwrap(), entry.file_name() == "f");
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests_segment_folder {
+    use super::*;
+
+    /// A library whose `segments` is a link to a folder elsewhere (with `seg.json` in it) or a plain file.
+    fn library(tag: &str, link: bool) -> io::Result<(PathBuf, PathBuf, FsStore)> {
+        let root = std::env::temp_dir().join(format!("lc-seg-folder-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let (dir, outside) = (root.join("lib"), root.join("outside"));
+        std::fs::create_dir_all(&outside)?;
+        std::fs::write(outside.join("seg.json"), b"keep")?;
+        let store = FsStore::open(&dir)?;
+        if link {
+            std::os::unix::fs::symlink(&outside, dir.join("segments"))?;
+        } else {
+            std::fs::write(dir.join("segments"), b"not a folder")?;
+        }
+        Ok((root, outside, store))
+    }
+
+    /// `read` never returns the bytes of a file behind a `segments` link (or a file named `segments`).
+    #[test]
+    fn read_refuses_a_segments_folder_that_is_not_a_real_folder() {
+        for link in [true, false] {
+            let (root, _, mut store) = library(&format!("read{link}"), link).unwrap();
+            assert!(store.read("segments/seg.json").is_err(), "link: {link}");
+            let _ = std::fs::remove_dir_all(&root);
+        }
+    }
+
+    /// `append` and `truncate` never change a file behind a `segments` link (or a file named `segments`).
+    #[test]
+    fn append_and_truncate_refuse_a_segments_folder_that_is_not_a_real_folder() {
+        for link in [true, false] {
+            let (root, outside, mut store) = library(&format!("cut{link}"), link).unwrap();
+            assert!(store.append("segments/seg.json", b"more").is_err(), "append, link: {link}");
+            assert!(store.truncate("segments/seg.json", 0).is_err(), "truncate, link: {link}");
+            assert_eq!(std::fs::read(outside.join("seg.json")).unwrap(), b"keep");
+            let _ = std::fs::remove_dir_all(&root);
+        }
+    }
+
+    /// A library with a real `segments` folder, or none yet, works as before: reads and cuts
+    /// of a missing file are "nothing", and no folder is made by them.
+    #[test]
+    fn a_real_or_missing_segments_folder_is_unchanged() {
+        let root = std::env::temp_dir().join(format!("lc-seg-folder-real-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let mut store = FsStore::open(&root).unwrap();
+        assert_eq!(store.read("segments/1.json").unwrap(), None);
+        store.truncate("segments/1.json", 0).unwrap();
+        store.remove("segments/1.json").unwrap();
+        assert!(!root.join("segments").exists());
+        std::fs::create_dir_all(root.join("segments")).unwrap();
+        std::fs::write(root.join("segments/1.json"), b"abc").unwrap();
+        assert_eq!(store.read("segments/1.json").unwrap(), Some(b"abc".to_vec()));
+        store.append("segments/1.json", b"d").unwrap();
+        store.truncate("segments/1.json", 2).unwrap();
+        assert_eq!(std::fs::read(root.join("segments/1.json")).unwrap(), b"ab");
+        assert_eq!(store.read("segments/2.json").unwrap(), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
