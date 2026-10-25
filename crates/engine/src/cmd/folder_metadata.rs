@@ -22,8 +22,9 @@
 //!   committing what it read as its own undo step). One job runs at a time; opening another
 //!   library drops it. The work never goes through the automatic sidecar writes: an explicit
 //!   save writes its files before it reports.
-//!   Which photos share a stem sidecar is decided when the job is planned, so a file imported
-//!   into the folder while a paced job waits doesn't change the names that job uses.
+//!   Which photos share a stem sidecar is worked out again whenever the catalog changed since the
+//!   last photo (never during a plain call), so a file imported while a paced job waits is
+//!   named as the photo commands would name it.
 //! - **Cancel** is checked before each photo. A canceled save keeps the sidecars already
 //!   written. A canceled read commits what it has read so far as one undo step. Either way the
 //!   result has `cancelled: true`, and `done` of `total` says how far it got.
@@ -72,8 +73,8 @@ struct Item {
     path: String,
 }
 
-/// What the job needs from the whole library, worked out once when it is planned (per photo it
-/// would be a pass over the catalog each).
+/// What the job needs from the whole library, worked out when it is planned and again at the next
+/// photo after the catalog changed (per photo it would be a pass over the catalog each).
 enum Naming {
     /// The owners of the stems the photos share with other files.
     Save(StemOwners),
@@ -99,6 +100,8 @@ pub struct FolderMetadataJob {
     next: usize,
     task: TaskGuard,
     naming: Naming,
+    /// The catalog revision `naming` was worked out at.
+    revision: u64,
     cancelled: bool,
     written: Vec<String>,
     merged: Vec<String>,
@@ -151,6 +154,7 @@ impl FolderMetadataJob {
             next: 0,
             task,
             naming,
+            revision: s.catalog.revision,
             cancelled: false,
             written: Vec::new(),
             merged: Vec::new(),
@@ -185,6 +189,15 @@ impl FolderMetadataJob {
         if self.task.is_cancelled() {
             self.cancelled = true;
             return false;
+        }
+        // a file imported or relinked since may now share a stem with these photos: name from the catalog as it is
+        if self.revision != s.catalog.revision {
+            let ids: Vec<PhotoId> = self.items.iter().map(|i| i.id).collect();
+            self.naming = match &self.naming {
+                Naming::Save(_) => Naming::Save(StemOwners::among(&s.catalog, &ids)),
+                Naming::Read(_) => Naming::Read(s.sidecar_namings(&ids)),
+            };
+            self.revision = s.catalog.revision;
         }
         let Some(item) = self.items.get(self.next) else { return false };
         let id = item.id;
@@ -318,7 +331,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Save Metadata to Files",
             [],
             None,
-            "{path, background?: false} — as photo.saveMetadataToFile for every library photo imported from the folder or a folder inside it (not Local-only browse records, Recently Deleted or virtual copies), with a row in the activity stack (`saveMetadata`); a photo whose file can't be written lands in `failed` and the rest go on. Plain, it does every photo before it returns → {total, done, cancelled, written: [path], merged: [path], backups: [{path, backup}], failed: [{id, error}]}. With `background: true` it only plans the work → {started, total}; `folder.metadataPump` (a frontend calls it every frame) then does it a few milliseconds at a time, and the row's ✕ or `activity.cancel` stops it (the sidecars already written stay)",
+            "{path, background?: false} — as photo.saveMetadataToFile for every library photo imported from the folder or a folder inside it (not Local-only browse records, Recently Deleted or virtual copies), with a row in the activity stack (`saveMetadata`); a photo whose file can't be written lands in `failed` and the rest go on. Plain, it does every photo before it returns → {total, done, cancelled, written: [path], merged: [path], backups: [{path, backup}], failed: [{id, error}]}. With `background: true` it only plans the work → {started, total}; each `folder.metadataPump` call (the caller repeats it; the app doesn't yet) then does it a few milliseconds at a time, and the row's ✕ or `activity.cancel` stops it (the sidecars already written stay)",
             always,
             |s, p| run(s, p, Direction::Save)
         ),
@@ -336,7 +349,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Save or Read Folder Metadata in the Background",
             [],
             None,
-            "{budgetMs?: 10} → {running: false} when no background job is waiting, {running: true, done, total} while one is, or {running: false, result} with the job's result (as the plain command's) when it ended — cheap to call every frame (a frontend does): does photos for about `budgetMs` (0–1000; at least one photo is done) and ends the job after the last, or at the next call after its row was stopped",
+            "{budgetMs?: 10} → {running: false} when no background job is waiting, {running: true, done, total} while one is, or {running: false, result} with the job's result (as the plain command's) when it ended — cheap enough to call every frame: does photos for about `budgetMs` (0–1000; at least one photo is done) and ends the job after the last, or at the next call after its row was stopped",
             always,
             pump
         ),

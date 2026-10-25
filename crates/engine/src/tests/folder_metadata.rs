@@ -309,6 +309,7 @@ fn hostile_input_is_an_error_never_a_panic_or_a_write() {
     assert_eq!(f.s.execute("folder.saveMetadata", &json!({"path": f.folder("b")})).unwrap()["total"], 1);
 }
 
+#[cfg(unix)] // Windows drops a trailing space from a folder name
 #[test]
 fn a_folder_named_with_a_space_at_its_edge_is_not_its_neighbor() {
     let src = temp_dir("fm-space-src");
@@ -469,4 +470,28 @@ fn a_stopped_background_job_nobody_pumps_does_not_block_the_next_one() {
     // a job that was not stopped still blocks
     f.s.execute("folder.saveMetadata", &json!({"path": f.folder("b"), "background": true})).unwrap();
     assert!(f.s.execute("folder.saveMetadata", &json!({"path": f.folder("a")})).is_err());
+}
+
+#[test]
+fn a_file_imported_while_a_background_save_waits_is_named_as_the_photo_command_would() {
+    let src = temp_dir("fm-stem-late-src");
+    let lib = temp_dir("fm-stem-late-lib");
+    write_png(&src.join("d/x.tif"), 1);
+    write_png(&src.join("other/x.png"), 2);
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    s.execute("library.xmpPreferences", &json!({"autoWrite": false})).unwrap();
+    s.execute("library.import", &json!({"paths": [src.join("d").to_string_lossy()]})).unwrap();
+    s.execute("folder.saveMetadata", &json!({"path": src.join("d").to_string_lossy(), "background": true})).unwrap();
+    // x.png joins d/ before the first pump: it sorts before x.tif, so it now owns the stem sidecar x.xmp
+    std::fs::copy(src.join("other/x.png"), src.join("d/x.png")).unwrap();
+    s.execute("library.import", &json!({"paths": [src.join("d/x.png").to_string_lossy()]})).unwrap();
+    let r = s.execute("folder.metadataPump", &json!({})).unwrap();
+    assert_eq!(r["result"]["total"], 1, "{r}");
+    let id = s.catalog.photos().find(|p| p.file_name == "x.tif").unwrap().id;
+    let by_photo = s.execute("photo.saveMetadataToFile", &json!({"ids": [id.0]})).unwrap();
+    assert_eq!(r["result"]["written"], by_photo["written"], "the same sidecar path as the photo command: {r} vs {by_photo}");
+    assert!(!src.join("d/x.xmp").exists(), "the tif no longer takes the stem sidecar the png owns");
+    let _ = std::fs::remove_dir_all(&src);
+    let _ = std::fs::remove_dir_all(&lib);
 }
