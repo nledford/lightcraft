@@ -231,8 +231,8 @@ pub(super) fn eye_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egu
         let half = ((sb - sa) / 2.0).abs() / per_long;
         if half.x > 0.002 && half.y > 0.002 {
             let c = map.norm(sa.lerp(sb, 0.5));
-            let r = app.run("redeye.add", json!({"center": [c.x, c.y], "rx": half.x, "ry": half.y, "pet": app.ui.eye_pet}));
-            if let Ok(v) = r {
+            let r = app.act("redeye.add", json!({"center": [c.x, c.y], "rx": half.x, "ry": half.y, "pet": app.ui.eye_pet}));
+            if let Some(v) = r {
                 app.ui.eye = v["index"].as_u64().unwrap_or(0) as usize;
             }
         }

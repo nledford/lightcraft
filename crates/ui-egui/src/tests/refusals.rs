@@ -34,6 +34,8 @@
 //!   every frame of the drag, then the toast says why.
 //! - Given nothing selected, when 3 is pressed, or Cmd+Z with nothing to undo, then the toast is
 //!   the reason and not "Rated ★★★" / "Undo"; when they go through, they still say so.
+//! - Given eight Point Color samples, when the picker is clicked on the photo, then the toast is the
+//!   reason (at most 8) and nothing is added.
 
 use std::time::Duration;
 
@@ -483,4 +485,21 @@ fn a_refused_commands_own_toast_and_the_reason_are_joined_once() {
     assert_eq!(crate::refusal_toast(Some("Imported 2 profiles".into()), &r), "Imported 2 profiles · No photo selected");
     assert_eq!(crate::refusal_toast(Some(r.error.clone()), &r), "No photo selected");
     assert_eq!(crate::refusal_toast(Some("Failed: no photo selected".into()), &r), "Failed: no photo selected");
+}
+
+/// The Point Color picker, clicked on the photo after eight samples exist: the library refuses a
+/// ninth, and the click used to drop that without a word.
+#[test]
+fn a_refused_point_color_pick_says_why() {
+    let mut h = headless(lightcraft_engine::Session::with_demo(), json!({"view": "detail", "right": "edit", "tool": "pointColor"}));
+    for i in 0..8 {
+        let r = h.app.session.execute("pointColor.pick", &json!({"x": 0.3 + 0.05 * f64::from(i), "y": 0.5}));
+        assert!(r.is_ok(), "sample {i}: {r:?}");
+    }
+    let r = h.request("ui.click", json!({"x": 500.0, "y": 450.0}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    let said = toast(&h.app).expect("a toast");
+    assert!(said.to_lowercase().contains("at most 8"), "{said}");
+    assert!(!said.contains("pointColor.pick"), "{said}");
 }

@@ -1021,7 +1021,7 @@ fn general_interaction(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::
             && let Some(q) = resp.interact_pointer_pos()
         {
             let n = map.norm(q);
-            if let Ok(r) = app.run("pointColor.pick", json!({"x": n.x, "y": n.y})) {
+            if let Some(r) = app.act("pointColor.pick", json!({"x": n.x, "y": n.y})) {
                 app.ui.point_color = r["index"].as_u64().unwrap_or(0) as usize;
             }
             app.ui.tool.clear();
