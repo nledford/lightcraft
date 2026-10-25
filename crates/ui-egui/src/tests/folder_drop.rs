@@ -417,6 +417,47 @@ fn a_background_move_refused_for_another_running_move_says_so_in_a_toast() {
 }
 
 #[test]
+fn a_move_started_from_the_grid_or_a_folder_row_that_is_refused_says_so_for_as_long_as_an_error() {
+    // the Folders rows and the grid's Move to Folder… start a move through `move_task::start` directly
+    let (root, trip, home) = folders("start-refused");
+    let mut h = app(&[(trip.join("beach.png"), false), (home.join("garden.png"), false)]);
+    let (beach, garden) = (id_of(&h, "beach.png"), id_of(&h, "garden.png"));
+    h.app.run("photo.moveToFolder", json!({"ids": [beach], "folder": home.to_string_lossy(), "background": true})).unwrap();
+    h.app.ui.toast = None;
+    let ctx = h.view.ctx.clone();
+    let e = crate::move_task::start(&mut h.app, &ctx, &json!({"ids": [garden], "folder": trip.to_string_lossy()})).unwrap_err();
+    assert!(e.contains("being moved"), "{e}");
+    let (text, until, _) = h.app.ui.toast.clone().expect("the refusal is told");
+    assert_eq!(text, e);
+    assert!(until - h.app.tick_now() > 5.0, "an error stays 6 s, not the 1.4 s of a plain toast: {}", until - h.app.tick_now());
+    settle(&mut h);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_move_refused_when_the_question_is_answered_stays_up_as_long_as_an_error() {
+    let (root, trip, home) = folders("question-refused");
+    std::fs::copy(trip.join("beach.png"), trip.join("dunes.png")).unwrap();
+    let mut h = app(&[(trip.join("beach.png"), false), (trip.join("dunes.png"), false), (home.join("garden.png"), false)]);
+    click(&mut h, &format!("libraryFolderToggle:{}", folder_key(&root)));
+    let target = folder_row(&h, &home).unwrap();
+    let (beach, dunes) = (id_of(&h, "beach.png"), id_of(&h, "dunes.png"));
+    h.app.session.selection = lightcraft_engine::Selection::single(lightcraft_catalog::PhotoId(beach));
+    drop_beach(&mut h, beach, target);
+    assert!(matches!(h.app.ui.dialog, Some(crate::state::Dialog::MovePhotos { .. })), "{:?}", h.app.ui.dialog);
+    // another move starts while the question is up: the answer is refused
+    // (started on the engine and never run: it holds the library as a move on a worker would)
+    let _held = lightcraft_engine::move_job::start(&mut h.app.session, &json!({"ids": [dunes], "folder": home.to_string_lossy()})).unwrap();
+    h.app.ui.toast = None;
+    click(&mut h, "button:dialogOk");
+    let (text, until, _) = h.app.ui.toast.clone().expect("the refusal is told");
+    assert!(text.contains("being moved"), "{text}");
+    assert!(until - h.app.tick_now() > 5.0, "an error stays 6 s, not the 1.4 s of a plain toast: {}", until - h.app.tick_now());
+    settle(&mut h);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn quit_anyway_quits_while_a_move_without_a_stop_button_runs() {
     let (root, _trip, _home) = folders("quit");
     let mut h = app(&[]);

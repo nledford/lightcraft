@@ -56,11 +56,13 @@ fn name_of(path: &str) -> String {
 /// Start moving photos into a folder on disk: `params` as `photo.moveToFolder` takes them
 /// (`{folder, ids?}`; the selection by default). Returns at once: `{background: true, files}`
 /// while it runs, or `{moved: 0, folder}` when every photo is there already (said in a toast). An error when the move can't begin (Local photos, another move
-/// running…), also logged and shown in the status line, as `LightcraftApp::run` does.
+/// running…), also logged, shown in the status line as `LightcraftApp::run` does, and told in an error toast
+/// (a menu, key or button caller drops the returned error, so the toast is what tells the person why nothing moved).
 pub fn start(app: &mut LightcraftApp, ctx: &egui::Context, params: &Value) -> Result<Value, String> {
     start_inner(app, ctx, params).inspect_err(|e| {
         log::warn!("photo.moveToFolder: {e}");
         app.ui.status = e.clone();
+        app.toast_error(ctx, e.clone());
     })
 }
 

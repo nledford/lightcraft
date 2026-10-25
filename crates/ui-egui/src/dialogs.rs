@@ -478,7 +478,7 @@ fn confirmed(app: &mut LightcraftApp, ctx: &egui::Context, dlg: &mut Dialog) -> 
         // a move that began says how it went when it ends (`move_task`); one that can't, why now
         Ok(_) if matches!(dlg, Dialog::MovePhotos { .. }) => closed = true,
         Err(e) if matches!(dlg, Dialog::MovePhotos { .. }) => {
-            app.toast(ctx, e);
+            app.toast_error(ctx, e);
             closed = true;
         }
         // photos whose capture time doesn't read are left as they were: say so

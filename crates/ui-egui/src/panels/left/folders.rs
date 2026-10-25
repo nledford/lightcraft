@@ -473,9 +473,8 @@ fn move_photos_here(app: &mut LightcraftApp, ctx: &egui::Context, ids: Option<&[
     if let Some(ids) = ids {
         params["ids"] = json!(ids);
     }
-    if let Err(e) = crate::move_task::start(app, ctx, &params) {
-        app.toast(ctx, e);
-    }
+    // (a refusal is told in a toast by `start`)
+    let _ = crate::move_task::start(app, ctx, &params);
 }
 
 /// The context menu of a Folders row: a folder's own, a disk's (remove it), none for the
