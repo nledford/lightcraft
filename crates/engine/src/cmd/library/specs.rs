@@ -692,10 +692,17 @@ pub fn specs() -> Vec<CommandSpec> {
                 let ops = crate::demo::ops_in_folder(s, &folder);
                 let added = ops.iter().filter(|o| matches!(o, Op::AddPhoto { .. })).count();
                 let albums = ops.iter().filter(|o| matches!(o, Op::AddAlbum { album } if !album.folder)).count();
+                let added_ids: std::collections::HashSet<PhotoId> = ops
+                    .iter()
+                    .filter_map(|o| match o {
+                        Op::AddPhoto { photo } => Some(photo.id),
+                        _ => None,
+                    })
+                    .collect();
                 s.commit("Add Sample Photos", Op::Batch { ops })?;
-                // (a selection the person made stays)
-                if s.selection.ids.is_empty() {
-                    crate::demo::select_first(s);
+                // (a selection the person made stays, and so does an active photo set without one)
+                if s.selection.ids.is_empty() && s.selection.active.is_none() {
+                    crate::demo::select_first_of(s, &added_ids);
                 }
                 Ok(json!({"added": added, "albums": albums, "folder": folder}))
             }

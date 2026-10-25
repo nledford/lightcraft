@@ -262,3 +262,31 @@ fn adding_the_samples_keeps_a_selection_the_person_made() {
     s.execute("library.addSamples", &json!({})).unwrap();
     assert_eq!(s.selection.ids, own);
 }
+
+/// An active photo with nothing selected (`library.select {ids: [], active}`) is the person's
+/// choice too: the samples that come in don't replace it.
+#[test]
+fn adding_the_samples_keeps_an_active_photo_chosen_without_a_selection() {
+    let (mut s, own) = two_own_selected("keep-active-add", Session::new().with_fs());
+    s.execute("library.select", &json!({"ids": [], "active": own[1].0})).unwrap();
+    assert!(s.selection.ids.is_empty() && s.selection.active == Some(own[1]));
+    s.execute("library.addSamples", &json!({})).unwrap();
+    assert_eq!(s.selection.active, Some(own[1]));
+    assert!(s.selection.ids.is_empty());
+}
+
+/// With nothing chosen, the photo that comes up is one of the samples just added, not whichever
+/// photo of the library happens to be shown first.
+#[test]
+fn adding_the_samples_selects_a_sample_not_the_first_photo_of_the_library() {
+    let (mut s, _own) = two_own_selected("select-sample-add", Session::new().with_fs());
+    s.selection = crate::Selection::default();
+    // the person's own photos come first in the view
+    s.execute("library.sort", &json!({"key": "fileName", "ascending": true})).unwrap();
+    s.execute("library.addSamples", &json!({})).unwrap();
+    let first = s.visible_cloned()[0];
+    assert!(matches!(s.catalog.photo(first).unwrap().source, Source::File { .. }), "the view starts with a photo of the person's own");
+    let active = s.selection.active.expect("a photo is shown");
+    assert!(matches!(s.catalog.photo(active).unwrap().source, Source::Demo { .. }), "the selected photo is a sample");
+    assert_eq!(s.selection.ids, vec![active]);
+}

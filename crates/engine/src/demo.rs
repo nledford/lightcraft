@@ -25,6 +25,14 @@ pub fn select_first(s: &mut Session) {
     }
 }
 
+/// Select the first of `ids` that is shown, so a photo just added is there to look at; nothing
+/// changes when none of them is shown (another album is open, a filter hides them).
+pub fn select_first_of(s: &mut Session, ids: &HashSet<PhotoId>) {
+    if let Some(first) = s.visible_cloned().iter().find(|id| ids.contains(id)) {
+        s.selection = crate::Selection::single(*first);
+    }
+}
+
 /// What takes the sample photos out: every demo photo (wherever it is: albums, stacks), the
 /// albums they alone filled, and the folders that held only such albums. An album that also holds
 /// a photo of the person's own stays, with that photo (and a cover that was a sample becomes its
