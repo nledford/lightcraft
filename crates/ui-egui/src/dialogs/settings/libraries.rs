@@ -62,7 +62,13 @@ pub fn open_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String>
 /// `dropWaiting: true`. `create`: the folder is made when it is confirmed (a New Library).
 fn ask_before_dropping_the_line(app: &mut LightcraftApp, path: &str, create: bool) -> Value {
     let waiting = app.session.activity.waiting();
-    let names = waiting.iter().map(crate::panels::activity::waiting_name).collect::<Vec<_>>().join(", ");
+    // (the first few: the window has no room for a hundred)
+    const NAMED: usize = 5;
+    let mut shown = waiting.iter().take(NAMED).map(crate::panels::activity::waiting_name).collect::<Vec<_>>();
+    if waiting.len() > NAMED {
+        shown.push(crate::i18n::tr_format!("+{n} more", n = waiting.len() - NAMED));
+    }
+    let names = shown.join(", ");
     let text = if waiting.len() == 1 {
         crate::i18n::tr_format!("1 task is waiting in line: {names}. Switching libraries drops it.", names = names)
     } else {

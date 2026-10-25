@@ -96,7 +96,7 @@ filmstrip is visible.
 | `ui.zoomFactor` | `{factor}` | Set the interface scale (0.5–3; egui's zoom keys are off, Cmd+= / Cmd+- zoom the photo) |
 | `ui.screenshot` | `{path?, headless?}` | `{path, width, height}` once the frame (with finished renders) is captured. A `path` that did not exist when the request was admitted is written with create-new semantics and is never replaced if a file (including a newly imported original) appears there while the capture is queued; an existing ordinary file may be refreshed. `headless: true` draws the UI on the CPU (no compositor needed); a windowed capture that gets no frame within 2 s falls back to headless automatically. While the loupe still waits for a render, `ui.widgets {filter: "loupe:rendering"}` lists its "Rendering…" pill; `loupe:renderFailed` is the pill saying a render failed behind a stand-in; Compare and Reference panes have their own (`compare:rendering:<pane>`, `compare:renderFailed:<pane>`) |
 | `engine.execute {command: "app.export", params}` | export params (see `docs/mcp.md`), plus `preset`, `dir` / `path`, `ids`, `background`; `destinationMode: "sameAsOriginal"` writes each photo into its original's folder (+ `subfolder`) instead of `dir` | Writes the files and returns `{files}` (one `{path, width, height, bytes, sidecars}` per file, plus `gpuFallback` — why that render fell back from the GPU to the CPU — when it did; see `docs/gpu-pipeline.md`); with `background: true` (what the Export dialog and menus use) it returns `{background: true, total}` at once and the batch runs on a worker thread — poll `ui.inspect` → `export` |
-| `engine.execute {command: "activity.list"}` | — | The long-running tasks in flight (imports, exports, preview builds, downloads, the face scan…), oldest first: `{tasks: [{id, kind, label, done, total, unit, detail, cancellable, cancelling, ageMs, waiting, place, lane}]}`, then the tasks waiting in line for one of their lane (`waiting: true`, `place` 1 = next in its lane, `lane: "previews"` or `"library"`, `done` and `total` 0; `queue: true` on `library.buildPreviews` / `library.smartPreviews` puts a build there instead of refusing it; the app puts its own imports and Synchronize Folder there, `lane: "library"`); `total` 0 = not known yet; `unit` is `count`, `bytes` or `percent`; `label` is English (the app shows it translated) |
+| `engine.execute {command: "activity.list"}` | — | The long-running tasks in flight (imports, exports, preview builds, downloads, the face scan…), oldest first: `{tasks: [{id, kind, label, done, total, unit, detail, facts, cancellable, cancelling, ageMs, waiting, place, lane}]}`, then the tasks waiting in line for one of their lane (`waiting: true`, `place` 1 = next in its lane, `lane: "previews"` or `"library"`, `done` and `total` 0; `queue: true` on `library.buildPreviews` / `library.smartPreviews` puts a build there instead of refusing it; the app puts its own imports and Synchronize Folder there, `lane: "library"`); `total` 0 = not known yet; `unit` is `count`, `bytes` or `percent`; `label` is English (the app shows it translated) |
 | `engine.execute {command: "activity.cancel"}` | `{id}` or `{all: true}` | Asks the task (or every cancellable one) to stop at its next file or photo (a waiting task leaves the line and never runs; `all` empties it) → `{cancelled: n}`; an unknown id (it may have just finished) or a task that can't be cancelled is an error |
 | `ui.render` | `{id?, size?, path?}` | Render a photo (PNG to `path`), `{width, height}` |
 | `engine.execute {command: "slideshow.layout"}` | `{margins?, marginLeft?, …, zoomToFill?, strokeBorder?, castShadow?, backdropColor?, colorWash?, backgroundImage?, …}` (see `engine.commands`) | The slideshow's slide layout (Layout, Options, Backdrop), saved with the library; omitted keys keep their value, `{}` reads it; out-of-range numbers are clamped, a wrong type or unknown key is refused and nothing changes |
@@ -174,7 +174,7 @@ catalog, a missing drive), the session starts empty and in memory — never with
 to do: `ui.inspect` → `libraryProblem` is `{path, error, temporarySession, pendingImport}` (else `null`); its buttons
 are `button:libraryRetry`, `button:libraryChoose`, `button:libraryTemporary` (Continue Without Saving) and
 `button:libraryQuit`. A temporary session shows a banner (`indicator:temporarySession`, `button:libraryReopen`) and
-writes nothing. `app.openLibrary` opening a library ends it. `pendingImport` counts the files waiting for a
+writes nothing. `app.openLibrary` opening a library ends it (unless tasks wait in line: see `dropWaiting` below). `pendingImport` counts the files waiting for a
 library: those given on the command line, and photos dropped on the window while it (or the launch list below) is
 up (desktop app); they are imported into the library that opens, or into the temporary session. Presets dropped
 then are refused with a toast.
@@ -195,7 +195,7 @@ moves to the first one that can be opened once every check has answered, unless 
 `button:libraryOpenAnother` (the folder dialog of `app.openLibrary`), `button:libraryNew` (`app.newLibrary`),
 `button:libraryForget` (Remove from List) and `button:libraryQuit`; `ui.key` ArrowUp / ArrowDown move the selection,
 Enter opens it and Escape quits (over an open library: closes the window and keeps it). `app.openLibrary {path}`
-opening a library ends it. While it shows, the settings are saved as usual (a removal is kept).
+opening a library ends it. With tasks waiting in line, `app.openLibrary` and `app.newLibrary` ask first, as quitting does: they return `{opened: false, asked: true, waiting: n}` and the window's question (`button:switchAnyway`, `button:switchCancel`) decides; `dropWaiting: true` agrees at once, and the switch says how many it dropped. While it shows, the settings are saved as usual (a removal is kept).
 
 `app.recentLibraries` returns `[{path, name, exists, checking, open, lastOpened}]`. `exists` is what the last
 background check found (`false`: moved, on a disconnected drive, not a folder or no longer a library; `null`: not
@@ -230,7 +230,7 @@ it acts without asking: `"open"` imports into the library open now (`library.imp
 library `name` (default: the catalog's file name without `.lrcat`, or `Travel 2`… when taken) in the folder
 `location` (a full path; default: the open library's parent folder) under `app.newLibrary`'s rules, opens it and
 imports there, returning the import's start with `library: {path, name, photos}`. A catalog file that isn't there is
-refused before anything is made; so is a new library while an import runs. Without `into`, a library on disk with
+refused before anything is made; so is a new library while an import runs or tasks wait in line. Without `into`, a library on disk with
 `settings.lightroomImport` `"ask"` (the default) opens a window and returns `{asking: true, path, into}` (`into`: the
 choice it opens with, `"open"` when the library is empty, else `"new"`). Its widgets:
 `radio:lightroomDestination-open`, `radio:lightroomDestination-new`, `field:lightroomLibraryName`,

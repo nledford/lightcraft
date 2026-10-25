@@ -313,5 +313,6 @@
   "Starts after: {what}": "Dimulai setelah: {what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "1 tugas mengantre: {names}. Jika pustaka diganti, tugas ini akan dibuang.",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n} tugas mengantre: {names}. Jika pustaka diganti, semua tugas ini akan dibuang.",
-  "Waiting tasks dropped: {n}": "Tugas antrean yang dibuang: {n}"
+  "Waiting tasks dropped: {n}": "Tugas antrean yang dibuang: {n}",
+  "Too many tasks are waiting ({n}): wait for some to finish": "Terlalu banyak tugas mengantre ({n}): tunggu sampai sebagian selesai"
 }

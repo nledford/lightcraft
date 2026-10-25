@@ -313,5 +313,6 @@
   "Starts after: {what}": "Começa depois de: {what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "1 tarefa espera na fila: {names}. Trocar de biblioteca a descarta.",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n} tarefas esperam na fila: {names}. Trocar de biblioteca as descarta.",
-  "Waiting tasks dropped: {n}": "Tarefas na fila descartadas: {n}"
+  "Waiting tasks dropped: {n}": "Tarefas na fila descartadas: {n}",
+  "Too many tasks are waiting ({n}): wait for some to finish": "Há tarefas demais na fila ({n}): espere algumas terminarem"
 }

@@ -123,6 +123,11 @@ pub(crate) fn cross_name(task: &TaskInfo) -> String {
     if task.waiting { tr_format!("Remove from Queue: {label}", label = waiting_name(task)) } else { tr("Cancel").to_string() }
 }
 
+/// What is said when a task is asked for and the line is full (the engine's own refusal is English only).
+pub fn line_full_text() -> String {
+    tr_format!("Too many tasks are waiting ({n}): wait for some to finish", n = lightcraft_engine::activity::MAX_WAITING)
+}
+
 /// A task named for the person: its label, and what it works on (a folder's name) when it says.
 pub(crate) fn waiting_name(task: &TaskInfo) -> String {
     if task.detail.is_empty() { tr(&task.label).to_string() } else { format!("{} · {}", tr(&task.label), task.detail) }

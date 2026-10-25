@@ -313,5 +313,6 @@
   "Starts after: {what}": "Startar efter: {what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "1 uppgift väntar i kön: {names}. Om du byter bibliotek tas den bort.",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n} uppgifter väntar i kön: {names}. Om du byter bibliotek tas de bort.",
-  "Waiting tasks dropped: {n}": "Väntande uppgifter som togs bort: {n}"
+  "Waiting tasks dropped: {n}": "Väntande uppgifter som togs bort: {n}",
+  "Too many tasks are waiting ({n}): wait for some to finish": "För många uppgifter väntar ({n}): vänta tills några är klara"
 }

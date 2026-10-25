@@ -313,5 +313,6 @@
   "Starts after: {what}": "Начнётся после: {what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "В очереди ждёт задача: {names}. При смене библиотеки она будет отброшена.",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "В очереди ждёт задач: {n} — {names}. При смене библиотеки они будут отброшены.",
-  "Waiting tasks dropped: {n}": "Отброшено задач из очереди: {n}"
+  "Waiting tasks dropped: {n}": "Отброшено задач из очереди: {n}",
+  "Too many tasks are waiting ({n}): wait for some to finish": "В очереди слишком много задач: {n}. Подождите, пока часть завершится"
 }

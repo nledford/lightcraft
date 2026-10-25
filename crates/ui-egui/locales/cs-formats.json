@@ -313,5 +313,6 @@
   "Starts after: {what}": "Začne po: {what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "Ve frontě čeká 1 úloha: {names}. Přepnutí knihovny ji zahodí.",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "Ve frontě čekají úlohy: {n}: {names}. Přepnutí knihovny je zahodí.",
-  "Waiting tasks dropped: {n}": "Zahozené čekající úlohy: {n}"
+  "Waiting tasks dropped: {n}": "Zahozené čekající úlohy: {n}",
+  "Too many tasks are waiting ({n}): wait for some to finish": "Ve frontě čeká příliš mnoho úloh: {n}. Počkejte, až některé skončí"
 }

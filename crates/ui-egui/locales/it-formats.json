@@ -313,5 +313,6 @@
   "Starts after: {what}": "Parte dopo: {what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "1 attività è in coda: {names}. Cambiando libreria viene scartata.",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n} attività sono in coda: {names}. Cambiando libreria vengono scartate.",
-  "Waiting tasks dropped: {n}": "Attività in coda scartate: {n}"
+  "Waiting tasks dropped: {n}": "Attività in coda scartate: {n}",
+  "Too many tasks are waiting ({n}): wait for some to finish": "Troppe attività in coda ({n}): attendi che alcune finiscano"
 }

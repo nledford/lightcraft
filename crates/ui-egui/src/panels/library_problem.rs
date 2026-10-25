@@ -931,10 +931,11 @@ fn alt_at_launch(app: &mut LightcraftApp, ctx: &egui::Context) {
     ctx.request_repaint();
 }
 
-/// The launch list on screen (not covered by the New Library name dialog it opened).
+/// The launch list on screen (not covered by the New Library name dialog it opened, nor by the question about the
+/// tasks waiting in line).
 fn chooser_shown(app: &LightcraftApp) -> Option<&Chooser> {
     let p = app.library_problem.as_ref().filter(|p| !p.dismissed)?;
-    p.chooser.as_ref().filter(|_| !chooser_owns_dialog(app))
+    p.chooser.as_ref().filter(|_| !chooser_owns_dialog(app) && app.switch_prompt.is_none())
 }
 
 /// ↑ / ↓ move the selection, Return opens it (unless a button has the keyboard focus: it acts
@@ -1007,9 +1008,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
         return;
     }
     if let Some(chooser) = &problem.chooser {
-        // its own New Library name dialog goes first; the list comes back after it. An unrelated
-        // dialog (Settings) does not hide the list: the blocking window stays above it.
-        if !chooser_owns_dialog(app) {
+        // its own New Library name dialog or the question about the tasks waiting in line goes first; the list
+        // comes back after it. An unrelated dialog (Settings) does not hide the list: the blocking window stays
+        // above it.
+        if !chooser_owns_dialog(app) && app.switch_prompt.is_none() {
             note_first_draw(app, WindowMode::Chooser);
             show_chooser(app, ctx, &problem, chooser);
             app.library_window_input.drawn = Some(WindowMode::Chooser);

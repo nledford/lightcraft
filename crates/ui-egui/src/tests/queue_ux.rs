@@ -343,3 +343,125 @@ fn a_switch_that_agreed_to_drop_the_line_says_how_many_went() {
     assert_eq!(h.app.ui.toast.as_ref().map(|t| t.0.as_str()), Some("Waiting tasks dropped: 1"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Given a line already full, when an import or a synchronize is asked for, then the refusal is the app's translated
+/// sentence, not the engine's English one.
+#[test]
+fn a_full_line_is_refused_in_the_language_of_the_window() {
+    let mut h = app();
+    let _running = h.app.session.activity.start("import", "Importing", Cancel::Yes);
+    for _ in 0..lightcraft_engine::activity::MAX_WAITING {
+        let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({}), ..Default::default() };
+        h.app.session.activity.enqueue("previews", "Building previews", request).unwrap();
+    }
+    crate::i18n::set_language(crate::i18n::Locale::De);
+    let import = crate::import::start(&mut h.app, &review("/photos/Rome", 1)).expect_err("refused");
+    let dropped = crate::import::start_paths(&mut h.app, vec!["/photos/Oslo".into()]).expect_err("refused");
+    let sync = crate::panels::dialogs::confirm_dialog(&mut h.app, &sync_dialog("Rome")).expect_err("refused");
+    let german = crate::i18n::tr_format!("Too many tasks are waiting ({n}): wait for some to finish", n = lightcraft_engine::activity::MAX_WAITING);
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    let english = crate::panels::activity::line_full_text();
+    assert_eq!(english, "Too many tasks are waiting (100): wait for some to finish");
+    for said in [import, dropped, sync] {
+        assert!(!said.contains("waiting already"), "{said}");
+        assert_eq!(said, german, "German, from the catalog");
+        assert_ne!(said, english, "German, not English");
+    }
+}
+
+/// Given a waiting import whose facts are long in the window's language, then its row stays inside the stack and the
+/// timing is whole: the name and the facts are what give way.
+#[test]
+fn a_waiting_row_with_long_facts_stays_inside_the_stack_with_its_timing_whole() {
+    let mut h = app();
+    let _running = h.app.session.activity.start("import", "Importing", Cancel::Yes);
+    crate::import::start(&mut h.app, &review("/photos/Rome", 3)).expect("waits");
+    crate::import::start(&mut h.app, &review("/photos/Lisbon", 3)).expect("waits");
+    crate::i18n::set_language(crate::i18n::Locale::De);
+    for _ in 0..4 {
+        h.step();
+    }
+    let after = crate::i18n::tr_format!("Starts after {n} more", n = 1);
+    let painted = h.painted_text();
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    let id = h.app.session.activity.waiting()[1].id;
+    let at = |what: &str| h.app.widgets.iter().find(|(w, _)| *w == format!("activity:{what}:{id}")).map(|(_, r)| *r).expect("drawn");
+    let (row, timing) = (at("row"), at("starts"));
+    assert!(timing.right() <= row.right() + 0.5, "the timing ends inside its row: {timing:?} in {row:?}");
+    assert!(row.width() <= crate::panels::activity::WIDTH, "{row:?}");
+    assert!(painted.iter().any(|t| t.ends_with(&after)), "the timing is whole: {painted:?}");
+}
+
+/// Given a Local folder being read, then a review asked for now says it starts after that read, as its row says it.
+#[test]
+fn the_dialog_names_a_local_folder_read_it_waits_for() {
+    let mut h = app();
+    let _scan = crate::import::stall_scan_of(&mut h.app, true);
+    assert_eq!(crate::import::lane_ahead_text(&h.app).as_deref(), Some("Reading folder"));
+}
+
+/// Given tasks waiting in line, when a Lightroom catalog is imported into a new library, then it is refused before
+/// anything is made or asked: the question about the line would otherwise leave the catalog merged into the library
+/// that stays open.
+#[test]
+fn a_lightroom_import_into_a_new_library_is_refused_while_tasks_wait() {
+    let (mut h, dir) = library_app("lr-new");
+    let _running = hold_a_line(&mut h);
+    std::fs::write(dir.join("old.lrcat"), b"not a catalog").unwrap();
+    let first = library_dir(&h);
+    let e = h
+        .app
+        .run(
+            "file.importLightroom",
+            json!({"path": dir.join("old.lrcat").to_string_lossy(), "into": "new", "location": dir.to_string_lossy(), "name": "fresh"}),
+        )
+        .expect_err("refused");
+    assert!(e.contains("waiting"), "{e}");
+    assert!(h.app.switch_prompt.is_none() && !dir.join("fresh").exists(), "nothing asked or made");
+    assert_eq!(library_dir(&h), first);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given the library chooser up (Open Library… from the banner) and a task waiting, when a library is chosen, then
+/// the question comes first and the chooser stays; Switch Library closes it.
+#[test]
+fn the_library_chooser_stays_until_the_switch_is_confirmed() {
+    let (mut h, dir) = library_app("chooser");
+    let mut other = lightcraft_engine::Session::new().with_fs();
+    other.open_library(dir.join("other"), false).unwrap();
+    other.close_library().unwrap();
+    drop(other);
+    let _running = hold_a_line(&mut h);
+    let mut chooser = crate::panels::library_problem::LibraryProblem::choose_later(&h.app.ui.settings);
+    // (as the banner's Open Library… sets it: the chooser belongs to the library that is open)
+    if let Some(c) = chooser.chooser.as_mut() {
+        c.over = Some(h.app.session.library_generation());
+    }
+    h.app.library_problem = Some(chooser);
+    crate::panels::library_problem::open(&mut h.app, Some(dir.join("other").to_string_lossy().into_owned()));
+    assert!(h.app.switch_prompt.is_some(), "asked");
+    for _ in 0..4 {
+        h.step();
+    }
+    assert!(h.app.library_problem.is_some(), "the chooser stays while the question is up");
+    click(&mut h, "button:switchAnyway");
+    assert_eq!(library_dir(&h), Some(dir.join("other")));
+    assert!(h.app.library_problem.is_none(), "closed once the library opened");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given many tasks waiting, then the question names the first few and counts the rest, so it fits its window.
+#[test]
+fn the_switch_question_names_only_the_first_few_waiting_tasks() {
+    let (mut h, dir) = library_app("switch-many");
+    let _running = hold_a_line(&mut h);
+    for _ in 0..6 {
+        let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({}), ..Default::default() };
+        h.app.session.activity.enqueue("previews", "Building previews", request).unwrap();
+    }
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
+    let text = h.app.switch_prompt.as_ref().map(|p| p.text.clone()).expect("asked");
+    assert!(text.starts_with("7 tasks are waiting in line: ") && text.contains(", +2 more. Switching"), "{text}");
+    assert_eq!(text.matches("Building previews").count(), 5, "{text}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

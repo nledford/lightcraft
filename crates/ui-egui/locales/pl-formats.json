@@ -313,5 +313,6 @@
   "Starts after: {what}": "Rozpocznie się po: {what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "W kolejce czeka 1 zadanie: {names}. Przełączenie biblioteki je odrzuci.",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "W kolejce czekają zadania: {n}: {names}. Przełączenie biblioteki je odrzuci.",
-  "Waiting tasks dropped: {n}": "Odrzucone zadania z kolejki: {n}"
+  "Waiting tasks dropped: {n}": "Odrzucone zadania z kolejki: {n}",
+  "Too many tasks are waiting ({n}): wait for some to finish": "Zbyt wiele zadań czeka ({n}): poczekaj, aż część się zakończy"
 }

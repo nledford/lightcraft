@@ -313,5 +313,6 @@
   "Starts after: {what}": "在此之後開始：{what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "有 1 個工作在排隊等待：{names}。切換照片庫將捨棄它。",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "有 {n} 個工作在排隊等待：{names}。切換照片庫將捨棄它們。",
-  "Waiting tasks dropped: {n}": "已捨棄排隊等待的工作：{n} 個"
+  "Waiting tasks dropped: {n}": "已捨棄排隊等待的工作：{n} 個",
+  "Too many tasks are waiting ({n}): wait for some to finish": "等待中的工作過多（{n} 個）：請等待部分工作完成"
 }

@@ -313,5 +313,6 @@
   "Starts after: {what}": "次の後に開始: {what}",
   "1 task is waiting in line: {names}. Switching libraries drops it.": "1件のタスクが待機中です：{names}。ライブラリを切り替えると破棄されます。",
   "{n} tasks are waiting in line: {names}. Switching libraries drops them.": "{n}件のタスクが待機中です：{names}。ライブラリを切り替えると破棄されます。",
-  "Waiting tasks dropped: {n}": "破棄した待機中のタスク：{n}件"
+  "Waiting tasks dropped: {n}": "破棄した待機中のタスク：{n}件",
+  "Too many tasks are waiting ({n}): wait for some to finish": "待機中のタスクが多すぎます（{n}件）：いくつか完了するまでお待ちください"
 }

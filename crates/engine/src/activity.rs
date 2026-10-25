@@ -350,7 +350,7 @@ impl Activity {
         let lane = Lane::of(kind).ok_or_else(|| format!("{kind} tasks don't wait in line"))?;
         let mut waiting = lock(&self.inner.waiting);
         if waiting.len() >= MAX_WAITING {
-            return Err(format!("{MAX_WAITING} tasks are waiting already"));
+            return Err(Self::line_full_error());
         }
         let id = self.inner.next.fetch_add(1, Ordering::Relaxed).saturating_add(1);
         waiting.push(Waiting { id, kind, label: capped(label), lane, request, queued: web_time::Instant::now() });
@@ -366,6 +366,16 @@ impl Activity {
     /// Whether a task waits in `lane`'s line.
     pub fn lane_waiting(&self, lane: Lane) -> bool {
         lock(&self.inner.waiting).iter().any(|w| w.lane == lane)
+    }
+
+    /// Whether the line is as long as it can be: nothing more is taken in ([`Activity::enqueue`]).
+    pub fn line_full(&self) -> bool {
+        lock(&self.inner.waiting).len() >= MAX_WAITING
+    }
+
+    /// What [`Activity::enqueue`] says when the line is full (English; a frontend words it for its person).
+    pub fn line_full_error() -> String {
+        format!("{MAX_WAITING} tasks are waiting already")
     }
 
     /// Take the first waiting task whose lane is free out of the line, to be started now. The next task of its

@@ -93,6 +93,9 @@ pub(crate) fn lane_ahead_text(app: &LightcraftApp) -> Option<String> {
 /// Put an import of `paths` with `params` in line behind what runs in the library lane, and say so (an Auto Import
 /// quietly: nobody asked for it).
 pub(super) fn wait_in_line(app: &mut LightcraftApp, request: Request) -> Result<Value, String> {
+    if app.session.activity.line_full() {
+        return Err(crate::panels::activity::line_full_text());
+    }
     let auto = request.params["auto"].as_bool().unwrap_or(false);
     let (id, place) = app.session.activity.enqueue("import", "Importing", request)?;
     if !auto {
