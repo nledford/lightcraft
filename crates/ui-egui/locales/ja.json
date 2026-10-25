@@ -2359,5 +2359,7 @@
   "Finish Lightroom catalog import before adding photos": "写真を追加する前に Lightroom カタログの読み込みを完了してください",
   "Moving photos": "写真を移動中",
   "Moving was stopped by an error (see the log). The library follows the files that had moved.": "エラーのため移動が停止しました（ログを参照）。ライブラリは移動済みのファイルに追従します。",
-  "Moving was stopped by an error (see the log). The library may not follow every file that had moved: Find Missing Photos relinks the ones it lost.": "エラーのため移動が停止しました（ログを参照）。ライブラリが移動済みのすべてのファイルに追従していない場合があります。見つからなくなったものは「見つからない写真を探す」で再リンクできます。"
+  "Moving was stopped by an error (see the log). The library may not follow every file that had moved: Find Missing Photos relinks the ones it lost.": "エラーのため移動が停止しました（ログを参照）。ライブラリが移動済みのすべてのファイルに追従していない場合があります。見つからなくなったものは「見つからない写真を探す」で再リンクできます。",
+  "This library is open without its lock, so moves that were cut short are left as they are until it opens with the lock; Find Missing Photos relinks files that moved.": "このライブラリはロックなしで開かれているため、中断された移動は、ロック付きで開かれるまでそのままにされます。移動済みのファイルは「見つからない写真を探す」で再リンクできます。",
+  "Unfinished moves": "未完了の移動"
 }

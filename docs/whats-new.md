@@ -4,12 +4,13 @@
 
 ### A move cut short is followed at the next open
 - If LightCraft is force-quit or crashes part-way through a move, or you choose Quit Anyway, the next time the
-  library opens, the photos whose files reached the new folder point there (their sidecars follow) and the others stay.
-  Edits made while the files were moving reach their XMP sidecars then too. A file that was half copied to another
-  disk leaves a hidden `.lc-partial` file in the new folder, which that open removes; a copy that reached the new
-  folder while the original stayed is removed only when it is the same file or holds the same bytes. In a library that
-  was opened without its lock (some network shares can't lock it), nothing is followed or removed, because another
-  program may be making the move: use File ▸ Find Missing Photos… to relink files that moved.
+  library opens, the photos whose files reached the new folder point there (their sidecars follow), the others stay,
+  and an "Unfinished moves" window says what was found. Edits made while the files were moving reach their XMP
+  sidecars then too. A file that was half copied to another disk leaves a hidden `.lc-partial` file in the new folder,
+  which that open removes; a copy that reached the new folder while the original stayed is removed only when it is the
+  same file or holds the same bytes. In a library that was opened without its lock (some network shares can't lock
+  it), nothing is followed or removed, because another program may be making the move: use File ▸ Find Missing
+  Photos… to relink files that moved.
 
 ## 2026-10-24
 

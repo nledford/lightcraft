@@ -159,6 +159,9 @@ pub struct LightcraftApp {
     /// Warnings to show one at a time (damaged settings files…, issue #103).
     pub notices: Vec<String>,
     pub(crate) updates_rt: updates_ui::Runtime,
+    /// What following moves an earlier run cut short came to, shown once under its own title
+    /// ([`panels::notices::recovered_text`]); not a settings problem.
+    pub move_notice: Option<String>,
     /// Quitting was stopped to ask first: changes couldn't be saved, or tasks are running.
     pub quit_prompt: Option<QuitPrompt>,
     /// Keyboard/focus/input state for the prompt above, including its one-frame creation barrier.

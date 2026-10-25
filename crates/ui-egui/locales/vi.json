@@ -2238,5 +2238,7 @@
   "Drop to open the face model": "Thả để mở mô hình khuôn mặt",
   "Dropped Files": "Tệp đã thả",
   "Finish Lightroom catalog import before adding photos": "Hoàn tất nhập danh mục Lightroom trước khi thêm ảnh",
-  "Import dropped files without review": "Nhập các tệp đã thả mà không xem lại"
+  "Import dropped files without review": "Nhập các tệp đã thả mà không xem lại",
+  "This library is open without its lock, so moves that were cut short are left as they are until it opens with the lock; Find Missing Photos relinks files that moved.": "Thư viện này được mở mà không có khóa, nên các lần di chuyển bị gián đoạn được giữ nguyên cho đến khi thư viện được mở với khóa; Tìm ảnh bị thiếu sẽ liên kết lại các tệp đã được di chuyển.",
+  "Unfinished moves": "Lần di chuyển chưa hoàn tất"
 }

@@ -74,7 +74,7 @@ pub(crate) fn write(library: &Path, moves: &[(String, String)]) -> std::io::Resu
 }
 
 /// What the records left by an earlier run came to (`library.info` → `recoveredMoves`, and the
-/// notice the CLI prints; the window shows only what a worker that died came to).
+/// notice the CLI prints and the app's window shows).
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Recovered {

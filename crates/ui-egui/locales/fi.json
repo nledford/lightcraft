@@ -2330,5 +2330,7 @@
   "Drop to open the face model": "Pudota avataksesi kasvomallin",
   "Dropped Files": "Pudotetut tiedostot",
   "Finish Lightroom catalog import before adding photos": "Viimeistele Lightroom-luettelon tuonti ennen kuvien lisäämistä",
-  "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta"
+  "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta",
+  "This library is open without its lock, so moves that were cut short are left as they are until it opens with the lock; Find Missing Photos relinks files that moved.": "Tämä kirjasto on avattu ilman lukitusta, joten keskeytyneet siirrot jätetään ennalleen, kunnes kirjasto avataan lukituksen kanssa; Etsi puuttuvat kuvat yhdistää siirretyt tiedostot uudelleen.",
+  "Unfinished moves": "Keskeneräiset siirrot"
 }

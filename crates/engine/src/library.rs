@@ -100,8 +100,8 @@ pub struct Library {
     warnings_reported: usize,
     /// What following moves an earlier run cut short came to when the library opened
     /// (`library.info` → `recoveredMoves`; handed out once, see
-    /// [`Session::take_recovered_moves`], for the window that shows it: a later part). Not a
-    /// settings problem: kept apart from those.
+    /// [`Session::take_recovered_moves`]: the app shows it in its own window). Not a settings
+    /// problem: kept apart from those.
     pub recovered_moves: Option<crate::move_intent::Recovered>,
     moves_reported: bool,
     /// Settings files that couldn't be read or set aside: never overwritten this session.
@@ -845,7 +845,7 @@ impl Session {
     }
 
     /// What following moves cut short came to when the library opened, handed out once (the CLI
-    /// prints [`Recovered::notice`] on stderr; the window does not show it yet).
+    /// prints [`Recovered::notice`] on stderr; the app shows it in its own window).
     ///
     /// [`Recovered::notice`]: crate::move_intent::Recovered::notice
     pub fn take_recovered_moves(&mut self) -> Option<crate::move_intent::Recovered> {
