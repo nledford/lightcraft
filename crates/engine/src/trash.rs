@@ -138,8 +138,6 @@ pub enum Whereabouts {
 
 /// The file work of an undo or redo step of `photo.trashFiles`, done with its catalog op.
 #[derive(Clone, Debug)]
-// (`photo.trashFiles`, the next pull request, is its caller; the tests use it until then)
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) enum TrashStep {
     /// Undo: put these files back where they were.
     PutBack(Vec<Trashed>),
@@ -149,12 +147,10 @@ pub(crate) enum TrashStep {
 }
 
 /// "1 file" / "3 files".
-#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn files(n: usize) -> String {
     if n == 1 { "1 file".into() } else { format!("{n} files") }
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 impl TrashStep {
     /// Do the step's file work with `bin`. Returns the step that reverses it and, when not
     /// everything could be done, a sentence saying what was not. It never fails as a whole: the
