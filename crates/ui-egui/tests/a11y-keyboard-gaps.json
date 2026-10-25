@@ -1,10 +1,18 @@
 {
   "Context menu of a photo": {
-    "Button shows no focus in (top level)": 84,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 79,
     "Unknown shows no focus in (top level)": 1
   },
   "Context menu of an album": {
-    "Button shows no focus in (top level)": 84,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 79,
     "Unknown shows no focus in (top level)": 1
   },
   "Dialog About": {
@@ -20,23 +28,25 @@
     "Button shows no focus in Settings": 8
   },
   "Dialog Settings general": {
-    "Button shows no focus in Settings": 45
+    "Button shows no focus in Settings": 47,
+    "TextInput shows no focus in Settings": 1
   },
   "Dialog Settings import": {
     "Button shows no focus in Settings": 10
   },
   "Dialog Settings interface": {
-    "Button shows no focus in Settings": 19
+    "Button shows no focus in Settings": 19,
+    "CheckBox shows no focus in Settings": 1
   },
   "Dialog Settings performance": {
     "Button shows no focus in Settings": 28
   },
   "Dialog Settings slideshow": {
     "Button shows no focus in Settings": 24,
-    "CheckBox shows no focus in Settings": 11,
+    "CheckBox shows no focus in Settings": 15,
     "ColorWell shows no focus in Settings": 1,
-    "Slider shows no focus in Settings": 1,
-    "SpinButton shows no focus in Settings": 1,
+    "Slider shows no focus in Settings": 3,
+    "SpinButton shows no focus in Settings": 3,
     "Unknown shows no focus in Settings": 5
   },
   "Dialog Shortcuts": {},
@@ -56,131 +66,221 @@
   "Dialog dialog.labelNames": {
     "Button shows no focus in Edit Color Label Names": 2
   },
-  "Dialog dialog.newAlbum": {
-    "Button \"Cancel\" not reached by Tab in Create Album": 1,
-    "Button \"OK\" not reached by Tab in Create Album": 1,
-    "CheckBox \"Include selected photos\" not reached by Tab in Create Album": 1
-  },
-  "Dialog dialog.newSmartAlbum": {
-    "Button \"Cancel\" not reached by Tab in Create Smart Album": 1,
-    "Button \"OK\" not reached by Tab in Create Smart Album": 1
-  },
+  "Dialog dialog.newAlbum": {},
+  "Dialog dialog.newSmartAlbum": {},
   "Dialog dialog.pasteSettings": {},
   "Dialog dialog.rename": {
     "Button shows no focus in Rename Photos": 5
   },
-  "Dialog dialog.saveMetadataPreset": {
-    "Button \"Cancel\" not reached by Tab in Save Metadata Preset": 1,
-    "Button \"OK\" not reached by Tab in Save Metadata Preset": 1
-  },
+  "Dialog dialog.saveMetadataPreset": {},
   "Import review": {
     "Button shows no focus in Import Photos": 9
   },
   "Menu Edit": {
-    "Button shows no focus in (top level)": 84,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 79,
     "Unknown shows no focus in (top level)": 1
   },
   "Menu File": {
-    "Button shows no focus in (top level)": 84,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 79,
     "Unknown shows no focus in (top level)": 1
   },
   "Menu Help": {
-    "Button shows no focus in (top level)": 84,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 79,
     "Unknown shows no focus in (top level)": 1
   },
   "Menu Photo": {
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
     "Button \"Scroll menu down\" not reached by Tab in (top level)": 1,
-    "Button shows no focus in (top level)": 96,
+    "Button shows no focus in (top level)": 91,
     "Unknown shows no focus in (top level)": 1
   },
   "Menu View": {
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
     "Button \"Scroll menu down\" not reached by Tab in (top level)": 1,
-    "Button shows no focus in (top level)": 114,
+    "Button shows no focus in (top level)": 110,
     "Unknown shows no focus in (top level)": 1
   },
   "Menu Window": {
-    "Button shows no focus in (top level)": 84,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 79,
     "Unknown shows no focus in (top level)": 1
   },
   "Right panel Activity": {
-    "Button shows no focus in (top level)": 88,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 83,
     "ComboBox shows no focus in (top level)": 2
   },
   "Right panel Crop": {
-    "Button shows no focus in (top level)": 126,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 121,
     "ComboBox shows no focus in (top level)": 3,
     "Slider shows no focus in (top level)": 8
   },
   "Right panel Edit": {
-    "Button shows no focus in (top level)": 115,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 110,
     "ComboBox shows no focus in (top level)": 3,
     "Slider shows no focus in (top level)": 6
   },
   "Right panel Info": {
-    "Button shows no focus in (top level)": 101,
+    "Button \"2 ★\" not reached by Tab in (top level)": 2,
+    "Button \"3 ★\" not reached by Tab in (top level)": 2,
+    "Button \"4 ★\" not reached by Tab in (top level)": 2,
+    "Button \"5 ★\" not reached by Tab in (top level)": 2,
+    "Button shows no focus in (top level)": 91,
     "ComboBox shows no focus in (top level)": 2,
     "TextInput shows no focus in (top level)": 5
   },
   "Right panel Keywords": {
-    "Button shows no focus in (top level)": 162,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 157,
     "ComboBox shows no focus in (top level)": 2
   },
   "Right panel Masking": {
-    "Button shows no focus in (top level)": 100,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 95,
     "ComboBox shows no focus in (top level)": 2
   },
   "Right panel Profiles": {
-    "Button shows no focus in (top level)": 116,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 111,
     "ComboBox shows no focus in (top level)": 2
   },
   "Right panel RedEye": {
-    "Button shows no focus in (top level)": 90,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 85,
     "ComboBox shows no focus in (top level)": 2
   },
   "Right panel Remove": {
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
     "Button \"Reset Threshold\" not reached by Tab in (top level)": 1,
     "Button \"Threshold: Click to type a value, drag to change it\" not reached by Tab in (top level)": 1,
-    "Button shows no focus in (top level)": 99,
+    "Button shows no focus in (top level)": 94,
     "ComboBox shows no focus in (top level)": 3,
     "Slider shows no focus in (top level)": 3
   },
   "Right panel Versions": {
-    "Button shows no focus in (top level)": 91,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 86,
     "ComboBox shows no focus in (top level)": 2
   },
   "View Compare": {
-    "Button shows no focus in (top level)": 93,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 88,
     "ComboBox shows no focus in (top level)": 2
   },
   "View Detail": {
-    "Button shows no focus in (top level)": 92,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 87,
     "ComboBox shows no focus in (top level)": 2
   },
   "View People": {
-    "Button shows no focus in (top level)": 105,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 100,
     "ComboBox shows no focus in (top level)": 1,
     "Slider shows no focus in (top level)": 6
   },
   "View People of one person": {
-    "Button shows no focus in (top level)": 104,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 99,
     "ComboBox shows no focus in (top level)": 1,
     "Slider shows no focus in (top level)": 6
   },
   "View People with an unnamed face selected": {
-    "Button shows no focus in (top level)": 105,
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 100,
     "ComboBox shows no focus in (top level)": 1,
     "Slider shows no focus in (top level)": 6
   },
   "View PhotoGrid": {
-    "Button shows no focus in (top level)": 84
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 79
   },
   "View Reference": {
-    "Button shows no focus in (top level)": 89
-  },
-  "View SquareGrid": {
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
     "Button shows no focus in (top level)": 84
   },
+  "View SquareGrid": {
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 79
+  },
   "View Survey": {
-    "Button shows no focus in (top level)": 90
+    "Button \"2 ★\" not reached by Tab in (top level)": 1,
+    "Button \"3 ★\" not reached by Tab in (top level)": 1,
+    "Button \"4 ★\" not reached by Tab in (top level)": 1,
+    "Button \"5 ★\" not reached by Tab in (top level)": 1,
+    "Button shows no focus in (top level)": 85
   }
 }

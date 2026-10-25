@@ -137,11 +137,10 @@ the windows around it; a control that shows no focus is counted by role and the 
 file does not repeat every sidebar button on every screen. Only a gap that is not listed fails.
 `LIGHTCRAFT_A11Y_KEYBOARD_BASELINE=shrink` removes fixed entries; `=write` removes them too, adds the screens
 the file does not list yet and still fails on a new problem on a listed screen (a clean screen is listed as `{}`);
-`=regenerate` rewrites the file. Listed today: 11 controls Tab never reaches on 6
-screens (the New Album, New Smart Album and Save Metadata Preset dialogs, where the name field holds the
-focus and the check box and the OK and Cancel buttons are behind it; the Photo and View menus' scroll
+`=regenerate` rewrites the file. Listed today: 116 controls Tab never reaches on 27
+screens (the rating row's 2 to 5 star buttons on an unrated photo, on 27 screens, which are not Tab stops on purpose: the row is one stop, like a radio group, and the arrow keys change the rating and the focus follows; the Photo and View menus' scroll
 strip, which takes neither a click nor the focus but is announced as a button; and the Remove panel's
-threshold, which is switched off and announced as enabled), and about 2,960 controls on 41 screens that
+threshold and its reset button, which are switched off and announced as enabled), and about 2,830 controls on 41 screens that
 show no focus, most of them buttons that paint no ring (the top bar, the sidebar, the tool strip). The
 audit hides Local's Pictures, Desktop, Downloads and Home and waits for the renders to come back before it
 counts, so the counts are the same on every computer and every run. The "shows no focus" counts are large
