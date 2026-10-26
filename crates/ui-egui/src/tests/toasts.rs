@@ -63,6 +63,18 @@ fn the_same_message_again_is_one_toast_that_stays_longer() {
     assert_eq!(ui.toasts.len(), 3);
 }
 
+/// Given a state message showing until 8 s, when the same state message comes again with an earlier time, then it stays
+/// until 8 s; a changed message on that topic takes the place of the old one with its own time.
+#[test]
+fn the_same_state_message_again_keeps_the_later_time() {
+    let mut ui = UiState::default();
+    ui.push_toast_on(0.0, "save", "Library saved", 8.0, None);
+    ui.push_toast_on(1.0, "save", "Library saved", 2.0, None);
+    assert_eq!(ui.toasts.iter().map(|t| (t.0.as_str(), t.1)).collect::<Vec<_>>(), vec![("Library saved", 8.0)]);
+    ui.push_toast_on(1.5, "save", "Couldn't save", 3.0, None);
+    assert_eq!(ui.toasts.iter().map(|t| (t.0.as_str(), t.1)).collect::<Vec<_>>(), vec![("Couldn't save", 3.0)]);
+}
+
 /// A burst keeps the newest few: one more than fit pushes the oldest out.
 #[test]
 fn a_burst_of_toasts_keeps_the_newest_few() {

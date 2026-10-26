@@ -527,7 +527,8 @@ impl UiState {
 
     /// [`UiState::push_toast`] for a message that says the state of `topic` ("save", "flag", "panel"…): it replaces
     /// the toasts still showing about that topic, which no longer hold ("Library saved" takes the place of the
-    /// warning that it couldn't be; Auto Sync Off of Auto Sync On).
+    /// warning that it couldn't be; Auto Sync Off of Auto Sync On); the same message again stays until the later of
+    /// its times.
     pub fn push_toast_on(
         &mut self,
         now: f64,
@@ -540,8 +541,10 @@ impl UiState {
         if until < now {
             return;
         }
-        self.toasts.retain(|t| t.3 != Some(topic));
-        self.push(text.into(), until, label, Some(topic));
+        let text = text.into();
+        // (the same message again is not a new state: it stays until the later of its times, as `push` merges it)
+        self.toasts.retain(|t| t.3 != Some(topic) || (t.0 == text && t.2 == label));
+        self.push(text, until, label, Some(topic));
     }
 
     fn push(&mut self, text: String, until: f64, label: Option<lightcraft_catalog::ColorLabel>, topic: Option<&'static str>) {

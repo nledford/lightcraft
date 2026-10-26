@@ -441,7 +441,7 @@ impl LightcraftApp {
     }
 
     /// A toast that says the state of `topic` ("flag", "panel", "slideshow"…): it replaces the ones still showing
-    /// about that topic ([`state::UiState::push_toast_on`]).
+    /// about that topic, but the same message again stays until the later of its times ([`state::UiState::push_toast_on`]).
     pub fn toast_on(&mut self, _ctx: &egui::Context, topic: &'static str, text: impl Into<String>) {
         let t = self.tick_now();
         self.ui.push_toast_on(t, topic, text, t + TOAST_SECONDS, None);
