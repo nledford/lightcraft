@@ -99,6 +99,8 @@ pub fn start(s: &mut Session, p: &Value) -> Result<Option<(MoveWork, MoveFinish)
     }
     let mut plans: Vec<RenamePlan> = Vec::new();
     let mut taken: HashSet<String> = HashSet::new();
+    // the source paths already in `plans`: one look per photo, not a scan of the plans (a selection has no size limit)
+    let mut planned: HashSet<&str> = HashSet::new();
     let mut clashes: Vec<String> = Vec::new();
     for id in ids {
         let ph = s.catalog.photo(id).ok_or_else(|| bad(C, format!("no photo {}", id.0)))?;
@@ -108,7 +110,7 @@ pub fn start(s: &mut Session, p: &Value) -> Result<Option<(MoveWork, MoveFinish)
         let Source::File { path } = &ph.source else {
             return Err(bad(C, format!("{} has no file on disk", ph.file_name)));
         };
-        if plans.iter().any(|pl| pl.from_path.as_deref() == Some(path.as_str())) {
+        if planned.contains(path.as_str()) {
             continue; // a virtual copy of a photo already moving
         }
         let src = Path::new(path);
@@ -121,6 +123,7 @@ pub fn start(s: &mut Session, p: &Value) -> Result<Option<(MoveWork, MoveFinish)
             clashes.push(file.to_string_lossy().to_string());
             continue;
         }
+        planned.insert(path.as_str());
         let name = ph.file_name.clone();
         plans.push(RenamePlan { id: id.0, from: name.clone(), to: name, from_path: Some(path.clone()), to_path: Some(to) });
     }

@@ -44,7 +44,9 @@ guard.detail(&file_name);
   - `Cancel::Flag(Arc<AtomicBool>)` adopts the flag the job already checks. The row's ✕, `activity.cancel` and the
     job's own Cancel then all set the same atomic.
   - `Cancel::Yes`: the job polls `guard.is_cancelled()` itself.
-  - `Cancel::No`: the job can't stop; it gets no ✕ and doesn't make Quit ask.
+  - `Cancel::No`: the job can't stop; it gets no ✕ and doesn't make Quit ask. The one exception is the move to another
+    folder: it has no ✕, but quitting cuts it short, so Quit asks first
+    (`crates/ui-egui/src/panels/notices.rs`, `may_close`).
   - `set_cancellable(false)` for a phase that has to finish once started (a Lightroom import adding its photos).
 - **Quiet periodic work** shows no row: the auto-import folder listing runs every few seconds through
   `tasks::spawn(.., None, ..)`.
