@@ -60,8 +60,10 @@ Jobs that must not run side by side share a lane (`activity::Lane`). There are t
   library as it is when its turn comes. A Synchronize Folder that waits scans its folder again at its turn, then
   removes, relinks or reads the sidecars of only the photos its dialog showed: one that went missing, moved or got a
   sidecar update while it waited was never shown, so it is left alone and the end says so ("Left alone: 1
-  (synchronize again to review them)"). If another library is opened while it scans, or its folder is gone, it stops
-  without doing anything and a toast says so (at once for a new library, even if the old folder's scan is still going).
+  (synchronize again to review them)"). If another library is opened while it scans, its folder is gone, or a photo of the
+  folder is changed in the library (a rating, an edit) while it scans, it stops without doing anything and a toast says
+  so (at once for a new library, even if the old folder's scan is still going). The focus points and face regions the
+  background searches add don't count as changes.
   A toast says it was queued when it was put in line. The dialog's own scan ("Looking for changes", kind `scan`) only
   reads and holds up nothing. These requests are the app's (`app:import`, `app:synchronize`): the app starts them
   (`LightcraftApp::start_waiting`, every frame), and the engine leaves them alone (`Activity::take_ready_if`). Auto

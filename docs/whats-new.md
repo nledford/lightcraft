@@ -16,7 +16,8 @@
   only the photos its dialog showed: one that went missing, moved or got a sidecar update while it waited is left
   alone, and the message at the end says how many ("Left alone: 1 (synchronize again to review them)").
 - Nothing waits across another library: a Synchronize Folder that is still scanning when another library opens does
-  nothing.
+  nothing. It also does nothing, and says so, when a photo of its folder is changed in the library (a rating, an edit)
+  while it scans, because what it saw is no longer what is there.
 
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
