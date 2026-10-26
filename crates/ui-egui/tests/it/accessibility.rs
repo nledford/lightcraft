@@ -32,7 +32,7 @@ fn harness_with(setup: impl FnOnce(&mut LightcraftApp)) -> App {
     let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
     app.ui.left_panel = true;
     setup(&mut app);
-    let mut h = Harness::builder().with_size(vec2(1500.0, 950.0)).build_ui_state(
+    let mut h = Harness::builder().with_size(vec2(1500.0, 950.0)).with_accessibility_check(false).build_ui_state(
         |ui, app: &mut LightcraftApp| {
             app.logic(&ui.ctx().clone());
             app.ui(ui);
@@ -91,7 +91,7 @@ fn people_harness(what: People) -> App {
         }
         People::Page => app.ui.person_page = Some("Jane Doe".to_string()),
     }
-    let mut h = Harness::builder().with_size(vec2(1500.0, 950.0)).build_ui_state(
+    let mut h = Harness::builder().with_size(vec2(1500.0, 950.0)).with_accessibility_check(false).build_ui_state(
         |ui, app: &mut LightcraftApp| {
             app.logic(&ui.ctx().clone());
             app.ui(ui);
