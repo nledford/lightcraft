@@ -782,6 +782,9 @@ pub struct UiState {
     pub window: Option<crate::window_place::WindowPlace>,
     /// Shared panel arrangement; absent in legacy settings until their first layout.
     pub docking: Option<crate::docking::Workspace>,
+    /// The arrangement generation `docking` was saved in ([`crate::docking::DOCKING_VERSION`]);
+    /// settings files are read through [`crate::docking::drop_outdated`].
+    pub docking_version: u32,
     #[serde(default = "crate::i18n::default_language")]
     pub language: crate::i18n::Locale,
     /// Saving the library is failing (announced with a toast; the top bar shows a warning until
@@ -1531,6 +1534,7 @@ impl Default for UiState {
         UiState {
             window: None,
             docking: None,
+            docking_version: crate::docking::DOCKING_VERSION,
             language: crate::i18n::default_language(),
             unsaved_seen: false,
             frame_rate: std::env::var("LIGHTCRAFT_FPS").is_ok_and(|v| matches!(v.trim(), "1" | "on" | "true" | "yes")),
