@@ -68,6 +68,14 @@ const PINNED_PREVIEW_SHARE: f32 = 0.4;
 /// choice and the rule under it take around the slide (at the default spacing, about 82 pt).
 const PREVIEW_CHROME: f32 = 82.0;
 
+/// The tab a command has just left while a text box was being typed in, if it did: `last` is the
+/// tab at the end of the frame before (with that frame's number), so it must be the frame just
+/// gone (Settings was drawn then, not opened afresh), name another tab than the current one, and
+/// a text box must hold the focus (`typing`).
+pub(crate) fn tab_being_left(last: Option<(u64, String)>, frame: u64, tab: &str, typing: bool) -> Option<String> {
+    last.filter(|(at, was)| at + 1 == frame && was != tab && typing).map(|(_, was)| was)
+}
+
 /// The Settings window as the dialog draws it: [`window`], but where a command (a menu item, a
 /// shortcut, `app.settings` on the control channel) opens another tab while a text box is being
 /// typed in, the new tab takes over one frame later. A command runs before the frame is drawn, so
@@ -80,10 +88,7 @@ pub fn window_after_command(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mu
     let last = egui::Id::unique("settings:lastTab");
     let frame = ui.ctx().cumulative_frame_nr();
     // (the tab at the end of the previous frame; Settings drawn then, so not just opened)
-    let left = ui
-        .data(|d| d.get_temp::<(u64, String)>(last))
-        .filter(|(at, was)| at + 1 == frame && was != tab && ui.ctx().text_edit_focused())
-        .map(|(_, was)| was);
+    let left = tab_being_left(ui.data(|d| d.get_temp::<(u64, String)>(last)), frame, tab, ui.ctx().text_edit_focused());
     let mut page = left.clone().unwrap_or_else(|| tab.clone());
     if left.is_some() {
         ui.memory_mut(|m| {

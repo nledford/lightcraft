@@ -71,6 +71,9 @@ fn text_typed_in_copyright_is_saved_when_a_command_opens_another_tab() {
     // Then that tab is open and what was typed was saved, as leaving the box any other way saves it
     assert!(settings_open(&h, "general"), "{:?}", h.app.ui.dialog);
     assert_eq!(import(&mut h, "copyright"), json!("Example Name"), "the text typed in Copyright was dropped");
+    // and the new tab's page is the one drawn after the one frame
+    assert!(!says(&h, "Copyright"), "the Import page is still drawn: {:?}", h.painted_text());
+    assert!(says(&h, "Language"), "the General page is drawn: {:?}", h.painted_text());
 }
 
 #[test]
@@ -81,6 +84,7 @@ fn text_typed_in_creator_is_saved_when_a_command_opens_another_tab() {
     show(&mut h, "faces");
     assert!(settings_open(&h, "faces"), "{:?}", h.app.ui.dialog);
     assert_eq!(import(&mut h, "creator"), json!("Example Creator"), "the text typed in Creator was dropped");
+    assert!(!says(&h, "Copyright"), "the Import page is still drawn: {:?}", h.painted_text());
 }
 
 #[test]
@@ -96,6 +100,7 @@ fn text_typed_in_copyright_is_saved_when_slideshow_options_is_chosen() {
     // Then that tab is open and the text typed in Copyright was saved
     assert!(settings_open(&h, "slideshow"), "{:?}", h.app.ui.dialog);
     assert_eq!(import(&mut h, "copyright"), json!("Example Name"), "the text typed in Copyright was dropped");
+    assert!(!says(&h, "Copyright"), "the Import page is still drawn: {:?}", h.painted_text());
 }
 
 #[test]
@@ -124,6 +129,7 @@ fn two_commands_before_a_frame_keep_the_text_and_end_on_the_last_tab() {
     steps(&mut h);
     assert!(settings_open(&h, "faces"), "{:?}", h.app.ui.dialog);
     assert_eq!(import(&mut h, "copyright"), json!("Example Name"), "the text typed in Copyright was dropped");
+    assert!(!says(&h, "Copyright"), "the Import page is still drawn: {:?}", h.painted_text());
 }
 
 #[test]
@@ -141,4 +147,21 @@ fn with_nothing_typed_a_command_shows_its_tab_in_the_frame_it_runs_in() {
     h.step();
     assert!(settings_open(&h, "general"));
     assert!(!says(&h, "Copyright"), "the Import page is still drawn: {:?}", h.painted_text());
+}
+
+#[test]
+fn only_a_tab_left_in_the_frame_before_while_typing_is_drawn_again() {
+    use crate::panels::settings::tab_being_left as left;
+    let last = || Some((6, "import".to_string()));
+    // the one case: drawn in the frame before, another tab now, a box being typed in
+    assert_eq!(left(last(), 7, "general", true), Some("import".to_string()));
+    // each condition on its own: no box being typed in
+    assert_eq!(left(last(), 7, "general", false), None, "nothing typed: the new tab at once");
+    // the same tab: nothing was left
+    assert_eq!(left(last(), 7, "import", true), None, "a command for the open tab ends no edit");
+    // Settings last drawn long ago (a page left frames ago is not drawn again), or in this very frame
+    assert_eq!(left(last(), 9, "general", true), None, "drawn frames ago");
+    assert_eq!(left(last(), 6, "general", true), None, "second pass of the same frame");
+    // never drawn before
+    assert_eq!(left(None, 7, "general", true), None, "just opened");
 }
