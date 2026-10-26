@@ -289,15 +289,33 @@ impl<'a> TextField<'a> {
         let menu_was_open = memo.menu_open;
         // a click on a greyed-out item does nothing, as in a native menu: only a choice or a click
         // outside closes it (not the right-click that moves the menu within the field, #1877)
-        memo.menu_open = egui::Popup::context_menu(&response)
+        let shown = egui::Popup::context_menu(&response)
             .close_behavior(crate::widgets::context_menu_close(&response, egui::PopupCloseBehavior::CloseOnClickOutside))
-            .show(|ui| menu(ui, self.widget, id, self.text, &mut memo.action))
-            .is_some();
+            .show(|ui| menu(ui, self.widget, id, self.text, &mut memo.action));
+        memo.menu_open = shown.is_some();
+
+        // A press outside the field and its open menu ends the edit on that press. egui takes the
+        // focus away only on the release (a click), and a click that switches Settings to another
+        // tab changes the page in that same frame: the field is not drawn again to end the edit.
+        // Without a menu open that is still so (not changed here). The field's visible part counts:
+        // a field scrolled partly out of view has a rect reaching under what covers it. A press egui
+        // gave to the field (it hit-tests a few points beyond the rect) only dismisses the menu.
+        let press_outside = menu_was_open
+            && memo.menu_open
+            && memo.before.is_some()
+            && !response.is_pointer_button_down_on()
+            && ui.input(|i| i.pointer.any_pressed())
+            && ui.input(|i| i.pointer.press_origin()).is_some_and(|at| {
+                !response.rect.intersect(ui.clip_rect()).contains(at) && !shown.as_ref().is_some_and(|m| m.response.rect.contains(at))
+            });
 
         let mut ending = None;
         let close_menu = |ui: &Ui| egui::Popup::close_id(ui.ctx(), egui::Popup::default_response_id(&response));
-        // egui reports a lost focus on two frames: only an edit under way ends
-        if response.lost_focus() && memo.before.is_some() {
+        if press_outside {
+            close_menu(ui);
+            ui.memory_mut(|m| m.surrender_focus(id));
+            ending = Some(Ending::Away);
+        } else if response.lost_focus() && memo.before.is_some() {
             if escape && menu_was_open {
                 // Esc closes only the menu, as in native menus: the field takes the focus back
                 memo.action = Some(Action::Refocus);
@@ -497,6 +515,21 @@ mod tests {
         fn click(&mut self, id: &str, button: PointerButton) {
             let r = self.rect(id).unwrap_or_else(|| panic!("no {id} on screen: {:?}", self.widgets));
             self.click_at(r.center(), button);
+        }
+
+        /// Press the primary button on blank space beside the field, and hold it.
+        fn press_outside(&mut self) {
+            let at = egui::pos2(300.0, 250.0);
+            self.time += 1.0;
+            self.frame(vec![
+                Event::PointerMoved(at),
+                Event::PointerButton { pos: at, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE },
+            ]);
+        }
+
+        fn release_outside(&mut self) {
+            let at = egui::pos2(300.0, 250.0);
+            self.frame(vec![Event::PointerButton { pos: at, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE }]);
         }
 
         fn key(&mut self, key: Key, modifiers: Modifiers) {
@@ -712,6 +745,65 @@ mod tests {
         rig.click_at(egui::pos2(300.0, 250.0), PointerButton::Primary);
         assert!(!rig.focused());
         assert_eq!(rig.endings, vec![Ending::Away]);
+    }
+
+    /// A press outside the open menu ends the edit on that press, not on the release that egui takes the
+    /// focus away on: a click that switches Settings to another tab changes the page in the release
+    /// frame, and the field is not drawn again to end the edit.
+    #[test]
+    fn a_press_outside_the_open_menu_ends_the_edit_on_the_press() {
+        let mut rig = Rig::new("Lisbon");
+        rig.select_all_by_keys();
+        rig.type_text("Rome");
+        rig.click(FIELD, PointerButton::Secondary);
+        rig.press_outside();
+        assert_eq!(rig.endings, vec![Ending::Away], "the edit ended on the press");
+        assert_eq!(rig.text, "Rome");
+        // the release changes nothing: the edit ended once
+        rig.release_outside();
+        rig.settle();
+        assert_eq!(rig.endings, vec![Ending::Away]);
+        assert!(!rig.focused());
+        assert!(!rig.editing);
+    }
+
+    /// The same after a click on a greyed-out item, which leaves the edit in its `away` state.
+    #[test]
+    fn a_press_outside_the_menu_the_focus_went_to_ends_the_edit_on_the_press() {
+        let mut rig = Rig::new("Lisbon");
+        rig.select_all_by_keys();
+        rig.type_text("Rome");
+        rig.click(FIELD, PointerButton::Secondary);
+        rig.click(&format!("{FIELD}:cut"), PointerButton::Primary);
+        assert_eq!(rig.endings, vec![]);
+        rig.press_outside();
+        assert_eq!(rig.endings, vec![Ending::Away], "the edit ended on the press");
+    }
+
+    /// A press on the field itself with its menu open only dismisses the menu: the edit goes on.
+    #[test]
+    fn a_press_on_the_field_with_its_menu_open_does_not_end_the_edit() {
+        let mut rig = Rig::new("Lisbon");
+        rig.select_all_by_keys();
+        rig.type_text("Rome");
+        rig.click(FIELD, PointerButton::Secondary);
+        rig.click(FIELD, PointerButton::Primary);
+        assert_eq!(rig.endings, vec![]);
+        assert!(rig.editing);
+    }
+
+    /// A press a point or two outside the field's rect still goes to the field (egui hit-tests a few
+    /// points beyond it): it dismisses the menu and the edit goes on.
+    #[test]
+    fn a_press_just_beside_the_field_with_its_menu_open_does_not_end_the_edit() {
+        let mut rig = Rig::new("Lisbon");
+        rig.select_all_by_keys();
+        rig.type_text("Rome");
+        rig.click(FIELD, PointerButton::Secondary);
+        let r = rig.rect(FIELD).expect("the field");
+        rig.click_at(egui::pos2(r.left() - 2.0, r.center().y), PointerButton::Primary);
+        assert_eq!(rig.endings, vec![]);
+        assert!(rig.editing);
     }
 
     /// A field that selects on focus: clicking into it selects everything, so typing replaces it.

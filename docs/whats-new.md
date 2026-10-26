@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-26
+
+### A click on another Settings tab keeps the text of a box whose menu is open
+- With a text box's right-click menu (Cut, Copy, Paste, Select All) open, a click outside the box and its menu, such
+  as one on another Settings tab, now ends the edit on the press (a click whose press and release reach the app
+  in separate frames, as with a mouse). Before, the edit ended only on the release, in the
+  frame the new tab's page replaced the box, so the typed text was dropped.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
