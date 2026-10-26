@@ -69,11 +69,28 @@ const PINNED_PREVIEW_SHARE: f32 = 0.4;
 const PREVIEW_CHROME: f32 = 82.0;
 
 /// The tab a command has just left while a text box was being typed in, if it did: `last` is the
-/// tab at the end of the frame before (with that frame's number), so it must be the frame just
-/// gone (Settings was drawn then, not opened afresh), name another tab than the current one, and
-/// a text box must hold the focus (`typing`).
-pub(crate) fn tab_being_left(last: Option<(u64, String)>, frame: u64, tab: &str, typing: bool) -> Option<String> {
-    last.filter(|(at, was)| at + 1 == frame && was != tab && typing).map(|(_, was)| was)
+/// page drawn in the pass before (with that pass's number; the tab then open, or the page kept
+/// for typing, see [`window_after_command`]), so it must be the pass just gone (Settings was
+/// drawn then, not opened afresh), name another tab than the current one, and a text box must
+/// hold the focus or the page must have been kept for typing (`typing`).
+pub(crate) fn tab_being_left(last: Option<(u64, String)>, pass: u64, tab: &str, typing: bool) -> Option<String> {
+    last.filter(|(at, was)| at + 1 == pass && was != tab && typing).map(|(_, was)| was)
+}
+
+/// Whether `events` hold input a text box in focus takes in and changes its text with: typed,
+/// pasted or composed text, a cut, an AccessKit action, Backspace or Delete, and the editing
+/// chords (undo, redo, and Ctrl+H, K, U, W). Tab and Enter are left out on purpose: a box that
+/// gets either gives up the focus while it is drawn (and saves), so the page needs no extra pass.
+fn edits_text(events: &[egui::Event]) -> bool {
+    use egui::Key;
+    events.iter().any(|e| match e {
+        egui::Event::Text(_) | egui::Event::Paste(_) | egui::Event::Cut | egui::Event::Ime(_) | egui::Event::AccessKitActionRequest(_) => true,
+        egui::Event::Key { key: Key::Backspace | Key::Delete, pressed: true, .. } => true,
+        egui::Event::Key { key: Key::Z | Key::Y | Key::H | Key::K | Key::U | Key::W, pressed: true, modifiers, .. } => {
+            modifiers.command || modifiers.ctrl
+        }
+        _ => false,
+    })
 }
 
 /// The Settings window as the dialog draws it: [`window`], but where a command (a menu item, a
@@ -82,29 +99,49 @@ pub(crate) fn tab_being_left(last: Option<(u64, String)>, frame: u64, tab: &str,
 /// the page being left would never be drawn again, and the box on it would never see its focus
 /// go and save what was typed. In the frame of the command that page is drawn once more with the
 /// focus taken from it (the box saves, as when the focus leaves it any other way), and the new tab
-/// follows in the next frame. With no text box being typed in, a command's tab, a tab clicked in
-/// the bar, and Settings just opened are all drawn at once.
+/// follows in the next frame. If the command's frame also carries typing for the box (text queued
+/// with the command), the page is first drawn with the focus kept, so the box takes the typing in,
+/// and the focus is taken in the pass after, whatever became of it by then (a Shift+Tab queued
+/// with the typing moves it on). With no text box being typed in, a command's tab, a tab clicked
+/// in the bar, and Settings just opened are all drawn at once.
 pub fn window_after_command(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_height: f32) {
     let last = egui::Id::unique("settings:lastTab");
-    let frame = ui.ctx().cumulative_frame_nr();
-    // (the tab at the end of the previous frame; Settings drawn then, so not just opened)
-    let left = tab_being_left(ui.data(|d| d.get_temp::<(u64, String)>(last)), frame, tab, ui.ctx().text_edit_focused());
+    // (the pass, not the frame: a pass egui discards and runs again is drawn once more with the
+    // input gone, and must find the pass before it, not the frame before)
+    let pass = ui.ctx().cumulative_pass_nr();
+    // (the page drawn in the previous pass and whether it was kept for typing; Settings drawn
+    // then, so not just opened)
+    let (previous, kept) = match ui.data(|d| d.get_temp::<(u64, String, bool)>(last)) {
+        Some((at, page, kept)) => (Some((at, page)), kept),
+        None => (None, false),
+    };
+    // (a page kept for typing is left whether the box still holds the focus or not)
+    let left = tab_being_left(previous, pass, tab, kept || ui.ctx().text_edit_focused());
+    // (a box takes typing in only while it holds the focus, so with typing queued it keeps it
+    // for this pass and the page is left in the next)
+    let typing_queued = left.is_some() && ui.input(|i| edits_text(&i.events));
     let mut page = left.clone().unwrap_or_else(|| tab.clone());
     if left.is_some() {
-        ui.memory_mut(|m| {
-            if let Some(focused) = m.focused() {
-                m.surrender_focus(focused);
-            }
-        });
+        if !typing_queued {
+            ui.memory_mut(|m| {
+                if let Some(focused) = m.focused() {
+                    m.surrender_focus(focused);
+                }
+            });
+        }
         ui.ctx().request_repaint();
     }
     let shown = page.clone();
     window(app, ui, &mut page, max_height);
-    // (a tab clicked in the bar in this frame wins over the command's)
-    if page != shown {
+    // (a tab clicked in the bar in this pass wins over the command's)
+    let clicked = page != shown;
+    if clicked {
         *tab = page;
     }
-    ui.data_mut(|d| d.insert_temp(last, (frame, tab.clone())));
+    // (a page kept for typing is recorded as the page of this pass: it is the one left next pass)
+    let keep = typing_queued && !clicked;
+    let drawn = if keep { shown } else { tab.clone() };
+    ui.data_mut(|d| d.insert_temp(last, (pass, drawn, keep)));
 }
 
 /// The Settings window's content: the tab bar, which stays put, above the page of `tab`

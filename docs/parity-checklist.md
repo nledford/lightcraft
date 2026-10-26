@@ -799,7 +799,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-26 | patch | LR-BEHAV-TEXTFIELD: a Settings tab opened by a command (a menu item, a shortcut, `app.settings`) while a box is being typed in takes over one frame after the command, so the text typed in that box is saved, as when the focus leaves the box any other way; status unchanged (🟡) |
+| 2026-10-26 | patch | LR-BEHAV-TEXTFIELD: a Settings tab opened by a command (a menu item, a shortcut, `app.settings`) while a box is being typed in takes over one frame after the command (two when typing arrives with it), so the text typed in that box is saved, as when the focus leaves the box any other way; status unchanged (🟡) |
 | 2026-10-25 | patch | LR-BEHAV-TITLEBAR: the top bar's title-bar gestures come from craft-window's `title_bar`: a double-click follows the system setting, and a press on a button, the search field or a panel floating over the bar never moves the window; status counts unchanged |
 | 2026-10-24 | minor | KEYC-METADATA, LRC-LIB-KEYWORDS: ⌥0 / ⌥⇧0 (`keyword.nextSet`, `keyword.previousSet`) go to the next / previous keyword set; status counts unchanged (KEYC-METADATA stays 🟡) |
 | 2026-10-24 | minor | KEYC-METADATA: ⌘K / Ctrl+K (`panel.addKeywords`, Add Keywords) shows the Keywords panel, opens Keywording and puts the cursor in the Add keyword box; status counts unchanged (KEYC-METADATA stays 🟡) |

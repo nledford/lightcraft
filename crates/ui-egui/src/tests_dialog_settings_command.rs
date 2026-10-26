@@ -133,6 +133,40 @@ fn two_commands_before_a_frame_keep_the_text_and_end_on_the_last_tab() {
 }
 
 #[test]
+fn text_arriving_in_the_frame_of_the_command_is_saved_too() {
+    let mut h = demo();
+    show(&mut h, "import");
+    type_into(&mut h, "field:settings.copyright", "Example");
+    // When the next characters and a command for another tab reach the same frame
+    h.app.synthetic.push(egui::Event::Text(" Name".into()));
+    h.app.run("app.settings", json!({"tab": "general"})).unwrap();
+    h.settle(T);
+    steps(&mut h);
+    // Then the new tab is open and the saved text holds those characters too
+    assert!(settings_open(&h, "general"), "{:?}", h.app.ui.dialog);
+    assert_eq!(import(&mut h, "copyright"), json!("Example Name"), "the text queued in the frame of the command was dropped");
+    assert!(!says(&h, "Copyright"), "the Import page is still drawn: {:?}", h.painted_text());
+}
+
+#[test]
+fn a_key_arriving_in_the_frame_of_the_command_is_saved_too() {
+    let mut h = demo();
+    show(&mut h, "import");
+    type_into(&mut h, "field:settings.copyright", "Example Name");
+    // When a Backspace and a command for another tab reach the same frame
+    for pressed in [true, false] {
+        let (key, physical_key, repeat) = (egui::Key::Backspace, None, false);
+        h.app.synthetic.push(egui::Event::Key { key, physical_key, pressed, repeat, modifiers: egui::Modifiers::NONE });
+    }
+    h.app.run("app.settings", json!({"tab": "general"})).unwrap();
+    h.settle(T);
+    steps(&mut h);
+    // Then the saved text is without the last character
+    assert!(settings_open(&h, "general"), "{:?}", h.app.ui.dialog);
+    assert_eq!(import(&mut h, "copyright"), json!("Example Nam"), "the key queued in the frame of the command was dropped");
+}
+
+#[test]
 fn with_nothing_typed_a_command_shows_its_tab_in_the_frame_it_runs_in() {
     let mut h = demo();
     // Given Settings closed, a command opens it on a tab: that page is the one drawn
@@ -150,18 +184,38 @@ fn with_nothing_typed_a_command_shows_its_tab_in_the_frame_it_runs_in() {
 }
 
 #[test]
-fn only_a_tab_left_in_the_frame_before_while_typing_is_drawn_again() {
+fn only_a_tab_left_in_the_pass_before_while_typing_is_drawn_again() {
     use crate::panels::settings::tab_being_left as left;
     let last = || Some((6, "import".to_string()));
-    // the one case: drawn in the frame before, another tab now, a box being typed in
+    // the one case: drawn in the pass before, another tab now, a box being typed in
     assert_eq!(left(last(), 7, "general", true), Some("import".to_string()));
     // each condition on its own: no box being typed in
     assert_eq!(left(last(), 7, "general", false), None, "nothing typed: the new tab at once");
     // the same tab: nothing was left
     assert_eq!(left(last(), 7, "import", true), None, "a command for the open tab ends no edit");
-    // Settings last drawn long ago (a page left frames ago is not drawn again), or in this very frame
-    assert_eq!(left(last(), 9, "general", true), None, "drawn frames ago");
-    assert_eq!(left(last(), 6, "general", true), None, "second pass of the same frame");
+    // Settings last drawn long ago (a page left passes ago is not drawn again), or in this very pass
+    assert_eq!(left(last(), 9, "general", true), None, "drawn passes ago");
+    assert_eq!(left(last(), 6, "general", true), None, "drawn in this very pass");
     // never drawn before
     assert_eq!(left(None, 7, "general", true), None, "just opened");
+}
+
+#[test]
+fn focus_moved_off_the_box_in_the_frame_of_the_command_still_saves_the_text() {
+    let mut h = demo();
+    show(&mut h, "import");
+    type_into(&mut h, "field:settings.copyright", "Example");
+    // When more text, a Shift+Tab (the focus moves back to a control that is no text box) and a
+    // command for another tab reach the same frame
+    h.app.synthetic.push(egui::Event::Text(" Name".into()));
+    for pressed in [true, false] {
+        let (key, physical_key, repeat) = (egui::Key::Tab, None, false);
+        h.app.synthetic.push(egui::Event::Key { key, physical_key, pressed, repeat, modifiers: egui::Modifiers::SHIFT });
+    }
+    h.app.run("app.settings", json!({"tab": "general"})).unwrap();
+    h.settle(T);
+    steps(&mut h);
+    // Then the new tab is open and everything typed in Copyright was saved all the same
+    assert!(settings_open(&h, "general"), "{:?}", h.app.ui.dialog);
+    assert_eq!(import(&mut h, "copyright"), json!("Example Name"), "the text typed in Copyright was dropped");
 }

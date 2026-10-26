@@ -5,7 +5,8 @@
 ### A command that opens another Settings tab keeps the text typed in a box
 - When a menu item, a shortcut or an agent's `app.settings` opens another Settings tab while Copyright or Creator is
   being typed in, the text is now saved, as it is when you click out of the box. Before, the page was replaced before
-  the box could save, and the text was dropped. With a box being typed in, the new tab shows one frame later.
+  the box could save, and the text was dropped. With a box being typed in, the new tab shows one frame later (two when
+  typing arrives with the command).
 
 ## 2026-10-24
 
