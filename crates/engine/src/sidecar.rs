@@ -887,6 +887,9 @@ impl Session {
             return;
         }
         let owners = StemOwners::among(&self.catalog, &ids);
+        let held = self.held_sidecars.len();
+        // a write that failed before is made now: a list of held writes may name it
+        let mut made_late = false;
         for id in ids {
             // on its way to another folder: written once it arrives (`move_job`), not a failure
             if self.catalog.photo(id).and_then(|p| file_path(p)).is_some_and(|f| self.is_moving(f)) {
@@ -896,7 +899,7 @@ impl Session {
             if self.catalog.photo(id).is_some_and(|p| file_path(p).is_some() && p.copy_of.is_none()) {
                 match self.save_sidecar_with(id, &owners) {
                     Ok(_) => {
-                        self.unsaved_sidecars.remove(&id);
+                        made_late |= self.unsaved_sidecars.remove(&id);
                     }
                     Err(e) => {
                         // kept for a retry once the file is reachable: a network share that dropped out mustn't leave
@@ -906,6 +909,11 @@ impl Session {
                     }
                 }
             }
+        }
+        if self.held_sidecars.len() > held || made_late {
+            // kept on disk too: a run that ends before the move does still writes them, and
+            // one made since leaves the list
+            self.save_held_sidecars();
         }
     }
 
@@ -946,6 +954,10 @@ impl Session {
                 }
                 Err(e) => log::debug!("retry XMP: {e}"),
             }
+        }
+        if written > 0 {
+            // a list of held writes may name them: the next open mustn't make them again
+            self.save_held_sidecars();
         }
         written
     }

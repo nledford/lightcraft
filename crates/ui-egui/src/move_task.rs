@@ -120,13 +120,23 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
         Some(out) => app.session.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).map_err(|e| e.to_string()),
         None => {
             // the worker died part-way (logged): the move is over; the library follows what moved
-            let r = app.session.execute_fn("photo.moveToFolder", |s| finish.abandon(s)).map_err(|e| e.to_string());
-            log::warn!("move to {}: stopped by an error; followed: {r:?}", run.folder);
-            // (the worker only dies in a panic; the sidecars of the files that arrived are not checked)
-            match r {
-                Ok(_) => Err(crate::i18n::tr("Moving was stopped by an error (see the log). The library follows the files that had moved; an XMP sidecar may have stayed at the old place.").to_string()),
-                Err(e) => Err(e),
-            }
+            let mut recovered = None;
+            let r = app
+                .session
+                .execute_fn("photo.moveToFolder", |s| {
+                    let r = finish.abandon(s);
+                    let value = json!(r);
+                    recovered = Some(r);
+                    Ok(value)
+                })
+                .map_err(|e| e.to_string());
+            log::warn!("move to {}: stopped by an error; recovered: {r:?}", run.folder);
+            // said only when every moved file was followed (the log has the rest)
+            Err(if recovered.is_some_and(|r| r.problems.is_empty() && r.waiting == 0) {
+                crate::i18n::tr("Moving was stopped by an error (see the log). The library follows the files that had moved.").to_string()
+            } else {
+                crate::i18n::tr("Moving was stopped by an error (see the log). The library may not follow every file that had moved: Find Missing Photos relinks the ones it lost.").to_string()
+            })
         }
     };
     // photos that left the view leave the selection, so nothing done next (Delete, an edit)

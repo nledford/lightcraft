@@ -1,12 +1,12 @@
 //! Moving photos to another folder as a job the app runs off the UI thread (`move_job`), and the
-//! record of a move in progress (`move_intent`):
+//! record that lets the next open follow a move cut short (`move_intent`):
 //!
 //! * the activity row shows how far it has got;
 //! * while a move runs, nothing else moves files or opens another library, and the moving photos'
 //!   sidecars are written once they arrive, at the new place;
 //! * the checks that read the disk refuse on the worker, before anything moves;
-//! * a worker that dies leaves the library following the files that had arrived;
-//! * a record is on disk before the first file moves, and gone once the library is saved.
+//! * a record is on disk before the first file moves and gone once the library is saved;
+//! * a move cut short (the app killed) is followed the next time the library opens.
 
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
@@ -342,8 +342,11 @@ fn a_moving_photos_sidecar_is_written_once_it_arrives_where_it_arrives() {
     assert_eq!(s.catalog.photo(a).unwrap().rating, 4, "the edit is kept");
     assert!(!Path::new(&dir.path("local/a.xmp")).exists(), "nothing is written behind the moving file");
     assert_eq!(s.unsaved_sidecars(), 0, "held for the move, not a failed write to warn about");
+    let held = dir.library().join("moves/held-sidecars");
+    assert!(held.is_file(), "the held write is on disk too, for a run that ends before the move");
     let out = work.run();
     s.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).unwrap();
+    assert!(!held.exists(), "and gone once it is made: the next open mustn't make it again");
     let xmp = std::fs::read_to_string(dir.path("share/a.xmp")).expect("written at the new place");
     assert!(xmp.contains("xmp:Rating=\"4\"") || xmp.contains("<xmp:Rating>4</xmp:Rating>"), "{xmp}");
     assert!(!Path::new(&dir.path("local/a.xmp")).exists());
@@ -356,21 +359,84 @@ fn a_move_whose_worker_dies_is_followed_and_its_held_sidecars_are_written() {
     let mut s = open(&dir);
     s.xmp.auto_write = true;
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
-    let b = add(&mut s, &dir.path("local/b.jpg"), "B");
-    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
     s.selection = crate::Selection::single(a);
     s.execute("photo.rate", &json!({"ids": [a.0], "rating": 5})).unwrap();
-    // the worker died after the first file, with the second half-copied: no outcome reaches the session
-    std::fs::rename(dir.path("local/a.jpg"), dir.path("share/a.jpg")).unwrap();
-    std::fs::write(dir.path("share/b.jpg"), "B (partial)").unwrap();
-    drop(work);
-    let r = s.execute_fn("photo.moveToFolder", |s| finish.abandon(s)).unwrap();
-    assert_eq!(r, json!({"moved": 1, "folder": dir.path("share")}));
-    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the library follows the file that arrived");
-    assert_eq!(file_of(&s, b), dir.path("local/b.jpg"), "and leaves the one that did not");
+    // the files moved, then the worker died before saying so: no outcome reaches the session
+    drop(work.run());
+    let r = s.execute_fn("photo.moveToFolder", |s| Ok(json!(finish.abandon(s)))).unwrap();
+    assert_eq!(r["relinked"], 1, "{r}");
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the library follows the file");
     let xmp = std::fs::read_to_string(dir.path("share/a.xmp")).expect("the held sidecar is written where the photo is");
     assert!(xmp.contains("xmp:Rating=\"5\"") || xmp.contains("<xmp:Rating>5</xmp:Rating>"), "{xmp}");
     assert!(!s.move_running() && s.activity.list().is_empty());
+    assert!(dir.records().is_empty(), "{:?}", dir.records());
+}
+
+#[test]
+fn a_worker_that_dies_in_a_library_without_a_folder_still_has_its_files_followed() {
+    // no library folder: no record is written, so nothing but the plans says where the files went
+    let dir = Scratch::new("abandon-no-record");
+    let mut s = Session::new();
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let b = add(&mut s, &dir.path("local/b.jpg"), "B");
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")})).unwrap().unwrap();
+    drop(work.run());
+    // a file that never arrived (the worker died before it): it stays where it is
+    std::fs::rename(dir.path("share/b.jpg"), dir.path("local/b.jpg")).unwrap();
+    let r = s.execute_fn("photo.moveToFolder", |s| Ok(json!(finish.abandon(s)))).unwrap();
+    assert_eq!(r["relinked"], 1, "{r}");
+    assert_eq!(r["problems"], json!([]), "{r}");
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the library follows the file that arrived");
+    assert_eq!(file_of(&s, b), dir.path("local/b.jpg"), "and leaves the one that did not");
+    assert!(!s.move_running() && s.activity.list().is_empty());
+}
+
+#[test]
+fn without_a_record_a_sidecar_the_worker_did_not_reach_follows_its_photo() {
+    let dir = Scratch::new("abandon-no-record-sidecar");
+    let mut s = Session::new();
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    drop(work.run());
+    // the worker died between the photo file and its sidecar
+    std::fs::write(dir.path("local/a.xmp"), "<edits/>").unwrap();
+    let r = s.execute_fn("photo.moveToFolder", |s| Ok(json!(finish.abandon(s)))).unwrap();
+    assert_eq!(r["relinked"], 1, "{r}");
+    assert_eq!(r["problems"], json!([]), "{r}");
+    assert!(Path::new(&dir.path("share/a.xmp")).is_file() && !Path::new(&dir.path("local/a.xmp")).exists(), "{r}");
+}
+
+#[test]
+fn a_dead_workers_message_is_not_about_the_records_of_earlier_runs() {
+    let dir = Scratch::new("abandon-earlier-records");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    // a record an earlier run left that this version can't read (the open reported it; it stays as it is)
+    let earlier = dir.library().join("moves/move-1-0-0.json");
+    std::fs::create_dir_all(earlier.parent().unwrap()).unwrap();
+    std::fs::write(&earlier, "not a record").unwrap();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    drop(work.run());
+    let r = s.execute_fn("photo.moveToFolder", |s| Ok(json!(finish.abandon(s)))).unwrap();
+    assert_eq!(r["relinked"], 1, "{r}");
+    assert_eq!(r["problems"], json!([]), "every file of this move was followed: {r}");
+    assert_eq!(std::fs::read_to_string(&earlier).unwrap(), "not a record", "left as it is");
+}
+
+#[test]
+fn a_file_with_the_same_bytes_that_is_another_photo_of_the_library_is_never_removed_as_a_copy() {
+    let dir = Scratch::new("copy-is-a-photo");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "same");
+    let b = add(&mut s, &dir.path("share/a.jpg"), "same");
+    // a record whose move was refused at the first file (the name was taken) and then cut short
+    crate::move_intent::write(&dir.library(), &[(dir.path("local/a.jpg"), dir.path("share/a.jpg"))]).unwrap();
+    let r = s.recover_moves();
+    assert_eq!(r.copies_removed, 0, "{r:?}");
+    assert!(matches!(r.problems.as_slice(), [crate::move_intent::MoveProblem::BothPlaces { .. }]), "{r:?}");
+    assert!(Path::new(&dir.path("share/a.jpg")).is_file(), "another photo's file stays");
+    assert_eq!((file_of(&s, a), file_of(&s, b)), (dir.path("local/a.jpg"), dir.path("share/a.jpg")));
 }
 
 #[test]
@@ -485,16 +551,402 @@ fn a_rename_and_its_undo_note_their_files_before_the_first_moves() {
 }
 
 #[test]
-fn a_worker_that_dies_leaves_its_record_where_it_is() {
-    let dir = Scratch::new("died-record");
+fn a_move_cut_short_is_followed_when_the_library_opens_again() {
+    let dir = Scratch::new("crash");
+    let (a, b, c, d, e, h);
+    {
+        let mut s = open(&dir);
+        a = add(&mut s, &dir.path("local/a.jpg"), "A");
+        std::fs::write(dir.path("local/a.xmp"), "<a-edits/>").unwrap();
+        b = add(&mut s, &dir.path("local/b.jpg"), "B");
+        c = add(&mut s, &dir.path("local/c.jpg"), "C");
+        d = add(&mut s, &dir.path("local/d.jpg"), "D");
+        std::fs::create_dir_all(dir.path("usb")).unwrap();
+        e = add(&mut s, &dir.path("usb/e.jpg"), "E");
+        h = add(&mut s, &dir.path("local/h.jpg"), "H");
+        let mut moves: Vec<(String, String)> =
+            ["a", "b", "c", "d"].iter().map(|f| (dir.path(&format!("local/{f}.jpg")), dir.path(&format!("share/{f}.jpg")))).collect();
+        moves.push((dir.path("usb/e.jpg"), dir.path("share/e.jpg")));
+        moves.push((dir.path("local/h.jpg"), dir.path("share/h.jpg")));
+        crate::move_intent::write(&dir.library(), &moves).unwrap();
+        // killed part-way: a's file arrived and its sidecar didn't; b's copy arrived and the
+        // original wasn't removed yet; c never started; d's disk isn't connected now; e's copy
+        // arrived (maybe never checked) and its drive is unplugged now
+        std::fs::rename(dir.path("local/a.jpg"), dir.path("share/a.jpg")).unwrap();
+        std::fs::copy(dir.path("local/b.jpg"), dir.path("share/b.jpg")).unwrap();
+        std::fs::write(dir.path("share/.b.jpg.lc-partial-1-0"), "cut off").unwrap();
+        std::fs::remove_file(dir.path("local/d.jpg")).unwrap();
+        std::fs::copy(dir.path("usb/e.jpg"), dir.path("share/e.jpg")).unwrap();
+        std::fs::rename(dir.path("usb"), dir.path("usb-unplugged")).unwrap();
+        // h: cut between linking the new name and unlinking the old (same volume)
+        std::fs::hard_link(dir.path("local/h.jpg"), dir.path("share/h.jpg")).unwrap();
+        // (the app is gone: no finish, no save of a move)
+    }
+    let mut s = open(&dir);
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the library follows the file that arrived");
+    assert_eq!(std::fs::read_to_string(dir.path("share/a.xmp")).unwrap(), "<a-edits/>", "and its sidecar follows it");
+    assert!(!Path::new(&dir.path("local/a.xmp")).exists());
+    assert_eq!(file_of(&s, b), dir.path("local/b.jpg"), "the original stays where the library has it");
+    assert!(!Path::new(&dir.path("share/b.jpg")).exists(), "our copy of it is removed");
+    assert!(!Path::new(&dir.path("share/.b.jpg.lc-partial-1-0")).exists(), "a partial copy is removed");
+    assert_eq!(file_of(&s, c), dir.path("local/c.jpg"));
+    assert_eq!(file_of(&s, d), dir.path("local/d.jpg"));
+    assert_eq!(file_of(&s, e), dir.path("usb/e.jpg"), "a source whose folder is gone may only be unplugged: not followed");
+    assert_eq!(file_of(&s, h), dir.path("local/h.jpg"));
+    assert!(Path::new(&dir.path("local/h.jpg")).is_file() && !Path::new(&dir.path("share/h.jpg")).exists(), "the second name goes, the file stays");
+    assert!(s.take_library_warnings().is_empty(), "a move cut short isn't a settings problem");
+    let info = s.execute("library.info", &json!({})).unwrap();
+    assert_eq!(info["recoveredMoves"]["relinked"], 1, "{info}");
+    let recovered = s.take_recovered_moves().unwrap();
+    assert_eq!((recovered.relinked, recovered.waiting), (1, 2), "{recovered:?}");
+    assert!(s.take_recovered_moves().is_none(), "handed out once");
+    let notice = recovered.notice().unwrap();
+    assert!(notice.contains("1 photo was being moved") && notice.contains("2 files that were being moved"), "{notice}");
+    // d's and e's moves are kept for the next open; the rest of the record is done
+    let records = dir.records();
+    assert_eq!(records.len(), 1);
+    let text = std::fs::read_to_string(&records[0]).unwrap();
+    assert!(text.contains("d.jpg") && text.contains("e.jpg") && !text.contains("a.jpg"), "{text}");
+    // the relink is one undo step that moves the file back
+    assert_eq!(s.undo.last().unwrap().label, "Finish Moving 1 Photo");
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert_eq!(file_of(&s, a), dir.path("local/a.jpg"));
+    assert!(Path::new(&dir.path("local/a.jpg")).is_file());
+    drop(s);
+    // and the relink was saved: it survives the next open, which has nothing more to do for a
+    let s = open(&dir);
+    assert_eq!(file_of(&s, a), dir.path("local/a.jpg"));
+}
+
+#[test]
+fn edits_held_back_during_a_move_cut_short_reach_the_sidecar_at_the_next_open() {
+    let dir = Scratch::new("held-restart");
+    let (a, b);
+    {
+        let mut s = open(&dir);
+        s.xmp.auto_write = true;
+        s.save_prefs().unwrap();
+        a = add(&mut s, &dir.path("local/a.jpg"), "photo");
+        // b moves too, untouched: its sidecar is another app's and must stay as it is
+        b = add(&mut s, &dir.path("local/b.jpg"), "other");
+        std::fs::write(dir.path("local/b.xmp"), "<b-other-app/>").unwrap();
+        s.selection = crate::Selection::single(a);
+        s.execute("photo.rate", &json!({"ids": [a.0], "rating": 1})).unwrap();
+        let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0, b.0], "folder": dir.path("share")})).unwrap().unwrap();
+        s.execute("photo.rate", &json!({"ids": [a.0], "rating": 5})).unwrap();
+        assert!(s.held_sidecars.contains(&a), "the write waits for the file to arrive");
+        drop(work.run());
+        // the app is gone after the file moved and before the move finished
+        drop(finish);
+    }
+    let mut s = open(&dir);
+    s.selection = crate::Selection::single(a);
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"));
+    assert_eq!(s.catalog.photo(a).unwrap().rating, 5);
+    let xmp = std::fs::read_to_string(dir.path("share/a.xmp")).unwrap();
+    assert!(xmp.contains("xmp:Rating=\"5\"") || xmp.contains("<xmp:Rating>5</xmp:Rating>"), "{xmp}");
+    // reading the sidecar back keeps the edit
+    s.execute("photo.readMetadataFromFile", &json!({"ids": [a.0]})).unwrap();
+    assert_eq!(s.catalog.photo(a).unwrap().rating, 5);
+    assert_eq!(file_of(&s, b), dir.path("share/b.jpg"));
+    assert_eq!(std::fs::read_to_string(dir.path("share/b.xmp")).unwrap(), "<b-other-app/>", "only held writes are made");
+    assert!(!dir.library().join("moves/held-sidecars").exists(), "the list goes once its writes are made");
+}
+
+#[test]
+fn a_held_write_whose_photo_is_out_of_reach_waits_for_the_open_that_reaches_it() {
+    let dir = Scratch::new("held-waiting");
+    std::fs::create_dir_all(dir.path("usb")).unwrap();
+    let a;
+    {
+        let mut s = open(&dir);
+        s.xmp.auto_write = true;
+        s.save_prefs().unwrap();
+        a = add(&mut s, &dir.path("usb/a.jpg"), "photo");
+        s.selection = crate::Selection::single(a);
+        let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+        s.execute("photo.rate", &json!({"ids": [a.0], "rating": 5})).unwrap();
+        crate::move_intent::write(&dir.library(), &[(dir.path("usb/a.jpg"), dir.path("share/a.jpg"))]).unwrap();
+        // the app is gone before the first file moved, and the disk is unplugged after
+        drop((work, finish));
+    }
+    std::fs::rename(dir.path("usb"), dir.path("usb-unplugged")).unwrap();
+    let held = dir.library().join("moves/held-sidecars");
+    {
+        let s = open(&dir);
+        assert_eq!(file_of(&s, a), dir.path("usb/a.jpg"), "the move waits");
+        assert!(held.is_file(), "the write it couldn't make stays listed");
+    }
+    std::fs::rename(dir.path("usb-unplugged"), dir.path("usb")).unwrap();
+    let s = open(&dir);
+    assert_eq!(file_of(&s, a), dir.path("usb/a.jpg"), "the file never left");
+    let xmp = std::fs::read_to_string(dir.path("usb/a.xmp")).unwrap();
+    assert!(xmp.contains("xmp:Rating=\"5\"") || xmp.contains("<xmp:Rating>5</xmp:Rating>"), "{xmp}");
+    assert!(!held.exists(), "made at last, and the list goes");
+}
+
+#[test]
+fn a_listed_write_made_later_in_the_session_leaves_the_list() {
+    let dir = Scratch::new("held-late");
+    let mut s = open(&dir);
+    s.xmp.auto_write = true;
+    let a = add(&mut s, &dir.path("local/a.jpg"), "photo");
+    // a held write that failed when its move ended (the share dropped out): listed, waiting
+    s.held_sidecars.insert(a);
+    s.save_held_sidecars();
+    s.held_sidecars.clear();
+    s.unsaved_sidecars.insert(a);
+    s.save_held_sidecars();
+    let held = dir.library().join("moves/held-sidecars");
+    assert!(held.is_file());
+    // the next edit writes it: the next open mustn't write it again over what's there by then
+    s.selection = crate::Selection::single(a);
+    s.execute("photo.rate", &json!({"ids": [a.0], "rating": 3})).unwrap();
+    assert_eq!(s.unsaved_sidecars(), 0);
+    assert!(!held.exists());
+}
+
+/// The disk, refusing to move sidecars (a lock another app holds on them).
+struct SidecarsStuck;
+
+impl MoveFs for SidecarsStuck {
+    fn exists(&self, p: &Path) -> bool {
+        RealFs.exists(p)
+    }
+    fn is_file(&self, p: &Path) -> bool {
+        RealFs.is_file(p)
+    }
+    fn same_file(&self, a: &Path, b: &Path) -> bool {
+        RealFs.same_file(a, b)
+    }
+    fn rename_no_replace(&self, a: &Path, b: &Path) -> std::io::Result<()> {
+        if a.extension().is_some_and(|x| x == "xmp") {
+            return Err(std::io::Error::other("in use"));
+        }
+        RealFs.rename_no_replace(a, b)
+    }
+    fn copy_no_replace(&self, a: &Path, b: &Path) -> std::io::Result<()> {
+        RealFs.copy_no_replace(a, b)
+    }
+    fn remove_file(&self, p: &Path) -> std::io::Result<()> {
+        RealFs.remove_file(p)
+    }
+    fn stem_sibling(&self, sidecar: &Path) -> Option<String> {
+        RealFs.stem_sibling(sidecar)
+    }
+}
+
+#[test]
+fn a_sidecar_that_could_not_follow_its_file_is_taken_along_the_next_time() {
+    let dir = Scratch::new("sidecar-stuck");
     let mut s = open(&dir);
     let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    std::fs::write(dir.path("local/a.xmp"), "<a-edits/>").unwrap();
+    crate::move_intent::write(&dir.library(), &[(dir.path("local/a.jpg"), dir.path("share/a.jpg"))]).unwrap();
+    // cut short after the file moved and before its sidecar did
+    std::fs::rename(dir.path("local/a.jpg"), dir.path("share/a.jpg")).unwrap();
+    let r = s.recover_moves_with(&SidecarsStuck, true);
+    assert_eq!(r.relinked, 1);
+    assert!(matches!(r.problems.as_slice(), [crate::move_intent::MoveProblem::SidecarStayed { .. }]), "{r:?}");
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the photo follows its file");
+    assert_eq!(dir.records().len(), 1, "the record keeps the move for its sidecar");
+    // the next time, the sidecar follows; the photo isn't relinked again
+    let r = s.recover_moves_with(&RealFs, true);
+    assert_eq!((r.relinked, r.problems.len()), (0, 0), "{r:?}");
+    assert_eq!(std::fs::read_to_string(dir.path("share/a.xmp")).unwrap(), "<a-edits/>");
+    assert!(!Path::new(&dir.path("local/a.xmp")).exists());
+    assert!(dir.records().is_empty());
+}
+
+#[test]
+fn a_library_open_without_its_lock_leaves_every_record_and_file_as_it_is() {
+    let dir = Scratch::new("unlocked");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let b = add(&mut s, &dir.path("local/b.jpg"), "B");
+    let record = [(dir.path("local/a.jpg"), dir.path("share/a.jpg")), (dir.path("local/b.jpg"), dir.path("share/b.jpg"))];
+    crate::move_intent::write(&dir.library(), &record).unwrap();
+    // another program may be in the middle of this move: a's file has arrived, b's copy is being made
+    std::fs::rename(dir.path("local/a.jpg"), dir.path("share/a.jpg")).unwrap();
+    std::fs::copy(dir.path("local/b.jpg"), dir.path("share/b.jpg")).unwrap();
+    std::fs::write(dir.path("share/.b.jpg.lc-partial-1-0"), "being written").unwrap();
+    std::fs::write(dir.library().join("moves/x.tmp"), "being written").unwrap();
+    let before = std::fs::read(&dir.records()[0]).unwrap();
+    let r = s.recover_moves_with(&RealFs, false);
+    assert!(matches!(r.problems.as_slice(), [crate::move_intent::MoveProblem::Unprotected]), "{r:?}");
+    assert_eq!((r.relinked, r.copies_removed), (0, 0), "{r:?}");
+    assert!(Path::new(&dir.path("share/b.jpg")).is_file() && Path::new(&dir.path("local/b.jpg")).is_file());
+    assert!(Path::new(&dir.path("share/.b.jpg.lc-partial-1-0")).exists(), "a partial file may be being written");
+    assert!(dir.library().join("moves/x.tmp").exists(), "a record being written may be another program's");
+    assert_eq!((file_of(&s, a), file_of(&s, b)), (dir.path("local/a.jpg"), dir.path("local/b.jpg")), "nothing is followed");
+    assert_eq!(std::fs::read(&dir.records()[0]).unwrap(), before, "the record is as it was");
+    // with the lock, the same state is followed and settled
+    let r = s.recover_moves_with(&RealFs, true);
+    assert_eq!((r.relinked, r.copies_removed), (1, 1), "{r:?}");
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"));
+    assert!(!Path::new(&dir.path("share/b.jpg")).exists());
+    assert!(dir.records().is_empty());
+}
+
+#[test]
+fn a_library_that_cannot_be_locked_leaves_the_move_for_an_open_that_can() {
+    let dir = Scratch::new("unlockable");
+    let a;
+    {
+        let mut s = open(&dir);
+        a = add(&mut s, &dir.path("local/a.jpg"), "A");
+        crate::move_intent::write(&dir.library(), &[(dir.path("local/a.jpg"), dir.path("share/a.jpg"))]).unwrap();
+        s.held_sidecars.insert(a);
+        s.save_held_sidecars();
+        // the app is killed after the file arrived
+        std::fs::rename(dir.path("local/a.jpg"), dir.path("share/a.jpg")).unwrap();
+    }
+    // a library whose lock file can't be locked (a directory stands in for a file system without locks)
+    let lock = dir.library().join("catalog.lock");
+    let _ = std::fs::remove_file(&lock);
+    std::fs::create_dir_all(&lock).unwrap();
+    {
+        let mut s = open(&dir);
+        let r = s.take_recovered_moves().expect("the open says it left the move alone");
+        assert!(matches!(r.problems.as_slice(), [crate::move_intent::MoveProblem::Unprotected]), "{r:?}");
+        assert_eq!(file_of(&s, a), dir.path("local/a.jpg"), "nothing is followed without the lock");
+        s.save_held_sidecars();
+        assert!(dir.library().join("moves/held-sidecars").is_file(), "the edits the earlier run held back wait for an open with the lock");
+        assert_eq!(dir.records().len(), 1);
+    }
+    std::fs::remove_dir_all(&lock).unwrap();
+    let s = open(&dir);
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the next open with the lock follows it");
+    assert!(dir.records().is_empty());
+}
+
+/// Make the library unlockable (a directory stands in for a lock file) before it is opened.
+fn make_unlockable(dir: &Scratch) {
+    let lock = dir.library().join("catalog.lock");
+    let _ = std::fs::remove_file(&lock);
+    std::fs::create_dir_all(&lock).unwrap();
+}
+
+#[test]
+fn without_the_lock_only_the_writes_this_session_listed_leave_the_held_list() {
+    let dir = Scratch::new("unlocked-held");
+    let (a, b);
+    {
+        let mut s = open(&dir);
+        a = add(&mut s, &dir.path("local/a.jpg"), "A");
+        b = add(&mut s, &dir.path("local/b.jpg"), "B");
+    }
+    make_unlockable(&dir);
+    let held = dir.library().join("moves/held-sidecars");
+    // an earlier run (or another program) left b's write on the list
+    std::fs::create_dir_all(dir.library().join("moves")).unwrap();
+    std::fs::write(&held, serde_json::to_vec(&[b]).unwrap()).unwrap();
+    let mut s = open(&dir);
+    s.held_sidecars.insert(a);
+    s.save_held_sidecars();
+    let listed = |p: &Path| -> Vec<PhotoId> { serde_json::from_slice(&std::fs::read(p).unwrap()).unwrap() };
+    assert_eq!(listed(&held), vec![a, b]);
+    // the move ends and a's write is made: it leaves the list, b's entry isn't this session's to take back
+    s.held_sidecars.clear();
+    s.save_held_sidecars();
+    assert_eq!(listed(&held), vec![b], "the entry another run left stays for an open with the lock");
+}
+
+#[test]
+fn without_the_lock_a_worker_that_dies_still_has_its_own_move_followed() {
+    let dir = Scratch::new("unlocked-abandon");
+    let a;
+    {
+        let mut s = open(&dir);
+        a = add(&mut s, &dir.path("local/a.jpg"), "A");
+        add(&mut s, &dir.path("local/b.jpg"), "B");
+    }
+    make_unlockable(&dir);
+    // another program's record, which stays untouched
+    let other = crate::move_intent::write(&dir.library(), &[(dir.path("local/b.jpg"), dir.path("share/b.jpg"))]).unwrap();
+    let mut s = open(&dir);
+    let taken = s.take_recovered_moves().expect("the open leaves the other record alone");
+    assert!(matches!(taken.problems.as_slice(), [crate::move_intent::MoveProblem::Unprotected]), "{taken:?}");
+    let before = std::fs::read(other.path()).unwrap();
     let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
-    // the files moved, then the worker died before saying so: no outcome reaches the session
+    // the files moved, then the worker died before saying so
     drop(work.run());
-    s.execute_fn("photo.moveToFolder", |s| finish.abandon(s)).unwrap();
-    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the library follows the file that arrived");
-    assert_eq!(dir.records().len(), 1, "the record stays: nothing has said what the move came to");
+    let r = s.execute_fn("photo.moveToFolder", |s| Ok(json!(finish.abandon(s)))).unwrap();
+    assert_eq!(r["relinked"], 1, "{r}");
+    // (the other program's record was reported when the library opened; every file this process moved was followed)
+    assert_eq!(r["problems"], json!([]), "no `unprotected` when only this worker's own record was followed: {r}");
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the library follows the file this process moved");
+    assert_eq!(dir.records().len(), 1, "only the other program's record is left");
+    assert_eq!(std::fs::read(other.path()).unwrap(), before);
+}
+
+#[test]
+fn a_list_that_could_not_be_written_is_not_counted_as_listed() {
+    let dir = Scratch::new("unlocked-held-fail");
+    let a;
+    {
+        let mut s = open(&dir);
+        a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    }
+    make_unlockable(&dir);
+    let mut s = open(&dir);
+    // the list can't be written (a folder stands in its place)
+    std::fs::create_dir_all(dir.library().join("moves/held-sidecars")).unwrap();
+    s.held_sidecars.insert(a);
+    s.save_held_sidecars();
+    assert!(!s.held_listed.contains(&a), "the disk doesn't name it, so a later save mustn't treat a stray entry as this session's");
+}
+
+#[test]
+fn without_the_lock_a_dead_workers_cleanup_leaves_the_copies_and_partials_another_program_may_own() {
+    let dir = Scratch::new("unlocked-abandon-both");
+    let a;
+    {
+        let mut s = open(&dir);
+        a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    }
+    make_unlockable(&dir);
+    let mut s = open(&dir);
+    let _ = s.take_recovered_moves();
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    drop(work.run());
+    // another program is moving the same photo to the same folder: its copy is at both places, its partial is being written
+    std::fs::copy(dir.path("share/a.jpg"), dir.path("local/a.jpg")).unwrap();
+    std::fs::write(dir.path("share/.a.jpg.lc-partial-1-0"), "being written").unwrap();
+    let r = s.execute_fn("photo.moveToFolder", |s| Ok(json!(finish.abandon(s)))).unwrap();
+    assert_eq!(r["copiesRemoved"], 0, "{r}");
+    assert!(Path::new(&dir.path("share/a.jpg")).is_file() && Path::new(&dir.path("local/a.jpg")).is_file(), "{r}");
+    assert!(Path::new(&dir.path("share/.a.jpg.lc-partial-1-0")).exists(), "another process's partial copy stays");
+}
+
+#[test]
+fn the_records_of_one_session_are_followed_when_the_library_is_opened_again() {
+    let dir = Scratch::new("reopen");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let record = crate::move_intent::write(&dir.library(), &[(dir.path("local/a.jpg"), dir.path("share/a.jpg"))]).unwrap();
+    std::fs::rename(dir.path("local/a.jpg"), dir.path("share/a.jpg")).unwrap();
+    // the move ended, but the library didn't follow (or its change isn't saved): the record waits for the save
+    s.settle_moves(Some(record));
+    s.open_library(dir.library(), false).unwrap();
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the open follows a record the session had not seen saved");
+    assert!(dir.records().is_empty());
+}
+
+#[test]
+fn a_settled_record_stays_while_the_library_has_changes_not_yet_saved() {
+    let dir = Scratch::new("settled-unsaved");
+    let mut s = open(&dir);
+    add(&mut s, &dir.path("local/a.jpg"), "A");
+    let record = crate::move_intent::write(&dir.library(), &[(dir.path("local/a.jpg"), dir.path("share/a.jpg"))]).unwrap();
+    s.settle_moves(Some(record));
+    // a save that is failing leaves changes queued: the record must outlive them
+    s.pending_log.push(Op::Batch { ops: Vec::new() });
+    s.clear_settled_moves();
+    assert_eq!(dir.records().len(), 1, "the record goes only once the library has saved what follows the move");
+    s.pending_log.clear();
+    s.clear_settled_moves();
+    assert!(dir.records().is_empty(), "{:?}", dir.records());
 }
 
 #[test]
@@ -515,17 +967,8 @@ fn the_library_says_whether_it_followed_the_files_that_could_not_go_back() {
 }
 
 #[test]
-fn a_settled_record_stays_while_the_library_has_changes_not_yet_saved() {
-    let dir = Scratch::new("settled-unsaved");
-    let mut s = open(&dir);
-    add(&mut s, &dir.path("local/a.jpg"), "A");
-    let record = crate::move_intent::write(&dir.library(), &[(dir.path("local/a.jpg"), dir.path("share/a.jpg"))]).unwrap();
-    s.settle_moves(Some(record));
-    // a save that is failing leaves changes queued: the record must outlive them
-    s.pending_log.push(Op::Batch { ops: Vec::new() });
-    s.clear_settled_moves();
-    assert_eq!(dir.records().len(), 1, "the record goes only once the library has saved what follows the move");
-    s.pending_log.clear();
-    s.clear_settled_moves();
-    assert!(dir.records().is_empty(), "{:?}", dir.records());
+fn removed_copies_are_told() {
+    let r = crate::move_intent::Recovered { copies_removed: 2, ..Default::default() };
+    assert!(!r.is_empty());
+    assert!(r.notice().unwrap().contains("2 copies of files that were being moved were removed"), "{:?}", r.notice());
 }

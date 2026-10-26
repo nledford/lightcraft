@@ -1,5 +1,16 @@
 # What's new in LightCraft
 
+## 2026-10-26
+
+### A move cut short is followed at the next open
+- If LightCraft is force-quit or crashes part-way through a move, or you choose Quit Anyway, the next time the
+  library opens, the photos whose files reached the new folder point there (their sidecars follow) and the others stay.
+  Edits made while the files were moving reach their XMP sidecars then too. A file that was half copied to another
+  disk leaves a hidden `.lc-partial` file in the new folder, which that open removes; a copy that reached the new
+  folder while the original stayed is removed only when it is the same file or holds the same bytes. In a library that
+  was opened without its lock (some network shares can't lock it), nothing is followed or removed, because another
+  program may be making the move: use File ▸ Find Missing Photos… to relink files that moved.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
@@ -114,13 +125,7 @@
   Permanently, Empty Recently Deleted, importing a file again as a new photo over its trashed record, Convert to DNG,
   Find Missing Photos, Locate and the Undo of those steps. A message pops up saying how many photos are moving, and
   nothing is changed; try again once the move is done.
-- Quitting while photos are moving asks first. Quitting anyway cuts the move short: the files that had already
-  moved stay in the new folder while the library still points at the old places, so use File ▸ Find Missing Photos…
-  and choose the new folder to relink them. A file that was half copied to another disk leaves a hidden
-  `.lc-partial` file there, which you can delete. A file caught mid-move can end up at both places: the library keeps
-  the old one, and the copy in the new folder makes the next move there refuse that name until you delete it. Edits
-  made during the move stay in the library, but their XMP sidecar writes are lost; write them again with
-  Photo ▸ Save Metadata to File.
+- Quitting while photos are moving asks first.
 
 ### Settings window
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own

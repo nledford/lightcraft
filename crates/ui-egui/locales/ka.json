@@ -2736,5 +2736,6 @@
   "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება",
   "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი",
   "Moving photos": "ფოტოების გადატანა",
-  "Moving was stopped by an error (see the log). The library follows the files that had moved; an XMP sidecar may have stayed at the old place.": "გადატანა შეცდომის გამო შეჩერდა (იხილეთ ჟურნალი). ბიბლიოთეკა მიჰყვება უკვე გადატანილ ფაილებს; XMP გვერდითი ფაილი შეიძლება ძველ ადგილას დარჩენილიყოს."
+  "Moving was stopped by an error (see the log). The library follows the files that had moved.": "გადატანა შეცდომის გამო შეჩერდა (იხილეთ ჟურნალი). ბიბლიოთეკა მიჰყვება უკვე გადატანილ ფაილებს.",
+  "Moving was stopped by an error (see the log). The library may not follow every file that had moved: Find Missing Photos relinks the ones it lost.": "გადატანა შეცდომის გამო შეჩერდა (იხილეთ ჟურნალი). ბიბლიოთეკამ შეიძლება ყველა უკვე გადატანილ ფაილს ვერ მიჰყვეს: დაკარგულებს „დაკარგული ფოტოების მოძებნა“ თავიდან დააკავშირებს."
 }

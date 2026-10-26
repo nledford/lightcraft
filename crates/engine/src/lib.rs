@@ -346,6 +346,10 @@ pub struct Session {
     /// Photos whose automatic sidecar write waits for their file to arrive at the folder it is
     /// being moved to ([`move_job`]); written when the move ends. Not a failure: no notice.
     pub(crate) held_sidecars: std::collections::BTreeSet<PhotoId>,
+    /// The photos this session put on the list of held writes kept beside the move records
+    /// ([`move_intent`]): without the library's lock, it takes back only these, and leaves the
+    /// entries another run (or program) put there.
+    pub(crate) held_listed: std::collections::BTreeSet<PhotoId>,
     /// XMP sidecar preferences (persisted with the library).
     pub xmp: sidecar::XmpPrefs,
     /// Parameters of the last export (`app.export` params, minus targets), persisted in prefs.json.
@@ -519,6 +523,7 @@ impl Session {
             moving: std::sync::Weak::new(),
             settled_moves: Vec::new(),
             held_sidecars: Default::default(),
+            held_listed: Default::default(),
             xmp: sidecar::XmpPrefs::default(),
             last_export: None,
             last_merge: Default::default(),
@@ -875,7 +880,7 @@ impl Session {
         rename::retry_sidecars(fs, &mut entry.retry_sidecars).map_err(|e| EngineError::Other(format!("can't move the files back: {e}")))?;
         let op = &entry.op;
         let moves = self.file_moves(op);
-        // noted before anything moves: a stop part-way is told by the record
+        // noted before anything moves: a stop part-way is found and followed at the next open
         let record = self.record_moves(&moves)?;
         let folder = entry.folder.as_ref();
         if let Some(f) = folder
@@ -896,7 +901,7 @@ impl Session {
                 undo_folder();
             }
             let (message, mut inverses, followed) = self.follow_stuck(op, e, false);
-            // (a library that could not follow keeps the record)
+            // (a library that could not follow keeps the record for the next open)
             if followed {
                 self.settle_moves(record);
             }
@@ -927,7 +932,7 @@ impl Session {
                 let back: Vec<(String, String)> = moves.iter().rev().map(|(a, b)| (b.clone(), a.clone())).collect();
                 if let Err(mut be) = rename::move_all(fs, &back) {
                     entry.retry_sidecars.append(&mut be.pending_sidecars);
-                    // the files stay at the new place and the library doesn't point there: the record stays
+                    // the files stay at the new place and the library doesn't point there: the record stays for the next open
                     return Err(EngineError::Other(format!("{e}; the files could not all be moved back: {}", be.message)));
                 }
                 self.settle_moves(record);

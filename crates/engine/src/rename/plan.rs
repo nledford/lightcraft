@@ -186,12 +186,12 @@ impl Session {
                 _ => None,
             })
             .collect();
-        // noted before anything moves: a stop part-way is told by the record
+        // noted before anything moves: a stop part-way is found and followed at the next open
         let record = self.record_moves(&moves)?;
         let moved = move_all(fs, &moves);
         if let Err(e) = moved {
             let (message, _, followed) = self.follow_stuck(&op, e, true);
-            // (a library that could not follow keeps the record)
+            // (a library that could not follow keeps the record for the next open)
             if followed {
                 self.settle_moves(record);
             }
@@ -202,7 +202,7 @@ impl Session {
         {
             let back: Vec<(String, String)> = moves.iter().rev().map(|(a, b)| (b.clone(), a.clone())).collect();
             if let Err(e) = move_all(fs, &back) {
-                // the files stay at the new place and the library doesn't point there: the record stays
+                // the files stay at the new place and the library doesn't point there: the record stays for the next open
                 return Err(EngineError::Other(format!("{err}; the renamed files could not all be moved back: {}", e.message)));
             }
             self.settle_moves(record);
@@ -239,7 +239,7 @@ impl Session {
     /// their new paths (an undoable "partly" rename when `undoable`, otherwise a plain logged
     /// change), so the library matches the disk. Returns the message, for a history retry the
     /// correction's inverse file ops (so a retry doesn't lose the original paths), and whether the
-    /// library follows the files now (when not, the move's record has to stay).
+    /// library follows the files now (when not, the move's record has to stay for the next open).
     pub(crate) fn follow_stuck(&mut self, op: &Op, e: BatchMoveError, undoable: bool) -> (String, Vec<Op>, bool) {
         let mut msg = e.message;
         let pending_sidecars = e.pending_sidecars;
