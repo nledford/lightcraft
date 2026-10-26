@@ -119,15 +119,17 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     // The filter, above the tabs it looks through. What is typed is kept from one frame of the
     // window to the next only: Settings opened again starts with it empty.
     let filter_id = egui::Id::unique("settings-filter");
-    let pass = ui.ctx().cumulative_pass_nr();
+    // (counted in frames, not passes: a pass that draws only a prompt, or one that egui discards,
+    // does not draw Settings, and Settings is not shown anew for having missed it)
+    let frame = ui.ctx().cumulative_frame_nr();
     let kept: Option<Filter> = ui.data(|d| d.get_temp(filter_id));
     // (Settings shown anew: the filter starts empty, and nothing is marked as landed on)
-    let opened = !kept.as_ref().is_some_and(|k| k.pass.checked_add(1) == Some(pass));
+    let opened = !kept.as_ref().is_some_and(|k| k.frame == frame || k.frame.checked_add(1) == Some(frame));
     if opened {
         ui.data_mut(|d| d.remove::<(String, f64)>(egui::Id::unique(LANDED)));
     }
     let mut filter = kept.filter(|_| !opened).unwrap_or_default();
-    filter.pass = pass;
+    filter.frame = frame;
     // (the mark is for arriving at a section from the filter: a tab left, however, and come back
     // to shows none. Arriving sets it again when the heading is drawn, further down this frame.)
     if filter.tab != *tab {
@@ -141,12 +143,8 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
         .show(ui);
     let filter_row = ui.cursor().top() - top;
     // The box is ready to type in when Settings opens: the filter reaches every section from
-    // wherever one is. (Not where typing brings up a keyboard over the window, and not under a
-    // prompt: the prompt's Cancel owns the focus until it is answered.)
-    if opened
-        && !crate::panels::notices::blocks_input(app)
-        && !matches!(ui.ctx().os(), egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS)
-    {
+    // wherever one is. (Not where typing brings up a keyboard over the window.)
+    if opened && !matches!(ui.ctx().os(), egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS) {
         typed.response.request_focus();
     }
     // Esc with something typed empties the filter and is used up by that, wherever the focus is
@@ -373,7 +371,7 @@ struct Section {
 /// typed is kept only from one pass to the next: a pass in which Settings is not drawn loses it.)
 #[derive(Clone, Default)]
 struct Filter {
-    pass: u64,
+    frame: u64,
     text: String,
     /// The tab that was open on the frame before.
     tab: String,

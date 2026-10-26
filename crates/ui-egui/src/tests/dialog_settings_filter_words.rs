@@ -300,6 +300,27 @@ fn the_filter_is_ready_to_type_in_when_settings_opens() {
     assert_eq!(h.app.ui.dialog, None);
 }
 
+/// Given Settings with a word typed in the filter, when a quit prompt comes up over it and is
+/// answered, then the word is still in the filter: Settings did not close, and the passes the
+/// prompt takes for itself are not a reopening, which would empty the box and put the focus
+/// back in it (taking it from the prompt's Cancel).
+#[test]
+fn a_prompt_over_settings_does_not_empty_the_filter_or_take_its_focus() {
+    let mut h = demo([1200.0, 1000.0]);
+    show(&mut h, "general");
+    filter(&mut h, "culling");
+    assert_eq!(found(&h), ["general:Culling"]);
+    h.app.quit_prompt = Some(crate::QuitPrompt::Tasks("1 task is still running: Import. Quitting stops it.".into()));
+    steps(&mut h);
+    assert_ne!(h.view.ctx.memory(|m| m.focused()), Some(crate::text_field::id("field:settingsFilter")), "the prompt has the focus");
+    assert!(has(&h, "button:quitCancel"), "the prompt is up");
+    let r = h.request("ui.clickWidget", json!({"id": "button:quitCancel"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    steps(&mut h);
+    assert!(h.app.quit_prompt.is_none(), "Cancel dismissed the prompt");
+    assert_eq!(found(&h), ["general:Culling"], "what was typed is still in the filter");
+}
+
 #[test]
 fn the_section_landed_on_is_marked_for_a_moment() {
     let mut h = demo([1200.0, 1000.0]);
