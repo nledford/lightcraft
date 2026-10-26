@@ -46,6 +46,8 @@ const EMBEDDED: &[(&str, &[&str])] = &[
     ("crates/ui-egui/src/menus/", &["xtask"]),
     ("crates/catalog/src/fixtures/v6-catalog.snap.json", &["lightcraft-engine"]),
     ("crates/catalog/src/fixtures/v6-catalog.log.jsonl", &["lightcraft-engine"]),
+    ("crates/catalog/src/fixtures/v10-catalog.snap.json", &["lightcraft-engine"]),
+    ("crates/catalog/src/fixtures/v10-catalog.log.jsonl", &["lightcraft-engine"]),
 ];
 
 /// The packages that compile in `path` from outside their own directory.
