@@ -737,9 +737,15 @@ pub fn specs() -> Vec<CommandSpec> {
                     s.shelved_filter = None;
                 }
                 // the person's own photos that were selected stay selected (as `photo.deletePermanently`)
+                let active_before = s.selection.active;
                 select_after_deletion(s, &before);
                 if s.selection.active.is_none() {
                     crate::demo::select_first(s);
+                }
+                // a mask or spot chosen on the photo that went doesn't point into the next one
+                if s.selection.active != active_before {
+                    s.active_mask = None;
+                    s.active_spot = None;
                 }
                 Ok(json!({"removed": removed, "albums": album_count}))
             }

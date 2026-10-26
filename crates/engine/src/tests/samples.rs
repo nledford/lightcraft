@@ -148,6 +148,26 @@ fn removing_the_samples_clears_a_filter_on_an_album_that_goes() {
 }
 
 #[test]
+fn removing_the_samples_clears_the_mask_and_spot_chosen_on_a_photo_that_goes() {
+    // Given a mask and a spot chosen on the active sample photo, and a photo of the person's own
+    let dir = temp_dir("tool-selection");
+    png(&dir.join("own.png"));
+    let mut s = Session::with_demo().with_fs();
+    s.execute("library.import", &json!({"paths": [dir.join("own.png").to_string_lossy()]})).unwrap();
+    let own = s.catalog.photos().find(|p| matches!(p.source, Source::File { .. })).map(|p| p.id).unwrap();
+    let sample = s.catalog.photos().find(|p| matches!(p.source, Source::Demo { .. })).map(|p| p.id).unwrap();
+    s.selection = crate::Selection::single(sample);
+    s.active_mask = Some(0);
+    s.active_spot = Some(0);
+    // When the samples are removed, the person's photo becomes the active one
+    s.execute("library.removeSamples", &json!({})).unwrap();
+    assert_eq!(s.active(), Some(own));
+    // Then nothing chosen on the old photo is left pointing into the new one
+    assert_eq!(s.active_mask, None, "the mask chosen on the removed photo stays chosen");
+    assert_eq!(s.active_spot, None, "the spot chosen on the removed photo stays chosen");
+}
+
+#[test]
 fn removing_the_samples_takes_a_chain_of_folders_however_deep() {
     // Given an album of sample photos at the bottom of 70 folders, each inside the one above
     let mut s = Session::with_demo().with_fs();
