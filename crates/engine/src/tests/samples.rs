@@ -114,6 +114,40 @@ fn removing_the_samples_during_an_open_drag_records_the_drag_as_its_own_undo_ste
 }
 
 #[test]
+fn removing_the_samples_clears_a_filter_on_an_album_that_goes() {
+    // Given the person's own photo in the sample album Portfolio (which stays), and the filter and the one put aside
+    // on albums while All is shown: one on Mountains (only samples; it goes), the other on Portfolio, in both orders
+    for filter_on_the_removed_one in [true, false] {
+        let dir = temp_dir("filter-album");
+        png(&dir.join("own.png"));
+        let mut s = Session::with_demo().with_fs();
+        s.execute("library.import", &json!({"paths": [dir.join("own.png").to_string_lossy()]})).unwrap();
+        let own = s.catalog.photos().find(|p| matches!(p.source, Source::File { .. })).map(|p| p.id).unwrap();
+        let portfolio = album(&s, "Portfolio").unwrap();
+        let mut photos = s.catalog.album(portfolio).unwrap().photos.clone();
+        photos.push(own);
+        s.catalog.apply(Op::SetAlbumPhotos { id: portfolio, photos }).unwrap();
+        let mountains = album(&s, "Mountains").unwrap();
+        let (now, aside) = if filter_on_the_removed_one { (mountains, portfolio) } else { (portfolio, mountains) };
+        s.filter.album = Some(now);
+        s.shelved_filter = Some(lightcraft_catalog::Filter { album: Some(aside), ..Default::default() });
+        // When the samples are removed
+        s.execute("library.removeSamples", &json!({})).unwrap();
+        // Then a filter naming the album that went is cleared (the filter bar has no album chip, so it would narrow the
+        // view unseen), and one naming an album that stays is left alone
+        let keep = |gone: bool, id| if gone { None } else { Some(id) };
+        assert_eq!(s.filter.album, keep(filter_on_the_removed_one, portfolio), "the filter's album after removal");
+        assert_eq!(
+            s.shelved_filter.as_ref().and_then(|f| f.album),
+            keep(!filter_on_the_removed_one, portfolio),
+            "the shelved filter's album after removal"
+        );
+        // (a filter put aside that the removal emptied is dropped, not left as an empty one)
+        assert_eq!(s.shelved_filter.is_none(), !filter_on_the_removed_one, "an emptied filter is left put aside");
+    }
+}
+
+#[test]
 fn removing_the_samples_takes_a_chain_of_folders_however_deep() {
     // Given an album of sample photos at the bottom of 70 folders, each inside the one above
     let mut s = Session::with_demo().with_fs();

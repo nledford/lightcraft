@@ -726,6 +726,16 @@ pub fn specs() -> Vec<CommandSpec> {
                 if matches!(s.source, LibrarySource::Album(a) if albums.contains(&a)) {
                     s.source = LibrarySource::All;
                 }
+                // nor can a filter (or the one put aside) on it: the filter bar has no album chip, so it would narrow the view unseen
+                for f in std::iter::once(&mut s.filter).chain(s.shelved_filter.as_mut()) {
+                    if f.album.is_some_and(|a| albums.contains(&a)) {
+                        f.album = None;
+                    }
+                }
+                // (an empty filter is not left put aside, as in `library.removeFolder`)
+                if s.shelved_filter.as_ref() == Some(&Filter::default()) {
+                    s.shelved_filter = None;
+                }
                 // the person's own photos that were selected stay selected (as `photo.deletePermanently`)
                 select_after_deletion(s, &before);
                 if s.selection.active.is_none() {
