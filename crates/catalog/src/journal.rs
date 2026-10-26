@@ -1462,3 +1462,7 @@ mod tests_resync {
         assert_eq!(resync(&line, 100).map(|(at, (seq, _))| (at, seq)), Some((fragment, 5)));
     }
 }
+
+#[cfg(test)]
+#[path = "tests_upgrade_attempts.rs"]
+mod tests_upgrade_attempts;
