@@ -10,7 +10,7 @@
 //! photo has them, or given attributes ([`KeywordInfo`]: synonyms, export options, person). The
 //! tree is the keyword list together with the keywords photos carry.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -39,6 +39,12 @@ pub fn is_under(k: &str, parent: &str) -> bool {
 /// (`a|b|c` gives `a`, `a|b`), the way [`is_under`] sees them.
 fn upper_levels(folded: &str) -> impl Iterator<Item = &str> {
     folded.match_indices(SEP).map(|(i, _)| &folded[..i])
+}
+
+/// A case folded path and its [`upper_levels`] that are as many bytes as one of `lens`: the only
+/// ones that can be in a set of paths of those lengths, so only those are worth hashing.
+fn named_levels<'a>(folded: &'a str, lens: &'a HashSet<usize>) -> impl Iterator<Item = &'a str> {
+    std::iter::once(folded).chain(upper_levels(folded)).filter(|level| lens.contains(&level.len()))
 }
 
 /// Replace the `from` prefix of `k` (which [`is_under`] `from`) with `to`. By levels, not bytes:
@@ -423,23 +429,34 @@ impl Catalog {
         if gone.is_empty() || gone.iter().any(String::is_empty) {
             return Err(CatalogError::Invalid("empty keyword".into()));
         }
-        // case folded once here, and each candidate once below, not once per pair
-        let folded: Vec<String> = gone.iter().map(|g| g.to_lowercase()).collect();
-        let under = |k: &str, p: &str| k == p || k.strip_prefix(p).is_some_and(|rest| rest.starts_with(SEP));
-        let mut found = vec![false; folded.len()];
+        // Case folded once here, and each candidate once below. A candidate is under a named keyword
+        // when its folded path or one of its upper levels is in `named`: a lookup per level, not a
+        // comparison with every keyword named. Only the levels as long as some named keyword are
+        // hashed (see `named_levels`): at most one per named length, so a very deep keyword on a
+        // photo costs its length plus at most the bytes of the keywords named, not every prefix.
+        let mut named: HashMap<String, usize> = HashMap::with_capacity(gone.len());
+        for (i, g) in gone.iter().enumerate() {
+            named.entry(g.to_lowercase()).or_insert(i);
+        }
+        let lens: HashSet<usize> = named.keys().map(String::len).collect();
+        let mut found = vec![false; gone.len()];
         let listed = self.keyword_list.values().map(|l| &l.path);
         for k in listed.chain(self.photos().filter(|p| p.in_library()).flat_map(|p| p.meta.keywords.iter())) {
             let k = k.to_lowercase();
-            for (hit, p) in found.iter_mut().zip(&folded) {
-                *hit |= under(&k, p);
+            for hit in named_levels(&k, &lens).filter_map(|level| named.get(level)) {
+                found[*hit] = true;
             }
+        }
+        // a keyword named twice (or in two cases) is one entry of `named`: it is found as that one
+        for (i, g) in gone.iter().enumerate() {
+            found[i] = found[named[&g.to_lowercase()]];
         }
         if let Some(i) = found.iter().position(|hit| !hit) {
             return Err(CatalogError::Invalid(format!("no keyword “{}”", gone[i])));
         }
         let goes = |k: &str| {
             let k = k.to_lowercase();
-            folded.iter().any(|p| under(&k, p))
+            named_levels(&k, &lens).any(|level| named.contains_key(level))
         };
         let mut ops = self.keyword_ops(|kws| kws.iter().filter(|x| !goes(x)).cloned().collect());
         ops.extend(self.list_ops(|list| list.retain(|_, l| !goes(&l.path))));
@@ -452,7 +469,8 @@ impl Catalog {
     /// they go ([`CatalogError::KeywordExists`]), or two of them with one name, refuses the whole
     /// move. Returns the batch and each move as `(from, to)`.
     pub fn move_keywords_ops(&self, keywords: &[String], parent: Option<&str>) -> Result<(Op, Vec<(String, String)>)> {
-        // paths are case folded once and kept in sets: a batch of thousands stays linear
+        // the keywords' own paths are case folded once and kept in sets, and (below) each photo's
+        // keywords are matched to the moves by level, not against every move
         let mut from: Vec<String> = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
         for k in keywords {
@@ -489,14 +507,15 @@ impl Catalog {
         if let Some((_, taken)) = moves.iter().find(|(_, t)| self.has_keyword(t)) {
             return Err(CatalogError::KeywordExists(taken.clone()));
         }
-        // case folded once here and once per photo keyword, not once per pair
-        let folded_from: Vec<String> = moves.iter().map(|(f, _)| f.to_lowercase()).collect();
+        // Case folded once per photo keyword; its path and its upper levels are looked up in `moving`
+        // (folded from-path to its move), not compared with every move; only those as long as some
+        // move's path are hashed (see `named_levels`). The moves are the upper keywords only, so at
+        // most one level of a keyword is among them.
+        let moving: HashMap<String, &(String, String)> = moves.iter().map(|m| (m.0.to_lowercase(), m)).collect();
+        let lens: HashSet<usize> = moving.keys().map(String::len).collect();
         let moved = |k: &str| {
             let k_folded = k.to_lowercase();
-            moves.iter().zip(&folded_from).find_map(|((f, t), f_folded)| {
-                let under = k_folded == *f_folded || k_folded.strip_prefix(f_folded.as_str()).is_some_and(|rest| rest.starts_with(SEP));
-                under.then(|| reparent(k, f, t))
-            })
+            named_levels(&k_folded, &lens).find_map(|level| moving.get(level)).map(|(f, t)| reparent(k, f, t))
         };
         let mut ops = self.keyword_ops(|kws| kws.iter().map(|k| moved(k).unwrap_or_else(|| k.clone())).collect());
         // (the moves touch apart parts of the list: each one's listings are its own)

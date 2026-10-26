@@ -704,3 +704,41 @@ fn keyword_tree_caps_a_keyword_at_the_list_depth() {
     let deepest = tree_paths(&c.keyword_tree()).iter().map(|(p, _)| p.split(SEP).count()).max().unwrap_or(0);
     assert_eq!(deepest, MAX_LEVELS);
 }
+
+/// A batch delete takes each named keyword with what is below it, at any depth and in any case,
+/// and leaves a keyword that only shares a name prefix ("Cats" next to "Cat").
+#[test]
+fn batch_delete_takes_nested_keywords_in_any_case_and_not_a_shared_name_prefix() {
+    let (mut c, ids) = lib(&[&["Cat", "Cats", "Animals|CAT|Kitten|Tiny", "Animals|Dog", "Cat food"]]);
+    let op = c.delete_keywords_ops(&["cat".to_string(), "animals|dog".to_string()]).unwrap();
+    c.apply(op).unwrap();
+    assert_eq!(kws(&c, ids[0]), ["Cats", "Animals|CAT|Kitten|Tiny", "Cat food"]);
+    // Named twice, in two cases, and with one below the other: still one batch that works.
+    let op = c.delete_keywords_ops(&["Animals".to_string(), "ANIMALS".to_string(), "animals|cat".to_string()]).unwrap();
+    c.apply(op).unwrap();
+    assert_eq!(kws(&c, ids[0]), ["Cats", "Cat food"]);
+}
+
+/// Every keyword named must exist: "Cat" isn't there because "Cats" is, and a keyword below a
+/// named one doesn't make a second name exist.
+#[test]
+fn batch_delete_refuses_a_name_that_only_prefixes_another() {
+    let (c, _) = lib(&[&["Cats", "Animals|Dog"]]);
+    let err = c.delete_keywords_ops(&["Cats".to_string(), "Cat".to_string()]).unwrap_err();
+    assert!(err.to_string().contains("no keyword “Cat”"), "{err}");
+    let err = c.delete_keywords_ops(&["Animals".to_string(), "Animals|Do".to_string()]).unwrap_err();
+    assert!(err.to_string().contains("no keyword “Animals|Do”"), "{err}");
+}
+
+/// A batch move reparents each moved keyword with what is below it, at any depth and in any
+/// case, and leaves a keyword that only shares a name prefix with a moved one.
+#[test]
+fn batch_move_reparents_nested_keywords_in_any_case_and_not_a_shared_name_prefix() {
+    let (mut c, ids) = lib(&[&["Cat", "Cats", "Pets|DOG|Puppy|Tiny", "Pets|Doge", "Home"], &["pets|dog|puppy", "PETS|DOG"]]);
+    let (op, moves) = c.move_keywords_ops(&["cat".to_string(), "pets|dog".to_string()], Some("Home")).unwrap();
+    c.apply(op).unwrap();
+    assert_eq!(moves, [("Cat".to_string(), "Home|Cat".to_string()), ("Pets|DOG".to_string(), "Home|DOG".to_string())]);
+    assert_eq!(kws(&c, ids[0]), ["Home|Cat", "Cats", "Home|DOG|Puppy|Tiny", "Pets|Doge", "Home"]);
+    // a photo's own spelling of a moved keyword, in another case, moves too
+    assert_eq!(kws(&c, ids[1]), ["Home|DOG|puppy", "Home|DOG"]);
+}
