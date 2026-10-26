@@ -139,7 +139,7 @@ enum Notice {
 }
 
 /// The notice of a Synchronize Folder scan that finished in the background (widgets
-/// `activity:scanReady`, its `:review` and `:dismiss`): what it found and in which folder. A
+/// `activity:scanReady`, its `:title`, `:review` and `:dismiss`): what it found and in which folder. A
 /// click on it opens the dialog with the result; ✕ lets go of it. It stays until one of
 /// the two: the person looks when ready.
 fn scan_notice(ui: &mut egui::Ui, t: &Tokens, ready: &crate::sync::SyncReady, width: f32) -> Option<Notice> {
@@ -151,16 +151,26 @@ fn scan_notice(ui: &mut egui::Ui, t: &Tokens, ready: &crate::sync::SyncReady, wi
             ui.set_width(width);
             ui.horizontal(|ui| {
                 let label_w = width - CROSS - 6.0;
-                ui.allocate_ui_with_layout(vec2(label_w, 18.0), Layout::left_to_right(Align::Center), |ui| {
-                    ui.set_width(label_w);
-                    ui.add(egui::Label::new(RichText::new(title).font(t.font(12.5)).color(t.text)).truncate());
-                });
+                let title_rect = ui
+                    .allocate_ui_with_layout(vec2(label_w, 18.0), Layout::left_to_right(Align::Center), |ui| {
+                        ui.set_width(label_w);
+                        ui.add(egui::Label::new(RichText::new(title).font(t.font(12.5)).color(t.text)).truncate());
+                    })
+                    .response
+                    .rect;
+                // (the title opens the result like the part below it; it ends before the ✕. Mouse only: the
+                // part below stays the one keyboard and screen-reader target, so no unnamed second stop)
+                let title_click = ui
+                    .interact(title_rect, egui::Id::unique("activity-scan-ready-title"), Sense::CLICK)
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                register(ui, "activity:scanReady:title", title_rect);
+                reviewed = title_click.on_hover_text(tr("Open Synchronize Folder with what the scan found")).clicked();
                 let (rect, resp) = ui.allocate_exact_size(vec2(CROSS, CROSS), Sense::click());
                 paint(ui.painter(), rect.shrink(2.0), Icon::Close, if resp.hovered() { t.text } else { t.icon });
                 register(ui, "activity:scanReady:dismiss", rect);
                 dismissed = resp.on_hover_text(tr("Dismiss")).clicked();
             });
-            // (the part below the ✕'s line takes the click, so the two never overlap)
+            // (the parts either side of the ✕ take the click, so they never overlap it)
             let body = ui
                 .vertical(|ui| {
                     ui.set_width(width);
@@ -171,7 +181,7 @@ fn scan_notice(ui: &mut egui::Ui, t: &Tokens, ready: &crate::sync::SyncReady, wi
             let click =
                 ui.interact(body.rect, egui::Id::unique("activity-scan-ready"), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
             register(ui, "activity:scanReady:review", body.rect);
-            reviewed = click.on_hover_text(tr("Open Synchronize Folder with what the scan found")).clicked();
+            reviewed |= click.on_hover_text(tr("Open Synchronize Folder with what the scan found")).clicked();
         })
         .response;
     register(ui, "activity:scanReady", r.rect);

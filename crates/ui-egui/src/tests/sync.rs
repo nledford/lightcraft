@@ -546,6 +546,24 @@ fn a_scan_continued_in_the_background_ends_in_a_notice_that_opens_its_result() {
 }
 
 #[test]
+fn clicking_the_notice_title_opens_the_result_too() {
+    let dir = Scratch::new("title");
+    let mut h = changed_folder(&dir);
+    let gate = gated(&mut h);
+    scan_in_background(&mut h, &dir);
+    gate.store(true, std::sync::atomic::Ordering::Relaxed);
+    assert!(h.step_until(T, |h| h.app.sync_ready.is_some()), "a notice waits");
+    h.step();
+    // the title ends before the ✕, so the two don't overlap
+    let title = crate::control::widget_rect(&h.app, "activity:scanReady:title");
+    let cross = crate::control::widget_rect(&h.app, "activity:scanReady:dismiss");
+    assert!(title.zip(cross).is_some_and(|(t, c)| !t.intersects(c)), "title {title:?}, ✕ {cross:?}");
+
+    click_widget(&mut h, "activity:scanReady:title", |h| matches!(&h.app.ui.dialog, Some(Dialog::SynchronizeFolder { counts: Some(_), .. })));
+    assert!(h.app.sync_ready.is_none(), "the notice is let go of once its result is open");
+}
+
+#[test]
 fn dismissing_the_notice_lets_go_of_what_the_scan_found() {
     let dir = Scratch::new("dismiss");
     let mut h = changed_folder(&dir);
