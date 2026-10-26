@@ -79,13 +79,27 @@ const PREVIEW_CHROME: f32 = 82.0;
 /// On Slideshow the slide preview is pinned between the tab bar and the page (where the room
 /// allows), and comes off that page's room.
 pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_height: f32) {
+    // A click on a tab is reported on the button's release, the frame in which egui also takes the
+    // focus away from a text box on the page. The page of the tab being left is drawn once more in
+    // that frame, so the box reports its edit ending (and the page saves it); the new tab takes
+    // over for the next frame. Switching in the same frame would draw the new page, and the box
+    // would never be drawn again to end its edit: the text typed in it would be lost.
+    let mut chosen = None;
+    window_page(app, ui, tab.as_str(), max_height, &mut chosen);
+    if let Some(next) = chosen {
+        *tab = next;
+        ui.ctx().request_repaint();
+    }
+}
+
+fn window_page(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &str, max_height: f32, chosen: &mut Option<String>) {
     ui.set_width((ui.ctx().content_rect().width() - 64.0).clamp(240.0, PAGE_SIZE.x));
     let top = ui.cursor().top();
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(4.0, 4.0);
         for (id, label) in TABS {
-            if crate::widgets::text_button(ui, &format!("settingsTab-{id}"), label, tab == id).clicked() {
-                *tab = id.to_string();
+            if crate::widgets::text_button(ui, &format!("settingsTab-{id}"), label, tab == *id).clicked() {
+                *chosen = Some(id.to_string());
             }
         }
     });
@@ -93,7 +107,7 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     // (a point less than the room left, so rounding never makes the dialog's own scroll area scroll)
     let room = max_height - (ui.cursor().top() - top) - 1.0;
     if room < PAGE_MIN_HEIGHT {
-        body(app, ui, tab.as_str());
+        body(app, ui, tab);
         register(ui, "settings:page", ui.min_rect());
         return;
     }
@@ -118,21 +132,20 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     // A page that goes on below shows its scroll handle all the time: without it, a page a line
     // or two too long looks cut off, not scrollable.
     ui.spacing_mut().scroll.dormant_handle_opacity = 0.6;
-    let page = egui::ScrollArea::vertical()
-        .id_salt(("settings-page", tab.as_str()))
-        .max_height(height)
-        .min_scrolled_height(height)
-        .auto_shrink([false, false])
-        .show(ui, |ui| {
-            ui.add_space(2.0);
-            if pinned {
-                slideshow_tab(app, ui, &Tokens::get(ui.ctx()), false);
-            } else {
-                body(app, ui, tab.as_str());
-            }
-            // (what the page took: wider than the room for it would mean a control is cut off)
-            register(ui, "settings:page", ui.min_rect());
-        });
+    let page =
+        egui::ScrollArea::vertical().id_salt(("settings-page", tab)).max_height(height).min_scrolled_height(height).auto_shrink([false, false]).show(
+            ui,
+            |ui| {
+                ui.add_space(2.0);
+                if pinned {
+                    slideshow_tab(app, ui, &Tokens::get(ui.ctx()), false);
+                } else {
+                    body(app, ui, tab);
+                }
+                // (what the page took: wider than the room for it would mean a control is cut off)
+                register(ui, "settings:page", ui.min_rect());
+            },
+        );
     register(ui, "settings:pageRoom", page.inner_rect);
 }
 

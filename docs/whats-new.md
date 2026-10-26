@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-26
+
+### A click on another Settings tab keeps the text typed in a box
+- Typing in a Settings text box that saves when you finish (such as the Slideshow title screens' text, the identity
+  plate's text and image path, or the watermark text) and then clicking another Settings tab now keeps what you typed.
+  Before, the new tab's page replaced the box in the frame of the click, so the typed text was dropped.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
