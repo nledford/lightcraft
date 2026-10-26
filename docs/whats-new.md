@@ -2,6 +2,15 @@
 
 ## 2026-10-24
 
+### Cut, Copy and Paste for albums and keywords
+- In the menus of albums and keywords in the left panel and the Keyword List, Cut and Copy take the rows (one or
+  several chosen) and Paste puts them down: cut albums move into the folder where you choose Paste (the Albums +
+  menu pastes at the top level), copied albums are duplicated there with their photos, a copied smart album keeps its
+  rules and a copied folder everything inside it; cut keywords are nested inside the keyword where you choose Paste;
+  copied keywords are text you can paste in a keyword box. Paste is not offered where it would be refused, such as a
+  folder inside itself, and one Edit ▸ Undo takes back a paste.
+- For agents: the new `album.duplicate` takes `id` or `ids` and an optional `parent` (null: the top level).
+
 ### Synchronize several folders at once
 - Choose several folders in the Folders list (Cmd/Ctrl+click, Shift+click) and right-click: Synchronize N Folders…
   opens one dialog. It looks at the folders one after another and says, for each, what changed (new, moved, missing,
