@@ -1451,6 +1451,10 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(Value::Null)
         }
         "dialog.newSmartAlbum" => {
+            // (several albums with a smart one among them can't be saved: say why, as the engine does)
+            if let Some(why) = app.session.view_save_refusal() {
+                return Some(Err(why));
+            }
             app.ui.dialog = Some(Dialog::NewSmartAlbum { name: p.get("name").and_then(Value::as_str).unwrap_or("").into(), parent: parent_param(p) });
             Ok(Value::Null)
         }
@@ -2285,6 +2289,7 @@ fn thumb_size_view(app: &LightcraftApp) -> bool {
 pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
     match id {
         "library.selectOnlyActive" => app.session.active().is_some(),
+        "dialog.newSmartAlbum" => app.session.view_save_refusal().is_none(),
         "view.thumbSizeUp" | "view.thumbSizeDown" => thumb_size_view(app),
         "dialog.contactSheet" | "app.contactSheet" | "dialog.print" | "app.print" => {
             !cfg!(target_arch = "wasm32") && app.session.active().is_some() && app.export.is_none()
