@@ -460,7 +460,8 @@ fn move_to_folder(s: &mut Session, p: &Value) -> Result<Value> {
     let _task = s.activity.start("move", &format!("Moving {n} photo{}", plural(n)), crate::activity::Cancel::No);
     let name = dir.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| folder.to_string());
     s.apply_file_plans(&crate::rename::RealFs, &sorted.plans, &|k| format!("Move {k} Photo{} to “{name}”", plural(k)))?;
-    Ok(json!({"moved": n, "folder": folder, "skipped": skipped}))
+    // photos as the person sees them (a virtual copy is one, though it moves with its master's file), not file plans
+    Ok(json!({"moved": sorted.movable, "folder": folder, "skipped": skipped}))
 }
 
 /// After a folder moved from `from` to `to`: a browsed folder at or below it follows.

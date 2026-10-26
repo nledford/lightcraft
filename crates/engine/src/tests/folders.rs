@@ -651,6 +651,23 @@ fn photos_move_to_another_folder_with_their_sidecars_and_back_on_undo() {
 }
 
 #[test]
+fn a_move_counts_photos_as_the_person_sees_them_not_files() {
+    let dir = Scratch::new("move-count");
+    std::fs::create_dir_all(dir.0.join("in")).unwrap();
+    std::fs::create_dir_all(dir.0.join("out")).unwrap();
+    let mut s = Session::new();
+    let a = add_file(&mut s, &dir.path("in/a.jpg"), "A");
+    let b = add_file(&mut s, &dir.path("in/b.jpg"), "B");
+    // a virtual copy shares its master's file: two photos, one file
+    let vc = s.catalog.alloc_photo_id();
+    let p = Photo::new(vc, Source::File { path: dir.path("in/a.jpg") }, "a.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let r = s.execute("photo.moveToFolder", &json!({"ids": [a.0, vc.0, b.0], "folder": dir.path("out")})).unwrap();
+    assert_eq!(r["moved"], 3, "{r}");
+    assert_eq!(file_of(&s, vc), dir.path("out/a.jpg"));
+}
+
+#[test]
 fn a_name_taken_in_the_destination_refuses_the_move_and_overwrites_nothing() {
     let dir = Scratch::new("move-clash");
     std::fs::create_dir_all(dir.0.join("in")).unwrap();
