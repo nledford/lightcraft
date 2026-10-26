@@ -715,6 +715,8 @@ pub fn specs() -> Vec<CommandSpec> {
             "{} → {removed, albums} — removes every sample photo and the albums only they filled; photos of your own and their albums stay (one undo step)",
             has_samples,
             |s, _| {
+                // an open drag ends first, as its own undo step (as `photo.deletePermanently`)
+                s.end_interaction()?;
                 let before = s.visible_cloned();
                 let (op, removed, albums) = crate::demo::remove_ops(&s.catalog);
                 // as `added` counts them: albums, not the folders that held them

@@ -96,6 +96,24 @@ fn removing_the_samples_takes_their_albums_and_keeps_the_persons_own() {
 }
 
 #[test]
+fn removing_the_samples_during_an_open_drag_records_the_drag_as_its_own_undo_step() {
+    // Given a drag open on a sample photo's exposure (its value already changed, no history step yet)
+    let mut s = Session::with_demo().with_fs();
+    let id = s.active().unwrap();
+    s.execute("develop.beginInteraction", &json!({"label": "Exposure"})).unwrap();
+    s.execute("develop.set", &json!({"control": "light.exposure", "value": 1.2})).unwrap();
+    // When the samples are removed from the control channel
+    s.execute("library.removeSamples", &json!({})).unwrap();
+    assert_eq!(samples(&s), 0);
+    // Then one Undo brings the sample back with the dragged value, and the next undoes the drag itself
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.develop_of(id).unwrap().light.exposure, 1.2, "the photo comes back with its edit");
+    // (refused with "nothing to undo" when the drag was never recorded)
+    let _ = s.execute("edit.undo", &json!({}));
+    assert_eq!(s.develop_of(id).unwrap().light.exposure, 0.0, "the drag was not its own undo step");
+}
+
+#[test]
 fn removing_the_samples_takes_a_chain_of_folders_however_deep() {
     // Given an album of sample photos at the bottom of 70 folders, each inside the one above
     let mut s = Session::with_demo().with_fs();
