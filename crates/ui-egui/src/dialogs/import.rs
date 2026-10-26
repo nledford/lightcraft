@@ -34,7 +34,7 @@ pub use body::{DEFAULT_FOLDER_TEMPLATE, body, example_destination, source_summar
 pub(crate) use body::{DIALOG_SIZE, note_dialog_bottom};
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use scan::cards_seen;
-pub use scan::{ScanTask, browse, can_open, open, poll_scan, running};
+pub use scan::{ScanTask, add_folder_picker_pending, browse, can_open, open, poll_scan, running};
 #[cfg(test)]
 pub(crate) use scan::{stall_scan, stall_scan_of};
 pub(crate) use tags::{tag_field_width, tag_help, tag_toggle, unknown_tags_warning};
