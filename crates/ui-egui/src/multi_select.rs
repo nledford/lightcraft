@@ -6,11 +6,10 @@
 //! The rows chosen are kept in the order chosen; the last of them is the one an action for a
 //! single row takes (Rename…, Edit…).
 //!
-//! Nothing calls this yet. It is the model for LR-BEHAV-MULTISELECT's sidebar multi-select (the
-//! albums, folders, keywords and dates lists and the Keyword List), whose menus then act on every
-//! row chosen through the batch commands (`album.delete`, `keyword.delete`, … taking several
-//! ids). It keeps no egui state (only `egui::Modifiers` says which keys were held) and calls no
-//! engine code, so those parts can be built on it.
+//! It is the model for LR-BEHAV-MULTISELECT's sidebar multi-select (the albums, folders, keywords
+//! and dates lists and the Keyword List); `panels::side_select` calls it for the clicks, and
+//! [`targets`] is for the menus that act on several rows (a later change). It keeps no egui state
+//! (only `egui::Modifiers` says which keys were held) and calls no engine code.
 
 /// What a click asks for, by the keys held with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
