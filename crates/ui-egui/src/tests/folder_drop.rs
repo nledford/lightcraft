@@ -470,6 +470,10 @@ fn quit_asks_while_a_stopped_move_finishes_its_file() {
     let (root, _trip, _home) = folders("quit-stopping");
     let mut h = app(&[]);
     let (_tx, guard) = crate::move_task::stalled(&mut h.app);
+    // a move still running is one task in the prompt, though both its row and `move_run` name it
+    assert!(!crate::panels::notices::may_close(&mut h.app));
+    assert!(format!("{:?}", h.app.quit_prompt).contains("1 task is still running: Moving photos."), "listed once: {:?}", h.app.quit_prompt);
+    h.app.quit_prompt = None;
     h.app.session.activity.cancel(guard.id()).unwrap();
     assert!(h.app.session.activity.running_cancellable().is_empty(), "the row is stopping");
     assert!(!crate::panels::notices::may_close(&mut h.app), "Quit asks while the stopped move finishes its file");
@@ -488,6 +492,27 @@ fn quit_asks_while_a_stopped_move_finishes_its_file() {
     assert!(!crate::panels::notices::may_close(&mut h.app), "the next Quit asks again");
     click(&mut h, "button:quitAnyway");
     assert!(h.quit_requested(), "Quit Anyway quits instead of asking again");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Quit Anyway on a stopped move asks about unsaved changes next, with the move no longer waited for; Cancel there
+/// has to make the next Quit ask about the move again.
+#[test]
+fn cancelling_the_unsaved_changes_question_makes_the_next_quit_ask_about_the_move_again() {
+    let (root, _trip, _home) = folders("quit-unsaved-cancel");
+    let mut h = app(&[]);
+    let (_tx, guard) = crate::move_task::stalled(&mut h.app);
+    h.app.session.activity.cancel(guard.id()).unwrap();
+    // what Quit Anyway on the move's question left behind
+    h.app.quit_cuts_move = true;
+    assert!(crate::panels::notices::may_close(&mut h.app), "a move Quit Anyway cut short isn't asked about again");
+    h.app.quit_prompt = Some(crate::QuitPrompt::Unsaved("1 change couldn't be written".into()));
+    for _ in 0..3 {
+        h.step();
+    }
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:quitCancel"}), std::time::Duration::from_secs(10))["ok"], true);
+    assert!(!h.app.quit_cuts_move, "Cancel keeps working with the move");
+    assert!(!crate::panels::notices::may_close(&mut h.app), "the next Quit asks about the move again");
     let _ = std::fs::remove_dir_all(&root);
 }
 
