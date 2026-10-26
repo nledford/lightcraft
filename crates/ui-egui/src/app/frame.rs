@@ -70,9 +70,7 @@ impl LightcraftApp {
         recheck::tick(self);
         tasks::poll(self, ctx);
         updates_ui::tick(self, ctx);
-        self.preview_build_status(ctx);
-        // a task waiting in line whose lane freed while nothing was asked starts now (commands start them too)
-        self.session.start_waiting();
+        self.tick_preview_builds(ctx);
         self.save_status(ctx);
         self.ai_mask_detail(ctx, now);
         self.place_names_outcome(ctx);
