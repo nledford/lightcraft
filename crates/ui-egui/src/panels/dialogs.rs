@@ -1152,7 +1152,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
                 Dialog::Import { opts } => crate::import::body(app, ui, opts),
                 // (Settings is never taller than `body_max`, so the scroll area round it never
                 // scrolls: its tab bar stays put and its pages scroll by themselves)
-                Dialog::Settings { tab } => crate::panels::settings::window(app, ui, tab, body_max),
+                Dialog::Settings { tab } => crate::panels::settings::window_after_command(app, ui, tab, body_max),
                 Dialog::SamModel { error, .. } => sam_model_body(app, ui, error.as_deref()),
                 Dialog::KeywordTag {
                     editing,

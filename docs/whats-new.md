@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-26
+
+### A command that opens another Settings tab keeps the text typed in a box
+- When a menu item, a shortcut or an agent's `app.settings` opens another Settings tab while Copyright or Creator is
+  being typed in, the text is now saved, as it is when you click out of the box. Before, the page was replaced before
+  the box could save, and the text was dropped. With a box being typed in, the new tab shows one frame later.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

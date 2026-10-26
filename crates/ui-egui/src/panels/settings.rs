@@ -68,6 +68,40 @@ const PINNED_PREVIEW_SHARE: f32 = 0.4;
 /// choice and the rule under it take around the slide (at the default spacing, about 82 pt).
 const PREVIEW_CHROME: f32 = 82.0;
 
+/// The Settings window as the dialog draws it: [`window`], but where a command (a menu item, a
+/// shortcut, `app.settings` on the control channel) opens another tab while a text box is being
+/// typed in, the new tab takes over one frame later. A command runs before the frame is drawn, so
+/// the page being left would never be drawn again, and the box on it would never see its focus
+/// go and save what was typed. In the frame of the command that page is drawn once more with the
+/// focus taken from it (the box saves, as when the focus leaves it any other way), and the new tab
+/// follows in the next frame. With no text box being typed in, a command's tab, a tab clicked in
+/// the bar, and Settings just opened are all drawn at once.
+pub fn window_after_command(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_height: f32) {
+    let last = egui::Id::unique("settings:lastTab");
+    let frame = ui.ctx().cumulative_frame_nr();
+    // (the tab at the end of the previous frame; Settings drawn then, so not just opened)
+    let left = ui
+        .data(|d| d.get_temp::<(u64, String)>(last))
+        .filter(|(at, was)| at + 1 == frame && was != tab && ui.ctx().text_edit_focused())
+        .map(|(_, was)| was);
+    let mut page = left.clone().unwrap_or_else(|| tab.clone());
+    if left.is_some() {
+        ui.memory_mut(|m| {
+            if let Some(focused) = m.focused() {
+                m.surrender_focus(focused);
+            }
+        });
+        ui.ctx().request_repaint();
+    }
+    let shown = page.clone();
+    window(app, ui, &mut page, max_height);
+    // (a tab clicked in the bar in this frame wins over the command's)
+    if page != shown {
+        *tab = page;
+    }
+    ui.data_mut(|d| d.insert_temp(last, (frame, tab.clone())));
+}
+
 /// The Settings window's content: the tab bar, which stays put, above the page of `tab`
 /// ([`body`]), which scrolls when it is taller than the room for it, with a scroll handle that
 /// shows without the pointer on it. `max_height` is the room the app window leaves for both: the
