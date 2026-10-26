@@ -516,6 +516,24 @@ fn batch_refusal(folders: &[String], into: &str) -> Option<String> {
     None
 }
 
+/// `path` with `.` and `..` resolved by its text alone, as [`lightcraft_catalog::query::folder_key`]
+/// does for comparing (so `/r/a/../b` is `/r/b`), but in the platform's own spelling and case.
+fn lexical_path(path: &str) -> String {
+    use std::path::Component;
+    let mut out = std::path::PathBuf::new();
+    for c in Path::new(path).components() {
+        match c {
+            Component::ParentDir if matches!(out.components().next_back(), Some(Component::Normal(_))) => {
+                out.pop();
+            }
+            // above the root there is nothing: `/..` is `/`
+            Component::ParentDir if out.has_root() => {}
+            c => out.push(c),
+        }
+    }
+    out.to_string_lossy().to_string()
+}
+
 /// The most folders one `folder.move {paths}` takes.
 const MOST_FOLDERS_AT_ONCE: usize = 200;
 
@@ -526,7 +544,9 @@ fn move_folders(s: &mut Session, p: &Value) -> Result<Value> {
     let into = str_param(p, "into").filter(|i| !i.is_empty()).ok_or_else(|| bad("folder.move", "missing into"))?;
     // (without trailing separators, but a root stays one: `/` and `C:\\` are folders, `` and `C:` are not)
     let trimmed = into.trim_end_matches(['/', '\\']);
-    let into = if trimmed.is_empty() || trimmed.ends_with(':') { into } else { trimmed };
+    // (spelled plainly, as the photos inside will be stored under it)
+    let into_owned = if trimmed.is_empty() || trimmed.ends_with(':') { into.to_string() } else { lexical_path(trimmed) };
+    let into = into_owned.as_str();
     let listed = p.get("paths").and_then(Value::as_array).ok_or_else(|| bad("folder.move", "`paths` is a list of folders"))?;
     // (each is an undo step until merged: keep well inside the history's size)
     if listed.len() > MOST_FOLDERS_AT_ONCE {
@@ -536,11 +556,12 @@ fn move_folders(s: &mut Session, p: &Value) -> Result<Value> {
     for path in listed {
         let path = path
             .as_str()
-            .map(|f| f.trim_end_matches(['/', '\\']))
+            .map(|f| lexical_path(f.trim_end_matches(['/', '\\'])))
             .filter(|f| !f.is_empty())
             .ok_or_else(|| bad("folder.move", "`paths` is a list of folders"))?;
-        if !folders.iter().any(|f| lightcraft_catalog::query::folder_key(f) == lightcraft_catalog::query::folder_key(path)) {
-            folders.push(path.to_string());
+        // (spelled as the library stores it, so the photos inside follow the folder)
+        if !folders.iter().any(|f| lightcraft_catalog::query::folder_key(f) == lightcraft_catalog::query::folder_key(&path)) {
+            folders.push(path);
         }
     }
     if folders.is_empty() {

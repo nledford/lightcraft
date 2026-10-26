@@ -98,6 +98,29 @@ fn one_folder_in_a_list_moves_like_one_folder() {
     assert!(dir.0.join("a").is_dir());
 }
 
+/// A folder spelled with `..` is the folder the library knows by its plain path: its photos follow.
+#[test]
+fn a_folder_spelled_with_dot_dot_still_takes_its_photos_along() {
+    let dir = Scratch::new("dotdot");
+    let (mut s, a, _b, archive) = two_folders(&dir);
+    let spelled = format!("{a}/../b");
+    let r = s.execute("folder.move", &json!({"paths": [spelled], "into": archive})).unwrap();
+    assert_eq!(r["relinked"], 1);
+    assert_eq!(r["paths"], json!([dir.path("archive/b")]));
+    assert!(dir.0.join("archive/b").is_dir() && !dir.0.join("b").exists());
+    assert_eq!(photo_paths(&s), [dir.path("a/one.jpg"), dir.path("archive/b/two.jpg")]);
+}
+
+/// The destination spelled with `..` is stored plainly, or a later move of the folder would miss its photos.
+#[test]
+fn a_destination_spelled_with_dot_dot_stores_plain_photo_paths() {
+    let dir = Scratch::new("dotdot-into");
+    let (mut s, a, _b, archive) = two_folders(&dir);
+    let spelled = format!("{archive}/../archive");
+    s.execute("folder.move", &json!({"paths": [a], "into": spelled})).unwrap();
+    assert_eq!(photo_paths(&s), [dir.path("archive/a/one.jpg"), dir.path("b/two.jpg")]);
+}
+
 /// Refused as a whole: the sentence says why, and neither disk nor library nor history changed.
 fn refused(dir: &Scratch, s: &mut Session, params: serde_json::Value, says: &str) {
     let (files, undo) = (photo_paths(s), s.undo.len());
