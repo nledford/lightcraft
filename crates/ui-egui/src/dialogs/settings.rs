@@ -141,8 +141,12 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
         .show(ui);
     let filter_row = ui.cursor().top() - top;
     // The box is ready to type in when Settings opens: the filter reaches every section from
-    // wherever one is. (Not where typing brings up a keyboard over the window.)
-    if opened && !matches!(ui.ctx().os(), egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS) {
+    // wherever one is. (Not where typing brings up a keyboard over the window, and not under a
+    // prompt: the prompt's Cancel owns the focus until it is answered.)
+    if opened
+        && !crate::panels::notices::blocks_input(app)
+        && !matches!(ui.ctx().os(), egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS)
+    {
         typed.response.request_focus();
     }
     // Esc with something typed empties the filter and is used up by that, wherever the focus is
