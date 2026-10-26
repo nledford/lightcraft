@@ -50,12 +50,11 @@ guard.detail(&file_name);
 - **Quiet periodic work** shows no row: the auto-import folder listing runs every few seconds through
   `tasks::spawn(.., None, ..)`.
 - **Say how it ended:** `guard.finish(Outcome { ending, summary, detail, failures, failed, path })` in place of
-  letting the guard drop. These jobs do: exports (contact sheet and Print to PDF from the app included), imports and
-  their folder scans, Build / Smart Previews, model and place-name downloads, Fill Location from GPS and moving
-  photos. The others do not yet and leave a row only when a panic drops them: Synchronize Folder, Photo Merge,
-  Lightroom catalogs, Find Missing Photos and Reload from Disk (the app's jobs that run through `tasks::spawn`, or
-  their own thread), slideshow export, the engine's `print.exportPdf`, reading focus points, thumbnail-cache tidying,
-  the face GPU check, Apple Photos imports, and the face scan and AI Denoise (queues whose row goes when they empty). `ending` is `Done`, `Problems` (not for every file),
+  letting the guard drop. These jobs do: exports (contact sheet and Print to PDF from the app included), imports,
+  folder scans, Synchronize Folder, Build / Smart Previews, Photo Merge, Lightroom catalog inspect / import, model and
+  place-name downloads, Fill Location from GPS, moving photos, Find Missing Photos and Reload from Disk. These do not
+  yet: slideshow export, the engine's `print.exportPdf`, reading focus points, thumbnail-cache tidying, the face GPU
+  check, Apple Photos imports, and the face scan and AI Denoise (queues whose row goes when they empty). `ending` is `Done`, `Problems` (not for every file),
   `Failed`, `Stopped`, or `Died` when the job finds its worker gone; `summary` is the sentence the row shows (UI code
   passes it translated); `failures` are the files with their reasons (`failed` when the job only counts them); `path`
   is one of the files it made, or the folder they are in or were to go to. `Outcome::ended(ending)` and `Outcome::failed(why)` cover the plain cases. The row

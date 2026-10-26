@@ -380,6 +380,8 @@ fn final_merge_shows_a_row_and_cancels() {
     assert!(h.app.session.activity.list().is_empty());
     let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
     assert_eq!(toast, "HDR merge cancelled");
+    let row = h.app.session.activity.finished().into_iter().next().expect("a stopped merge leaves a row");
+    assert_eq!((row.ending, row.summary.as_str()), (Ending::Stopped, "HDR merge cancelled"));
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -469,6 +471,7 @@ fn batch_merge_runs_each_set_in_turn() {
 #[test]
 fn find_missing_shows_an_indeterminate_row() {
     let mut h = demo();
+    h.app.session.activity.keep_after(0);
     let dir = std::env::temp_dir().join(format!("lc-activity-findmissing-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     // run directly, not through a request (which runs frames): the search of an empty folder is over at once, but its
@@ -481,6 +484,25 @@ fn find_missing_shows_an_indeterminate_row() {
     assert_eq!((rows[0].total, rows[0].cancellable), (0, false), "indeterminate, no ✕");
     assert!(h.step_until(T, |h| h.app.tasks.is_empty()));
     assert!(h.app.session.activity.list().is_empty(), "the row goes with the task");
+    let row = h.app.session.activity.finished().into_iter().next().expect("and a row says what it found");
+    assert_eq!(row.ending, Ending::Done);
+    assert!(row.summary.starts_with("Found 0 missing photos"), "{:?}", row.summary);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A Lightroom catalog that can't be read leaves a row saying the task failed, and why.
+#[test]
+fn a_lightroom_catalog_that_cannot_be_read_leaves_a_failed_row() {
+    let mut h = demo();
+    let dir = std::env::temp_dir().join(format!("lc-activity-lrcat-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("Not a catalog.lrcat");
+    std::fs::write(&path, b"this is not a Lightroom catalog").unwrap();
+    let r = crate::menus::run_ui_command(&mut h.app, "library.inspectLightroom", &json!({"path": path.to_string_lossy(), "wait": true}));
+    assert!(r.is_some(), "the command is the interface's");
+    let row = h.app.session.activity.finished().into_iter().next().expect("a failed task always leaves a row");
+    assert_eq!((row.kind, row.ending), ("lightroom", Ending::Failed));
+    assert!(row.summary.starts_with("Lightroom inspection failed"), "{:?}", row.summary);
     let _ = std::fs::remove_dir_all(dir);
 }
 
