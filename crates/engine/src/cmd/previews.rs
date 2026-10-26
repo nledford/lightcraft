@@ -137,6 +137,11 @@ fn request_for(command: &str, p: &Value, ids: &[lightcraft_catalog::PhotoId]) ->
 /// The refusal of a build while another runs, unless the call asks to `queue`.
 const REFUSED: &str = "a preview build is already running";
 
+/// Builds wait in line ahead of one asked for now (not counting the line a build is being started from).
+fn line_ahead(s: &Session) -> bool {
+    !s.starting_waiting && s.activity.lane_waiting(Lane::Previews)
+}
+
 fn queue_param(p: &Value) -> bool {
     p.get("queue").and_then(Value::as_bool).unwrap_or(false)
 }
@@ -360,7 +365,9 @@ fn build(s: &mut Session, p: &Value) -> Result<Value> {
         other => return Err(bad(C, format!("unknown size `{other}` (standard|full)"))),
     };
     let queue = queue_param(p);
-    if !queue && build_running(s) {
+    // (nor ahead of builds already waiting: the line starts them after this command, in the order asked; the build
+    // `start_waiting` is starting itself is not held back by the line it came out of)
+    if !queue && (build_running(s) || line_ahead(s)) {
         return Err(bad(C, REFUSED));
     }
     // explicit ids, else the selection, else everything in view
@@ -552,7 +559,7 @@ fn smart(s: &mut Session, p: &Value) -> Result<Value> {
     let discard = p.get("discard").and_then(Value::as_bool).unwrap_or(false);
     let background = p.get("background").and_then(Value::as_bool).unwrap_or(false);
     let queue = background && queue_param(p);
-    if background && !queue && build_running(s) {
+    if background && !queue && (build_running(s) || line_ahead(s)) {
         return Err(bad(C, REFUSED));
     }
     let ids = if p.get("ids").is_some() || !s.selection.ids.is_empty() { s.targets(p)? } else { s.visible_cloned() };
