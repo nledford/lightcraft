@@ -156,12 +156,43 @@ struct OpenScan {
 
 impl Walk {
     /// The scan ends at `at` (a marker follows it, or the file ends).
-    fn close(&mut self, scan: &mut Option<OpenScan>, at: usize) {
+    fn close(&mut self, b: &[u8], scan: &mut Option<OpenScan>, at: usize) {
         if let Some(s) = scan.take() {
-            self.last_scan_has_data = at > s.data;
+            self.last_scan_has_data = b.get(s.data..at).is_some_and(|d| entropy_end(d) > 0);
             self.dc_components += s.dc_components;
         }
     }
+}
+
+/// Where picture data ends in the bytes of a scan: just after the last byte that is part of the
+/// entropy-coded data. Zero bytes at the end (space a download reserved and never filled), fill
+/// bytes (`FF FF`) and restart markers (RSTn) are not data; a stuffed `FF 00` is (its `00` is
+/// not counted, as for any zero at the end); so is an `FF` the file ends on, after data (alone it
+/// is a marker cut short). 0 when there is none.
+fn entropy_end(d: &[u8]) -> usize {
+    let (mut end, mut i) = (0, 0);
+    while i < d.len() {
+        match (d[i], d.get(i + 1).copied()) {
+            (0xFF, Some(0x00)) => {
+                end = i + 1;
+                i += 2;
+            }
+            (0xFF, Some(0xFF)) => i += 1,
+            (0xFF, Some(_)) => i += 2,
+            (0xFF, None) => {
+                i += 1;
+                if end > 0 {
+                    end = i;
+                }
+            }
+            (0, _) => i += 1,
+            _ => {
+                i += 1;
+                end = i;
+            }
+        }
+    }
+    end
 }
 
 /// Follow the markers after SOI through every segment and scan. Segments are skipped by their
@@ -181,14 +212,14 @@ fn walk(b: &[u8]) -> Walk {
             // download reserved and never filled, not picture data
             w.end = b.len();
             if let Some(s) = scan {
-                w.end = b.get(s.data..).and_then(|d| d.iter().rposition(|&x| x != 0)).map_or(s.data.min(b.len()), |i| s.data + i + 1);
+                w.end = s.data.min(b.len()) + b.get(s.data..).map_or(0, entropy_end);
                 w.last_scan_has_data = w.end > s.data;
             }
             return w;
         };
         p = match marker {
             0xD9 => {
-                w.close(&mut scan, p);
+                w.close(b, &mut scan, p);
                 w.eoi = true;
                 w.end = p;
                 return w;
@@ -197,7 +228,7 @@ fn walk(b: &[u8]) -> Walk {
             0x00 | 0x01 | 0xD0..=0xD8 => p.saturating_add(2),
             _ => {
                 // a segment follows: the scan before it, if any, is whole
-                w.close(&mut scan, p);
+                w.close(b, &mut scan, p);
                 let Some(len) = b.get(p.saturating_add(2)..p.saturating_add(4)).map(|l| u16::from_be_bytes([l[0], l[1]]) as usize) else {
                     w.end = p;
                     return w;

@@ -213,6 +213,28 @@ fn a_file_with_nothing_to_show_stays_refused() {
     }
 }
 
+/// Fill bytes and restart markers are not picture data: a scan whose cut leaves only those has
+/// nothing for a decoder to show, and the file stays refused as one with no data at all.
+#[test]
+fn a_tail_of_only_fill_bytes_or_restart_markers_is_not_picture_data() {
+    let base = baseline_restarts();
+    let sos = scan_starts(&base)[0];
+    let data = sos + 2 + u16::from_be_bytes([base[sos + 2], base[sos + 3]]) as usize;
+    for tail in [&[0xFF, 0xFF, 0xFF][..], &[0xFF, 0xD0], &[0xFF, 0xD0, 0xFF, 0xD1], &[0xFF, 0xFF, 0xFF, 0xD2, 0x00, 0x00], &[0xFF]] {
+        let mut b = base[..data].to_vec();
+        b.extend_from_slice(tail);
+        assert!(read_header(&b).is_err(), "tail {tail:02x?}");
+    }
+    // a scan closed by a following segment counts by the same rule
+    let mut b = base[..data].to_vec();
+    b.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xD1, 0xFF, 0xC4, 0x00, 0x02]);
+    assert!(read_header(&b).is_err(), "fill and a restart marker, then a segment");
+    // the same restart marker after picture data is still a cut file with something to show
+    let mut b = base[..data + 40].to_vec();
+    b.extend_from_slice(&[0xFF, 0xD0]);
+    assert!(header_of(&b).truncated);
+}
+
 #[test]
 fn what_decoders_could_not_fill_in_stays_refused() {
     // non-interleaved scans (one component each) cut in the first scan: the other components have no data
