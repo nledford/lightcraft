@@ -121,6 +121,61 @@ fn a_destination_spelled_with_dot_dot_stores_plain_photo_paths() {
     assert_eq!(photo_paths(&s), [dir.path("archive/a/one.jpg"), dir.path("b/two.jpg")]);
 }
 
+/// On Unix `\` is a name character: a folder called `w\` is that folder, not its sibling `w`.
+#[cfg(unix)]
+#[test]
+fn a_trailing_backslash_is_part_of_the_folders_name_on_unix() {
+    let dir = Scratch::new("backslash");
+    let (mut s, _a, _b, archive) = two_folders(&dir);
+    let (plain, odd) = (dir.dir("w"), dir.dir("w\\"));
+    add(&mut s, &format!("{plain}/p.jpg"));
+    add(&mut s, &format!("{odd}/q.jpg"));
+    s.execute("folder.move", &json!({"paths": [odd], "into": archive})).unwrap();
+    assert!(dir.0.join("w").is_dir(), "the sibling stays");
+    assert!(dir.0.join("archive").join("w\\").is_dir());
+    let paths = photo_paths(&s);
+    assert!(paths.contains(&format!("{}/w\\/q.jpg", dir.path("archive"))) && paths.contains(&format!("{plain}/p.jpg")), "{paths:?}");
+    // and as the destination
+    let into = dir.dir("dest\\");
+    let plain_dest = dir.dir("dest");
+    s.execute("folder.move", &json!({"paths": [dir.path("b")], "into": into})).unwrap();
+    assert!(dir.0.join("dest\\").join("b").is_dir() && !dir.0.join("dest").join("b").exists(), "{plain_dest}");
+}
+
+/// A photo stored under a path that still holds `..` goes along with its folder, and is stored plainly after.
+#[test]
+fn a_photo_stored_with_dot_dot_follows_a_batch_move() {
+    let dir = Scratch::new("stored-dotdot");
+    let (mut s, a, b, archive) = two_folders(&dir);
+    add(&mut s, &format!("{a}/../b/three.jpg"));
+    std::fs::write(std::path::Path::new(&b).join("three.jpg"), b"x").unwrap();
+    let r = s.execute("folder.move", &json!({"paths": [b], "into": archive})).unwrap();
+    assert_eq!(r["relinked"], 2);
+    assert_eq!(photo_paths(&s), [dir.path("a/one.jpg"), dir.path("archive/b/three.jpg"), dir.path("archive/b/two.jpg")]);
+}
+
+/// A photo stored as `<a>/../b/…` is in `b`, not in `a`: moving `a` leaves it alone.
+#[test]
+fn a_photo_stored_with_dot_dot_is_not_taken_along_by_the_folder_it_passes_through() {
+    let dir = Scratch::new("stored-dotdot-other");
+    let (mut s, a, _b, archive) = two_folders(&dir);
+    let stored = format!("{a}/../b/three.jpg");
+    add(&mut s, &stored);
+    let r = s.execute("folder.move", &json!({"paths": [a], "into": archive})).unwrap();
+    assert_eq!(r["relinked"], 1);
+    assert!(photo_paths(&s).contains(&stored), "{:?}", photo_paths(&s));
+}
+
+/// The single-folder form spells its source plainly too: a folder given with `..` takes its photos along.
+#[test]
+fn a_single_folder_spelled_with_dot_dot_takes_its_photos_along() {
+    let dir = Scratch::new("single-dotdot");
+    let (mut s, a, _b, archive) = two_folders(&dir);
+    let r = s.execute("folder.move", &json!({"path": format!("{a}/../b"), "into": archive})).unwrap();
+    assert_eq!(r["relinked"], 1);
+    assert_eq!(photo_paths(&s), [dir.path("a/one.jpg"), dir.path("archive/b/two.jpg")]);
+}
+
 /// Refused as a whole: the sentence says why, and neither disk nor library nor history changed.
 fn refused(dir: &Scratch, s: &mut Session, params: serde_json::Value, says: &str) {
     let (files, undo) = (photo_paths(s), s.undo.len());

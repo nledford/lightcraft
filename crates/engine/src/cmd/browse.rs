@@ -259,7 +259,8 @@ pub fn specs() -> Vec<CommandSpec> {
             "{path, name} — rename a folder on disk (its files and sidecars go along) and relink the photos in it; one undo step (undo renames it back, refused if the old name is taken) → {path, relinked}",
             always,
             |s, p| {
-                let from = str_param(p, "path").ok_or_else(|| bad("folder.rename", "missing path"))?.trim_end_matches(['/', '\\']).to_string();
+                let from =
+                    lexical_path(str_param(p, "path").ok_or_else(|| bad("folder.rename", "missing path"))?.trim_end_matches(std::path::is_separator));
                 let name = str_param(p, "name")
                     .map(str::trim)
                     .filter(|n| !n.is_empty() && !n.contains(['/', '\\']) && *n != "." && *n != "..")
@@ -280,7 +281,8 @@ pub fn specs() -> Vec<CommandSpec> {
                 if p.get("paths").is_some() {
                     return move_folders(s, p);
                 }
-                let from = str_param(p, "path").ok_or_else(|| bad("folder.move", "missing path"))?.trim_end_matches(['/', '\\']).to_string();
+                let from =
+                    lexical_path(str_param(p, "path").ok_or_else(|| bad("folder.move", "missing path"))?.trim_end_matches(std::path::is_separator));
                 let into = str_param(p, "into").ok_or_else(|| bad("folder.move", "missing into"))?;
                 let name = Path::new(&from).file_name().ok_or_else(|| bad("folder.move", "bad path"))?;
                 let to = Path::new(into).join(name).to_string_lossy().to_string();
@@ -543,7 +545,7 @@ const MOST_FOLDERS_AT_ONCE: usize = 200;
 fn move_folders(s: &mut Session, p: &Value) -> Result<Value> {
     let into = str_param(p, "into").filter(|i| !i.is_empty()).ok_or_else(|| bad("folder.move", "missing into"))?;
     // (without trailing separators, but a root stays one: `/` and `C:\\` are folders, `` and `C:` are not)
-    let trimmed = into.trim_end_matches(['/', '\\']);
+    let trimmed = into.trim_end_matches(std::path::is_separator);
     // (spelled plainly, as the photos inside will be stored under it)
     let into_owned = if trimmed.is_empty() || trimmed.ends_with(':') { into.to_string() } else { lexical_path(trimmed) };
     let into = into_owned.as_str();
@@ -556,7 +558,7 @@ fn move_folders(s: &mut Session, p: &Value) -> Result<Value> {
     for path in listed {
         let path = path
             .as_str()
-            .map(|f| lexical_path(f.trim_end_matches(['/', '\\'])))
+            .map(|f| lexical_path(f.trim_end_matches(std::path::is_separator)))
             .filter(|f| !f.is_empty())
             .ok_or_else(|| bad("folder.move", "`paths` is a list of folders"))?;
         // (spelled as the library stores it, so the photos inside follow the folder)
@@ -648,7 +650,16 @@ pub(crate) fn move_folder(s: &mut Session, from: &str, to: &str) -> std::result:
         .catalog
         .photos()
         .filter_map(|p| match &p.source {
-            lightcraft_catalog::Source::File { path } => Path::new(path).strip_prefix(src).ok().map(|rel| (p.id, p.file_name.clone(), dst.join(rel))),
+            // (a path still holding `.` or `..` from an older spelling is matched, and stored, by its plain form)
+            lightcraft_catalog::Source::File { path } => {
+                let mut plain = Path::new(path);
+                let lexical;
+                if plain.components().any(|c| matches!(c, std::path::Component::CurDir | std::path::Component::ParentDir)) {
+                    lexical = lexical_path(path);
+                    plain = Path::new(&lexical);
+                }
+                plain.strip_prefix(src).ok().map(|rel| (p.id, p.file_name.clone(), dst.join(rel)))
+            }
             _ => None,
         })
         .map(|(id, file_name, np)| Op::Relink {
