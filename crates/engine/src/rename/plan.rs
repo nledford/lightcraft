@@ -186,18 +186,29 @@ impl Session {
                 _ => None,
             })
             .collect();
-        if let Err(e) = move_all(fs, &moves) {
-            return Err(EngineError::Other(self.follow_stuck(&op, e, true).0));
+        // noted before anything moves: a stop part-way is told by the record
+        let record = self.record_moves(&moves)?;
+        let moved = move_all(fs, &moves);
+        if let Err(e) = moved {
+            let (message, _, followed) = self.follow_stuck(&op, e, true);
+            // (a library that could not follow keeps the record)
+            if followed {
+                self.settle_moves(record);
+            }
+            return Err(EngineError::Other(message));
         }
         if n > 0
             && let Err(err) = self.commit(&label(n), op)
         {
             let back: Vec<(String, String)> = moves.iter().rev().map(|(a, b)| (b.clone(), a.clone())).collect();
             if let Err(e) = move_all(fs, &back) {
+                // the files stay at the new place and the library doesn't point there: the record stays
                 return Err(EngineError::Other(format!("{err}; the renamed files could not all be moved back: {}", e.message)));
             }
+            self.settle_moves(record);
             return Err(err);
         }
+        self.settle_moves(record);
         Ok(n)
     }
 
@@ -226,13 +237,14 @@ impl Session {
 
     /// After a failed batch of moves for `op`: point the photos whose files stayed moved at
     /// their new paths (an undoable "partly" rename when `undoable`, otherwise a plain logged
-    /// change), so the library matches the disk. Returns the message and, for a history retry,
-    /// the correction's inverse file ops (so a retry doesn't lose the original paths).
-    pub(crate) fn follow_stuck(&mut self, op: &Op, e: BatchMoveError, undoable: bool) -> (String, Vec<Op>) {
+    /// change), so the library matches the disk. Returns the message, for a history retry the
+    /// correction's inverse file ops (so a retry doesn't lose the original paths), and whether the
+    /// library follows the files now (when not, the move's record has to stay).
+    pub(crate) fn follow_stuck(&mut self, op: &Op, e: BatchMoveError, undoable: bool) -> (String, Vec<Op>, bool) {
         let mut msg = e.message;
         let pending_sidecars = e.pending_sidecars;
         if e.stuck.is_empty() && (!undoable || pending_sidecars.is_empty()) {
-            return (msg, Vec::new());
+            return (msg, Vec::new(), true);
         }
         let to: HashSet<&str> = e.stuck.iter().map(|m| m.1.as_str()).collect();
         let mut keep = Vec::new();
@@ -262,6 +274,8 @@ impl Session {
                 Err(e) => Err(e),
             }
         };
+        // (with no file stuck at the new place there is nothing the library has to follow)
+        let followed = applied.is_ok() || n == 0;
         match applied {
             Ok(()) if n > 0 => msg
                 .push_str(&format!(". {n} file{s} could not be moved back and kept the new name; the library now points there: {}", list.join(", "))),
@@ -271,7 +285,7 @@ impl Session {
                 list.join(", ")
             )),
         }
-        (msg, inverses)
+        (msg, inverses, followed)
     }
 
     /// Physical moves to the final `SetFile` destination of each photo. A merged history

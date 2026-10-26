@@ -493,6 +493,9 @@ impl Session {
         self.redo.clear();
         // photo ids are per library: none held back for a move carries over
         self.held_sidecars.clear();
+        // the records of moves this session had settled belong to the library it leaves: they stay
+        // on disk (forgetting them here deletes none)
+        self.settled_moves.clear();
         self.interaction = None;
         self.pending_log.clear();
         self.selection = Selection::default();

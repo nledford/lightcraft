@@ -1,17 +1,21 @@
-//! Moving photos to another folder as a job the app runs off the UI thread (`move_job`):
+//! Moving photos to another folder as a job the app runs off the UI thread (`move_job`), and the
+//! record of a move in progress (`move_intent`):
 //!
 //! * the activity row shows how far it has got;
 //! * while a move runs, nothing else moves files or opens another library, and the moving photos'
 //!   sidecars are written once they arrive, at the new place;
 //! * the checks that read the disk refuse on the worker, before anything moves;
-//! * a worker that dies leaves the library following the files that had arrived.
+//! * a worker that dies leaves the library following the files that had arrived;
+//! * a record is on disk before the first file moves, and gone once the library is saved.
 
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 use lightcraft_catalog::{Op, Photo, PhotoId, Source};
 use serde_json::{Value, json};
 
 use crate::Session;
+use crate::rename::{MoveFs, RealFs};
 
 /// A scratch folder with a library, `local/` and `share/`, gone with the test.
 struct Scratch(PathBuf);
@@ -29,6 +33,11 @@ impl Scratch {
     }
     fn library(&self) -> PathBuf {
         self.0.join("library")
+    }
+    fn records(&self) -> Vec<PathBuf> {
+        std::fs::read_dir(self.library().join("moves"))
+            .map(|d| d.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect())
+            .unwrap_or_default()
     }
 }
 
@@ -379,6 +388,7 @@ fn checks_that_read_the_disk_refuse_on_the_worker_before_anything_moves() {
     assert_eq!(file_of(&s, a), dir.path("local/a.jpg"));
     assert!(Path::new(&dir.path("local/a.jpg")).is_file() && !Path::new(&dir.path("share/a.jpg")).exists());
     assert_eq!(std::fs::read_to_string(dir.path("share/b.jpg")).unwrap(), "someone else's");
+    assert!(dir.records().is_empty(), "no record for a move that never began");
     assert!(!s.move_running());
 }
 
@@ -396,4 +406,126 @@ fn held_sidecars_are_not_written_when_auto_write_was_switched_off_during_the_mov
     s.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).unwrap();
     assert!(!Path::new(&dir.path("share/a.xmp")).exists() && !Path::new(&dir.path("local/a.xmp")).exists());
     assert_eq!(s.unsaved_sidecars(), 0);
+}
+
+/// The disk, checking that the move's record is in the library before the first file moves.
+struct Recorded<'a> {
+    dir: &'a Scratch,
+    /// What the record names (a file name).
+    needle: &'static str,
+    seen: Cell<bool>,
+}
+
+impl MoveFs for Recorded<'_> {
+    fn exists(&self, p: &Path) -> bool {
+        RealFs.exists(p)
+    }
+    fn is_file(&self, p: &Path) -> bool {
+        RealFs.is_file(p)
+    }
+    fn same_file(&self, a: &Path, b: &Path) -> bool {
+        RealFs.same_file(a, b)
+    }
+    fn rename_no_replace(&self, a: &Path, b: &Path) -> std::io::Result<()> {
+        if !self.seen.get() {
+            let records = self.dir.records();
+            assert_eq!(records.len(), 1, "the record is written before the first file moves");
+            let text = std::fs::read_to_string(&records[0]).unwrap();
+            assert!(text.contains(self.needle), "{text}");
+            self.seen.set(true);
+        }
+        RealFs.rename_no_replace(a, b)
+    }
+    fn copy_no_replace(&self, a: &Path, b: &Path) -> std::io::Result<()> {
+        RealFs.copy_no_replace(a, b)
+    }
+    fn remove_file(&self, p: &Path) -> std::io::Result<()> {
+        RealFs.remove_file(p)
+    }
+    fn stem_sibling(&self, sidecar: &Path) -> Option<String> {
+        RealFs.stem_sibling(sidecar)
+    }
+}
+
+#[test]
+fn the_record_is_on_disk_before_the_first_file_moves_and_gone_once_saved() {
+    let dir = Scratch::new("record");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    let fs = Recorded { dir: &dir, needle: "share", seen: Cell::new(false) };
+    let out = work.run_with(&fs);
+    assert!(fs.seen.get());
+    s.execute_fn("photo.moveToFolder", |s| finish.finish(s, out)).unwrap();
+    assert!(dir.records().is_empty(), "{:?}", dir.records());
+}
+
+#[test]
+fn a_rename_and_its_undo_note_their_files_before_the_first_moves() {
+    let dir = Scratch::new("rename-record");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let plan = crate::rename::RenamePlan {
+        id: a.0,
+        from: "a.jpg".into(),
+        to: "b.jpg".into(),
+        from_path: Some(dir.path("local/a.jpg")),
+        to_path: Some(dir.path("local/b.jpg")),
+    };
+    let fs = Recorded { dir: &dir, needle: "b.jpg", seen: Cell::new(false) };
+    s.execute_fn("photo.rename", |s| Ok(json!({"renamed": s.apply_rename_with(&fs, &[plan])?}))).unwrap();
+    assert!(fs.seen.get(), "the rename moved a file with no record");
+    assert!(dir.records().is_empty(), "{:?}", dir.records());
+    // the Undo moves the file back, noted the same way
+    let fs = Recorded { dir: &dir, needle: "a.jpg", seen: Cell::new(false) };
+    s.execute_fn("edit.undo", |s| Ok(json!({"label": s.undo_step_with(&fs)?}))).unwrap();
+    assert!(fs.seen.get(), "the Undo moved a file with no record");
+    assert_eq!(file_of(&s, a), dir.path("local/a.jpg"));
+    assert!(dir.records().is_empty(), "{:?}", dir.records());
+}
+
+#[test]
+fn a_worker_that_dies_leaves_its_record_where_it_is() {
+    let dir = Scratch::new("died-record");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let (work, finish) = crate::move_job::start(&mut s, &json!({"ids": [a.0], "folder": dir.path("share")})).unwrap().unwrap();
+    // the files moved, then the worker died before saying so: no outcome reaches the session
+    drop(work.run());
+    s.execute_fn("photo.moveToFolder", |s| finish.abandon(s)).unwrap();
+    assert_eq!(file_of(&s, a), dir.path("share/a.jpg"), "the library follows the file that arrived");
+    assert_eq!(dir.records().len(), 1, "the record stays: nothing has said what the move came to");
+}
+
+#[test]
+fn the_library_says_whether_it_followed_the_files_that_could_not_go_back() {
+    let dir = Scratch::new("unfollowed");
+    let mut s = open(&dir);
+    let a = add(&mut s, &dir.path("local/a.jpg"), "A");
+    let (from, to) = (dir.path("local/a.jpg"), dir.path("share/a.jpg"));
+    let stuck = || crate::rename::BatchMoveError { message: "stopped".into(), stuck: vec![(from.clone(), to.clone())], pending_sidecars: Vec::new() };
+    let set_file = |id| Op::SetFile { id, file_name: "a.jpg".into(), source: Source::File { path: to.clone() } };
+    // the photo is gone: the library can't point at the file, which stays at the new place (the record stays)
+    let (message, _, followed) = s.follow_stuck(&set_file(PhotoId(9999)), stuck(), false);
+    assert!(!followed, "{message}");
+    assert!(message.contains("the library could not follow"), "{message}");
+    let (_, _, followed) = s.follow_stuck(&set_file(a), stuck(), false);
+    assert!(followed);
+    assert_eq!(file_of(&s, a), to);
+}
+
+#[test]
+fn a_settled_record_stays_while_the_library_has_changes_not_yet_saved() {
+    let dir = Scratch::new("settled-unsaved");
+    let mut s = open(&dir);
+    add(&mut s, &dir.path("local/a.jpg"), "A");
+    let record = crate::move_intent::write(&dir.library(), &[(dir.path("local/a.jpg"), dir.path("share/a.jpg"))]).unwrap();
+    s.settle_moves(Some(record));
+    // a save that is failing leaves changes queued: the record must outlive them
+    s.pending_log.push(Op::Batch { ops: Vec::new() });
+    s.clear_settled_moves();
+    assert_eq!(dir.records().len(), 1, "the record goes only once the library has saved what follows the move");
+    s.pending_log.clear();
+    s.clear_settled_moves();
+    assert!(dir.records().is_empty(), "{:?}", dir.records());
 }
