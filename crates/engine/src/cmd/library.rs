@@ -434,7 +434,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Filter",
             [],
             None,
-            "partial Filter: {text?, rating?, ratingOp?: atLeast|exactly|atMost, flag?: pick|reject|none|null, label?, kind?, merged?: hdr|panorama|hdrPanorama|any, edited?, date?, libraryFolder?: a path from library.folders, keyword?, person?, camera?}",
+            "partial Filter: {text?, rating?, ratingOp?: atLeast|exactly|atMost, flag?: pick|reject|none|null, label?, kind?, merged?: hdr|panorama|hdrPanorama|any, edited?, date?, libraryFolder?: a path from library.folders, keyword?, person?, camera?, album?: refused while an album is shown (library.source)}",
             always,
             |s, p| {
                 let mut v = serde_json::to_value(&s.filter).unwrap_or_default();
@@ -443,6 +443,11 @@ pub fn specs() -> Vec<CommandSpec> {
                 let mut f = f;
                 // a blank folder is no folder: no hidden "filters active" state
                 f.library_folder = f.library_folder.filter(|d| !d.trim().is_empty());
+                // the album shown is the source: an album in the filter would be replaced on screen
+                // (`LibrarySource::to_filter`) and narrow the next source unseen. Null clears it and is fine
+                if p.get("album").is_some_and(|a| !a.is_null()) && matches!(s.source, LibrarySource::Album(_)) {
+                    return Err(bad("library.filter", "an album is already shown (library.source): show another source first"));
+                }
                 if f.library_folder.is_some() && s.source == LibrarySource::LibraryFolder {
                     return Err(bad("library.filter", "a folder is already shown (library.source): show another source first"));
                 }
@@ -1894,3 +1899,7 @@ mod enable_filters_tests;
 #[cfg(test)]
 #[path = "library/tests_source_album_filter.rs"]
 mod source_album_filter_tests;
+
+#[cfg(test)]
+#[path = "library/tests_album_shown_filter.rs"]
+mod album_shown_filter_tests;

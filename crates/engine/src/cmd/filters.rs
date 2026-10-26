@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::{CommandSpec, always, bad, cmd, str_param};
-use crate::{Result, Session};
+use crate::{LibrarySource, Result, Session};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct FilterPreset {
@@ -37,9 +37,20 @@ fn apply(s: &mut Session, p: &Value) -> Result<Value> {
     const C: &str = "filter.applyPreset";
     let name = str_param(p, "name").ok_or_else(|| bad(C, "missing `name`"))?;
     let f = s.filter_presets.iter().find(|f| f.name.eq_ignore_ascii_case(name)).ok_or_else(|| bad(C, format!("no filter preset `{name}`")))?;
-    s.filter = f.filter.clone();
+    let mut filter = f.filter.clone();
+    // the album shown is the source: an album in the filter would be replaced on screen and narrow
+    // the next source unseen (the filter bar has no album chip), so the rest of the preset applies
+    let skipped_album = filter.album.is_some() && matches!(s.source, LibrarySource::Album(_));
+    if skipped_album {
+        filter.album = None;
+    }
+    s.filter = filter;
     s.shelved_filter = None;
-    Ok(json!({"photos": s.visible().len()}))
+    let mut r = json!({"photos": s.visible().len()});
+    if skipped_album {
+        r["skipped"] = json!(["album"]);
+    }
+    Ok(r)
 }
 
 fn delete(s: &mut Session, p: &Value) -> Result<Value> {
@@ -66,7 +77,15 @@ pub fn specs() -> Vec<CommandSpec> {
             always,
             save
         ),
-        cmd!("filter.applyPreset", "Apply Filter Preset", [], None, "{name} — replaces the current filter → {photos}", always, apply),
+        cmd!(
+            "filter.applyPreset",
+            "Apply Filter Preset",
+            [],
+            None,
+            "{name} — replaces the current filter → {photos, skipped?: [\"album\"]}; while an album is shown the preset's album is left out (the album shown is the source) and `skipped` says so",
+            always,
+            apply
+        ),
         cmd!("filter.deletePreset", "Delete Filter Preset", [], None, "{name}", always, delete),
     ]
 }

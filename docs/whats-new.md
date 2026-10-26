@@ -1,5 +1,10 @@
 # What's new in LightCraft
 
+## 2026-10-26
+
+### An album you are viewing is not also a filter
+- While an album is shown, the control channel's `library.filter` refuses an `album` ("an album is already shown"), and `filter.applyPreset` with a preset that holds an album applies the rest of the preset and leaves the album out; its result's `skipped` says so (the filter bar's Presets menu applies it without a message). Before, that album stayed in the filter with no chip to show it and quietly narrowed the next view, such as All Photos. Nothing changes when no album is shown.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
