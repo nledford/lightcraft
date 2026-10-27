@@ -2242,5 +2242,11 @@
   "Dismiss": "Bỏ qua",
   "Finished": "Đã xong",
   "Needs attention": "Cần chú ý",
-  "Running": "Đang chạy"
+  "Running": "Đang chạy",
+  "Waiting": "Đang chờ",
+  "Starts next": "Bắt đầu tiếp theo",
+  "Remove from Queue": "Xóa khỏi hàng đợi",
+  "Retry": "Thử lại",
+  "Queued: it starts when the task ahead of it ends": "Trong hàng đợi: bắt đầu khi tác vụ trước nó kết thúc",
+  "1 task waiting in line won't run.": "1 tác vụ đang chờ trong hàng đợi sẽ không chạy."
 }

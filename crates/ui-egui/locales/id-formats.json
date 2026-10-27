@@ -320,5 +320,9 @@
   "{n} failed": "{n} gagal",
   "took {n} s": "butuh {n} detik",
   "took {n} min": "butuh {n} menit",
-  "took {h} h {m} min": "butuh {h} jam {m} menit"
+  "took {h} h {m} min": "butuh {h} jam {m} menit",
+  "{n} waiting": "{n} menunggu",
+  "Starts after {n} more": "Dimulai setelah {n} lagi",
+  "Queued: it starts after {n} more": "Dalam antrean: dimulai setelah {n} lagi",
+  "{n} tasks waiting in line won't run.": "{n} tugas yang menunggu dalam antrean tidak akan dijalankan."
 }

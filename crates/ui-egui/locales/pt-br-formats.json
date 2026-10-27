@@ -320,5 +320,9 @@
   "Added {n} photo{}": "{n} foto{0} adicionada{0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Para onde vai o catálogo do Lightroom “{catalog}”?",
   "Merge into the open library “{library}” ({count} photo{})": "Mesclar na biblioteca aberta “{library}” ({count} foto{})",
-  "+{n} more": "+{n} mais"
+  "+{n} more": "+{n} mais",
+  "{n} waiting": "{n} aguardando",
+  "Starts after {n} more": "Começa depois de mais {n}",
+  "Queued: it starts after {n} more": "Na fila: começa depois de mais {n}",
+  "{n} tasks waiting in line won't run.": "{n} tarefas na fila não serão executadas."
 }

@@ -1,5 +1,19 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### A second preview build waits for the first
+- File ▸ Previews stays available while a build runs. Build Previews or Build / Discard Smart Previews chosen
+  meanwhile now waits in line and starts by itself when the builds ahead of it end, with the photos that were chosen
+  when you asked. Before, the items were greyed out until the build ended.
+- Waiting builds are listed under the bell below the running one, with when each starts and ✕ to take it out of the
+  line. The line beside the bell counts them ("2 waiting").
+- A build that did not go well has Retry in its row: it runs again for the same photos.
+- Nothing waits across a quit or another library: the files may have changed meanwhile. Quitting says how many would
+  not run.
+- Agents queue a build with `queue: true`, see it in `activity.list` (`waiting`, `place`, `lane`), take it out with
+  `activity.cancel` and ask again for one that did not go well with `activity.retry`.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

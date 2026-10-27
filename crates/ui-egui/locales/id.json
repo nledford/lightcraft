@@ -2346,5 +2346,11 @@
   "Dismiss": "Abaikan",
   "Finished": "Selesai",
   "Needs attention": "Perlu perhatian",
-  "Running": "Berjalan"
+  "Running": "Berjalan",
+  "Waiting": "Menunggu",
+  "Starts next": "Dimulai berikutnya",
+  "Remove from Queue": "Hapus dari antrean",
+  "Retry": "Coba lagi",
+  "Queued: it starts when the task ahead of it ends": "Dalam antrean: dimulai saat tugas di depannya selesai",
+  "1 task waiting in line won't run.": "1 tugas yang menunggu dalam antrean tidak akan dijalankan."
 }

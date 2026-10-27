@@ -4,8 +4,10 @@
 //! what it is working on, and ✕ for the ones that can be cancelled. Nothing floats over the panels, so the list
 //! covers them only while it is open. A task that said how it ended stays in the list until it is dismissed: what it
 //! did, what went wrong and for which files, and where its results are. One that did not end well comes first there,
-//! and puts a mark on the bell until it is dismissed. The tasks come from the engine's registry
-//! ([`lightcraft_engine::activity`]); ✕ runs `activity.cancel` like any other frontend would.
+//! and puts a mark on the bell until it is dismissed; Retry asks for it again when it kept what it was asked. Tasks
+//! waiting in line for the ones ahead of them (a second preview build) are listed under the running ones, with ✕ to
+//! take them out of the line. The tasks come from the engine's registry ([`lightcraft_engine::activity`]); ✕ runs
+//! `activity.cancel` and Retry `activity.retry`, like any other frontend would.
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
@@ -75,9 +77,10 @@ fn detail_line(t: &TaskInfo) -> String {
 }
 
 /// The line beside the bell, in its two parts: the one task's name, and what changes about it (how far along it
-/// is, or that it is stopping); with several tasks only how many run ("3 tasks"). Both empty when nothing runs.
-fn readout_parts(tasks: &[TaskInfo]) -> (String, String) {
-    match tasks {
+/// is, or that it is stopping); with several tasks only how many run ("3 tasks"). Tasks waiting in line are counted
+/// after that ("2 waiting"). Both empty when nothing runs or waits.
+fn readout_parts(tasks: &[TaskInfo], waiting: usize) -> (String, String) {
+    let (name, value) = match tasks {
         [] => (String::new(), String::new()),
         [one] => {
             let value = if one.cancelling {
@@ -90,12 +93,18 @@ fn readout_parts(tasks: &[TaskInfo]) -> (String, String) {
             (tr(&one.label).to_string(), value)
         }
         many => (String::new(), tr_format!("{n} tasks", n = many.len())),
+    };
+    if waiting == 0 {
+        return (name, value);
     }
+    let queued = tr_format!("{n} waiting", n = waiting);
+    (name, if value.is_empty() { queued } else { format!("{value} · {queued}") })
 }
 
-/// The line beside the bell as one text: "Exporting · 40 %", "Finding faces", "3 tasks". Empty when nothing runs.
-pub fn readout_text(tasks: &[TaskInfo]) -> String {
-    match readout_parts(tasks) {
+/// The line beside the bell as one text: "Exporting · 40 %", "Finding faces", "3 tasks", "Building previews · 1
+/// waiting". Empty when nothing runs or waits.
+pub fn readout_text(tasks: &[TaskInfo], waiting: usize) -> String {
+    match readout_parts(tasks, waiting) {
         (name, value) if !name.is_empty() && !value.is_empty() => format!("{name} · {value}"),
         (name, value) => name + &value,
     }
@@ -128,24 +137,27 @@ pub fn is_open(ctx: &egui::Context) -> bool {
 pub fn bell(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, icon: Rect, room_left: f32) {
     let ctx = ui.ctx().clone();
     // newest first: the one just started is the one looked for
-    // (a task waiting in line has no progress to draw yet: agents see it in `activity.list`)
-    let mut all: Vec<TaskInfo> = app.session.activity.list().into_iter().filter(|t| !t.waiting).collect();
+    let mut all = app.session.activity.list();
     all.reverse();
     if !all.is_empty() {
         // look again soon: a young task becomes due, the ring and the bars move
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
     }
+    // those waiting in line, in the order they start
+    let (mut waiting, all): (Vec<TaskInfo>, Vec<TaskInfo>) = all.into_iter().partition(|t| t.waiting);
+    waiting.reverse();
     // the bell shows the tasks old enough not to be a flash; the open list shows them all
     let tasks: Vec<TaskInfo> = all.iter().filter(|t| t.age_ms >= SHOW_AFTER_MS).cloned().collect();
     let problems = app.session.activity.problems();
     // with nothing running, a task that just ended says beside the bell how it went
-    let ended = app.session.activity.last_finished().filter(|f| tasks.is_empty() && f.age_ms < ANNOUNCE_MS).as_ref().map(summary_of);
+    let ended =
+        app.session.activity.last_finished().filter(|f| tasks.is_empty() && waiting.is_empty() && f.age_ms < ANNOUNCE_MS).as_ref().map(summary_of);
     if ended.is_some() {
         ctx.request_repaint_after(std::time::Duration::from_millis(250));
     }
     let (text, (name, value)) = match ended {
         Some(said) => (said.clone(), (said, String::new())),
-        None => (readout_text(&tasks), readout_parts(&tasks)),
+        None => (readout_text(&tasks, waiting.len()), readout_parts(&tasks, waiting.len())),
     };
     // The line beside the bell, in the room the bar has for it. What changes (the percentage, the count) is kept
     // whole; the task's name is cut short to fit, and left out when there is hardly room for any of it.
@@ -238,7 +250,7 @@ pub fn bell(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, icon: Rect, 
         .show(|ui| {
             // (the ended tasks with all their failed files are only read while the list is on screen)
             let finished = activity.finished();
-            act = list(ui, t, &Rows { tasks: &all, finished: &finished, opened, reveal });
+            act = list(ui, t, &Rows { tasks: &all, waiting: &waiting, finished: &finished, opened, reveal });
         });
     app.activity_open = is_open(&ctx);
     match act {
@@ -256,6 +268,15 @@ pub fn bell(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, icon: Rect, 
             app.activity_failures = None;
         }
         Some(Act::Failures(id)) => app.activity_failures = (app.activity_failures != Some(id)).then_some(id),
+        Some(Act::Retry(id)) => {
+            // (the row may have gone meanwhile, or the line be full: say why, as a toast)
+            if let Err(e) = app.session.execute("activity.retry", &json!({"id": id})) {
+                app.toast(&ctx, e.to_string());
+            }
+            if app.activity_failures == Some(id) {
+                app.activity_failures = None;
+            }
+        }
         Some(Act::Copy(text)) => ctx.copy_text(text),
         Some(Act::Reveal(path)) => {
             if let Some(Err(e)) = app.services.reveal.as_mut().map(|reveal| reveal(&path)) {
@@ -270,6 +291,8 @@ pub fn bell(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, icon: Rect, 
 struct Rows<'a> {
     /// Running, newest first.
     tasks: &'a [TaskInfo],
+    /// Waiting in line, next first.
+    waiting: &'a [TaskInfo],
     /// Ended, newest first.
     finished: &'a [Finished],
     /// The ended task whose failed files are listed.
@@ -283,6 +306,8 @@ enum Act {
     Cancel(u64),
     Dismiss(u64),
     Clear,
+    /// Ask again for an ended task that did not go well.
+    Retry(u64),
     /// List the failed files of an ended task, or put them away again.
     Failures(u64),
     Copy(String),
@@ -396,7 +421,8 @@ fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
 }
 
 /// The list under the bell: its name, then the tasks. Those that did not end well come first, then the running ones,
-/// then those that ended well, each group under its name when there is more than one. What was asked for in it.
+/// then those waiting in line, then those that ended well, each group under its name when there is more than one.
+/// What was asked for in it.
 fn list(ui: &mut egui::Ui, t: &Tokens, rows: &Rows) -> Option<Act> {
     let screen = ui.ctx().content_rect();
     let width = WIDTH.min(screen.width() - 40.0).max(160.0);
@@ -406,7 +432,7 @@ fn list(ui: &mut egui::Ui, t: &Tokens, rows: &Rows) -> Option<Act> {
     // area keeps to `max_height`).
     ui.set_max_height((screen.height() - t.top_bar_h - 16.0).max(80.0));
     let (problems, done): (Vec<&Finished>, Vec<&Finished>) = rows.finished.iter().partition(|f| f.ending.needs_attention());
-    let groups = [!problems.is_empty(), !rows.tasks.is_empty(), !done.is_empty()].iter().filter(|shown| **shown).count();
+    let groups = [!problems.is_empty(), !rows.tasks.is_empty(), !rows.waiting.is_empty(), !done.is_empty()].iter().filter(|shown| **shown).count();
     let r = ui
         .vertical(|ui| {
             ui.set_width(width);
@@ -464,6 +490,17 @@ fn list(ui: &mut egui::Ui, t: &Tokens, rows: &Rows) -> Option<Act> {
                         ui.add_space(8.0);
                     }
                     if row(ui, t, task, width) {
+                        act = Some(Act::Cancel(task.id));
+                    }
+                }
+                if !rows.waiting.is_empty() {
+                    group(ui, "Waiting");
+                }
+                for (i, task) in rows.waiting.iter().enumerate() {
+                    if i > 0 {
+                        ui.add_space(8.0);
+                    }
+                    if waiting_row(ui, t, task, width) {
                         act = Some(Act::Cancel(task.id));
                     }
                 }
@@ -525,9 +562,12 @@ fn finished_row(ui: &mut egui::Ui, t: &Tokens, f: &Finished, width: f32, rows: &
         // (the failed files can be listed when the job named them; one that only counted them says how many, above)
         let listed = !f.failures.is_empty();
         let path = f.path.as_deref().filter(|path| rows.reveal && !path.is_empty());
-        if listed || path.is_some() {
+        if listed || path.is_some() || f.retryable {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
+                if f.retryable && link(ui, t, tr("Retry"), format!("activity:retry:{}", f.id)) {
+                    act = Some(Act::Retry(f.id));
+                }
                 if listed && link(ui, t, &tr_format!("Show failed ({n})", n = f.failed), format!("activity:failures:{}", f.id)) {
                     act = Some(Act::Failures(f.id));
                 }
@@ -646,6 +686,38 @@ pub(crate) fn bar(ui: &mut egui::Ui, task: &TaskInfo, width: f32) -> egui::Respo
     let response = crate::progress::Progress::new(fraction).width(width).dimmed(task.cancelling).show(ui);
     crate::widgets::screen_reader_name(ui.ctx(), response.id, tr(&task.label));
     response
+}
+
+/// A task waiting in line: its name and ✕ (out of the line), and when it starts. True when ✕ was clicked.
+fn waiting_row(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) -> bool {
+    let mut clicked = false;
+    let r = ui.vertical(|ui| {
+        ui.set_width(width);
+        ui.horizontal(|ui| {
+            let label_w = width - CROSS - 6.0;
+            ui.allocate_ui_with_layout(vec2(label_w, 18.0), Layout::left_to_right(Align::Center), |ui| {
+                ui.set_width(label_w);
+                ui.add(egui::Label::new(RichText::new(tr(&task.label)).font(t.font(12.5)).color(t.text_label)).truncate());
+            });
+            let (rect, resp) = ui.allocate_exact_size(vec2(CROSS, CROSS), Sense::click());
+            crate::widgets::announce(&resp, format!("{}: {}", tr("Remove from Queue"), tr(&task.label)));
+            paint(ui.painter(), rect.shrink(2.0), Icon::Close, if resp.hovered() || resp.has_focus() { t.text } else { t.icon });
+            if ui.is_rect_visible(rect) {
+                register(ui, format!("activity:cancel:{}", task.id), rect);
+            }
+            clicked = resp.on_hover_text(tr("Remove from Queue")).clicked();
+        });
+        ui.add(egui::Label::new(RichText::new(starts_text(task.place)).font(t.font(11.0)).color(t.text_dim)).truncate());
+    });
+    if ui.is_rect_visible(r.response.rect) {
+        register(ui, format!("activity:row:{}", task.id), r.response.rect);
+    }
+    clicked
+}
+
+/// When a task waiting at `place` in its lane's line starts: "Starts next", "Starts after 2 more".
+pub fn starts_text(place: usize) -> String {
+    if place <= 1 { tr("Starts next").to_string() } else { tr_format!("Starts after {n} more", n = place - 1) }
 }
 
 #[cfg(test)]

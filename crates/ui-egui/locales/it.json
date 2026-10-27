@@ -2368,5 +2368,11 @@
   "Import dropped files without review": "Importa i file rilasciati senza revisione",
   "An import is running": "Un'importazione è in corso",
   "An import is running. Drop photos when it has finished": "Un'importazione è in corso. Trascina le foto quando è finita",
-  "Finish Lightroom catalog import before adding photos": "Termina l'importazione del catalogo Lightroom prima di aggiungere foto"
+  "Finish Lightroom catalog import before adding photos": "Termina l'importazione del catalogo Lightroom prima di aggiungere foto",
+  "Waiting": "In attesa",
+  "Starts next": "Parte subito dopo",
+  "Remove from Queue": "Rimuovi dalla coda",
+  "Retry": "Riprova",
+  "Queued: it starts when the task ahead of it ends": "In coda: parte quando finisce l'attività precedente",
+  "1 task waiting in line won't run.": "1 attività in coda non verrà eseguita."
 }

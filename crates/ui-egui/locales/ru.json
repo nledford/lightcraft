@@ -2356,5 +2356,11 @@
   "Import dropped files without review": "Импортировать перетащенные файлы без проверки",
   "An import is running": "Импорт уже выполняется",
   "An import is running. Drop photos when it has finished": "Импорт уже выполняется. Перетащите фото, когда он закончится",
-  "Finish Lightroom catalog import before adding photos": "Завершите импорт каталога Lightroom, прежде чем добавлять фото"
+  "Finish Lightroom catalog import before adding photos": "Завершите импорт каталога Lightroom, прежде чем добавлять фото",
+  "Waiting": "Ожидает",
+  "Starts next": "Начнётся следующей",
+  "Remove from Queue": "Убрать из очереди",
+  "Retry": "Повторить",
+  "Queued: it starts when the task ahead of it ends": "В очереди: начнётся, когда закончится задача перед ней",
+  "1 task waiting in line won't run.": "1 задача в очереди не будет запущена."
 }

@@ -617,6 +617,7 @@ impl Session {
             self.activity.started();
             if let Err(e) = r {
                 log::warn!("{}: a task that waited could not start: {e}", w.request.command);
+                self.activity.could_not_start(w, &e.to_string());
             }
         }
         self.starting_waiting = false;

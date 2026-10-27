@@ -18,7 +18,7 @@ use std::sync::atomic::Ordering;
 use serde_json::{Value, json};
 
 use crate::Session;
-use crate::activity::{Cancel, MAX_WAITING, TaskGuard};
+use crate::activity::{Cancel, Ending, MAX_WAITING, Request, TaskGuard};
 use crate::cmd::previews::PreviewBuild;
 
 fn temp_dir(tag: &str) -> PathBuf {
@@ -62,6 +62,11 @@ fn settle(s: &mut Session) {
 
 fn tasks(s: &mut Session) -> Vec<Value> {
     s.execute("activity.list", &json!({})).unwrap()["tasks"].as_array().cloned().unwrap_or_default()
+}
+
+/// `activity.finished` rows, newest first.
+fn finished(s: &mut Session) -> Vec<Value> {
+    s.execute("activity.finished", &json!({})).unwrap()["finished"].as_array().cloned().unwrap_or_default()
 }
 
 fn build_ids(s: &Session, n: usize) -> Vec<u64> {
@@ -208,7 +213,7 @@ fn a_build_that_can_not_start_does_not_hold_up_the_line() {
     let mut s = Session::with_demo();
     let ids = build_ids(&s, 1);
     let h = hold(&mut s);
-    let bad = crate::activity::Request { command: "library.buildPreviews".into(), params: json!({"size": "huge"}) };
+    let bad = Request { command: "library.buildPreviews".into(), params: json!({"size": "huge"}) };
     s.activity.enqueue("previews", "Building previews", bad).unwrap();
     s.execute("library.buildPreviews", &json!({"ids": ids, "edge": 256, "queue": true})).unwrap();
     release(h);
@@ -315,4 +320,98 @@ fn builds_waiting_in_line_all_start_in_turn() {
     settle(&mut s);
     // the held build, and the first of the two, were replaced by the next: three builds ran in all
     assert_eq!(s.take_unreported_builds().len(), 2, "both waiting builds started");
+}
+
+/// Given a build that can't start and a good one behind it, when the lane frees, then the first leaves a row saying
+/// why, which can be retried, and the second still runs.
+#[test]
+fn a_build_that_could_not_start_says_why_and_the_line_goes_on() {
+    let mut s = Session::with_demo();
+    s.activity.keep_after(0);
+    let ids = build_ids(&s, 1);
+    let h = hold(&mut s);
+    // (a request no build accepts: as if what it needs went away while it waited)
+    let bad = Request { command: "library.buildPreviews".into(), params: json!({"size": "huge"}) };
+    let (bad_id, _) = s.activity.enqueue("previews", "Building previews", bad).unwrap();
+    let good = s.execute("library.buildPreviews", &json!({"ids": ids, "edge": 256, "queue": true})).unwrap()["queued"].as_u64().unwrap();
+    release(h);
+    settle(&mut s);
+    let rows = finished(&mut s);
+    let failed = rows.iter().find(|r| r["id"] == bad_id).expect("a row for the build that could not start");
+    assert_eq!((failed["ending"].as_str(), failed["retryable"].as_bool()), (Some("failed"), Some(true)));
+    assert!(failed["detail"].as_str().is_some_and(|d| d.contains("huge")), "{failed}");
+    assert!(rows.iter().any(|r| r["id"] == good && r["ending"] == "done"), "the next one ran: {rows:?}");
+}
+
+/// Given a build that could not render a photo (its file is gone), when it is asked for again, then its row goes and
+/// the same build runs again (here, it can't render that photo either, and says so in a new row).
+#[test]
+fn a_build_that_did_not_go_well_can_be_asked_for_again() {
+    use lightcraft_catalog::{Op, Photo, Source};
+    let mut s = Session::new();
+    s.activity.keep_after(0);
+    let id = s.catalog.alloc_photo_id();
+    let gone = std::env::temp_dir().join(format!("lc-task-queue-gone-{}.jpg", std::process::id()));
+    let p = Photo::new(id, Source::File { path: gone.to_string_lossy().to_string() }, "gone.jpg", "JPEG", 600, 400, "2026-01-01T10:00:00");
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    s.execute("library.buildPreviews", &json!({"ids": [id.0], "edge": 256, "wait": true})).unwrap();
+    let row = finished(&mut s).remove(0);
+    assert_eq!((row["ending"].as_str(), row["retryable"].as_bool()), (Some("problems"), Some(true)), "{row}");
+    let old = row["id"].as_u64().unwrap();
+    let r = s.execute("activity.retry", &json!({"id": old})).unwrap();
+    let again = r["queued"].as_u64().unwrap();
+    settle(&mut s);
+    let rows = finished(&mut s);
+    assert!(rows.iter().all(|r| r["id"] != old), "the row was taken up by the retry");
+    let row = rows.iter().find(|r| r["id"] == again).expect("the retried build's row");
+    assert_eq!((row["ending"].as_str(), row["failed"].as_u64()), (Some("problems"), Some(1)), "it built the same photo: {row}");
+}
+
+/// Given a smart preview build in the background that did not go well, when it is asked for again, then it is the
+/// background smart build that runs again.
+#[test]
+fn a_smart_preview_build_that_did_not_go_well_can_be_asked_for_again() {
+    let mut s = Session::with_demo();
+    s.activity.keep_after(0);
+    let ids = build_ids(&s, 1);
+    let g = s.activity.start("smartPreviews", "Building smart previews", Cancel::Yes);
+    g.set_request(Request { command: "library.smartPreviews".into(), params: json!({"ids": ids, "background": true, "discard": true}) });
+    let old = g.id();
+    g.finish(crate::activity::Outcome::failed("the disk is full"));
+    let r = s.execute("activity.retry", &json!({"id": old})).unwrap();
+    assert!(r["queued"].as_u64().is_some(), "{r}");
+    settle(&mut s);
+    assert!(finished(&mut s).iter().all(|f| f["id"] != old), "the row was taken up by the retry");
+}
+
+/// Given a build waiting, a failed one that could be retried and one still running (the old library's build goes on),
+/// when another library is opened, then nothing waits any more, the failed row stays only as a record, and the running
+/// one's row can't be retried when it ends: photo ids belong to the old library.
+#[test]
+fn another_library_drops_what_could_be_retried() {
+    let dir = temp_dir("switch-retry");
+    let mut s = Session::with_demo();
+    let ids = build_ids(&s, 1);
+    let h = hold(&mut s);
+    let r = Request { command: "library.buildPreviews".into(), params: json!({"size": "huge"}) };
+    let g = s.activity.start("previews", "Building previews", Cancel::Yes);
+    g.set_request(r.clone());
+    let failed = g.id();
+    g.finish(crate::activity::Outcome::failed("no"));
+    let running = s.activity.start("previews", "Building previews", Cancel::Yes);
+    running.set_request(r);
+    let running_id = running.id();
+    s.execute("library.buildPreviews", &json!({"ids": ids, "edge": 256, "queue": true})).unwrap();
+    s.open_library(&dir, false).unwrap();
+    assert!(s.activity.waiting().is_empty());
+    let row = s.activity.finished().into_iter().find(|f| f.id == failed).expect("the row stays");
+    assert!(!row.retryable && row.ending == Ending::Failed);
+    assert!(s.execute("activity.retry", &json!({"id": failed})).is_err());
+    running.finish(crate::activity::Outcome::failed("stopped after the switch"));
+    let row = s.activity.finished().into_iter().find(|f| f.id == running_id).expect("its row");
+    assert!(!row.retryable, "it was asked in the old library");
+    assert!(s.execute("activity.retry", &json!({"id": running_id})).is_err());
+    release(h);
+    s.close_library().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
 }

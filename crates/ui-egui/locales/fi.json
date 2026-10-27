@@ -2334,5 +2334,11 @@
   "Dismiss": "Hylkää",
   "Finished": "Valmistuneet",
   "Needs attention": "Vaatii huomiota",
-  "Running": "Käynnissä"
+  "Running": "Käynnissä",
+  "Waiting": "Odottaa",
+  "Starts next": "Alkaa seuraavaksi",
+  "Remove from Queue": "Poista jonosta",
+  "Retry": "Yritä uudelleen",
+  "Queued: it starts when the task ahead of it ends": "Jonossa: alkaa, kun sen edellä oleva tehtävä päättyy",
+  "1 task waiting in line won't run.": "1 jonossa odottava tehtävä ei suoriteta."
 }

@@ -2415,5 +2415,11 @@
   "Import dropped files without review": "Importovat přetažené soubory bez kontroly",
   "An import is running": "Import už běží",
   "An import is running. Drop photos when it has finished": "Import už běží. Fotky přetáhněte, až skončí",
-  "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky"
+  "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky",
+  "Waiting": "Čeká",
+  "Starts next": "Začne jako další",
+  "Remove from Queue": "Odebrat z fronty",
+  "Retry": "Zkusit znovu",
+  "Queued: it starts when the task ahead of it ends": "Ve frontě: začne, až skončí úloha před ní",
+  "1 task waiting in line won't run.": "1 úloha čekající ve frontě se nespustí."
 }

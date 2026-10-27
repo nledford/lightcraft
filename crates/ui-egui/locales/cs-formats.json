@@ -320,5 +320,9 @@
   "Could not read {name}: {e}": "Soubor {name} se nepodařilo přečíst: {e}",
   "Added {n} photo{}": "Přidáno fotografií: {n}{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Kam má jít katalog Lightroomu „{catalog}“?",
-  "Merge into the open library “{library}” ({count} photo{})": "Sloučit s otevřenou knihovnou „{library}“ (fotografie: {count}{:.0})"
+  "Merge into the open library “{library}” ({count} photo{})": "Sloučit s otevřenou knihovnou „{library}“ (fotografie: {count}{:.0})",
+  "{n} waiting": "{n} čeká",
+  "Starts after {n} more": "Začne po {n} dalších",
+  "Queued: it starts after {n} more": "Ve frontě: začne po {n} dalších",
+  "{n} tasks waiting in line won't run.": "Úlohy čekající ve frontě ({n}) se nespustí."
 }

@@ -2436,5 +2436,11 @@
   "Dismiss": "Avfärda",
   "Finished": "Klara",
   "Needs attention": "Kräver uppmärksamhet",
-  "Running": "Pågår"
+  "Running": "Pågår",
+  "Waiting": "Väntar",
+  "Starts next": "Startar härnäst",
+  "Remove from Queue": "Ta bort från kön",
+  "Retry": "Försök igen",
+  "Queued: it starts when the task ahead of it ends": "I kö: startar när uppgiften före är klar",
+  "1 task waiting in line won't run.": "1 uppgift som väntar i kön kommer inte att köras."
 }

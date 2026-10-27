@@ -320,5 +320,9 @@
   "Added {n} photo{}": "已添加 {n} 张照片{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Lightroom 目录“{catalog}”要导入到哪里？",
   "Merge into the open library “{library}” ({count} photo{})": "合并到当前打开的图库“{library}”（{count} 张照片）{:.0}",
-  "+{n} more": "还有 {n} 项"
+  "+{n} more": "还有 {n} 项",
+  "{n} waiting": "{n} 个等待中",
+  "Starts after {n} more": "再过 {n} 个后开始",
+  "Queued: it starts after {n} more": "已加入队列：再过 {n} 个后开始",
+  "{n} tasks waiting in line won't run.": "队列中等待的 {n} 个任务不会运行。"
 }

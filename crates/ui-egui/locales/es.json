@@ -2365,5 +2365,11 @@
   "Import dropped files without review": "Importar los archivos soltados sin revisión",
   "An import is running": "Hay una importación en curso",
   "An import is running. Drop photos when it has finished": "Hay una importación en curso. Suelta las fotos cuando termine",
-  "Finish Lightroom catalog import before adding photos": "Termina la importación del catálogo de Lightroom antes de añadir fotos"
+  "Finish Lightroom catalog import before adding photos": "Termina la importación del catálogo de Lightroom antes de añadir fotos",
+  "Waiting": "En espera",
+  "Starts next": "Empieza a continuación",
+  "Remove from Queue": "Quitar de la cola",
+  "Retry": "Reintentar",
+  "Queued: it starts when the task ahead of it ends": "En cola: empieza cuando termine la tarea anterior",
+  "1 task waiting in line won't run.": "1 tarea en cola no se ejecutará."
 }

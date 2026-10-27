@@ -320,5 +320,9 @@
   "{n} failed": "{n} thất bại",
   "took {n} s": "mất {n} giây",
   "took {n} min": "mất {n} phút",
-  "took {h} h {m} min": "mất {h} giờ {m} phút"
+  "took {h} h {m} min": "mất {h} giờ {m} phút",
+  "{n} waiting": "{n} đang chờ",
+  "Starts after {n} more": "Bắt đầu sau {n} tác vụ nữa",
+  "Queued: it starts after {n} more": "Trong hàng đợi: bắt đầu sau {n} tác vụ nữa",
+  "{n} tasks waiting in line won't run.": "{n} tác vụ đang chờ trong hàng đợi sẽ không chạy."
 }

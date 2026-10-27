@@ -2741,5 +2741,11 @@
   "Import dropped files without review": "ჩაგდებული ფაილების იმპორტი გადახედვის გარეშე",
   "An import is running": "იმპორტი მიმდინარეობს",
   "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება",
-  "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი"
+  "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი",
+  "Waiting": "ელოდება",
+  "Starts next": "შემდეგი დაიწყება",
+  "Remove from Queue": "რიგიდან ამოღება",
+  "Retry": "ხელახლა ცდა",
+  "Queued: it starts when the task ahead of it ends": "რიგშია: დაიწყება, როცა წინა ამოცანა დასრულდება",
+  "1 task waiting in line won't run.": "რიგში მყოფი 1 ამოცანა არ გაეშვება."
 }

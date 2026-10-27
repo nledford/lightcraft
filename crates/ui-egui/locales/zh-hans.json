@@ -2207,5 +2207,11 @@
   "Import dropped files without review": "不经检查直接导入拖入的文件",
   "An import is running": "正在导入",
   "An import is running. Drop photos when it has finished": "正在导入。导入完成后再拖放照片",
-  "Finish Lightroom catalog import before adding photos": "添加照片前，请先完成 Lightroom 目录的导入"
+  "Finish Lightroom catalog import before adding photos": "添加照片前，请先完成 Lightroom 目录的导入",
+  "Waiting": "等待中",
+  "Starts next": "下一个开始",
+  "Remove from Queue": "从队列中移除",
+  "Retry": "重试",
+  "Queued: it starts when the task ahead of it ends": "已加入队列：前一个任务结束后开始",
+  "1 task waiting in line won't run.": "队列中等待的 1 个任务不会运行。"
 }

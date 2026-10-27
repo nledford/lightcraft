@@ -15,7 +15,8 @@
 //! Jobs that must not run side by side share a [`Lane`]. One asked for while its lane is busy can wait in line
 //! ([`Activity::enqueue`]): it keeps what it was asked ([`Request`], the command and its parameters) and runs it
 //! when the jobs ahead of it are over ([`crate::Session::start_waiting`]), planning its work then, not when it was
-//! asked. Nothing waits across another library: the files may have changed meanwhile.
+//! asked. A job that kept its request and did not end well can be asked for again ([`Activity::retry`]). Nothing
+//! waits across another library: the files may have changed meanwhile.
 
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -220,6 +221,10 @@ pub struct Finished {
     pub ran_ms: u64,
     /// How long ago it ended.
     pub age_ms: u64,
+    /// It kept what it was asked and did not end well: `activity.retry` asks for it again.
+    pub retryable: bool,
+    #[serde(skip)]
+    request: Option<Request>,
 }
 
 impl Finished {
@@ -236,6 +241,9 @@ impl Finished {
             path: self.path.clone(),
             ran_ms: self.ran_ms,
             age_ms: self.age_ms,
+            retryable: self.retryable,
+            // (only `retry` reads it, from the kept rows)
+            request: None,
         }
     }
 }
@@ -331,6 +339,8 @@ struct Entry {
     /// accepted, or makes the cancel fail. Without it a cancel could pass the check, the step
     /// start, and the flag be set after the step's last look at it: accepted but ignored.
     gate: Mutex<()>,
+    /// What it was asked, for asking again ([`TaskGuard::set_request`]).
+    request: Mutex<Option<Request>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -419,6 +429,7 @@ impl Activity {
             cancellable: AtomicBool::new(cancel.is_some()),
             cancel,
             gate: Mutex::new(()),
+            request: Mutex::new(None),
         });
         lock(&self.inner.tasks).push(entry.clone());
         TaskGuard { activity: self.clone(), entry, reported: false }
@@ -465,7 +476,14 @@ impl Activity {
 
     /// Keep the row of a task that ended, and make room: of those that ended well the oldest give way first.
     fn keep(&self, row: Finished) {
+        self.keep_with(row, |_| {});
+    }
+
+    /// [`Activity::keep`], with `fill` run on the row while the rows are locked: what [`Activity::library_changed`] clears
+    /// of the rows kept so far it cannot miss in one being kept.
+    fn keep_with(&self, mut row: Finished, fill: impl FnOnce(&mut Finished)) {
         let mut finished = lock(&self.inner.finished);
+        fill(&mut row);
         finished.push(Kept { row, ended: web_time::Instant::now() });
         while finished.iter().filter(|k| k.row.ending == Ending::Done).count() > MAX_DONE {
             let Some(at) = finished.iter().position(|k| k.row.ending == Ending::Done) else { break };
@@ -592,10 +610,52 @@ impl Activity {
         *lock(&self.inner.reserved) = None;
     }
 
-    /// Another library was opened: what waited in line was about the old one's photos and folders, so the line
-    /// empties. Returns how many tasks waited.
+    /// The waiting task `w` could not be started, for `why`: it leaves a row saying so, which can be retried.
+    pub fn could_not_start(&self, w: Waiting, why: &str) {
+        self.keep(Finished {
+            id: w.id,
+            kind: w.kind,
+            label: w.label,
+            ending: Ending::Failed,
+            summary: String::new(),
+            detail: sentence(why),
+            failures: Vec::new(),
+            failed: 0,
+            path: None,
+            ran_ms: 0,
+            age_ms: 0,
+            retryable: true,
+            request: Some(w.request),
+        });
+    }
+
+    /// Ask again for the task that ended in row `id`: the row goes, and the task waits at the end of its lane's line
+    /// (it starts at once if the lane is free). Returns its new id and its place. Only a row that kept its request and
+    /// did not end well can be retried.
+    pub fn retry(&self, id: u64) -> Result<(u64, usize), String> {
+        let mut finished = lock(&self.inner.finished);
+        let at = finished.iter().position(|k| k.row.id == id).ok_or_else(|| format!("no finished task {id}"))?;
+        let row = &finished[at].row;
+        let request = row.request.clone().filter(|_| row.retryable).ok_or_else(|| format!("{} can't be retried", row.label))?;
+        // (the row stays if the line is full)
+        let queued = self.enqueue(row.kind, &row.label, request)?;
+        finished.remove(at);
+        Ok(queued)
+    }
+
+    /// Another library was opened: what waited in line and what could be retried was about the old one's photos and
+    /// folders, so the line empties, the rows that ended stay only as a record, and the tasks still running (an old
+    /// library's preview build goes on) leave rows that can't be retried. Returns how many tasks waited.
     pub fn library_changed(&self) -> usize {
-        std::mem::take(&mut *lock(&self.inner.waiting)).len()
+        let dropped = std::mem::take(&mut *lock(&self.inner.waiting)).len();
+        for e in lock(&self.inner.tasks).iter() {
+            *lock(&e.request) = None;
+        }
+        for k in lock(&self.inner.finished).iter_mut() {
+            k.row.retryable = false;
+            k.row.request = None;
+        }
+        dropped
     }
 }
 
@@ -640,6 +700,12 @@ impl TaskGuard {
         self.entry.cancel.clone()
     }
 
+    /// What the job was asked, with everything that depends on the moment written out: a row it leaves when it does
+    /// not end well can then be retried ([`Activity::retry`]).
+    pub fn set_request(&self, request: Request) {
+        *lock(&self.entry.request) = Some(request);
+    }
+
     pub fn is_cancelled(&self) -> bool {
         self.entry.is_cancelled()
     }
@@ -673,24 +739,37 @@ impl TaskGuard {
             return false;
         }
         let failed = outcome.failed.max(outcome.failures.len());
-        self.activity.keep(Finished {
-            id: self.entry.id,
-            kind: self.entry.kind,
-            label: self.entry.label.clone(),
-            ending: outcome.ending,
-            summary: sentence(&outcome.summary),
-            detail: sentence(&outcome.detail),
-            failures: outcome
-                .failures
-                .into_iter()
-                .take(MAX_FAILURES)
-                .map(|f| Failure { name: capped(&f.name), reason: sentence(&f.reason) })
-                .collect(),
-            failed,
-            path: outcome.path.map(|path| path.chars().take(MAX_PATH).collect()),
-            ran_ms,
-            age_ms: 0,
-        });
+        let attention = outcome.ending.needs_attention();
+        let entry = self.entry.clone();
+        self.activity.keep_with(
+            Finished {
+                id: self.entry.id,
+                kind: self.entry.kind,
+                label: self.entry.label.clone(),
+                ending: outcome.ending,
+                summary: sentence(&outcome.summary),
+                detail: sentence(&outcome.detail),
+                failures: outcome
+                    .failures
+                    .into_iter()
+                    .take(MAX_FAILURES)
+                    .map(|f| Failure { name: capped(&f.name), reason: sentence(&f.reason) })
+                    .collect(),
+                failed,
+                path: outcome.path.map(|path| path.chars().take(MAX_PATH).collect()),
+                ran_ms,
+                age_ms: 0,
+                retryable: false,
+                request: None,
+            },
+            // (read with the rows locked, so that another library opening meanwhile makes it unretryable: only a row that did
+            // not end well is kept with its request, a clean end's is never read)
+            |row| {
+                let request = lock(&entry.request).clone().filter(|_| attention);
+                row.retryable = request.is_some();
+                row.request = request;
+            },
+        );
         true
     }
 }
@@ -698,11 +777,12 @@ impl TaskGuard {
 impl Drop for TaskGuard {
     fn drop(&mut self) {
         let id = self.entry.id;
-        lock(&self.activity.inner.tasks).retain(|e| e.id != id);
-        // a worker that died never said how it ended: say that it stopped, rather than nothing
+        // a worker that died never said how it ended: say that it stopped, rather than nothing (while the task is still
+        // in the list, so that another library opening meanwhile clears its request: [`Activity::library_changed`])
         if !self.reported && std::thread::panicking() {
             self.leave(Outcome { ending: Ending::Died, ..Default::default() });
         }
+        lock(&self.activity.inner.tasks).retain(|e| e.id != id);
     }
 }
 

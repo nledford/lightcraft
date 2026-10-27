@@ -320,5 +320,9 @@
   "Added {n} photo{}": "Додано фото: {n}{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Куди імпортувати каталог Lightroom «{catalog}»?",
   "Merge into the open library “{library}” ({count} photo{})": "Об’єднати з відкритою бібліотекою «{library}» (фото: {count}){:.0}",
-  "+{n} more": "+{n} ще"
+  "+{n} more": "+{n} ще",
+  "{n} waiting": "Очікують: {n}",
+  "Starts after {n} more": "Почнеться після ще {n}",
+  "Queued: it starts after {n} more": "У черзі: почнеться після ще {n}",
+  "{n} tasks waiting in line won't run.": "Завдання в черзі ({n}) не буде запущено."
 }
