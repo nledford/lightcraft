@@ -12,6 +12,8 @@
   of the creation removes the folder and its row, Redo brings both back. Renaming or moving the folder in
   LightCraft takes the row along. A folder you rename or delete outside LightCraft keeps its row, empty, like a folder
   whose photos are missing.
+  The catalog format is now version 10 (`FolderRecord.made`). Once this version has opened a library, older versions
+  refuse it, as with every format change.
 
 ## 2026-10-24
 
