@@ -437,3 +437,33 @@ fn text_put_right_after_a_refusal_is_saved_and_the_window_closes() {
     let photo = h.app.session.visible_cloned()[0];
     assert!(h.app.session.catalog.photo(photo).unwrap().meta.gps.is_some(), "the corrected place was saved");
 }
+
+/// Open Library… from its folder dialog is answered in the middle of a pass, after the box was
+/// drawn (`pick::poll` runs the command): the second try must still give the refused text up.
+#[test]
+fn a_refused_save_is_given_up_when_the_switch_comes_from_inside_a_pass() {
+    let mut h = typing_refused_gps();
+    let dir = std::env::temp_dir().join(format!("lc-tf-inpass-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let senders = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let kept = senders.clone();
+    h.app.services.picker = Some(Box::new(move |_| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        kept.lock().unwrap().push(tx);
+        Ok(rx)
+    }));
+    let generation = h.app.session.library_generation();
+    let choose = |h: &mut Headless| {
+        h.app.run("app.openLibrary", json!({})).unwrap();
+        let tx = senders.lock().unwrap().pop().expect("the folder dialog was asked");
+        tx.send(vec![dir.to_string_lossy().into_owned()]).unwrap();
+        steps(h);
+    };
+    choose(&mut h);
+    assert_eq!(h.app.session.library_generation(), generation, "refused the first time: the library stays");
+    assert!(h.view.ctx.memory(|m| m.has_focus(crate::text_field::id("field:gps"))), "the box still holds the text");
+    choose(&mut h);
+    assert_ne!(h.app.session.library_generation(), generation, "given up the second time: the library switched");
+    let _ = h.app.session.close_library();
+    let _ = std::fs::remove_dir_all(&dir);
+}

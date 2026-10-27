@@ -46,7 +46,7 @@ impl LightcraftApp {
             notice_input: Default::default(),
             quit_confirmed: false,
             egui_ctx: None,
-            edit_saves_refused: Vec::new(),
+            edit_saves_refused: (0, Vec::new()),
             control_rx: None,
             pending_screenshots: vec![],
             pending_gestures: vec![],

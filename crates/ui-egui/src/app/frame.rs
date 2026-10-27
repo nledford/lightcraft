@@ -338,8 +338,9 @@ impl LightcraftApp {
             self.toast_error(ctx, e);
         }
         // (a refusal is remembered only while the text it refused is still there to be offered again)
-        if !crate::text_field::any_unfinished(ctx) {
-            self.edit_saves_refused.clear();
+        // (not in the pass of the refusal itself: a box drawn before it records again in the next)
+        if self.edit_saves_refused.0 < ctx.cumulative_pass_nr() && !crate::text_field::any_unfinished(ctx) {
+            self.edit_saves_refused.1.clear();
         }
         panels::notices::finish_ui_pass(self, ctx);
         panels::library_problem::finish_ui_pass(self, ctx);
@@ -363,13 +364,13 @@ impl LightcraftApp {
         let saves = crate::text_field::take_all(ctx);
         // (the same text offered again, after the error was shown: the person asked to leave twice;
         // text put right or typed since is a new edit and is saved)
-        if !saves.is_empty() && std::mem::take(&mut self.edit_saves_refused) == saves {
+        let refused = std::mem::take(&mut self.edit_saves_refused).1;
+        if !saves.is_empty() && refused == saves {
             return Ok(());
         }
-        self.edit_saves_refused = Vec::new();
         let saved = self.run_saves(ctx, saves.clone());
         if saved.is_err() {
-            self.edit_saves_refused = saves;
+            self.edit_saves_refused = (ctx.cumulative_pass_nr(), saves);
         }
         saved
     }
