@@ -146,6 +146,8 @@ pub struct SwitchPrompt {
     pub text: String,
     /// The library that was open when it was asked (`Session::library_generation`).
     pub generation: u64,
+    /// The tasks that were waiting when it was asked: the question names these, and only these are agreed to be dropped.
+    pub waiting: Vec<u64>,
 }
 
 pub struct LightcraftApp {

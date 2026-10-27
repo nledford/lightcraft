@@ -74,7 +74,9 @@ fn ask_before_dropping_the_line(app: &mut LightcraftApp, path: &str, create: boo
     } else {
         crate::i18n::tr_format!("{n} tasks are waiting in line: {names}. Switching libraries drops them.", n = waiting.len(), names = names)
     };
-    app.switch_prompt = Some(crate::SwitchPrompt { path: path.to_string(), create, text, generation: app.session.library_generation() });
+    let ids = waiting.iter().map(|t| t.id).collect();
+    app.switch_prompt =
+        Some(crate::SwitchPrompt { path: path.to_string(), create, text, generation: app.session.library_generation(), waiting: ids });
     json!({"opened": false, "asked": true, "waiting": waiting.len()})
 }
 
@@ -82,6 +84,10 @@ fn ask_before_dropping_the_line(app: &mut LightcraftApp, path: &str, create: boo
 pub(crate) fn confirm_switch(app: &mut LightcraftApp, prompt: &crate::SwitchPrompt) -> Result<Value, String> {
     // (an import may have begun while the question was up)
     can_switch_library(app)?;
+    // (so may a task have been put in line: the question did not name it, so it is asked again, with the whole line)
+    if app.session.activity.waiting().iter().any(|t| !prompt.waiting.contains(&t.id)) {
+        return Ok(ask_before_dropping_the_line(app, &prompt.path, prompt.create));
+    }
     if prompt.create {
         std::fs::create_dir_all(&prompt.path).map_err(|e| format!("{}: can't create the library folder: {e}", prompt.path))?;
     }

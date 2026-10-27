@@ -541,9 +541,14 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             return;
         };
         app.switch_prompt = None;
-        if matches!(buttons[i].2, Choice::QuitAnyway)
-            && let Err(e) = crate::dialogs::settings::confirm_switch(app, &prompt)
-        {
+        let confirmed = matches!(buttons[i].2, Choice::QuitAnyway).then(|| crate::dialogs::settings::confirm_switch(app, &prompt));
+        if confirmed.as_ref().is_some_and(Result::is_ok) && app.switch_prompt.is_some() {
+            // asked again (a task was put in line meanwhile): the same words would otherwise look like the same prompt,
+            // with the old focus on Switch Library (as a retry that fails again does, below)
+            app.notice_input.reset_to(None);
+            clear_prompt_focus(ctx);
+        }
+        if let Some(Err(e)) = confirmed {
             // from the library chooser: the error goes where it goes for a failed open there, and the chooser stays
             if app.library_problem.as_ref().is_some_and(|p| p.chooser.is_some() && !p.dismissed) {
                 super::library_problem::failed(app, Some(prompt.path.clone()), e);

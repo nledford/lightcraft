@@ -1152,7 +1152,11 @@ fn a_new_drop_outside_the_barrier_is_refused_while_an_older_drop_waits_for_an_im
         assert!(h.app.scan.is_some() && h.app.import.is_none(), "the original stalled import scan survives B");
         assert!(h.app.ui.dialog.is_none());
         assert_eq!(photos(&h), 0);
-        assert!(h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("still being scanned for the import review")), "B is refused immediately: {:?}", h.app.ui.toast);
+        assert!(
+            h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("still being scanned for the import review")),
+            "B is refused immediately: {:?}",
+            h.app.ui.toast
+        );
         assert_eq!(h.app.dropped_files.len(), 1, "B cannot inherit A's protected provenance");
         drop(stalled); // Channel-only fixture: no worker/process to stop.
         assert!(h.step_until(T, |h| h.app.scan.is_none()), "the original stalled scan ends");

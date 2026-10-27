@@ -312,6 +312,26 @@ fn switching_libraries_asks_before_dropping_the_line() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Given the switch question up for one waiting task, when another task is put in line before Switch Library is clicked,
+/// then nothing is dropped: it asks again, naming both.
+#[test]
+fn a_task_put_in_line_while_the_question_is_up_is_asked_about_too() {
+    let (mut h, dir) = library_app("switch-grows");
+    let _running = hold_a_line(&mut h);
+    let first = library_dir(&h);
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
+    h.step();
+    let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({}), ..Default::default() };
+    h.app.session.activity.enqueue("previews", "Building previews", request).unwrap();
+    click(&mut h, "button:switchAnyway");
+    assert_eq!((library_dir(&h), h.app.session.activity.waiting().len()), (first, 2), "nothing was dropped");
+    let asked = h.app.switch_prompt.as_ref().map(|p| p.text.clone()).unwrap_or_default();
+    assert!(asked.starts_with("2 tasks are waiting in line"), "{asked}");
+    click(&mut h, "button:switchAnyway");
+    assert_eq!(library_dir(&h), Some(dir.join("second")), "agreed to both");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Given Open Library with a task waiting, then it asks too and Cancel leaves everything as it was.
 #[test]
 fn opening_a_library_asks_before_dropping_the_line() {
