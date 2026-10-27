@@ -776,7 +776,10 @@ pub fn specs() -> Vec<CommandSpec> {
                         ops.push(Op::SetMeta { id, meta: Box::new(m) });
                     }
                     let n = ops.len();
-                    s.commit("Edit Info", Op::Batch { ops })?;
+                    // (named photos that are gone leave nothing to commit: no empty undo step)
+                    if n > 0 {
+                        s.commit("Edit Info", Op::Batch { ops })?;
+                    }
                     // keywords just added become the Recent Keywords set
                     let added: Vec<String> =
                         strs("addKeywords").unwrap_or_default().into_iter().chain(strs("keywords").unwrap_or_default()).collect();

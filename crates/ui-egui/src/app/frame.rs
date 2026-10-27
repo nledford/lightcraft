@@ -382,8 +382,8 @@ impl LightcraftApp {
     }
 
     /// [`Self::save_unfinished_edits`] where no frame is at hand: before a library closes (Open
-    /// Library, New Library), whose photos the text was typed for, and when the app exits.
-    pub fn save_edits_before_library_closes(&mut self) -> Result<(), String> {
+    /// Library, New Library), whose photos the text was typed for.
+    pub(crate) fn save_edits_before_library_closes(&mut self) -> Result<(), String> {
         match self.egui_ctx.clone() {
             Some(ctx) => self.save_unfinished_edits(&ctx),
             None => Ok(()),
