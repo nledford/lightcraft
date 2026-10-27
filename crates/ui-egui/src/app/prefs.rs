@@ -48,12 +48,35 @@ impl LightcraftApp {
         self.system_increase_contrast = read();
     }
 
+    /// Whether transparency is reduced: the user's choice, else the system's Reduce Transparency (off when unknown).
+    pub fn reduce_transparency(&self) -> bool {
+        self.ui.settings.reduce_transparency.unwrap_or(self.system_reduce_transparency.unwrap_or(false))
+    }
+
+    /// Whether there is a system Reduce Transparency to follow: a reader that has answered.
+    pub(crate) fn system_reduce_transparency_available(&self) -> bool {
+        self.services.system_reduce_transparency.is_some() && self.system_reduce_transparency.is_some()
+    }
+
+    /// Read the system's Reduce Transparency (`services.system_reduce_transparency`) at most once a second.
+    fn follow_system_reduce_transparency(&mut self) {
+        let now = self.tick_now();
+        if self.system_reduce_transparency_read.is_some_and(|t| (0.0..1.0).contains(&(now - t))) {
+            return;
+        }
+        let Some(read) = self.services.system_reduce_transparency.as_mut() else { return };
+        self.system_reduce_transparency_read = Some(now);
+        self.system_reduce_transparency = read();
+    }
+
     /// Restyle `ctx` when the theme the settings select (Appearance Mode, the dark and light
     /// themes, the system's appearance in Auto) is not the one it shows. A no-op otherwise.
     pub fn sync_theme(&mut self, ctx: &egui::Context) {
         self.follow_system_reduce_motion();
         crate::motion::sync(ctx, self.reduce_motion());
         self.follow_system_increase_contrast();
+        self.follow_system_reduce_transparency();
+        crate::transparency::sync(ctx, self.reduce_transparency());
         let wanted = self.ui.settings.theme(self.system_theme(ctx));
         let increased = self.increase_contrast();
         if theme::current(ctx) != Some(wanted) || crate::increase_contrast::increased(ctx) != increased {

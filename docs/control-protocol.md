@@ -137,6 +137,7 @@ x1, y1}, mode?, area?, tracking?}`, normalized to the upright photo (absent when
 click-zoom and `view.zoomToggle` land at once, egui's widget easing and every spinner (a busy button's too) stop, scrolling to a photo jumps instead of gliding, and every indeterminate progress bar's sweep
 stands still; fades (toasts, the slideshow) stay.
 `view.increaseContrast {on?, follow?}` (follows macOS Increase Contrast until set; the same parameters, refusal and reply `{on, followsSystem}` as `view.reduceMotion`) is Settings ▸ Interface ▸ Increase contrast: text, icons, borders, separators and the Develop sliders' plain tracks and thumbs stand out more in every theme, and the outlines of the standard controls and windows are drawn 1.5 pt.
+`view.reduceTransparency {on?, follow?}` (follows macOS Reduce Transparency until set; the same parameters, refusal and reply `{on, followsSystem}` as `view.reduceMotion`) is Settings ▸ Interface ▸ Reduce transparency: the see-through badges, labels, pills and dialog backdrops are drawn solid.
 `photo.readFocusPoints {ids?, wait?}` reads the point for photos imported before it was read, from a few KB of each
 file, on a background job (activity kind `focus`); `wait: true` returns the run's counts when done. The app calls
 `focus.pump {pace}` every frame to drive it.

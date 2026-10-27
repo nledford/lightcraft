@@ -40,6 +40,8 @@ mod native_menu;
 #[cfg(target_os = "macos")]
 mod reduce_motion;
 #[cfg(target_os = "macos")]
+mod reduce_transparency;
+#[cfg(target_os = "macos")]
 mod screen_profile;
 mod window_gpu;
 

@@ -16,6 +16,19 @@
   system setting** beside the tick box hands the choice back. On Windows, Linux and the web version it is manual for
   now (off by default).
 
+### Reduce transparency
+- **Settings ▸ Interface ▸ Reduce transparency** (`view.reduceTransparency` for scripts and agents) draws the
+  see-through badges, labels and backdrops solid: the rating, flag and label bars on grid and filmstrip thumbnails, the
+  badges on them (virtual copy, stack, preview only), the labels and pills over the photo in Detail, the Navigator's
+  frame, the survey's and the people views' small buttons and pills, the toasts, the slideshow's control bar, and the
+  dimmed backdrop behind a dialog, a notice or a file dragged over the window (a plain backdrop in the theme's own
+  color instead). What the photo itself shows stays as it is: crop shading, mask overlays, the histogram's zones,
+  Lights Out's dimming, the dimming of rejected photos, and fades that tell you something changed. A few small
+  overlays are not covered yet: the print layout's caption pills, the slide layout preview's band, the import review's
+  thumbnail badges and the frame-rate overlay. On macOS it follows System Settings ▸
+  Accessibility ▸ Display ▸ Reduce transparency until you change it in Settings; **Use the system setting** beside the
+  tick box hands the choice back. On Windows, Linux and the web version it is manual for now (off by default).
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

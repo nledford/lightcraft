@@ -2416,6 +2416,10 @@
   "Increase contrast": "Zvýšit kontrast",
   "Makes borders, separators and text stand out more in every theme.": "Zvýrazní ohraničení, oddělovače a text ve všech motivech.",
   "Makes borders, separators and text stand out more in every theme. Follows the system's Increase Contrast until you change it here.": "Zvýrazní ohraničení, oddělovače a text ve všech motivech. Dokud to zde nezměníte, řídí se nastavením Zvýšit kontrast v systému.",
+  "Reduce Transparency": "Omezit průhlednost",
+  "Reduce transparency": "Omezit průhlednost",
+  "Makes the see-through badges, labels and backdrops solid.": "Průhledné odznaky, popisky a pozadí se zobrazí plné.",
+  "Makes the see-through badges, labels and backdrops solid. Follows the system's Reduce Transparency until you change it here.": "Průhledné odznaky, popisky a pozadí se zobrazí plné. Dokud to zde nezměníte, řídí se nastavením Omezit průhlednost v systému.",
   "Use the system setting": "Použít nastavení systému",
   "Turns off zoom and spinner animations. Fades stay.": "Vypne animace přiblížení a načítacích indikátorů. Prolínání zůstává."
 }

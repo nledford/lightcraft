@@ -2244,5 +2244,9 @@
   "Increase contrast": "Tăng độ tương phản",
   "Makes borders, separators and text stand out more in every theme.": "Làm cho đường viền, đường phân cách và văn bản nổi bật hơn trong mọi chủ đề.",
   "Makes borders, separators and text stand out more in every theme. Follows the system's Increase Contrast until you change it here.": "Làm cho đường viền, đường phân cách và văn bản nổi bật hơn trong mọi chủ đề. Theo cài đặt Tăng độ tương phản của hệ thống cho đến khi bạn thay đổi tại đây.",
+  "Reduce Transparency": "Giảm độ trong suốt",
+  "Reduce transparency": "Giảm độ trong suốt",
+  "Makes the see-through badges, labels and backdrops solid.": "Hiển thị đặc các huy hiệu, nhãn và nền trong suốt.",
+  "Makes the see-through badges, labels and backdrops solid. Follows the system's Reduce Transparency until you change it here.": "Hiển thị đặc các huy hiệu, nhãn và nền trong suốt. Theo cài đặt Giảm độ trong suốt của hệ thống cho đến khi bạn thay đổi tại đây.",
   "Use the system setting": "Dùng cài đặt của hệ thống"
 }

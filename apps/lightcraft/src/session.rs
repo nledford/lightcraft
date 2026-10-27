@@ -150,6 +150,11 @@ pub(crate) fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::
         system_increase_contrast: Some(Box::new(increase_contrast::system)),
         #[cfg(not(target_os = "macos"))]
         system_increase_contrast: None,
+        // Follow System Settings ▸ Accessibility ▸ Display ▸ Reduce transparency until the user chooses
+        #[cfg(target_os = "macos")]
+        system_reduce_transparency: Some(Box::new(reduce_transparency::system)),
+        #[cfg(not(target_os = "macos"))]
+        system_reduce_transparency: None,
         // Linux: the profile the desktop assigns in colord, read off the UI thread
         #[cfg(target_os = "linux")]
         screen_profile: Some(colord::service()),

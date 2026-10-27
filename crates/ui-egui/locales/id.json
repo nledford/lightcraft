@@ -2348,5 +2348,9 @@
   "Increase contrast": "Tingkatkan kontras",
   "Makes borders, separators and text stand out more in every theme.": "Membuat batas, pemisah, dan teks lebih menonjol di setiap tema.",
   "Makes borders, separators and text stand out more in every theme. Follows the system's Increase Contrast until you change it here.": "Membuat batas, pemisah, dan teks lebih menonjol di setiap tema. Mengikuti pengaturan Tingkatkan Kontras sistem sampai Anda mengubahnya di sini.",
+  "Reduce Transparency": "Kurangi transparansi",
+  "Reduce transparency": "Kurangi transparansi",
+  "Makes the see-through badges, labels and backdrops solid.": "Menampilkan lencana, label, dan latar belakang yang tembus pandang secara solid.",
+  "Makes the see-through badges, labels and backdrops solid. Follows the system's Reduce Transparency until you change it here.": "Menampilkan lencana, label, dan latar belakang yang tembus pandang secara solid. Mengikuti pengaturan Kurangi Transparansi sistem sampai Anda mengubahnya di sini.",
   "Use the system setting": "Gunakan pengaturan sistem"
 }

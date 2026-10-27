@@ -2362,6 +2362,10 @@
   "Increase contrast": "Збільшити контрастність",
   "Makes borders, separators and text stand out more in every theme.": "Робить межі, роздільники та текст помітнішими в усіх темах.",
   "Makes borders, separators and text stand out more in every theme. Follows the system's Increase Contrast until you change it here.": "Робить межі, роздільники та текст помітнішими в усіх темах. Доки ви не зміните це тут, діє системне налаштування «Збільшити контрастність».",
+  "Reduce Transparency": "Зменшити прозорість",
+  "Reduce transparency": "Зменшити прозорість",
+  "Makes the see-through badges, labels and backdrops solid.": "Показує напівпрозорі позначки, підписи та тла суцільними.",
+  "Makes the see-through badges, labels and backdrops solid. Follows the system's Reduce Transparency until you change it here.": "Показує напівпрозорі позначки, підписи та тла суцільними. Доки ви не зміните це тут, діє системне налаштування «Зменшити прозорість».",
   "Use the system setting": "Використовувати налаштування системи",
   "Turns off zoom and spinner animations. Fades stay.": "Вимикає анімацію масштабування та індикаторів роботи. Плавні згасання залишаються."
 }

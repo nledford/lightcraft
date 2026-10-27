@@ -77,6 +77,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.zoomToFocus", "Zoom to Focus Point", None, "View"),
     ("view.reduceMotion", "Reduce Motion", None, ""),
     ("view.increaseContrast", "Increase Contrast", None, ""),
+    ("view.reduceTransparency", "Reduce Transparency", None, ""),
     ("view.reference", "Reference View", Some("Shift+R"), "View"),
     ("photo.setReference", "Set as Reference Photo", None, ""),
     ("compare.swap", "Swap Compare Photos", None, "View"),

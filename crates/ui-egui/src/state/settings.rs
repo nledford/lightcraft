@@ -201,6 +201,10 @@ pub struct AppSettings {
     /// (`view.increaseContrast`; see [`crate::increase_contrast`]). `None`: follow the system's
     /// Increase Contrast until the user chooses.
     pub increase_contrast: Option<bool>,
+    /// Settings ▸ Interface ▸ Reduce transparency: the see-through badges, labels and backdrops are
+    /// solid (`view.reduceTransparency`; see [`crate::transparency`]). `None`: follow the system's
+    /// Reduce Transparency until the user chooses.
+    pub reduce_transparency: Option<bool>,
 }
 
 /// Where File ▸ Import Lightroom Catalog… puts a catalog (Settings ▸ General ▸ Library). Saved as
@@ -252,6 +256,7 @@ impl Default for AppSettings {
             lightroom_import: LightroomImport::Ask,
             reduce_motion: None,
             increase_contrast: None,
+            reduce_transparency: None,
         }
     }
 }

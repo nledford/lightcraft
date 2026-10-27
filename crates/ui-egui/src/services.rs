@@ -41,6 +41,9 @@ pub type SystemReduceMotionFn = Box<dyn FnMut() -> Option<bool>>;
 /// Whether the system asks for increased contrast (`None`: not known).
 pub type SystemIncreaseContrastFn = Box<dyn FnMut() -> Option<bool>>;
 
+/// Whether the system asks for reduced transparency (`None`: not known).
+pub type SystemReduceTransparencyFn = Box<dyn FnMut() -> Option<bool>>;
+
 /// Whether an external editor can be started (its name as in [`Services::open_with`]); the
 /// error says why not and what to do (e.g. PhotoCraft isn't installed).
 pub type CheckEditorFn = Box<dyn Fn(&str) -> Result<(), String>>;
@@ -83,6 +86,9 @@ pub struct Services {
     /// The system's Increase Contrast setting (macOS), followed while Settings ▸ Interface ▸ Increase
     /// contrast has not been changed by the user; read at most once a second, like Reduce Motion.
     pub system_increase_contrast: Option<SystemIncreaseContrastFn>,
+    /// The system's Reduce Transparency setting (macOS), followed while Settings ▸ Interface ▸ Reduce
+    /// transparency has not been changed by the user; read at most once a second, like Reduce Motion.
+    pub system_reduce_transparency: Option<SystemReduceTransparencyFn>,
     /// Save dialog for an exported `.lcpreset` file.
     pub save_preset_file: Option<SaveFile>,
     /// Open dialog for a keyword list file (`.txt`, Photo Supreme's `.utf8`; File ▸ Import Keywords…).

@@ -66,6 +66,7 @@ mod quit_unsaved;
 mod rating;
 mod recheck;
 mod reduce_motion;
+mod reduce_transparency;
 mod rename_person;
 mod rules_editor;
 mod sam_setup;

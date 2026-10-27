@@ -2291,6 +2291,10 @@
   "Increase contrast": "Zwiększ kontrast",
   "Makes borders, separators and text stand out more in every theme.": "Wyraźniej wyróżnia obramowania, separatory i tekst w każdym motywie.",
   "Makes borders, separators and text stand out more in every theme. Follows the system's Increase Contrast until you change it here.": "Wyraźniej wyróżnia obramowania, separatory i tekst w każdym motywie. Dopóki nie zmienisz tego tutaj, program stosuje systemowe ustawienie Zwiększ kontrast.",
+  "Reduce Transparency": "Ogranicz przezroczystość",
+  "Reduce transparency": "Ogranicz przezroczystość",
+  "Makes the see-through badges, labels and backdrops solid.": "Pokazuje półprzezroczyste znaczniki, etykiety i tła jako pełne.",
+  "Makes the see-through badges, labels and backdrops solid. Follows the system's Reduce Transparency until you change it here.": "Pokazuje półprzezroczyste znaczniki, etykiety i tła jako pełne. Dopóki nie zmienisz tego tutaj, program stosuje systemowe ustawienie Ogranicz przezroczystość.",
   "Use the system setting": "Użyj ustawienia systemu",
   "Turns off zoom and spinner animations. Fades stay.": "Wyłącza animacje powiększania i wskaźników pracy. Zanikanie i przenikanie zostają."
 }

@@ -458,7 +458,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         p.image(tex.tex.id(), hover_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         let g = p.layout_no_wrap(label.clone(), t.font(12.0), Color32::WHITE);
         let bg = label_badge_rect(hover_rect, canvas, g.size(), badge_top_inset);
-        p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
+        p.rect_filled(bg, 4.0, crate::transparency::hud(p.ctx(), 160));
         p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
         shown = "hover";
     } else {
@@ -510,7 +510,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         draw_window(&p.with_clip_rect(clip), app, &window_ctx, v, view);
     }
     if let Some((bg, g)) = before_badge {
-        p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
+        p.rect_filled(bg, 4.0, crate::transparency::hud(p.ctx(), 160));
         p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
         register(ui, "canvas:beforeLabel", bg);
     }

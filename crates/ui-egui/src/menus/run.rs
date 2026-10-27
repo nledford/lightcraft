@@ -322,6 +322,19 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             app.ui.settings.increase_contrast = if follow == Some(true) { None } else { Some(on.unwrap_or(!app.increase_contrast())) };
             Ok(json!({"on": app.increase_contrast(), "followsSystem": app.ui.settings.increase_contrast.is_none()}))
         }
+        "view.reduceTransparency" => {
+            // {on?} sets it; {follow: true} goes back to the system's Reduce Transparency; no params
+            // toggles what is in effect. See-through badges, labels and backdrops are drawn solid.
+            let (follow, on) = match (bool_param(id, p, "follow"), bool_param(id, p, "on")) {
+                (Ok(follow), Ok(on)) => (follow, on),
+                (Err(e), _) | (_, Err(e)) => return Some(Err(e)),
+            };
+            if follow == Some(true) && !app.system_reduce_transparency_available() {
+                return Some(Err("view.reduceTransparency: this system has no Reduce Transparency setting to follow".into()));
+            }
+            app.ui.settings.reduce_transparency = if follow == Some(true) { None } else { Some(on.unwrap_or(!app.reduce_transparency())) };
+            Ok(json!({"on": app.reduce_transparency(), "followsSystem": app.ui.settings.reduce_transparency.is_none()}))
+        }
         "view.faceBoxes" => {
             app.ui.face_boxes = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.face_boxes);
             Ok(json!({"show": app.ui.face_boxes}))

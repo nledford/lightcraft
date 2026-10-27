@@ -3448,6 +3448,10 @@
   "Increase contrast": "Kontrast erhöhen",
   "Makes borders, separators and text stand out more in every theme.": "Hebt Rahmen, Trennlinien und Text in jedem Design stärker hervor.",
   "Makes borders, separators and text stand out more in every theme. Follows the system's Increase Contrast until you change it here.": "Hebt Rahmen, Trennlinien und Text in jedem Design stärker hervor. Folgt der Systemeinstellung „Kontrast erhöhen“, bis du sie hier änderst.",
+  "Reduce Transparency": "Transparenz reduzieren",
+  "Reduce transparency": "Transparenz reduzieren",
+  "Makes the see-through badges, labels and backdrops solid.": "Zeigt durchscheinende Symbole, Beschriftungen und Hintergründe deckend an.",
+  "Makes the see-through badges, labels and backdrops solid. Follows the system's Reduce Transparency until you change it here.": "Zeigt durchscheinende Symbole, Beschriftungen und Hintergründe deckend an. Folgt der Systemeinstellung „Transparenz reduzieren“, bis du sie hier änderst.",
   "Use the system setting": "Systemeinstellung verwenden",
   "Turns off zoom and spinner animations. Fades stay.": "Schaltet Zoom- und Ladeanimationen ab. Überblendungen bleiben erhalten."
 }

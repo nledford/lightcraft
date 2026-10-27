@@ -118,6 +118,26 @@ pub(super) fn interface_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Toke
             app.ui.settings.increase_contrast = None;
         }
     });
+    let mut solid = app.reduce_transparency();
+    let has_system = app.system_reduce_transparency_available();
+    ui.horizontal(|ui| {
+        let r = ui.checkbox(&mut solid, crate::i18n::tr("Reduce transparency"));
+        register(ui, "check:settings.reduceTransparency".to_string(), r.rect);
+        if r.changed() {
+            app.ui.settings.reduce_transparency = Some(solid);
+        }
+        r.on_hover_text(crate::i18n::tr(if has_system {
+            "Makes the see-through badges, labels and backdrops solid. Follows the system's Reduce Transparency until you change it here."
+        } else {
+            "Makes the see-through badges, labels and backdrops solid."
+        }));
+        if has_system
+            && app.ui.settings.reduce_transparency.is_some()
+            && crate::widgets::text_button(ui, "settings.reduceTransparencyFollow", "Use the system setting", false).clicked()
+        {
+            app.ui.settings.reduce_transparency = None;
+        }
+    });
     heading(ui, t, crate::i18n::tr("Filmstrip"));
     check(ui, "settings.filmNames", &mut app.ui.settings.film_names, "Show file names");
     check(ui, "settings.filmBadges", &mut app.ui.settings.film_badges, "Show ratings, flags and edit badges");
