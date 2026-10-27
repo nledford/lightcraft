@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### Screen readers name filmstrip thumbnails like the grid's
+- A thumbnail in the filmstrip is now named as the grid's cell for the same photo is: the file name, then its rating,
+  flag and color label ("LC01207.JPG, 3 stars, picked"), and it says whether it is selected. It was named with the
+  file name only, so VoiceOver told you less in Detail than in the grid.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
