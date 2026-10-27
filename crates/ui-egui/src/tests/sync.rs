@@ -479,11 +479,24 @@ fn a_waiting_synchronize_does_nothing_on_a_scan_the_library_moved_past() {
     let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
     let dlg = h.app.ui.dialog.take().expect("the dialog is open");
     assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg).is_ok_and(|v| v["queued"].as_u64().is_some()), "it waits");
+    // the scan reads the new file through a probe that waits for the gate: it starts before the rating and ends after it,
+    // however fast the machine is (a scan that ended within its first frame would run before the rating was made)
+    let gate = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let g = gate.clone();
+    h.app.session.media.file_probe = Some(std::sync::Arc::new(move |p: &str| {
+        let t0 = std::time::Instant::now();
+        while !g.load(std::sync::atomic::Ordering::Acquire) && t0.elapsed() < Duration::from_secs(60) {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        Ok(lightcraft_engine::media::ProbeInfo { width: 8, height: 8, format: "PNG".into(), content_hash: Some(p.to_string()), ..Default::default() })
+    }));
     drop(hold);
     assert!(h.step_until(T, |h| h.app.sync_queued.is_some()), "it started scanning again");
     let a = h.app.session.catalog.photos().find(|p| p.file_name == "a.png").unwrap().id;
     let r = h.request("engine.execute", json!({"command": "photo.rate", "params": {"ids": [a.0], "rating": 3}}), T);
     assert_eq!(r["ok"], true, "{r}");
+    assert!(h.app.sync_queued.is_some(), "the scan is still going when the photo changed");
+    gate.store(true, std::sync::atomic::Ordering::Release);
     assert!(h.step_until(SETTLE, idle), "it ended");
     assert_eq!(in_library(&h), vec!["a.png", "b.png"], "the missing b stays, c did not come in");
     let said = h.app.ui.toast.iter().map(|t| t.0.clone()).collect::<String>();
