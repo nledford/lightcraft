@@ -142,6 +142,28 @@ fn undoing_a_person_rename_brings_the_filters_old_name_back() {
 }
 
 #[test]
+fn undoing_a_person_rename_shows_the_one_photo_it_changed_under_the_filter_it_gives_back() {
+    // one photo has the person: undo shows it (makes it the active photo) when it is in view, and it is in view
+    // under the old name the filter gets back, not under the new one the filter still has while the catalog is undone
+    let mut s = session();
+    let mut ids: Vec<PhotoId> = s.catalog.photos().map(|p| p.id).collect();
+    ids.sort();
+    let mut meta = s.catalog.photo(ids[0]).unwrap().meta.clone();
+    let rect = Rect { x0: 0.1, y0: 0.2, x1: 0.35, y1: 0.6 };
+    meta.regions = vec![Region { rect, kind: RegionKind::Face, name: Some("Ann".into()), description: None }];
+    s.commit("setup", Op::SetMeta { id: ids[0], meta: Box::new(meta) }).unwrap();
+    run(&mut s, "library.filter", json!({"person": "Ann"}));
+    run(&mut s, "faces.renamePerson", json!({"from": "Ann", "to": "Ada"}));
+    s.selection = crate::Selection::single(ids[1]);
+    undo(&mut s);
+    assert_eq!(s.filter().person.as_deref(), Some("Ann"));
+    assert_eq!(s.selection.active, Some(ids[0]), "the photo the undo changed is on screen");
+    s.selection = crate::Selection::single(ids[1]);
+    redo(&mut s);
+    assert_eq!(s.selection.active, Some(ids[0]), "and so it is for redo");
+}
+
+#[test]
 fn undoing_a_step_keeps_what_the_filter_got_since() {
     let mut s = session();
     run(&mut s, "library.filter", json!({"keyword": "cat"}));

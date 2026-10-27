@@ -802,8 +802,9 @@ impl Session {
                 return Err(err);
             }
         };
-        self.show_undone(&e.op);
+        // (the filter first: the photo is shown if it is in view under the filter the step's undo leaves)
         let carried = self.carry_filters(e.filters.as_ref());
+        self.show_undone(&e.op);
         self.pending_log.push(e.op);
         self.redo.push(UndoEntry {
             label: e.label.clone(),
@@ -829,8 +830,9 @@ impl Session {
                 return Err(err);
             }
         };
-        self.show_undone(&e.op);
+        // (the filter first: the photo is shown if it is in view under the filter the step's undo leaves)
         let carried = self.carry_filters(e.filters.as_ref());
+        self.show_undone(&e.op);
         self.pending_log.push(e.op);
         self.undo.push(UndoEntry {
             label: e.label.clone(),
