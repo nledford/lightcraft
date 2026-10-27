@@ -150,7 +150,7 @@ fn enable_filters_brings_a_filter_back_without_what_the_source_owns() {
 
 #[test]
 fn a_flag_carried_into_picks_does_not_block_the_other_filter_changes() {
-    // opening another library keeps the filter and restores that library's source: here Picks, over a flag filter
+    // a source set without `source_shown` (as a library opening did before it reconciled) over a flag filter: here Picks
     let (mut s, ..) = session().unwrap();
     s.execute("library.filter", &json!({"flag": "reject"})).unwrap();
     s.source = crate::LibrarySource::Picks;

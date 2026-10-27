@@ -94,8 +94,8 @@ pub fn specs() -> Vec<CommandSpec> {
                 let mut f = f;
                 // a blank folder is no folder: no hidden "filters active" state
                 f.library_folder = f.library_folder.filter(|d| !d.trim().is_empty());
-                // only what this call sets is refused: a field the source owns that a library switch carried over (a flag
-                // kept while Picks was restored) must not block every other change, and `set` below takes it out
+                // only what this call sets is refused: a field the source owns that is left in the filter (a source set
+                // without `source_shown`) must not block every other change, and `set` below takes it out
                 let sets = |o: &&SourceOwned| p.get(o.name()).is_some_and(|v| !v.is_null());
                 if let Some(field) = s.source.owned_fields_set_in(&f).iter().find(sets) {
                     return Err(bad("library.filter", field.refusal()));
