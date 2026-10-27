@@ -415,8 +415,9 @@ fn a_refused_save_stops_the_window_closing_and_a_second_close_discards() {
     assert!(!h.window_commands.contains(&egui::ViewportCommand::CancelClose), "closing again after the error was shown gives the text up");
 }
 
-/// Quit takes the same path as the close button (`may_close_after_saving_edits`): a refused save
-/// keeps the app open with the error shown, and the second Quit gives the text up.
+/// The shared close path (`may_close_after_saving_edits`, which the close button and the macOS Quit
+/// both call; `main.rs` can't run headless): a refused save keeps the app open with the error
+/// shown, and the second try gives the text up.
 #[test]
 fn a_refused_save_stops_quit_and_a_second_quit_discards() {
     let mut h = typing_refused_gps();
