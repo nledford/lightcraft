@@ -395,6 +395,63 @@ impl Catalog {
         })
     }
 
+    /// What [`Self::list_move_ops`] of each `(from, to)` of `moves` in turn gives, one after the
+    /// other, without a pass over the keyword list and a copy of it per move: the moves are keywords
+    /// none of which is under another, so each listing leaves for at most one of them, found by
+    /// its levels. Each move's ops are as `list_ops` would make them: what leaves and doesn't land
+    /// again is taken off, then what lands (or was merged into) is set, both in key order.
+    fn list_moves_ops(&self, moves: &[(String, String)]) -> Vec<Op> {
+        let list = &self.keyword_list;
+        let moving: HashMap<String, usize> = moves.iter().enumerate().map(|(i, (f, _))| (f.to_lowercase(), i)).collect();
+        let lens: HashSet<usize> = moving.keys().map(String::len).collect();
+        let mut leaving: Vec<Vec<&ListedKeyword>> = vec![Vec::new(); moves.len()];
+        for l in list.values() {
+            let folded = l.path.to_lowercase();
+            if let Some(i) = named_levels(&folded, &lens).find_map(|level| moving.get(level)) {
+                leaving[*i].push(l);
+            }
+        }
+        let mut ops = Vec::new();
+        for ((f, t), left) in moves.iter().zip(&leaving) {
+            let leaves: HashSet<String> = left.iter().map(|l| l.path.to_lowercase()).collect();
+            // the landings, and what they merged into, by key (what `list_move_ops` has in its copy
+            // of the list that isn't what the list has)
+            let mut after: BTreeMap<String, ListedKeyword> = BTreeMap::new();
+            for l in left {
+                let path = reparent(&l.path, f, t);
+                let key = path.to_lowercase();
+                if !after.contains_key(&key)
+                    && let Some(there) = list.get(&key).filter(|_| !leaves.contains(&key))
+                {
+                    after.insert(key.clone(), there.clone());
+                }
+                match after.get_mut(&key) {
+                    Some(there) => {
+                        there.info.new_keywords_inside |= l.info.new_keywords_inside;
+                        for s in &l.info.synonyms {
+                            if !there.info.synonyms.iter().any(|x| same(x, s)) {
+                                there.info.synonyms.push(s.clone());
+                            }
+                        }
+                    }
+                    None => {
+                        after.insert(key, ListedKeyword { path, info: l.info.clone() });
+                    }
+                }
+            }
+            ops.extend(
+                left.iter().filter(|l| !after.contains_key(&l.path.to_lowercase())).map(|l| Op::SetKeyword { path: l.path.clone(), info: None }),
+            );
+            ops.extend(
+                after
+                    .iter()
+                    .filter(|(k, l)| list.get(*k) != Some(*l))
+                    .map(|(_, l)| Op::SetKeyword { path: l.path.clone(), info: Some(l.info.clone()) }),
+            );
+        }
+        ops
+    }
+
     /// Rename `from` (and the keywords below it) to `to` on every photo and in the keyword list —
     /// one batch. Renaming onto an existing keyword merges the two.
     pub fn rename_keyword_ops(&self, from: &str, to: &str) -> Result<Op> {
@@ -469,14 +526,22 @@ impl Catalog {
     /// they go ([`CatalogError::KeywordExists`]), or two of them with one name, refuses the whole
     /// move. Returns the batch and each move as `(from, to)`.
     pub fn move_keywords_ops(&self, keywords: &[String], parent: Option<&str>) -> Result<(Op, Vec<(String, String)>)> {
-        // the keywords' own paths are case folded once and kept in sets, and (below) each photo's
-        // keywords are matched to the moves by level, not against every move
+        // Every lookup is built once for the whole call: the keywords' own paths (and the parent's)
+        // by `keyword_paths`, the names they move to by a second one; paths are case folded once and
+        // kept in sets or maps, and each photo's keywords and each listing are matched to the moves
+        // by level, not against every move. So the cost is the library's keywords, not their
+        // product with the selection.
+        let parent = parent.map(clean).filter(|p| !p.is_empty());
+        let mut queries: Vec<&str> = keywords.iter().map(String::as_str).collect();
+        queries.extend(parent.as_deref());
+        let paths = self.keyword_paths(&queries);
+        let path_of = |k: &str| paths.get(&clean(k).to_lowercase());
         let mut from: Vec<String> = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
         for k in keywords {
-            let path = self.keyword_path(k).ok_or_else(|| CatalogError::Invalid(format!("no keyword “{}”", clean(k))))?;
+            let path = path_of(k).ok_or_else(|| CatalogError::Invalid(format!("no keyword “{}”", clean(k))))?;
             if seen.insert(path.to_lowercase()) {
-                from.push(path);
+                from.push(path.clone());
             }
         }
         if from.is_empty() {
@@ -485,7 +550,7 @@ impl Catalog {
         // the upper ones only: a keyword goes when one of its upper levels is named too
         from.retain(|f| !upper_levels(&f.to_lowercase()).any(|up| seen.contains(up)));
         let upper: HashSet<String> = from.iter().map(|f| f.to_lowercase()).collect();
-        let parent = parent.map(clean).filter(|p| !p.is_empty()).map(|p| self.keyword_path(&p).unwrap_or(p));
+        let parent = parent.map(|p| path_of(&p).cloned().unwrap_or(p));
         if let Some(p) = &parent {
             let p = p.to_lowercase();
             if upper.contains(&p) || upper_levels(&p).any(|up| upper.contains(up)) {
@@ -504,7 +569,9 @@ impl Catalog {
         }
         // one that is there already stays; the others must find their name free
         moves.retain(|(f, t)| !same(f, t));
-        if let Some((_, taken)) = moves.iter().find(|(_, t)| self.has_keyword(t)) {
+        let targets: Vec<&str> = moves.iter().map(|(_, t)| t.as_str()).collect();
+        let existing = self.keyword_paths(&targets);
+        if let Some((_, taken)) = moves.iter().find(|(_, t)| existing.contains_key(&clean(t).to_lowercase())) {
             return Err(CatalogError::KeywordExists(taken.clone()));
         }
         // Case folded once per photo keyword; its path and its upper levels are looked up in `moving`
@@ -519,9 +586,7 @@ impl Catalog {
         };
         let mut ops = self.keyword_ops(|kws| kws.iter().map(|k| moved(k).unwrap_or_else(|| k.clone())).collect());
         // (the moves touch apart parts of the list: each one's listings are its own)
-        for (f, t) in &moves {
-            ops.extend(self.list_move_ops(std::slice::from_ref(f), t));
-        }
+        ops.extend(self.list_moves_ops(&moves));
         Ok((Op::Batch { ops }, moves))
     }
 
@@ -799,6 +864,45 @@ impl Catalog {
             .chain(self.photos().filter(|p| p.in_library()).flat_map(|p| p.meta.keywords.iter()))
             .find(|x| is_under(x, &k))
             .map(|x| x.split(SEP).map(str::trim).filter(|s| !s.is_empty()).take(levels).collect::<Vec<_>>().join("|"))
+    }
+
+    /// [`Self::keyword_path`] of every one of `queries` in one pass over the keyword list and the
+    /// photos, not one pass each: case folded cleaned query → its path. A query with no keyword (or
+    /// an empty one) has no entry. Only the levels as long as some query are hashed
+    /// (see `named_levels`).
+    fn keyword_paths(&self, queries: &[&str]) -> HashMap<String, String> {
+        let mut want: HashMap<String, Option<String>> = HashMap::with_capacity(queries.len());
+        let mut missing = 0usize;
+        for q in queries {
+            let k = clean(q);
+            if k.is_empty() {
+                continue;
+            }
+            let folded = k.to_lowercase();
+            if want.contains_key(&folded) {
+                continue;
+            }
+            let listed = self.keyword_list.get(&folded).map(|l| l.path.clone());
+            missing += usize::from(listed.is_none());
+            want.insert(folded, listed);
+        }
+        let lens: HashSet<usize> = want.keys().map(String::len).collect();
+        // the levels of a listed keyword below it, or of a photo's: the first one found names the path
+        let listed = self.keyword_list.values().map(|l| &l.path);
+        for x in listed.chain(self.photos().filter(|p| p.in_library()).flat_map(|p| p.meta.keywords.iter())) {
+            if missing == 0 {
+                break;
+            }
+            let folded = x.to_lowercase();
+            for level in named_levels(&folded, &lens) {
+                if let Some(slot @ None) = want.get_mut(level) {
+                    let levels = level.split(SEP).count();
+                    *slot = Some(x.split(SEP).map(str::trim).filter(|s| !s.is_empty()).take(levels).collect::<Vec<_>>().join("|"));
+                    missing -= 1;
+                }
+            }
+        }
+        want.into_iter().filter_map(|(k, v)| v.map(|v| (k, v))).collect()
     }
 
     /// Create a keyword with these attributes, and give it to `photos` — one batch. A keyword that
