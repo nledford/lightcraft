@@ -206,9 +206,8 @@ fn closing_the_window_saves_the_text_typed_in_a_box() {
 fn quitting_saves_the_text_typed_in_a_box() {
     let mut h = typing_in_copyright("Example Name");
     let ctx = h.view.ctx.clone();
-    assert_eq!(h.app.save_unfinished_edits(&ctx), Ok(()));
+    assert!(h.app.may_close_after_saving_edits(&ctx), "nothing is left to ask about once the text is saved");
     assert_eq!(import(&mut h, "copyright"), json!("Example Name"), "the text was dropped when Quit was chosen");
-    assert!(crate::panels::notices::may_close(&mut h.app), "and nothing is left to ask about");
 }
 
 /// The Info panel of a selected photo, its Title box typed in and not yet ended.
@@ -255,6 +254,25 @@ fn a_command_that_changes_the_view_saves_the_text_typed_in_an_info_box() {
     steps(&mut h);
     assert!(!has(&h, "field:title"), "the box is not drawn");
     assert_eq!(title(&h, photo), "Rome", "the text typed in the Info panel was dropped by the command");
+}
+
+/// A change that leaves no active photo (Select by ▸ Rejects with none rejected, from the menu bar
+/// or the control channel) hides the Info panel before the sweep saves: the save goes to the photo
+/// the edit was for, whatever the selection the change left.
+#[test]
+fn a_change_that_leaves_no_active_photo_still_saves_the_text_typed_in_an_info_box() {
+    let (mut h, photo) = typing_in_title("Rome");
+    // (nothing rejected, so Select by ▸ Rejects selects nothing; the demo library rejects some)
+    let all: Vec<u64> = h.app.session.visible_cloned().iter().map(|id| id.0).collect();
+    h.app.run("photo.unflag", json!({"ids": all})).unwrap();
+    steps(&mut h);
+    assert!(has(&h, "field:title"), "the box is still drawn, its edit under way");
+    let r = h.request("engine.execute", json!({"command": "library.selectBy", "params": {"flag": "reject"}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    steps(&mut h);
+    assert!(h.app.session.selected().is_empty(), "the change left nothing selected and no active photo");
+    assert!(!has(&h, "field:title"), "the Info panel is not drawn");
+    assert_eq!(title(&h, photo), "Rome", "the text typed in the Info panel was lost: the save was refused with no photos selected");
 }
 
 #[test]
@@ -395,6 +413,18 @@ fn a_refused_save_stops_the_window_closing_and_a_second_close_discards() {
     h.request_close();
     h.step();
     assert!(!h.window_commands.contains(&egui::ViewportCommand::CancelClose), "closing again after the error was shown gives the text up");
+}
+
+/// Quit takes the same path as the close button (`may_close_after_saving_edits`): a refused save
+/// keeps the app open with the error shown, and the second Quit gives the text up.
+#[test]
+fn a_refused_save_stops_quit_and_a_second_quit_discards() {
+    let mut h = typing_refused_gps();
+    let ctx = h.view.ctx.clone();
+    assert!(!h.app.may_close_after_saving_edits(&ctx), "Quit went ahead with refused text typed");
+    assert!(h.app.ui.toast.is_some(), "the error is shown");
+    steps(&mut h);
+    assert!(h.app.may_close_after_saving_edits(&ctx), "Quit again, after the error was shown, gives the text up");
 }
 
 /// The same for Open Library: it refuses, saying why, and the library stays; the second try goes ahead.

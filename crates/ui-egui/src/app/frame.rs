@@ -46,16 +46,8 @@ impl LightcraftApp {
     pub(super) fn logic_background(&mut self, ctx: &egui::Context) {
         panels::notices::logic(self);
         // closing the window (or Quit) with changes only in memory: retry, else ask first
-        if ctx.input(|i| i.viewport().close_requested()) {
-            // (an edit in progress is saved first: it may be the change the question is about; one
-            // the engine refuses keeps the window open, the error shown)
-            let saved = self.save_unfinished_edits(ctx);
-            if let Err(e) = &saved {
-                self.toast_error(ctx, e.clone());
-            }
-            if saved.is_err() || !panels::notices::may_close(self) {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            }
+        if ctx.input(|i| i.viewport().close_requested()) && !self.may_close_after_saving_edits(ctx) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         let now = self.tick_now();
         self.drain_control(ctx);
@@ -375,9 +367,23 @@ impl LightcraftApp {
         saved
     }
 
+    /// The one way to the question "may the app close now?", for the window's close button and
+    /// the menu bar's Quit alike: the edits under way are saved first (they may be the change the
+    /// unsaved-changes question is about), then [`panels::notices::may_close`] asks. A save the
+    /// engine refuses keeps the app open with the error shown. `false`: stay open.
+    pub fn may_close_after_saving_edits(&mut self, ctx: &egui::Context) -> bool {
+        match self.save_unfinished_edits(ctx) {
+            Ok(()) => panels::notices::may_close(self),
+            Err(e) => {
+                self.toast_error(ctx, e);
+                false
+            }
+        }
+    }
+
     /// [`Self::save_unfinished_edits`] where no frame is at hand: before a library closes (Open
-    /// Library, New Library), whose photos the text was typed for.
-    pub(crate) fn save_edits_before_library_closes(&mut self) -> Result<(), String> {
+    /// Library, New Library), whose photos the text was typed for, and when the app exits.
+    pub fn save_edits_before_library_closes(&mut self) -> Result<(), String> {
         match self.egui_ctx.clone() {
             Some(ctx) => self.save_unfinished_edits(&ctx),
             None => Ok(()),

@@ -83,17 +83,7 @@ impl eframe::App for App {
         #[cfg(target_os = "macos")]
         if let Some(m) = self.2.as_mut()
             && m.update(&mut self.0, ctx)
-            && {
-                // (an edit in progress is saved first: the question is about changes in memory; one
-                // the engine refuses keeps the app open, the error shown)
-                match self.0.save_unfinished_edits(ctx) {
-                    Ok(()) => lightcraft_ui_egui::panels::notices::may_close(&mut self.0),
-                    Err(e) => {
-                        self.0.toast_error(ctx, e);
-                        false
-                    }
-                }
-            }
+            && self.0.may_close_after_saving_edits(ctx)
         {
             // Quit from the menu bar: save exactly what closing the window saves (settings and
             // library, after the unsaved-changes check; otherwise its prompt shows), then end the
@@ -114,6 +104,10 @@ impl eframe::App for App {
         self.0.ui(ui);
     }
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // (text still under way, if no earlier route saved it: settings and library are written with it)
+        if let Err(e) = self.0.save_edits_before_library_closes() {
+            log::error!("saving the text being edited failed: {e}");
+        }
         // (a size the window was just given is remembered too)
         self.0.ui.window = self.1.window_at_exit(self.0.ui.window);
         if let Err(e) = self.1.save(&self.0) {

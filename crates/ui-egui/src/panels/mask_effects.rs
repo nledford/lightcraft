@@ -502,7 +502,9 @@ pub fn manage_body(
     let q = search.trim().to_lowercase();
     let effects = app.session.mask_effects.clone();
     let mut toggle_star: Option<(String, bool)> = None;
-    let mut commit_rename: Option<(String, String)> = None;
+    // a rename the edit ended with: the name it gives, and the save the field declared (none when
+    // the name is empty or unchanged)
+    let mut commit_rename: Option<(String, Option<crate::text_field::Save>)> = None;
     egui::ScrollArea::vertical().id_salt("manageEffects").max_height(380.0).auto_shrink([false, true]).show(ui, |ui| {
         for (group, ix) in fx::menu_order(&effects) {
             let list: Vec<&MaskEffect> = ix
@@ -548,7 +550,7 @@ pub fn manage_body(
                         if r.cancelled() {
                             *rename = None;
                         } else if r.committed() {
-                            commit_rename = Some((old.clone(), text.trim().to_string()));
+                            commit_rename = Some((text.trim().to_string(), r.save));
                         }
                         return;
                     }
@@ -592,10 +594,10 @@ pub fn manage_body(
     if let Some((name, on)) = toggle_star {
         let _ = app.run("mask.favoriteEffect", json!({"name": name, "favorite": on}));
     }
-    if let Some((old, to)) = commit_rename {
+    if let Some((to, save)) = commit_rename {
         *rename = None;
-        if !to.is_empty() && to != old {
-            match app.run("mask.renameEffect", json!({"name": old, "to": to})) {
+        if let Some(save) = save {
+            match app.run(save.command, save.params) {
                 Ok(_) => *selected = vec![to],
                 Err(e) => app.toast_error(ui.ctx(), e),
             }
