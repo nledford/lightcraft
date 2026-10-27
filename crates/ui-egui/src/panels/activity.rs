@@ -544,8 +544,9 @@ fn finished_row(ui: &mut egui::Ui, t: &Tokens, f: &Finished, width: f32, rows: &
                 ui.add(egui::Label::new(RichText::new(line).font(t.font(11.0)).color(t.text_label)).truncate());
             }
             // what is not shown here, and what was not kept at all, is said: nothing goes missing silently
-            if f.failed > FAILURES_SHOWN {
-                let more = tr_format!("and {n} more", n = f.failed - FAILURES_SHOWN);
+            let more = failures_not_listed(f.failed, f.failures.len());
+            if more > 0 {
+                let more = tr_format!("and {n} more", n = more);
                 ui.add(egui::Label::new(RichText::new(more).font(t.font(11.0)).color(t.text_dim)));
             }
             if link(ui, t, tr("Copy all"), format!("activity:copy:{}", f.id)) {
@@ -557,6 +558,12 @@ fn finished_row(ui: &mut egui::Ui, t: &Tokens, f: &Finished, width: f32, rows: &
         register(ui, format!("activity:done:{}", f.id), r.response.rect);
     }
     act
+}
+
+/// How many of an ended task's failures the expanded list does not draw: those past `FAILURES_SHOWN` and those the job
+/// counted but did not keep (a job can count more failures than it names).
+fn failures_not_listed(failed: usize, kept: usize) -> usize {
+    failed.saturating_sub(kept.min(FAILURES_SHOWN))
 }
 
 /// The failed files of an ended task for the clipboard: a line each, the name and the reason with a tab between,
@@ -643,6 +650,18 @@ pub(crate) fn bar(ui: &mut egui::Ui, task: &TaskInfo, width: f32) -> egui::Respo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_failures_the_list_does_not_draw_are_counted_against_the_lines_it_draws() {
+        // counted 700, named 2: two lines are drawn, so 698 are left out
+        assert_eq!(failures_not_listed(700, 2), 698);
+        // counted 4, named 2: nothing is hidden behind the cap, yet two were not kept
+        assert_eq!(failures_not_listed(4, 2), 2);
+        // counted 9, named 7: five lines are drawn
+        assert_eq!(failures_not_listed(9, 7), 4);
+        // all counted ones are drawn: nothing to say
+        assert_eq!(failures_not_listed(2, 2), 0);
+    }
 
     #[test]
     fn progress_can_be_told_from_the_panel_in_every_theme() {
