@@ -84,9 +84,15 @@ impl eframe::App for App {
         if let Some(m) = self.2.as_mut()
             && m.update(&mut self.0, ctx)
             && {
-                // (an edit in progress is saved first: the question is about changes in memory)
-                self.0.save_unfinished_edits(ctx);
-                lightcraft_ui_egui::panels::notices::may_close(&mut self.0)
+                // (an edit in progress is saved first: the question is about changes in memory; one
+                // the engine refuses keeps the app open, the error shown)
+                match self.0.save_unfinished_edits(ctx) {
+                    Ok(()) => lightcraft_ui_egui::panels::notices::may_close(&mut self.0),
+                    Err(e) => {
+                        self.0.toast_error(ctx, e);
+                        false
+                    }
+                }
             }
         {
             // Quit from the menu bar: save exactly what closing the window saves (settings and

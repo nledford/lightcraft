@@ -398,7 +398,9 @@ impl Headless {
                     self.window_commands.push(c);
                 }
                 // recorded, not carried out: the simulated pointer moves only when a test moves it
-                ViewportCommand::StartDrag | ViewportCommand::CursorPosition(_) | ViewportCommand::CursorGrab(_) => self.window_commands.push(c),
+                ViewportCommand::CancelClose | ViewportCommand::StartDrag | ViewportCommand::CursorPosition(_) | ViewportCommand::CursorGrab(_) => {
+                    self.window_commands.push(c)
+                }
                 _ => {}
             }
         }

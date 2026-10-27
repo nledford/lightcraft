@@ -206,7 +206,7 @@ fn closing_the_window_saves_the_text_typed_in_a_box() {
 fn quitting_saves_the_text_typed_in_a_box() {
     let mut h = typing_in_copyright("Example Name");
     let ctx = h.view.ctx.clone();
-    h.app.save_unfinished_edits(&ctx);
+    assert_eq!(h.app.save_unfinished_edits(&ctx), Ok(()));
     assert_eq!(import(&mut h, "copyright"), json!("Example Name"), "the text was dropped when Quit was chosen");
     assert!(crate::panels::notices::may_close(&mut h.app), "and nothing is left to ask about");
 }
@@ -368,4 +368,69 @@ fn a_library_switch_mid_edit_saves_to_the_old_library_and_writes_nothing_to_the_
     assert_eq!(title(&h, first), "Rome", "the text typed in the old library was dropped when it was closed");
     let _ = h.app.session.close_library();
     let _ = std::fs::remove_dir_all(&root);
+}
+
+/// An Info box with text the engine refuses (a place that is no coordinates), typed and not ended.
+fn typing_refused_gps() -> Headless {
+    let (mut h, _) = typing_in_title("Rome");
+    // (tall enough that the GPS box is on screen without scrolling the panel)
+    let r = h.request("ui.resize", json!({"width": 1200, "height": 2400}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    steps(&mut h);
+    type_into(&mut h, "field:gps", "not a place");
+    h
+}
+
+/// A save the engine refuses (invalid GPS text) does not let the window close: the box keeps the
+/// text and the error is shown. Closing again, after the error was shown, gives the text up.
+#[test]
+fn a_refused_save_stops_the_window_closing_and_a_second_close_discards() {
+    let mut h = typing_refused_gps();
+    h.request_close();
+    h.step();
+    assert!(h.window_commands.contains(&egui::ViewportCommand::CancelClose), "the close was not canceled: the refused text would be lost");
+    assert!(h.app.ui.toast.is_some(), "the error is shown");
+    assert!(h.view.ctx.memory(|m| m.has_focus(crate::text_field::id("field:gps"))), "the box still holds the text");
+    h.window_commands.clear();
+    h.request_close();
+    h.step();
+    assert!(!h.window_commands.contains(&egui::ViewportCommand::CancelClose), "closing again after the error was shown gives the text up");
+}
+
+/// The same for Open Library: it refuses, saying why, and the library stays; the second try goes ahead.
+#[test]
+fn a_refused_save_stops_a_library_switch_and_a_second_try_discards() {
+    let mut h = typing_refused_gps();
+    let dir = std::env::temp_dir().join(format!("lc-tf-refused-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let generation = h.app.session.library_generation();
+    let first = h.app.run("app.openLibrary", json!({"path": dir.to_string_lossy()}));
+    assert!(first.is_err(), "the switch went ahead with refused text typed: {first:?}");
+    assert_eq!(h.app.session.library_generation(), generation, "the library stays open");
+    let second = h.app.run("app.openLibrary", json!({"path": dir.to_string_lossy()}));
+    assert!(second.is_ok(), "the second try gives the text up: {second:?}");
+    let _ = h.app.session.close_library();
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Text put right after a refusal is a new edit: closing saves it and lets the window close in one step.
+#[test]
+fn text_put_right_after_a_refusal_is_saved_and_the_window_closes() {
+    let mut h = typing_refused_gps();
+    h.request_close();
+    h.step();
+    assert!(h.window_commands.contains(&egui::ViewportCommand::CancelClose), "refused: the window stays");
+    h.window_commands.clear();
+    for pressed in [true, false] {
+        h.events.push(egui::Event::Key { key: egui::Key::A, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::COMMAND });
+    }
+    steps(&mut h);
+    let r = h.request("ui.text", json!({"text": "46.0, 7.0"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    steps(&mut h);
+    h.request_close();
+    h.step();
+    assert!(!h.window_commands.contains(&egui::ViewportCommand::CancelClose), "a save that succeeds lets the window close");
+    let photo = h.app.session.visible_cloned()[0];
+    assert!(h.app.session.catalog.photo(photo).unwrap().meta.gps.is_some(), "the corrected place was saved");
 }
