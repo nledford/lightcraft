@@ -164,6 +164,9 @@ pub struct LightcraftApp {
     pub(crate) notice_input: panels::notices::PromptInput,
     /// Quit Anyway was chosen: the window may close with unsaved changes.
     pub quit_confirmed: bool,
+    /// The window's egui context, as of the last frame: for work that runs outside a frame's draw
+    /// but must reach the widgets' memory (saving a text edit under way before a library closes).
+    egui_ctx: Option<egui::Context>,
     control_rx: Option<Receiver<ControlRequest>>,
     pending_screenshots: Vec<PendingShot>,
     /// Synthetic-input control requests waiting for a fresh layout and delivery (plan §4.5).

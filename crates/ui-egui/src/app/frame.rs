@@ -46,8 +46,12 @@ impl LightcraftApp {
     pub(super) fn logic_background(&mut self, ctx: &egui::Context) {
         panels::notices::logic(self);
         // closing the window (or Quit) with changes only in memory: retry, else ask first
-        if ctx.input(|i| i.viewport().close_requested()) && !panels::notices::may_close(self) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        if ctx.input(|i| i.viewport().close_requested()) {
+            // (an edit in progress is saved first: it may be the change the question is about)
+            self.save_unfinished_edits(ctx);
+            if !panels::notices::may_close(self) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            }
         }
         let now = self.tick_now();
         self.drain_control(ctx);
@@ -270,6 +274,9 @@ impl LightcraftApp {
             return;
         }
         self.shown_library = Some(generation);
+        // an edit still recorded names photos of the library that was left (their ids are local to
+        // it): it is dropped, never run against this one
+        drop(crate::text_field::take_all(ctx));
         if let Some(l) = self.session.library.as_ref().filter(|l| l.on_disk) {
             let path = l.dir.to_string_lossy().into_owned();
             panels::settings::remember_library(&mut self.ui.settings.recent_libraries, &path);
@@ -317,6 +324,12 @@ impl LightcraftApp {
         }
         self.widgets = std::mem::take(&mut self.next_widgets);
         self.widget_hits = std::mem::take(&mut self.next_widget_hits);
+        // a text edit whose field was not drawn in this pass ended there: every way of leaving an
+        // edit saves except Esc (an Esc that came with the pass gives it up)
+        let left = crate::text_field::take_left_behind(ctx);
+        if !ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.run_saves(ctx, left);
+        }
         panels::notices::finish_ui_pass(self, ctx);
         panels::library_problem::finish_ui_pass(self, ctx);
         self.ui_passes = self.ui_passes.wrapping_add(1);
@@ -328,6 +341,35 @@ impl LightcraftApp {
             // nothing else may ask for the frame that applies its cancellation.
             ctx.request_repaint();
         }
+    }
+
+    /// Save the text edits under way, whether their fields are drawn or not: the window is closing
+    /// (or Quit was chosen), before the question about unsaved changes, which they may add to.
+    pub fn save_unfinished_edits(&mut self, ctx: &egui::Context) {
+        let saves = crate::text_field::take_all(ctx);
+        self.run_saves(ctx, saves);
+    }
+
+    /// [`Self::save_unfinished_edits`] where no frame is at hand: before a library closes (Open
+    /// Library, New Library), whose photos the text was typed for.
+    pub(crate) fn save_edits_before_library_closes(&mut self) {
+        if let Some(ctx) = self.egui_ctx.clone() {
+            self.save_unfinished_edits(&ctx);
+        }
+    }
+
+    /// Run the saves fields declared ([`crate::text_field::Save`]); a refusal is said, as the text
+    /// is gone from its box.
+    fn run_saves(&mut self, ctx: &egui::Context, saves: Vec<crate::text_field::Save>) {
+        if saves.is_empty() {
+            return;
+        }
+        for save in saves {
+            if let Err(e) = self.run(save.command, save.params) {
+                self.toast_error(ctx, e);
+            }
+        }
+        ctx.request_repaint();
     }
 
     /// Presentation only: the window's panels, dialogs and overlays.

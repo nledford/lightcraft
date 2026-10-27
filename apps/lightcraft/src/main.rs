@@ -83,7 +83,11 @@ impl eframe::App for App {
         #[cfg(target_os = "macos")]
         if let Some(m) = self.2.as_mut()
             && m.update(&mut self.0, ctx)
-            && lightcraft_ui_egui::panels::notices::may_close(&mut self.0)
+            && {
+                // (an edit in progress is saved first: the question is about changes in memory)
+                self.0.save_unfinished_edits(ctx);
+                lightcraft_ui_egui::panels::notices::may_close(&mut self.0)
+            }
         {
             // Quit from the menu bar: save exactly what closing the window saves (settings and
             // library, after the unsaved-changes check; otherwise its prompt shows), then end the

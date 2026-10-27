@@ -67,6 +67,8 @@ fn switch_library(app: &mut LightcraftApp, path: &str) -> Result<Value, String> 
     // the library being left goes in the list too (also when it was opened at launch)
     let previous_dir = app.session.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.clone());
     let previous = previous_dir.as_ref().map(|d| d.to_string_lossy().into_owned());
+    // an edit under way in a box (the Info panel's, Settings') is for this library's photos: saved first
+    app.save_edits_before_library_closes();
     app.session.close_library().map_err(|e| e.to_string())?;
     let opened = app.session.open_library(&dir, false).map(|_| ()).map_err(|e| format!("{path}: {e}"));
     app.lightroom_last = None;

@@ -532,7 +532,16 @@ pub fn manage_body(
                         toggle_star = Some((e.name.clone(), !e.favorite));
                     }
                     if let Some((old, text)) = rename.as_mut().filter(|(old, _)| *old == e.name) {
-                        let r = crate::text_field::TextField::singleline("field:effectRename", text).width(220.0).select_on_focus(true).show(ui);
+                        // (saved if the dialog goes away mid-edit too; the commit below does the rest)
+                        let r = crate::text_field::TextField::singleline("field:effectRename", text)
+                            .width(220.0)
+                            .select_on_focus(true)
+                            .saves_with(|typed| {
+                                let to = typed.trim();
+                                (!to.is_empty() && to != old.as_str())
+                                    .then(|| crate::text_field::Save { command: "mask.renameEffect", params: json!({"name": old, "to": to}) })
+                            })
+                            .show(ui);
                         if !r.editing && r.ending.is_none() {
                             r.response.request_focus();
                         }
