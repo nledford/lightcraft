@@ -7,6 +7,10 @@
   on its own and macOS no longer slows the app down when its window is hidden or minimized. Both end as soon as the
   last job finishes or is canceled.
 
+### On macOS, the Dock icon shows how many jobs are running
+- The Dock icon of LightCraft carries a badge with the number of jobs you started that are running (an export, an
+  import, a preview build…). It goes away when the last one ends, so a job in a minimized window can still be seen.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
