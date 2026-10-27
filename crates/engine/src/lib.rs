@@ -830,7 +830,7 @@ impl Session {
                 return Err(err);
             }
         };
-        // (the filter first: the photo is shown if it is in view under the filter the step's undo leaves)
+        // (the filter first: the photo is shown if it is in view under the filter the step leaves)
         let carried = self.carry_filters(e.filters.as_ref());
         self.show_undone(&e.op);
         self.pending_log.push(e.op);
