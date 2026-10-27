@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### One feedback row in the macOS Help menu
+- On macOS the Help menu showed macOS's own "Send LightCraft Feedback" row above LightCraft's Send Feedback…. Only
+  LightCraft's row is left; it opens a new issue on the project's GitHub.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
