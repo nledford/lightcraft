@@ -11,6 +11,13 @@
 - Renaming or moving a Local folder you browsed earlier no longer narrows All Photos to it, and no longer replaces the
   filter View ▸ Enable Filters put aside: the browsed folder follows the rename, and the filter is left as it was.
 
+### Undo puts the filter back with the keyword, person or folder
+- Deleting or renaming a keyword, renaming a person and removing a library folder change the filter that names them, and
+  undo brought the keyword, name or folder back but left the filter as it was changed, so the grid showed everything or
+  nothing. Now undo gives the filter its old keyword, name or folder, also in the filter View ▸ Enable Filters put aside,
+  and redo changes it again. Only what the step changed moves, and only while you have not changed that part of the
+  filter since; a filter you built after emptying or replacing the old one is left alone.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

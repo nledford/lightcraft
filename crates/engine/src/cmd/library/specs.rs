@@ -110,7 +110,7 @@ pub fn specs() -> Vec<CommandSpec> {
                 if let Some(problems) = f.rule_set.as_ref().filter(|_| sets_rules).map(|rs| rs.check(&s.catalog)).filter(|p| !p.is_empty()) {
                     return Err(bad("library.filter", problems.iter().map(ToString::to_string).collect::<Vec<_>>().join("; ")));
                 }
-                s.set_filter(f);
+                s.filters.set(s.source, f);
                 Ok(json!({"count": s.visible().len()}))
             }
         ),

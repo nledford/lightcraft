@@ -78,11 +78,38 @@ impl LibrarySource {
     }
 }
 
+/// What [`FilterState::carry`] does with the filter once its fields are carried.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Carried {
+    InPlace,
+    /// The filter put aside is dropped.
+    Drop,
+    /// The filter in use is put aside (if it was empty before and holds something now, or `even_if_empty`).
+    PutAside {
+        even_if_empty: bool,
+    },
+}
+
 /// The filter being shown and the one View ▸ Enable Filters put aside (not persisted).
 #[derive(Debug, Default)]
 pub struct FilterState {
     current: Filter,
     aside: Option<Filter>,
+    /// How many times the person's filter was thrown away (replaced, emptied, or a put-aside one forgotten): what
+    /// tells a filter built afterwards from the one a step left ([`crate::undo_filters`]). Putting a filter aside
+    /// and bringing it back, and editing it, do not count.
+    replaced: u64,
+    /// A top-level command is running ([`FilterState::begin_recording`]): the person's filter as it was before the
+    /// first change the command made, copied only then.
+    recording: bool,
+    before: Option<Snapshot>,
+}
+
+/// The person's filter and whether Enable Filters has it put aside.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Snapshot {
+    pub(crate) filter: Filter,
+    pub(crate) aside: bool,
 }
 
 impl FilterState {
@@ -95,13 +122,62 @@ impl FilterState {
         self.aside.as_ref()
     }
 
-    /// Show `f` as the filter, over `source`. What the source owns is left out and named in the answer.
+    /// A command starts: the first change to the filter from now to [`FilterState::end_recording`] keeps what it was
+    /// (nothing is copied for a command that does not change the filter).
+    pub(crate) fn begin_recording(&mut self) {
+        self.recording = true;
+        self.before = None;
+    }
+
+    /// The command ended: the person's filter as it was before the command's first change, if it made one.
+    pub(crate) fn end_recording(&mut self) -> Option<Snapshot> {
+        self.recording = false;
+        self.before.take()
+    }
+
+    /// Called before every change: keeps the filter as it was while a command is recording.
+    fn touch(&mut self) {
+        if self.recording && self.before.is_none() {
+            self.before = Some(self.snapshot());
+        }
+    }
+
+    /// The person's filter now.
+    pub(crate) fn snapshot(&self) -> Snapshot {
+        let (filter, aside) = self.person();
+        Snapshot { filter: filter.clone(), aside }
+    }
+
+    /// How many times the person's filter was thrown away.
+    pub(crate) fn replaced(&self) -> u64 {
+        self.replaced
+    }
+
+    /// The person's filter (the one put aside while filters are off, else the one in use) and whether it is put aside.
+    pub(crate) fn person(&self) -> (&Filter, bool) {
+        match &self.aside {
+            Some(f) => (f, true),
+            None => (&self.current, false),
+        }
+    }
+
+    /// Show `f` as an edit of the filter, over `source`: what the source owns is left out and named in the answer.
     /// Setting a filter forgets the one put aside.
     pub fn set(&mut self, source: LibrarySource, mut f: Filter) -> Vec<SourceOwned> {
+        self.touch();
         let left_out = source.reconcile(&mut f);
+        // an edit that empties the filter ends it, as forgetting the one put aside does
+        self.replaced += u64::from(self.aside.is_some() || (f == Filter::default() && self.current != Filter::default()));
         self.current = f;
         self.aside = None;
         left_out
+    }
+
+    /// Show `f` in place of the filter, over `source` (a saved preset applied): [`FilterState::set`] for a filter
+    /// that is not an edit of the one before.
+    pub fn replace(&mut self, source: LibrarySource, f: Filter) -> Vec<SourceOwned> {
+        self.replaced += 1;
+        self.set(source, f)
     }
 
     /// [`FilterState::set`] with `edit` applied to a copy of the current filter.
@@ -113,6 +189,8 @@ impl FilterState {
 
     /// No filter, none put aside.
     pub fn clear(&mut self) {
+        self.touch();
+        self.replaced += u64::from(self.aside.is_some() || self.current != Filter::default());
         self.current = Filter::default();
         self.aside = None;
     }
@@ -120,12 +198,14 @@ impl FilterState {
     /// `source` was shown: the filter lets go of what that source owns. The one put aside is
     /// reconciled when it comes back, against the source shown then.
     pub fn source_shown(&mut self, source: LibrarySource) {
+        self.touch();
         source.reconcile(&mut self.current);
     }
 
     /// Enable Filters: a filter set is put aside, one put aside comes back as it was except what the
     /// source shown now owns. Returns whether filters are on afterwards.
     pub fn toggle(&mut self, source: LibrarySource) -> bool {
+        self.touch();
         if self.current != Filter::default() {
             self.aside = Some(std::mem::take(&mut self.current));
         } else if let Some(mut f) = self.aside.take() {
@@ -139,6 +219,7 @@ impl FilterState {
     /// applied to the filter and to the one put aside, and to nothing else. It must not set a field a source
     /// owns.
     pub fn follow(&mut self, mut edit: impl FnMut(&mut Filter)) {
+        self.touch();
         edit(&mut self.current);
         if let Some(f) = self.aside.as_mut() {
             edit(f);
@@ -147,8 +228,34 @@ impl FilterState {
 
     /// A put-aside filter that [`FilterState::follow`] left empty has nothing to bring back.
     pub fn drop_aside_if_empty(&mut self) {
+        self.touch();
         if self.aside.as_ref() == Some(&Filter::default()) {
             self.aside = None;
+        }
+    }
+
+    /// Carry a change onto the person's filter: `edit` gets it, and whether it is put aside. A filter in use is
+    /// then cleared of what the source owns (one put aside is, when it comes back). `edit` returns whether the
+    /// filter goes aside again (a filter in use) or is dropped (one put aside): that is the step's own undo.
+    pub(crate) fn carry(&mut self, source: LibrarySource, edit: impl FnOnce(&mut Filter, bool) -> Carried) {
+        self.touch();
+        let was_empty = self.current == Filter::default();
+        let (aside, filter) = match self.aside.as_mut() {
+            Some(f) => (true, f),
+            None => (false, &mut self.current),
+        };
+        let verdict = edit(filter, aside);
+        if !aside {
+            source.reconcile(&mut self.current);
+        }
+        match verdict {
+            Carried::InPlace => {}
+            Carried::Drop if aside => self.aside = None,
+            // (a filter that is now empty has nothing to put aside, unless it was the step's)
+            Carried::PutAside { even_if_empty } if !aside && was_empty && (self.current != Filter::default() || even_if_empty) => {
+                self.aside = Some(std::mem::take(&mut self.current));
+            }
+            Carried::Drop | Carried::PutAside { .. } => {}
         }
     }
 
