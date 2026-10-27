@@ -407,8 +407,11 @@ fn a_refused_save_stops_a_library_switch_and_a_second_try_discards() {
     let first = h.app.run("app.openLibrary", json!({"path": dir.to_string_lossy()}));
     assert!(first.is_err(), "the switch went ahead with refused text typed: {first:?}");
     assert_eq!(h.app.session.library_generation(), generation, "the library stays open");
+    steps(&mut h);
+    assert!(h.view.ctx.memory(|m| m.has_focus(crate::text_field::id("field:gps"))), "the box still holds the text");
     let second = h.app.run("app.openLibrary", json!({"path": dir.to_string_lossy()}));
     assert!(second.is_ok(), "the second try gives the text up: {second:?}");
+    assert_ne!(h.app.session.library_generation(), generation, "and the library was switched");
     let _ = h.app.session.close_library();
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -337,6 +337,10 @@ impl LightcraftApp {
             // (the box is gone with its text: all that is left is to say so)
             self.toast_error(ctx, e);
         }
+        // (a refusal is remembered only while the text it refused is still there to be offered again)
+        if !crate::text_field::any_unfinished(ctx) {
+            self.edit_saves_refused.clear();
+        }
         panels::notices::finish_ui_pass(self, ctx);
         panels::library_problem::finish_ui_pass(self, ctx);
         self.ui_passes = self.ui_passes.wrapping_add(1);

@@ -167,6 +167,8 @@ pub fn new_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> 
     if dir.is_file() {
         return Err(format!("{}: is a file; a library is a folder", dir.display()));
     }
+    // (before the folder is made: a refusal to save the text typed stops the switch, and leaves nothing behind)
+    app.save_edits_before_library_closes()?;
     if std::fs::read_dir(&dir).is_ok_and(|mut d| d.next().is_some()) {
         return Err(format!("{}: the folder isn't empty; choose an empty folder or a new name", dir.display()));
     }

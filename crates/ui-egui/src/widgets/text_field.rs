@@ -135,6 +135,11 @@ pub(crate) fn take_left_behind(ctx: &egui::Context) -> Vec<Save> {
     })
 }
 
+/// Whether any edit with a declared save is under way (or was left behind and not swept yet).
+pub(crate) fn any_unfinished(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<Unfinished>(unfinished_id()).is_some_and(|u| !u.0.is_empty()))
+}
+
 /// Take every save of an edit under way, drawn or not (the window is closing).
 pub(crate) fn take_all(ctx: &egui::Context) -> Vec<Save> {
     ctx.data_mut(|d| std::mem::take(&mut d.get_temp_mut_or_default::<Unfinished>(unfinished_id()).0).into_iter().map(|(.., save)| save).collect())
