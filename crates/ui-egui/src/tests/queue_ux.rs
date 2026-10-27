@@ -332,6 +332,40 @@ fn a_task_put_in_line_while_the_question_is_up_is_asked_about_too() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Given the switch question with focus moved to Switch Library, when a task waiting in line is replaced by another with
+/// the same name before Switch Library is pressed, then the question comes back with the same words and focus back on the
+/// safe Cancel, not on the button that was just used.
+#[test]
+fn a_switch_question_asked_again_in_the_same_words_resets_focus_to_cancel() {
+    let (mut h, dir) = library_app("switch-focus");
+    let _running = hold_a_line(&mut h);
+    let first = library_dir(&h);
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
+    h.step();
+    h.step();
+    let said = h.app.switch_prompt.as_ref().map(|p| p.text.clone()).unwrap_or_default();
+    let focused = |h: &Headless| h.view.ctx.memory(|m| m.focused());
+    let hit =
+        |h: &Headless, id: &str| h.app.widget_hits.iter().rev().find(|(w, _)| w == id).map(|(_, hit)| hit.id).unwrap_or_else(|| panic!("no {id}"));
+    let (cancel, anyway) = (hit(&h, "button:switchCancel"), hit(&h, "button:switchAnyway"));
+    assert_eq!(focused(&h), Some(cancel), "the safe Cancel starts focused");
+    assert_eq!(h.request("ui.key", json!({"key": "Tab"}), T)["ok"], true);
+    assert_eq!(focused(&h), Some(anyway), "Tab moved focus to Switch Library");
+    // the waiting task is taken out and another of the same name put in: the question reads the same
+    let old = h.app.session.activity.waiting()[0].id;
+    h.app.session.activity.cancel(old).unwrap();
+    let request = lightcraft_engine::activity::Request { command: "library.buildPreviews".into(), params: json!({}), ..Default::default() };
+    h.app.session.activity.enqueue("previews", "Building previews", request).unwrap();
+    assert_eq!(h.request("ui.key", json!({"key": "Space"}), T)["ok"], true);
+    h.step();
+    h.step();
+    assert_eq!((library_dir(&h), h.app.session.activity.waiting().len()), (first, 1), "nothing was dropped");
+    assert_eq!(h.app.switch_prompt.as_ref().map(|p| p.text.as_str()), Some(said.as_str()), "asked again in the same words");
+    let cancel_after = hit(&h, "button:switchCancel");
+    assert_eq!(focused(&h), Some(cancel_after), "focus is back on the safe Cancel");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Given Open Library with a task waiting, then it asks too and Cancel leaves everything as it was.
 #[test]
 fn opening_a_library_asks_before_dropping_the_line() {
