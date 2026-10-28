@@ -880,6 +880,8 @@ fn mask_overlay_menu_lists_modes_and_colors_with_the_current_one_checked() {
     assert_eq!(colors, crate::panels::masking::OVERLAY_COLORS.len());
     for id in ["view.maskOverlayMode", "view.maskOverlayColor"] {
         assert!(kids.iter().any(|n| matches!(n, MenuNode::Item { id: i, params, .. } if i == id && params.is_null())), "the cycle item {id} stays");
+        let catalog_path = super::super::ui_commands::UI_COMMANDS.iter().find(|c| c.0 == id).map(|c| c.3);
+        assert_eq!(catalog_path, Some("View>Mask Overlay"), "the command catalog (ui.menu.list) places {id} where the menu does");
     }
     run_item(&mut a, "view.maskOverlayMode", json!({"mode": MaskView::WhiteOnBlack.name()})).unwrap();
     run_item(&mut a, "view.maskOverlayColor", json!({"color": "#28c846"})).unwrap();

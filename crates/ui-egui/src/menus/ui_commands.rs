@@ -109,8 +109,8 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     // Ctrl+Shift+O / Cmd+Shift+O: every mask's region at once, not just the selected one
     ("view.maskOverlayAll", "All Mask Overlays", Some("Cmd+Shift+O"), "View>Mask Overlay"),
     // Shift+O in the Masking panel (elsewhere it cycles the crop overlay)
-    ("view.maskOverlayMode", "Cycle Mask Overlay Mode", None, "View"),
-    ("view.maskOverlayColor", "Cycle Mask Overlay Color", None, "View"),
+    ("view.maskOverlayMode", "Cycle Mask Overlay Mode", None, "View>Mask Overlay"),
+    ("view.maskOverlayColor", "Cycle Mask Overlay Color", None, "View>Mask Overlay"),
     ("view.maskPins", "Mask Pins", None, "View>Mask Overlay"),
     // {mode?: auto | always | selected | never}: when spot and mask pins show (steps to the next
     // mode when omitted; Shift+H, like Classic's H for pins, since H opens Remove). View ▸ Tool
