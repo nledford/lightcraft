@@ -455,6 +455,20 @@ fn grouped_suggestions_name_the_keyword_alone() {
     assert!(ids.iter().all(|id| keywords_of(&h, *id).iter().any(|k| k == "Places|Portugal|Lisbon")));
 }
 
+// Given a suggested keyword whose path is wider than the panel,
+// When the suggestions are shown, Then the chip wraps its label inside the panel instead of
+// drawing one long line the panel clips.
+#[test]
+fn a_suggestion_wider_than_the_panel_wraps_inside_it() {
+    let (mut h, ids) = two_selected();
+    let long = format!("Places|{}", "Alfama Miradouro da Senhora do Monte ".repeat(6).trim_end());
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": [ids[0]], "addKeywords": [long]}}));
+    let chip = rect(&h, &format!("kwSuggest:{long}"));
+    let field = rect(&h, "field:keyword");
+    assert!(chip.right() <= field.right() + 1.0, "the chip {chip:?} stays inside the panel (the keyword field is {field:?})");
+    assert!(chip.height() > 30.0, "its label wrapped onto more lines, {chip:?}");
+}
+
 // Given the grouped box in another language and a suggested keyword named like a catalog message,
 // When the suggestion is hovered, Then its tooltip is not the message's translation.
 #[test]

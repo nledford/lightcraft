@@ -101,6 +101,36 @@ fn a_trailing_icon_is_painted_after_the_text_and_monospace_changes_the_face() {
     assert_ne!(plain, mono, "another face has other widths");
 }
 
+// Given an empty state in a view narrower than its button's label,
+// When it is drawn, Then the label is cut inside the button (and shown in full on hover) instead
+// of running past both sides of it.
+#[test]
+fn an_empty_states_long_label_stays_inside_a_narrow_view() {
+    let label = "Import your whole Lightroom catalog with every folder and every photo in it";
+    let view = Rect::from_min_size(Pos2::ZERO, vec2(240.0, 400.0));
+    let ctx = egui::Context::default();
+    crate::theme::install_fonts(&ctx);
+    let mut widest = 0.0f32;
+    for _ in 0..3 {
+        let raw = egui::RawInput { screen_rect: Some(view), ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let action = crate::panels::EmptyAction { command: "x", label, widget: "button:emptyX" };
+            crate::panels::empty_state(ui, view, "Nothing here", "Add some photos.", &[action], None);
+        });
+        out.textures_delta.clear();
+        widest = 0.0;
+        for s in &out.shapes {
+            if let egui::epaint::Shape::Text(t) = &s.shape
+                && t.galley.job.text.starts_with("Import your")
+            {
+                widest = widest.max(t.galley.size().x);
+            }
+        }
+    }
+    assert!(widest > 0.0, "the label was drawn");
+    assert!(widest <= view.width() - 48.0, "the label is {widest} wide in a view {} wide", view.width());
+}
+
 #[test]
 fn verbatim_text_is_not_translated_and_align_start_pins_the_content() {
     crate::i18n::set_language(crate::i18n::Locale::De);

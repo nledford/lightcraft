@@ -188,7 +188,7 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     let whole = k.replace('|', " › ");
                     let name = names.get(i).unwrap_or(&whole);
                     let label = format!("+ {name}");
-                    let r = crate::button::Button::new(&label).verbatim().small().widget(format!("kwSuggest:{k}"));
+                    let r = crate::button::Button::new(&label).verbatim().small().max_width(ui.available_width()).widget(format!("kwSuggest:{k}"));
                     let r = r.show(ui);
                     // the keyword's own path, never looked up in the catalog
                     let r = if grouped { r.on_hover_text(&whole) } else { r };

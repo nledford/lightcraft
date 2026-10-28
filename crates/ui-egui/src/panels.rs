@@ -174,7 +174,7 @@ pub fn empty_state(ui: &mut egui::Ui, rect: Rect, title: &str, body: &str, actio
             let w = widths.iter().copied().fold(0.0, f32::max).min(wrap);
             Rect::from_min_size(pos2(rect.center().x - w / 2.0, buttons_top + i as f32 * (BUTTON_H + GAP)), vec2(w, BUTTON_H))
         };
-        let mut button = crate::button::Button::new(a.label).widget(a.widget);
+        let mut button = crate::button::Button::new(a.label).widget(a.widget).max_width(r.width()).truncate().tooltip(a.label);
         if i == 0 {
             button = button.primary();
         }
