@@ -298,7 +298,7 @@ pub(super) fn soft_proofing(app: &mut LightcraftApp, ui: &mut egui::Ui, id: Phot
                 ui.label(RichText::new(crate::i18n::tr("Intent:")).color(t.text_label));
                 use lightcraft_engine::proof::ProofIntent;
                 for (i, label) in [(ProofIntent::Perceptual, "Perceptual"), (ProofIntent::Relative, "Relative")] {
-                    let r = crate::widgets::text_button(ui, &format!("proofIntent-{}", i.name()), label, app.ui.proof_intent == i);
+                    let r = crate::widgets::choice_button(ui, &format!("proofIntent-{}", i.name()), label, app.ui.proof_intent == i);
                     if r.clicked() && app.ui.proof_intent != i {
                         let _ = app.run("view.softProof", json!({"intent": i.name()}));
                     }

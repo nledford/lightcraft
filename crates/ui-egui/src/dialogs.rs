@@ -778,7 +778,7 @@ fn capture_time_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, dlg
     field(ui, "Change", |ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         for (i, (label, m)) in [("Set date & time", "set"), ("Shift by", "shift"), ("Time zone", "zone")].iter().enumerate() {
-            if crate::widgets::text_button(ui, &format!("captureMode-{i}"), label, mode == m).clicked() {
+            if crate::widgets::choice_button(ui, &format!("captureMode-{i}"), label, mode == m).clicked() {
                 *mode = m.to_string();
             }
         }
@@ -845,7 +845,7 @@ fn label_names_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, dlg:
         ui.spacing_mut().item_spacing.x = 4.0;
         for set in sets["sets"].as_array().into_iter().flatten() {
             let name = set["name"].as_str().unwrap_or_default();
-            if crate::widgets::text_button(ui, &format!("labelSet-{name}"), name, false).clicked() {
+            if crate::widgets::command_button(ui, &format!("labelSet-{name}"), name).clicked() {
                 *names = set["names"].as_array().into_iter().flatten().map(|n| n.as_str().unwrap_or_default().to_string()).collect();
             }
         }
@@ -902,7 +902,7 @@ fn rename_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, dlg: &mut
         for (i, (label, tpl)) in
             [("Name", "{name}"), ("Date–Name", "{date}_{name}"), ("Title–Seq", "{title}-{seq:3}"), ("Custom–Seq", "Photo-{seq:3}")].iter().enumerate()
         {
-            if crate::widgets::text_button(ui, &format!("renamePreset-{i}"), label, template == tpl).clicked() {
+            if crate::widgets::choice_button(ui, &format!("renamePreset-{i}"), label, template == tpl).clicked() {
                 *template = tpl.to_string();
             }
         }
@@ -1307,7 +1307,7 @@ fn export_watermark(app: &mut LightcraftApp, ui: &mut egui::Ui, opts: &mut Expor
             field(ui, "Graphic", |ui| {
                 trailing_button_row(ui, |ui| {
                     if app.services.pick_files.is_some()
-                        && crate::widgets::text_button(ui, "exportWmChoose", crate::i18n::tr("Choose…"), false).clicked()
+                        && crate::widgets::command_button(ui, "exportWmChoose", crate::i18n::tr("Choose…")).clicked()
                         && let Some(f) = app.services.pick_files.as_mut().and_then(|pick| pick().into_iter().next())
                     {
                         wm.image = f;
@@ -1435,7 +1435,7 @@ fn export_destination_rows(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Token
         field(ui, "Folder", |ui| {
             trailing_button_row(ui, |ui| {
                 if app.services.pick_folder.is_some()
-                    && crate::widgets::text_button(ui, "exportChooseFolder", crate::i18n::tr("Choose…"), false).clicked()
+                    && crate::widgets::command_button(ui, "exportChooseFolder", crate::i18n::tr("Choose…")).clicked()
                     && let Some(pick) = app.services.pick_folder.as_mut()
                     && let Some(d) = pick()
                 {
@@ -1494,7 +1494,7 @@ fn export_save_preset_row(
     field(ui, "Save preset", |ui| {
         trailing_button_row(ui, |ui| {
             let named = !preset_name.trim().is_empty();
-            if crate::widgets::text_button(ui, "exportSavePreset", crate::i18n::tr("Save"), false).clicked() && named {
+            if crate::widgets::command_button(ui, "exportSavePreset", crate::i18n::tr("Save")).clicked() && named {
                 let params = export_dialog_params(opts, full_size, resize, limit_kb);
                 match app.run("export.savePreset", json!({"name": preset_name.trim(), "params": params})) {
                     Ok(_) => {
@@ -1710,7 +1710,7 @@ fn about_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, dlg: &mut 
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         for (i, (id, label)) in ABOUT_TABS.iter().enumerate() {
-            if crate::widgets::text_button(ui, &format!("aboutTab-{id}"), label, usize::from(tab) == i).clicked() {
+            if crate::widgets::choice_button(ui, &format!("aboutTab-{id}"), label, usize::from(tab) == i).clicked() {
                 tab = u8::try_from(i).unwrap_or(0);
             }
         }

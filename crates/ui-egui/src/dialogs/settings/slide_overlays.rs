@@ -104,7 +104,7 @@ fn anchor_grid(ui: &mut egui::Ui, id: &str, value: &mut Anchor) -> bool {
                 for c in 0..3 {
                     let i = r * 3 + c;
                     let (Some(a), Some(g)) = (ANCHORS.get(i), GLYPHS.get(i)) else { continue };
-                    if crate::widgets::text_button(ui, &format!("{id}-{i}"), g, *value == *a).clicked() && *value != *a {
+                    if crate::widgets::choice_button(ui, &format!("{id}-{i}"), g, *value == *a).clicked() && *value != *a {
                         *value = *a;
                         changed = true;
                     }
@@ -172,7 +172,7 @@ pub fn sections(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         if graphic {
             row(ui, t, "Image", |ui| {
                 if app.services.pick_files.is_some()
-                    && crate::widgets::text_button(ui, "slideshowPlateChoose", "Choose…", false).clicked()
+                    && crate::widgets::command_button(ui, "slideshowPlateChoose", "Choose…").clicked()
                     && let Some(f) = app.services.pick_files.as_mut().and_then(|pick| pick().into_iter().next())
                 {
                     set(app, plate(json!({"image": f})));
@@ -215,7 +215,7 @@ pub fn sections(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         ui.add_space(2.0);
         row(ui, t, &format!("{} {}", crate::i18n::tr("Text"), i + 1), |ui| {
             text(app, ui, &id, &o.text, "{title} · {exposure}", &|v| wrap(json!({"text": v})));
-            if crate::widgets::text_button(ui, &format!("{id}Remove"), "Remove", false).clicked() {
+            if crate::widgets::command_button(ui, &format!("{id}Remove"), "Remove").clicked() {
                 set(app, json!({"removeText": i}));
             }
         });
@@ -256,7 +256,7 @@ pub fn sections(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             });
         }
     }
-    if n < lightcraft_engine::slide_overlay::MAX_TEXTS && crate::widgets::text_button(ui, "slideshowAddText", "Add text overlay", false).clicked() {
+    if n < lightcraft_engine::slide_overlay::MAX_TEXTS && crate::widgets::command_button(ui, "slideshowAddText", "Add text overlay").clicked() {
         set(app, json!({"addText": {}}));
     }
     hint(
@@ -287,7 +287,7 @@ pub fn sections(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         });
         let export_wm = app.session.last_export.as_ref().and_then(|e| e.get("watermark")).filter(|v| v.is_object() || v.is_string()).cloned();
         if let Some(e) = export_wm
-            && crate::widgets::text_button(ui, "slideshowUseExportWatermark", "Use export watermark", false).clicked()
+            && crate::widgets::command_button(ui, "slideshowUseExportWatermark", "Use export watermark").clicked()
         {
             set(app, wm(e));
         }

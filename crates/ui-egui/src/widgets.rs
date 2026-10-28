@@ -242,7 +242,7 @@ pub fn preview_only_notice(ui: &mut Ui, key: &str, reason: &str) -> bool {
             ui.add_space(2.0);
             ui.label(egui::RichText::new(preview_only_explanation(reason)).size(11.5).color(t.text_label));
             ui.add_space(6.0);
-            reload = text_button(ui, &format!("reloadPreviewOnly:{key}"), "Reload from Disk", false).clicked();
+            reload = command_button(ui, &format!("reloadPreviewOnly:{key}"), "Reload from Disk").clicked();
         })
         .response;
     let r = r.on_hover_text(crate::i18n::tr_format!("Decoder: {reason}", reason = reason));
@@ -904,15 +904,55 @@ pub fn flyout_row(ui: &mut Ui, id: &str, title: &str, icon: Icon, open: bool) ->
     resp
 }
 
-/// A small bordered text button (Auto, B&W, HDR…).
+/// What pressing a button does, as a screen reader is told: it does something (Reset, Choose…),
+/// it turns something on or off (B&W), or it picks one of several (Format: JPEG, PNG…). AccessKit
+/// reports a button that carries an on / off state as a check box, so each of the three is given
+/// the role that says what it is: a button, a toggle button, a radio button.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Press {
+    Command,
+    /// Announced as a button, drawn pressed in: it opens something that stays open while it is shown
+    /// (the View menu of a narrow bar).
+    Opens,
+    Toggle(bool),
+    Choice(bool),
+}
+
+impl Press {
+    /// Drawn as the chosen one: pressed in.
+    fn on(self) -> bool {
+        matches!(self, Press::Opens | Press::Toggle(true) | Press::Choice(true))
+    }
+}
+
+/// A small bordered text button that is on or off (B&W, HDR…): a screen reader says whether it is on.
+/// A button that does something is [`command_button`]; one of several choices is [`choice_button`].
 pub fn text_button(ui: &mut Ui, id: &str, label: &str, active: bool) -> Response {
+    text_chip(ui, id, label, Press::Toggle(active))
+}
+
+/// A small bordered text button that does something when pressed (Reset, Auto, Choose…): a screen
+/// reader says "button", with no on / off state.
+pub fn command_button(ui: &mut Ui, id: &str, label: &str) -> Response {
+    text_chip(ui, id, label, Press::Command)
+}
+
+/// A small bordered text button that is one of several choices, `chosen` for the one that holds
+/// (a row of Format, Color space or Sharpen buttons): a screen reader says "radio button".
+pub fn choice_button(ui: &mut Ui, id: &str, label: &str, chosen: bool) -> Response {
+    text_chip(ui, id, label, Press::Choice(chosen))
+}
+
+/// [`text_button`], [`command_button`] and [`choice_button`].
+fn text_chip(ui: &mut Ui, id: &str, label: &str, press: Press) -> Response {
+    let active = press.on();
     let label = if id.starts_with("labelSet-") { label } else { crate::i18n::tr(label) };
     let t = Tokens::get(ui.ctx());
     let font = t.semibold(11.5);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
     let size = vec2((galley.size().x + 18.0).max(37.0), 24.0);
     let (r, resp) = ui.allocate_exact_size(size, Sense::click());
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, active, label));
+    announce_button(&resp, true, label, press);
     register(ui, format!("button:{id}"), r);
     let fill = if active {
         t.pressed
@@ -999,7 +1039,7 @@ pub fn segmented(ui: &mut Ui, id: &str, items: &[(&str, &str)], active: Option<u
                 let label = crate::i18n::tr(label);
                 let i = row_i * per_row + j;
                 let (r, resp) = ui.allocate_exact_size(vec2(seg_w, 24.0), Sense::click());
-                crate::widgets::announce_selected(&resp, label.to_string(), active == Some(i));
+                announce_button(&resp, true, label, Press::Choice(active == Some(i)));
                 register(ui, format!("button:{id}-{key}"), r);
                 let fill = if active == Some(i) {
                     t.pressed
@@ -1023,12 +1063,37 @@ pub fn segmented(ui: &mut Ui, id: &str, items: &[(&str, &str)], active: Option<u
     clicked
 }
 
-/// An icon-only button. `active` draws the selected background (tool strip).
+/// An icon-only button that is on or off. `active` draws the selected background (tool strip) and a
+/// screen reader says whether it is on. One that does something when pressed is [`icon_command`].
 pub fn icon_button(ui: &mut Ui, id: &str, icon: Icon, size: egui::Vec2, active: bool, enabled: bool, tooltip: &str) -> Response {
+    icon_chip(ui, id, icon, size, Press::Toggle(active), enabled, tooltip)
+}
+
+/// An icon-only button that does something when pressed (Back, a menu, Delete): a screen reader
+/// says "button", with no on / off state.
+pub fn icon_command(ui: &mut Ui, id: &str, icon: Icon, size: egui::Vec2, enabled: bool, tooltip: &str) -> Response {
+    icon_chip(ui, id, icon, size, Press::Command, enabled, tooltip)
+}
+
+/// An icon-only button that opens a menu and is drawn pressed in (the View button of a narrow bar):
+/// a screen reader says "button", with no on / off state.
+pub fn icon_menu(ui: &mut Ui, id: &str, icon: Icon, size: egui::Vec2, enabled: bool, tooltip: &str) -> Response {
+    icon_chip(ui, id, icon, size, Press::Opens, enabled, tooltip)
+}
+
+/// An icon-only button that is one of several choices (the grid, detail, compare and survey
+/// views), `chosen` for the one that holds: a screen reader says "radio button".
+pub fn icon_choice(ui: &mut Ui, id: &str, icon: Icon, size: egui::Vec2, chosen: bool, enabled: bool, tooltip: &str) -> Response {
+    icon_chip(ui, id, icon, size, Press::Choice(chosen), enabled, tooltip)
+}
+
+/// [`icon_button`], [`icon_command`] and [`icon_choice`].
+fn icon_chip(ui: &mut Ui, id: &str, icon: Icon, size: egui::Vec2, press: Press, enabled: bool, tooltip: &str) -> Response {
+    let active = press.on();
     let tooltip = crate::i18n::tr(tooltip);
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, enabled, active, tooltip));
+    announce_button(&resp, enabled, tooltip, press);
     register(ui, format!("icon:{id}"), r);
     let p = ui.painter();
     let sq = Rect::from_center_size(r.center(), vec2(32.0f32.min(size.x), 32.0f32.min(size.y)));
@@ -1204,8 +1269,8 @@ mod access_tests {
         for _ in 0..3 {
             let out = ctx.run_ui(egui::RawInput::default(), |ui| {
                 let _ = slider(ui, spec, 0.5, true, None);
-                let _ = text_button(ui, "auto", "Auto", false);
-                let _ = icon_button(ui, "trash", Icon::Trash, vec2(24.0, 24.0), false, true, "Delete mask");
+                let _ = command_button(ui, "auto", "Auto");
+                let _ = icon_command(ui, "trash", Icon::Trash, vec2(24.0, 24.0), true, "Delete mask");
             });
             let mut out = out;
             out.textures_delta.clear();
@@ -1248,6 +1313,18 @@ pub(crate) fn announce(resp: &egui::Response, name: impl Into<String>) {
 pub(crate) fn announce_selected(resp: &egui::Response, name: impl Into<String>, selected: bool) {
     let name = name.into();
     resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, resp.enabled(), selected, name.clone()));
+}
+
+/// A button for screen readers, as a button, a toggle button or a radio button by what pressing it
+/// does ([`Press`]). A plain button must not carry an on / off state: AccessKit reports a button
+/// with one as a check box, so VoiceOver would say "Reset, checkbox, unchecked".
+pub(crate) fn announce_button(resp: &egui::Response, enabled: bool, name: impl Into<String>, press: Press) {
+    let name = name.into();
+    match press {
+        Press::Command | Press::Opens => resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, name.clone())),
+        Press::Toggle(on) => resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, enabled, on, name.clone())),
+        Press::Choice(chosen) => resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, enabled, chosen, name.clone())),
+    }
 }
 
 /// `r`, named `name` for screen readers: a plain egui field or slider whose caption is drawn

@@ -59,10 +59,10 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             ui.label(egui::RichText::new(crate::i18n::tr_format!("· {trashed} in Recently Deleted", trashed = trashed)).color(t.text_dim));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if crate::widgets::text_button(ui, "importNone", crate::i18n::tr("Uncheck All"), false).clicked() {
+            if crate::widgets::command_button(ui, "importNone", crate::i18n::tr("Uncheck All")).clicked() {
                 d.checked.iter_mut().for_each(|c| *c = false);
             }
-            if crate::widgets::text_button(ui, "importAll", crate::i18n::tr("Check All"), false).clicked() {
+            if crate::widgets::command_button(ui, "importAll", crate::i18n::tr("Check All")).clicked() {
                 for i in 0..n {
                     d.checked[i] = d.checked_by_default(i);
                 }
@@ -134,7 +134,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
     }
     field(ui, "Transfer", |ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
-        if crate::widgets::text_button(ui, "importAdd", crate::i18n::tr("Add in place"), !d.copy)
+        if crate::widgets::choice_button(ui, "importAdd", crate::i18n::tr("Add in place"), !d.copy)
             .on_hover_text(crate::i18n::tr("Reference the files where they are"))
             .clicked()
         {
@@ -143,13 +143,13 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
         }
         let can_copy = app.session.library.as_ref().is_some_and(|l| l.on_disk) || app.services.pick_folder.is_some();
         let r =
-            ui.add_enabled_ui(can_copy, |ui| crate::widgets::text_button(ui, "importCopy", crate::i18n::tr("Copy"), d.copy && !d.move_files)).inner;
+            ui.add_enabled_ui(can_copy, |ui| crate::widgets::choice_button(ui, "importCopy", crate::i18n::tr("Copy"), d.copy && !d.move_files)).inner;
         if r.on_hover_text(crate::i18n::tr("Copy the files (into the library's Originals/, or a folder you choose)")).clicked() {
             d.copy = true;
             d.move_files = false;
         }
         let r =
-            ui.add_enabled_ui(can_copy, |ui| crate::widgets::text_button(ui, "importMove", crate::i18n::tr("Move"), d.copy && d.move_files)).inner;
+            ui.add_enabled_ui(can_copy, |ui| crate::widgets::choice_button(ui, "importMove", crate::i18n::tr("Move"), d.copy && d.move_files)).inner;
         if r.on_hover_text(crate::i18n::tr("Move the files (into the library's Originals/, or a folder you choose), removing them from the source"))
             .clicked()
         {
@@ -177,12 +177,12 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             let shown = if d.destination.trim().is_empty() { crate::i18n::tr("Library Originals").to_string() } else { d.destination.clone() };
             ui.label(egui::RichText::new(shown).color(Tokens::get(ui.ctx()).text_label));
             if app.services.pick_folder.is_some()
-                && crate::widgets::text_button(ui, "importDest", crate::i18n::tr("Choose…"), false).clicked()
+                && crate::widgets::command_button(ui, "importDest", crate::i18n::tr("Choose…")).clicked()
                 && let Some(f) = app.services.pick_folder.as_mut().and_then(|f| f())
             {
                 d.destination = f;
             }
-            if !d.destination.is_empty() && crate::widgets::text_button(ui, "importDestReset", crate::i18n::tr("Library"), false).clicked() {
+            if !d.destination.is_empty() && crate::widgets::command_button(ui, "importDestReset", crate::i18n::tr("Library")).clicked() {
                 d.destination.clear();
             }
         });

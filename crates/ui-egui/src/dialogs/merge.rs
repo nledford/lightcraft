@@ -494,7 +494,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, opts: &mut MergeDialog) 
                 ui.label(egui::RichText::new(crate::i18n::tr("Deghost Amount")).color(t.text_label));
                 ui.horizontal(|ui| {
                     for (i, (v, l)) in [("none", "None"), ("low", "Low"), ("medium", "Med"), ("high", "High")].iter().enumerate() {
-                        if crate::widgets::text_button(ui, &format!("mergeDeghost-{i}"), l, opts.deghost == *v).clicked() {
+                        if crate::widgets::choice_button(ui, &format!("mergeDeghost-{i}"), l, opts.deghost == *v).clicked() {
                             opts.deghost = v.to_string();
                         }
                     }

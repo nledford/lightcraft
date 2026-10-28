@@ -242,7 +242,7 @@ pub fn contributors_ui(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     ui.horizontal_wrapped(|ui| {
         ui.label(crate::i18n::tr("Show"));
         for m in NameMode::ALL {
-            if crate::widgets::text_button(ui, &format!("creditsNames-{}", m.id()), m.label(), v.names == m).clicked() {
+            if crate::widgets::choice_button(ui, &format!("creditsNames-{}", m.id()), m.label(), v.names == m).clicked() {
                 v.names = m;
             }
         }
@@ -264,10 +264,10 @@ pub fn contributors_ui(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             v.ascending = !v.ascending;
         }
         ui.separator();
-        if crate::widgets::text_button(ui, "creditsGrabBag", "Grab bag", !v.table).clicked() {
+        if crate::widgets::choice_button(ui, "creditsGrabBag", "Grab bag", !v.table).clicked() {
             v.table = false;
         }
-        if crate::widgets::text_button(ui, "creditsTable", "Table", v.table).clicked() {
+        if crate::widgets::choice_button(ui, "creditsTable", "Table", v.table).clicked() {
             v.table = true;
         }
     });
