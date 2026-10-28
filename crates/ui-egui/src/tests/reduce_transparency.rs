@@ -61,6 +61,18 @@ fn see_through(h: &Headless) -> Vec<(egui::Rect, egui::Color32)> {
         .collect()
 }
 
+/// The rectangles the last frame painted with a fully opaque fill.
+fn opaque_rects(h: &Headless) -> Vec<egui::Rect> {
+    h.view
+        .painted_shapes()
+        .into_iter()
+        .filter_map(|shape| match shape {
+            Shape::Rect(r) if r.fill.a() == 255 && r.blur_width == 0.0 => Some(r.rect),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The fill of the rectangle that covers the whole window (a dialog's backdrop), if one is painted.
 fn backdrop(h: &Headless) -> Option<egui::Color32> {
     let screen = h.view.ctx.content_rect();
@@ -103,10 +115,15 @@ fn the_photo_grid_badges_are_solid_with_it_on() {
     h.request("ui.set", json!({"view": "photoGrid", "right": "none"}), T);
     h.settle(SETTLE);
     run(&mut h, "view.reduceTransparency", json!({"on": false}));
-    assert!(!see_through(&h).is_empty(), "the badges are see-through as usual");
+    let usual = see_through(&h);
+    assert!(!usual.is_empty(), "the badges are see-through as usual");
     run(&mut h, "view.reduceTransparency", json!({"on": true}));
     h.settle(SETTLE);
     assert_eq!(see_through(&h), vec![]);
+    // (and not because nothing is painted: each badge that was see-through is still there, opaque)
+    let solid = opaque_rects(&h);
+    let gone: Vec<_> = usual.iter().filter(|(rect, _)| !solid.contains(rect)).collect();
+    assert!(gone.is_empty(), "badges painted see-through before and not painted solid now: {gone:?}");
 }
 
 #[test]
