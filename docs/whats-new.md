@@ -11,6 +11,12 @@
 - The Dock icon of LightCraft carries a badge with the number of jobs you started that are running (an export, an
   import, a preview build…). It goes away when the last one ends, so a job in a minimized window can still be seen.
 
+### On macOS, a notification tells you when a job has finished
+- When a job you started (an export, an import, a preview build…) ends while LightCraft is in the background, macOS
+  shows a notification. It says what the job reported ("Exported 24 photos"), or names it, or says how many ended
+  when several did. The first time, macOS asks whether LightCraft may notify you. Turn it off in Settings ▸ General ▸
+  Notifications.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

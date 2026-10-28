@@ -16,6 +16,11 @@ goes in `started_by_person` in `activity.rs`, which also decides what the Dock b
 On macOS the Dock icon carries a badge with the number of running jobs the person started (`Activity::running_jobs`,
 `Services::dock_badge`), cleared when none is left. A job that was asked to stop counts until it has stopped.
 
+When a job the person started ends while the window is in the background, the host shows a system notification
+(`Services::notify`, `job_notice.rs`: it waits a moment for the job's own toast, so the text can carry it, and says
+nothing for jobs that end in front). `UNUserNotificationCenter` needs an app bundle, so a binary run from a build folder
+shows nothing. Settings ▸ General ▸ Notifications turns it off.
+
 The registry is `lightcraft_engine::activity` (`crates/engine/src/activity.rs`, `Session::activity`). The stack is
 `crates/ui-egui/src/panels/activity.rs`. Every job that can last more than a moment uses it; **don't add a progress
 window, panel or progress toast of your own**. A dialog may still show progress inline (the Synchronize Folder
