@@ -258,6 +258,141 @@ fn is_text_type(ty: &[Tok]) -> bool {
     }
 }
 
+/// The `(` of a signature's parameter list, `open` being the token after the name: past the generics (a `->` inside a bound is no bracket).
+fn skip_generics(tokens: &[Tok], mut open: usize) -> usize {
+    if !is_punct(tokens.get(open), '<') {
+        return open;
+    }
+    let mut depth = 0;
+    while let Some(token) = tokens.get(open) {
+        match token.kind {
+            Kind::Punct('(' | '[') => open = matching(tokens, open),
+            Kind::Punct('<') => depth += 1,
+            Kind::Punct('>') if tokens[open - 1].kind != Kind::Punct('-') => depth -= 1,
+            _ => {}
+        }
+        open += 1;
+        if depth == 0 {
+            break;
+        }
+    }
+    open
+}
+
+/// Per parameter (without the receiver): its name when it is a text type.
+fn text_params(params: &[&[Tok]]) -> Vec<Option<String>> {
+    params
+        .iter()
+        .map(|param| {
+            let param: &[Tok] = if is_ident(param.first(), "mut") { &param[1..] } else { param };
+            match param {
+                [Tok { kind: Kind::Ident(name), .. }, Tok { kind: Kind::Punct(':'), .. }, ty @ ..] if is_text_type(ty) => Some(name.clone()),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+/// The calls in the body of the function whose parameter list closes at `close` (a `;` before the `{` means a declaration: none).
+fn body_calls(tokens: &[Tok], close: usize, crate_button: bool) -> Vec<(String, Vec<std::ops::Range<usize>>)> {
+    let mut body = close + 1;
+    while let Some(token) = tokens.get(body) {
+        match token.kind {
+            Kind::Punct('{' | ';') => break,
+            Kind::Punct('(' | '[') => body = matching(tokens, body),
+            _ => {}
+        }
+        body += 1;
+    }
+    if !is_punct(tokens.get(body), '{') {
+        return Vec::new();
+    }
+    let mut calls = Vec::new();
+    for inside in body + 1..matching(tokens, body) {
+        if let Some(key) = call_key(tokens, inside) {
+            // (this crate's `Button` takes the English key: not a call that needs translated text)
+            if key == "Button::new" && crate_button && !(inside >= 6 && is_ident(tokens.get(inside - 6), "egui")) {
+                continue;
+            }
+            calls.push((key, arg_ranges(tokens, inside + 1, matching(tokens, inside + 1))));
+        }
+    }
+    calls
+}
+
+/// Is the `fn` at `at` public (`pub`, `pub(crate)`), past any `const`, `async` or `unsafe`?
+fn is_public_fn(tokens: &[Tok], at: usize) -> bool {
+    let mut before = at;
+    while before > 0 && matches!(&tokens[before - 1].kind, Kind::Ident(word) if word == "const" || word == "async" || word == "unsafe") {
+        before -= 1;
+    }
+    before > 0 && (is_ident(tokens.get(before - 1), "pub") || is_punct(tokens.get(before - 1), ')'))
+}
+
+/// The function whose `fn` is at `at`: is it a method, and its [`Def`] when it has a text parameter. `None`: no signature follows.
+fn parse_def(file: &str, name: &str, tokens: &[Tok], at: usize, crate_button: bool) -> Option<(bool, Option<Def>)> {
+    let open = skip_generics(tokens, at + 2);
+    if !is_punct(tokens.get(open), '(') {
+        return None;
+    }
+    let close = matching(tokens, open);
+    let mut params = split_params(tokens, open, close);
+    let method = params.first().is_some_and(|first| first.iter().take(4).any(|token| is_ident(Some(token), "self")));
+    if method {
+        params.remove(0);
+    }
+    let params = text_params(&params);
+    if params.iter().all(Option::is_none) {
+        return Some((method, None));
+    }
+    let count = params.len();
+    let (file, name, public, calls) = (file.to_string(), name.to_string(), is_public_fn(tokens, at), body_calls(tokens, close, crate_button));
+    Some((method, Some(Def { file, name, public, method, params, calls, shows: vec![false; count], translates: vec![false; count] })))
+}
+
+/// Flow to a fixed point: a parameter shows when it is handed to a widget call (or to a function whose parameter shows) outside `tr`,
+/// and translates when it is handed to `tr` (or to a function that translates it). `defs[n]` is from `files[tokens_of[n]]`.
+fn flow_params(defs: &mut [Def], tokens_of: &[usize], files: &[Vec<Tok>]) {
+    let mut shown: BTreeSet<(String, usize)> = BTreeSet::new();
+    for call in CALLS {
+        let key = call.owner.map_or_else(|| format!(".{}", call.name), |owner| format!("{owner}::{}", call.name));
+        shown.extend(call.args.iter().map(|arg| (key.clone(), *arg)));
+    }
+    let mut translated: BTreeSet<(String, usize)> = BTreeSet::new();
+    loop {
+        let mut changed = false;
+        for (def, ti) in defs.iter_mut().zip(tokens_of) {
+            let tokens = &files[*ti];
+            for (index, param) in def.params.iter().enumerate() {
+                let Some(param) = param else { continue };
+                for (key, ranges) in &def.calls {
+                    for (position, range) in ranges.iter().enumerate() {
+                        let arg = &tokens[range.clone()];
+                        if !uses_param(arg, param) {
+                            continue;
+                        }
+                        if is_translator(key.trim_start_matches('.')) || translated.contains(&(key.clone(), position)) {
+                            def.translates[index] = true;
+                        } else if shown.contains(&(key.clone(), position)) && !has_translator(arg) && shows_param(arg, param) {
+                            def.shows[index] = true;
+                        }
+                    }
+                }
+                let me = def.key();
+                if def.translates[index] {
+                    changed |= translated.insert((me.clone(), index));
+                }
+                if def.shows[index] {
+                    changed |= shown.insert((me, index));
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
 impl Sinks {
     fn derive(sources: &[(String, String)]) -> Self {
         let files: Vec<Vec<Tok>> = sources.iter().map(|(_, source)| lex(source)).collect();
@@ -268,137 +403,19 @@ impl Sinks {
         let mut defined = BTreeSet::new();
         for (ti, ((file, _), tokens)) in sources.iter().zip(&files).enumerate() {
             for at in 0..tokens.len() {
-                if skipped[ti].iter().any(|range| range.contains(&at)) {
+                if skipped[ti].iter().any(|range| range.contains(&at)) || !is_ident(tokens.get(at), "fn") {
                     continue;
                 }
                 let Some(Kind::Ident(name)) = tokens.get(at + 1).map(|token| &token.kind) else { continue };
-                if !is_ident(tokens.get(at), "fn") {
-                    continue;
-                }
-                let mut open = at + 2;
-                if is_punct(tokens.get(open), '<') {
-                    // Skip the generics; a `->` inside a bound is not a closing bracket.
-                    let mut depth = 0;
-                    while let Some(token) = tokens.get(open) {
-                        match token.kind {
-                            Kind::Punct('(' | '[') => open = matching(tokens, open),
-                            Kind::Punct('<') => depth += 1,
-                            Kind::Punct('>') if tokens[open - 1].kind != Kind::Punct('-') => depth -= 1,
-                            _ => {}
-                        }
-                        open += 1;
-                        if depth == 0 {
-                            break;
-                        }
-                    }
-                }
-                if !is_punct(tokens.get(open), '(') {
-                    continue;
-                }
-                let close = matching(tokens, open);
-                let mut params = split_params(tokens, open, close);
-                let method = params.first().is_some_and(|first| first.iter().take(4).any(|token| is_ident(Some(token), "self")));
-                if method {
-                    params.remove(0);
-                }
+                let Some((method, def)) = parse_def(file, name, tokens, at, crate_button[ti]) else { continue };
                 defined.insert((file.clone(), name.clone(), method));
-                let params: Vec<Option<String>> = params
-                    .iter()
-                    .map(|param| {
-                        let param = if is_ident(param.first(), "mut") { &param[1..] } else { param };
-                        match param {
-                            [Tok { kind: Kind::Ident(name), .. }, Tok { kind: Kind::Punct(':'), .. }, ty @ ..] if is_text_type(ty) => {
-                                Some(name.clone())
-                            }
-                            _ => None,
-                        }
-                    })
-                    .collect();
-                if params.iter().all(Option::is_none) {
-                    continue;
-                }
-                // The body: the first `{` after the signature (a `;` first means a declaration).
-                let mut body = close + 1;
-                while let Some(token) = tokens.get(body) {
-                    match token.kind {
-                        Kind::Punct('{' | ';') => break,
-                        Kind::Punct('(' | '[') => body = matching(tokens, body),
-                        _ => {}
-                    }
-                    body += 1;
-                }
-                let mut calls = Vec::new();
-                if is_punct(tokens.get(body), '{') {
-                    for inside in body + 1..matching(tokens, body) {
-                        if let Some(key) = call_key(tokens, inside) {
-                            // (this crate's `Button` takes the English key: not a call that needs translated text)
-                            if key == "Button::new" && crate_button[ti] && !(inside >= 6 && is_ident(tokens.get(inside - 6), "egui")) {
-                                continue;
-                            }
-                            calls.push((key, arg_ranges(tokens, inside + 1, matching(tokens, inside + 1))));
-                        }
-                    }
-                }
-                let mut before = at;
-                while before > 0 && matches!(&tokens[before - 1].kind, Kind::Ident(word) if word == "const" || word == "async" || word == "unsafe") {
-                    before -= 1;
-                }
-                let public = before > 0 && (is_ident(tokens.get(before - 1), "pub") || is_punct(tokens.get(before - 1), ')'));
-                let count = params.len();
-                tokens_of.push(ti);
-                defs.push(Def {
-                    file: file.clone(),
-                    name: name.clone(),
-                    public,
-                    method,
-                    params,
-                    calls,
-                    shows: vec![false; count],
-                    translates: vec![false; count],
-                });
-            }
-        }
-        // Flow to a fixed point: a parameter shows when it is handed to a widget call (or to a
-        // function whose parameter shows) outside `tr`, and translates when it is handed to `tr`
-        // (or to a function that translates it).
-        let mut shown: BTreeSet<(String, usize)> = BTreeSet::new();
-        for call in CALLS {
-            let key = call.owner.map_or_else(|| format!(".{}", call.name), |owner| format!("{owner}::{}", call.name));
-            shown.extend(call.args.iter().map(|arg| (key.clone(), *arg)));
-        }
-        let mut translated: BTreeSet<(String, usize)> = BTreeSet::new();
-        loop {
-            let mut changed = false;
-            for (def, ti) in defs.iter_mut().zip(&tokens_of) {
-                let tokens = &files[*ti];
-                for (index, param) in def.params.iter().enumerate() {
-                    let Some(param) = param else { continue };
-                    for (key, ranges) in &def.calls {
-                        for (position, range) in ranges.iter().enumerate() {
-                            let arg = &tokens[range.clone()];
-                            if !uses_param(arg, param) {
-                                continue;
-                            }
-                            if is_translator(key.trim_start_matches('.')) || translated.contains(&(key.clone(), position)) {
-                                def.translates[index] = true;
-                            } else if shown.contains(&(key.clone(), position)) && !has_translator(arg) && shows_param(arg, param) {
-                                def.shows[index] = true;
-                            }
-                        }
-                    }
-                    let me = def.key();
-                    if def.translates[index] {
-                        changed |= translated.insert((me.clone(), index));
-                    }
-                    if def.shows[index] {
-                        changed |= shown.insert((me, index));
-                    }
+                if let Some(def) = def {
+                    tokens_of.push(ti);
+                    defs.push(def);
                 }
             }
-            if !changed {
-                break;
-            }
         }
+        flow_params(&mut defs, &tokens_of, &files);
         let mut sinks = Sinks { defined, ..Sinks::default() };
         for def in defs {
             let args: Vec<usize> = (0..def.params.len()).filter(|index| def.shows[*index] && !def.translates[*index]).collect();
