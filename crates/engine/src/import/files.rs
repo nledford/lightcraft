@@ -253,6 +253,7 @@ pub(super) fn copy_into(dir: &Path, src: &str, name: Option<&str>, probe_hash: O
 #[cfg(test)]
 mod prepared_tests {
     use super::*;
+    use crate::import::commit_prepared;
     use lightcraft_catalog::{Op, Photo, PhotoId, Source};
 
     /// Extensions the picker may offer: every one in [`EXTENSIONS`], minus the
