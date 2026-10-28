@@ -28,21 +28,31 @@ pub(super) fn elide_path(path: &str, max: f32, width: impl Fn(&str) -> f32) -> S
 /// A folder or file path on one line in the room left in its row (`text:{id}`): shortened from
 /// the front when it is too long ([`elide_path`]), with all of it in a tooltip then. `after` is
 /// the width of what follows it on the line (a button, a note) and its spacing: the path leaves
-/// that room, so those never wrap onto a second line.
+/// that room, so those never wrap onto a second line. Every path is registered as `path:{id}` too,
+/// relative ones also (what the filter leaves out of what it looks through).
 pub(super) fn path_label(ui: &mut egui::Ui, id: &str, path: &str, font: egui::FontId, color: egui::Color32, after: f32) {
+    let rect = elided_label(ui, id, path, font, color, after);
+    register(ui, format!("path:{id}"), rect);
+}
+
+/// [`path_label`] for words that stand where a path would, with no folder to show ("In memory"):
+/// the filter looks through them.
+pub(super) fn path_stand_in(ui: &mut egui::Ui, id: &str, text: &str, font: egui::FontId, color: egui::Color32, after: f32) {
+    elided_label(ui, id, text, font, color, after);
+}
+
+/// `text` on one line (`text:{id}`), shortened from the front when it is too long, with all of it in a tooltip then.
+fn elided_label(ui: &mut egui::Ui, id: &str, text: &str, font: egui::FontId, color: egui::Color32, after: f32) -> egui::Rect {
     let shown =
-        elide_path(path, (ui.available_width() - after).max(0.0), |s| ui.painter().layout_no_wrap(s.to_string(), font.clone(), color).size().x);
+        elide_path(text, (ui.available_width() - after).max(0.0), |s| ui.painter().layout_no_wrap(s.to_string(), font.clone(), color).size().x);
     // (`truncate` is the last resort, for a room narrower than "…")
     let r = ui.add(egui::Label::new(RichText::new(&shown).font(font).color(color)).truncate().show_tooltip_when_elided(false));
     register(ui, format!("text:{id}"), r.rect);
-    // (what the filter leaves out of what it looks through; not what stands here in words when
-    // there is no folder to show)
-    if path.contains(['/', '\\']) {
-        register(ui, format!("path:{id}"), r.rect);
+    let rect = r.rect;
+    if shown != text {
+        r.on_hover_text(text);
     }
-    if shown != path {
-        r.on_hover_text(path);
-    }
+    rect
 }
 
 /// The width of `text` in the style `style`, and the gap before it: what a label takes in a row.

@@ -1,4 +1,4 @@
-use super::widgets::{check, choices, heading, hint, path_label, row};
+use super::widgets::{check, choices, heading, hint, path_label, path_stand_in, row};
 use super::{LightcraftApp, RichText, StartupView, Tokens, json, register};
 
 // ------------------------------------------------------------------------------------- General
@@ -13,12 +13,11 @@ pub(super) fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens
         crate::i18n::set_language(app.ui.language);
     });
     heading(ui, t, "Library");
-    let location = match &app.session.library {
-        Some(l) => l.dir.display().to_string(),
-        None => crate::i18n::tr("In memory — nothing is saved").to_string(),
-    };
-    row(ui, t, crate::i18n::tr("Location"), |ui| {
-        path_label(ui, "settingsLocation", &location, egui::TextStyle::Body.resolve(ui.style()), t.text, 0.0);
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    row(ui, t, crate::i18n::tr("Location"), |ui| match &app.session.library {
+        Some(l) => path_label(ui, "settingsLocation", &l.dir.display().to_string(), font, t.text, 0.0),
+        // (no folder: words, which the filter looks through)
+        None => path_stand_in(ui, "settingsLocation", crate::i18n::tr("In memory — nothing is saved"), font, t.text, 0.0),
     });
     row(ui, t, "", |ui| {
         let can = app.services.pick_folder.is_some();

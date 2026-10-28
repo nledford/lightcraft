@@ -251,6 +251,23 @@ fn the_names_of_folders_are_not_looked_through() {
 }
 
 #[test]
+fn the_name_of_a_watched_folder_given_without_a_separator_is_not_looked_through() {
+    // Given Auto Import watching a folder given as a bare name (relative to where the app runs)
+    let mut h = demo([1200.0, 1000.0]);
+    h.app.session.import_defaults.auto_folder = Some("zebrafolder".into());
+    show(&mut h, "import");
+    filter(&mut h, "watched folder");
+    assert_eq!(found(&h).first().map(String::as_str), Some("import:Auto Import"), "{:?}", found(&h));
+    click(&mut h, "settingsFound:import:Auto Import");
+    assert!(has(&h, "text:settingsAutoFolder"), "Import ▸ Auto Import shows the folder");
+    // When its name is typed
+    filter(&mut h, "zebrafolder");
+    // Then nothing is found: a folder is not a setting's name, with a separator in it or without
+    assert!(found(&h).is_empty(), "{:?}", found(&h));
+    h.app.session.import_defaults.auto_folder = None;
+}
+
+#[test]
 fn what_stands_where_a_folder_would_is_still_found_when_it_is_no_folder() {
     // Given the demo, whose library is in memory: General ▸ Library says so where a folder would stand
     let mut h = demo([1200.0, 1000.0]);
