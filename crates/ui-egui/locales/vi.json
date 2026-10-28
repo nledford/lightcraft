@@ -2237,8 +2237,8 @@
   "Import dropped files without review": "Nhập các tệp đã thả mà không xem lại",
   "Right-click ▸ Locate Missing File… to find it again.": "Nhấp chuột phải → Định vị tệp bị thiếu… để tìm lại.",
   "Right-click ▸ Reload from Disk to try again.": "Nhấp chuột phải → Tải lại từ đĩa để thử lại.",
-  "Stack — click to collapse (S)": "Chồng — nhấp để thu gọn (S)",
-  "Stack — click to expand (S)": "Chồng — nhấp để mở rộng (S)",
+  "Stack — click to collapse": "Chồng — nhấp để thu gọn",
+  "Stack — click to expand": "Chồng — nhấp để mở rộng",
   "Stars on hover": "Sao khi rê chuột",
   "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "Sao khi rê chuột: cờ và nhãn màu luôn hiển thị; sao và dấu đã chỉnh sửa xuất hiện khi ảnh được rê chuột qua hoặc được chọn.",
   "Virtual copy": "Bản sao ảo"

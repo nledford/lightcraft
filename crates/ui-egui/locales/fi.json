@@ -2329,8 +2329,8 @@
   "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta",
   "Right-click ▸ Locate Missing File… to find it again.": "Napsauta hiiren kakkospainikkeella → Paikanna puuttuva tiedosto… löytääksesi sen uudelleen.",
   "Right-click ▸ Reload from Disk to try again.": "Napsauta hiiren kakkospainikkeella → Lataa levyltä uudelleen yrittääksesi uudelleen.",
-  "Stack — click to collapse (S)": "Pino — napsauta tiivistääksesi (S)",
-  "Stack — click to expand (S)": "Pino — napsauta laajentaaksesi (S)",
+  "Stack — click to collapse": "Pino — napsauta tiivistääksesi",
+  "Stack — click to expand": "Pino — napsauta laajentaaksesi",
   "Stars on hover": "Tähdet osoitettaessa",
   "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "Tähdet osoitettaessa: liput ja värimerkinnät näkyvät aina; tähdet ja muokattu-merkki näkyvät, kun kuvaa osoitetaan tai se on valittuna.",
   "Virtual copy": "Virtuaalikopio"

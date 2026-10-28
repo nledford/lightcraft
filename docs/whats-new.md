@@ -1,5 +1,10 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### A stack badge's tooltip names the stack key as it is bound
+- Hovering a stack's badge in the grid said "(S)" even after you had remapped the key that expands and collapses stacks. It now shows the key you set, written as the menu bar writes it, and no key when none is set. In the filmstrip, where S is Soft Proofing, the tooltip names a key only when Expand/Collapse Stack has one of its own.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

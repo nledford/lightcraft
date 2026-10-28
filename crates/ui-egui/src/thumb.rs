@@ -383,8 +383,25 @@ pub(crate) fn failure_text(offline: bool, error: &str) -> String {
     format!("{head}\n{hint}\n{error}")
 }
 
-fn stack_tip(collapsed: bool) -> &'static str {
-    crate::i18n::tr(if collapsed { "Stack — click to expand (S)" } else { "Stack — click to collapse (S)" })
+/// The stack badge's tooltip, with the key that expands / collapses a stack in a grid as it is
+/// bound and this platform writes it: the key given to Expand/Collapse Stack if it has one, else
+/// Soft Proofing's: a grid (`grid`) reads that key as the stack toggle, the filmstrip does not,
+/// and only when egui, not the native menu, receives it (`native`). No key is named when none
+/// reaches the stack.
+pub(crate) fn stack_tip(
+    keymap: &crate::shortcuts::Keymap,
+    mac: bool,
+    native: &std::collections::HashSet<String>,
+    grid: bool,
+    collapsed: bool,
+) -> String {
+    let base = crate::i18n::tr(if collapsed { "Stack — click to expand" } else { "Stack — click to collapse" });
+    let key = crate::shortcuts::shortcut_of(keymap, "stack.toggle")
+        .or_else(|| crate::shortcuts::shortcut_of(keymap, "view.softProof").filter(|sc| grid && !native.contains(*sc)));
+    match key {
+        Some(sc) => format!("{base} ({})", crate::menubar::shortcut_text(sc, mac)),
+        None => base.to_string(),
+    }
 }
 
 // ------------------------------------------------------------------------ placeholder
@@ -551,9 +568,11 @@ fn stack_badge(app: &mut LightcraftApp, ui: &mut egui::Ui, th: &Thumb, t: &Token
     let (shape, w) = stack_layout(th.rect.width() - 2.0 * m.inset, full.size().x, count.size().x, &m);
     let br = Rect::from_min_size(th.rect.min + vec2(m.inset, m.inset), vec2(w, m.badge));
     let hit = br.intersect(th.rect);
-    let resp = ui.interact(hit, egui::Id::unique((th.surface, "stack-badge", id.0)), Sense::click()).on_hover_text(stack_tip(collapsed));
+    let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
+    let tip = stack_tip(&app.ui.settings.keymap, mac, &app.native_shortcuts, th.surface == Surface::Grid, collapsed);
+    let resp = ui.interact(hit, egui::Id::unique((th.surface, "stack-badge", id.0)), Sense::click()).on_hover_text(&tip);
     // a button to assistive technology, named as its tooltip (the click is handled by the caller)
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, stack_tip(collapsed)));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &tip));
     register(ui, th.surface.widget(Mark::Stack, id), hit);
     let fill = if resp.hovered() { Color32::from_black_alpha(220) } else { Color32::from_black_alpha(165) };
     p.rect_filled(br, m.badge / 2.0, fill);

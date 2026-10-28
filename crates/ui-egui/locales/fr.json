@@ -2392,8 +2392,8 @@
   "The photos are imported once a library is open": "Les photos seront importées dès qu'une bibliothèque sera ouverte",
   "Open a library first, then drop the presets again": "Ouvrez d'abord une bibliothèque, puis déposez à nouveau les préréglages",
   "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :",
-  "Stack — click to expand (S)": "Pile — cliquer pour déplier (S)",
-  "Stack — click to collapse (S)": "Pile — cliquer pour replier (S)",
+  "Stack — click to expand": "Pile — cliquer pour déplier",
+  "Stack — click to collapse": "Pile — cliquer pour replier",
   "Virtual copy": "Copie virtuelle",
   "Right-click ▸ Locate Missing File… to find it again.": "Clic droit → Localiser le fichier manquant… pour le retrouver.",
   "Right-click ▸ Reload from Disk to try again.": "Clic droit → Recharger depuis le disque pour réessayer."

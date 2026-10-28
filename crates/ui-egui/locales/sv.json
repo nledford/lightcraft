@@ -2431,8 +2431,8 @@
   "Import dropped files without review": "Importera släppta filer utan granskning",
   "Right-click ▸ Locate Missing File… to find it again.": "Högerklicka → Leta upp saknad fil… för att hitta den igen.",
   "Right-click ▸ Reload from Disk to try again.": "Högerklicka → Läs in igen från disk för att försöka igen.",
-  "Stack — click to collapse (S)": "Stapel — klicka för att komprimera (S)",
-  "Stack — click to expand (S)": "Stapel — klicka för att expandera (S)",
+  "Stack — click to collapse": "Stapel — klicka för att komprimera",
+  "Stack — click to expand": "Stapel — klicka för att expandera",
   "Stars on hover": "Stjärnor vid pekaren",
   "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "Stjärnor vid pekaren: flaggor och färgetiketter visas alltid; stjärnorna och märket för redigerad visas när pekaren är över ett foto eller när det är markerat.",
   "Virtual copy": "Virtuell kopia"

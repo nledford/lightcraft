@@ -88,13 +88,16 @@ fn the_stack_badge_tooltip_is_translated_in_the_grid_and_the_filmstrip() {
     h.settle(SETTLE);
     let r = h.request("ui.set", json!({"language": "de"}), T);
     assert_eq!(r["ok"], true, "{r}");
-    let german = Locale::De.tr("Stack — click to collapse (S)");
+    let german = format!("{} (S)", Locale::De.tr("Stack — click to collapse"));
     let said = |t: &str| t == german;
+    // the filmstrip sits under the loupe, where S is Soft Proofing, not the stack toggle: no key there
+    let film = Locale::De.tr("Stack — click to collapse");
+    let said_film = |t: &str| t == film;
     assert!(hover_says(&mut h, &format!("stack:{}", ids[0].0), said), "{:?}", h.painted_text());
     h.request("ui.move", json!({"x": 1, "y": 1}), T);
     h.request("ui.set", json!({"view": "detail"}), T);
     h.settle(SETTLE);
-    assert!(hover_says(&mut h, &format!("film:stack:{}", ids[0].0), said), "{:?}", h.painted_text());
+    assert!(hover_says(&mut h, &format!("film:stack:{}", ids[0].0), said_film), "{:?}", h.painted_text());
     crate::i18n::set_language(Locale::En);
 }
 
@@ -248,4 +251,43 @@ fn the_preview_pill_keeps_its_word_on_a_short_photo_with_no_marks() {
     assert!(h.app.renderer.thumb(id).is_none(), "the photo is still its placeholder");
     let pill = widget(&h, &format!("badge:previewOnly:{}", id.0)).expect("the pill is drawn");
     assert!(pill.width() > 30.0, "its word is there, not the icon alone: {pill:?}");
+}
+
+/// The stack badge's tooltip names the key that toggles a stack in a grid as it is bound and as
+/// this platform writes it, not a fixed "(S)".
+#[test]
+fn the_stack_badge_tooltip_names_the_toggle_key_as_bound() {
+    use crate::menubar::shortcut_text;
+    use crate::thumb::stack_tip;
+    let none = std::collections::HashSet::new();
+    let mut keymap = crate::state::AppSettings::default().keymap;
+    let key = crate::shortcuts::shortcut_of(&keymap, "view.softProof").unwrap().to_string();
+    for mac in [true, false] {
+        assert_eq!(stack_tip(&keymap, mac, &none, true, true), format!("Stack — click to expand ({})", shortcut_text(&key, mac)));
+        assert_eq!(stack_tip(&keymap, mac, &none, true, false), format!("Stack — click to collapse ({})", shortcut_text(&key, mac)));
+    }
+    // Soft Proofing's key remapped: the grid reads that one as the stack toggle
+    crate::shortcuts::assign(&mut keymap, "view.softProof", Some("Alt+Shift+S")).unwrap();
+    for mac in [true, false] {
+        assert_eq!(stack_tip(&keymap, mac, &none, true, true), format!("Stack — click to expand ({})", shortcut_text("Alt+Shift+S", mac)));
+    }
+    // a key the native menu takes never reaches the stack toggle: not named
+    let native = std::collections::HashSet::from(["Alt+Shift+S".to_string()]);
+    assert_eq!(stack_tip(&keymap, true, &native, true, true), "Stack — click to expand");
+    // a key given to Expand/Collapse Stack itself is the one named
+    crate::shortcuts::assign(&mut keymap, "stack.toggle", Some("Alt+Shift+K")).unwrap();
+    for mac in [true, false] {
+        assert_eq!(stack_tip(&keymap, mac, &none, true, false), format!("Stack — click to collapse ({})", shortcut_text("Alt+Shift+K", mac)));
+    }
+    // the filmstrip names only a key given to Expand/Collapse Stack
+    for mac in [true, false] {
+        assert_eq!(stack_tip(&keymap, mac, &none, false, true), format!("Stack — click to expand ({})", shortcut_text("Alt+Shift+K", mac)));
+    }
+    // and not Soft Proofing's, which is not the stack toggle under the loupe
+    crate::shortcuts::assign(&mut keymap, "stack.toggle", None).unwrap();
+    assert_eq!(stack_tip(&keymap, true, &none, false, true), "Stack — click to expand");
+    // and none at all names no key
+    crate::shortcuts::assign(&mut keymap, "view.softProof", None).unwrap();
+    assert_eq!(stack_tip(&keymap, true, &none, true, true), "Stack — click to expand");
+    assert_eq!(stack_tip(&keymap, false, &none, true, false), "Stack — click to collapse");
 }
