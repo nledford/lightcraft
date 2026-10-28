@@ -98,7 +98,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             let selected = state != lightcraft_engine::SelectionState::NotSelected;
             // the same name as the grid's cell for this photo (file, rating, flag, label), and whether it is selected
             let name = app.session.catalog.photo(*id).map(|p| crate::panels::grid::photo_spoken(&app.session.catalog, p)).unwrap_or_default();
-            crate::widgets::announce_selected(&resp, film_spoken(&name, failed), selected);
+            crate::widgets::announce_cell(&resp, film_spoken(&name, failed), selected);
             register(ui, format!("film:{}", id.0), cr);
             let sel = state == lightcraft_engine::SelectionState::Active;
             let p = ui.painter();

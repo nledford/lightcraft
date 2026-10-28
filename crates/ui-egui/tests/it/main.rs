@@ -4,3 +4,4 @@
 mod accessibility;
 mod docking_workflows;
 mod filmstrip_names;
+mod thumb_cells;

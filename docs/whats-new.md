@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### Screen readers read photo thumbnails as selectable items, not check boxes
+- On macOS, VoiceOver said "checked" or "unchecked" for a photo's thumbnail in the grid and in the filmstrip, as it does
+  for a check box. A thumbnail is now a selectable item: VoiceOver says "selected" for the photos you have picked, and
+  says nothing about a state for the others. The name is the same as before (file name, rating, flag, color label).
+
 ## 2026-10-27
 
 ### Screen readers name filmstrip thumbnails like the grid's
