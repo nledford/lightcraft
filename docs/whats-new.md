@@ -6,7 +6,8 @@
 - The tabs of Settings look like tabs: names on the window with a line under the open one, no longer the same
   buttons as the choices under them (on General the languages read as a second row of tabs). In Settings a chosen
   option is outlined as well as filled, so it stands out in every theme. Screen readers are told a choice in
-  Settings is a radio button.
+  Settings is a radio button, and the tab bar is a list of tabs, each a tab that says whether it is the open one
+  and that opens the page under it.
 - Settings by keyboard is a short way. Tab stops once at the tab bar (at the open tab) and once at each row of
   choices (at the one that holds), and the arrow keys move inside: → ↓ to the next, ← ↑ to the one before, Home and
   End to the ends, Space or Return to open or choose. An arrow held with ⌘, ⇧, ⌥ or ⌃ is left alone.

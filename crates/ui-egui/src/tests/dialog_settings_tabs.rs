@@ -233,7 +233,7 @@ fn a_choice_reached_with_the_keyboard_shows_the_focus() {
 }
 
 /// What a screen reader is told: a choice is a radio button that says whether it is the one
-/// chosen, a tab a button that says whether it is the one open.
+/// chosen, a tab a tab that says whether it is the one selected.
 #[test]
 fn choices_and_tabs_say_what_they_are_and_which_one_holds() {
     let ctx = egui::Context::default();
@@ -256,16 +256,24 @@ fn choices_and_tabs_say_what_they_are_and_which_one_holds() {
             found = update
                 .nodes
                 .iter()
-                .map(|(_, n)| (format!("{:?}", n.role()), n.label().unwrap_or_default().to_string(), format!("{:?}", n.toggled())))
+                .map(|(_, n)| {
+                    let on = if n.role() == egui::accesskit::Role::Tab {
+                        n.is_selected()
+                    } else {
+                        n.toggled().map(|t| t == egui::accesskit::Toggled::True)
+                    };
+                    (format!("{:?}", n.role()), n.label().unwrap_or_default().to_string(), format!("{on:?}"))
+                })
                 .collect();
         }
     }
-    let has =
-        |role: &str, label: &str, on: bool| found.iter().any(|(r, l, t)| r == role && l == label && t.contains(if on { "True" } else { "False" }));
+    let has = |role: &str, label: &str, on: bool| {
+        found.iter().any(|(r, l, t)| r == role && l == label && t == if on { "Some(true)" } else { "Some(false)" })
+    };
     assert!(has("RadioButton", "Automatic", true), "{found:?}");
     assert!(has("RadioButton", "1600 px", false), "{found:?}");
-    assert!(has("Button", "General", true), "{found:?}");
-    assert!(has("Button", "Import", false), "{found:?}");
+    assert!(has("Tab", "General", true), "{found:?}");
+    assert!(has("Tab", "Import", false), "{found:?}");
 }
 
 #[test]

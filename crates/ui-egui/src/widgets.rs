@@ -934,9 +934,10 @@ const TAB_HEIGHT: f32 = 28.0;
 /// fill, so that it does not read as one of the buttons a page holds. The open tab's name is in
 /// the text colour over a 2 pt line of that colour along its bottom edge (the bar's own line, when
 /// the caller draws one there); the others are in the label colour. The names are a size up from
-/// the headings inside a page, which are in the same face. To a screen reader a tab is a button
-/// that says whether it is the one chosen (`WidgetInfo::selected` gives it AccessKit's toggled state;
-/// a tab role would need that state set by hand).
+/// the headings inside a page, which are in the same face. To a screen reader it is a tab that says
+/// whether it is the one selected (AccessKit's `selected`: macOS reports a tab as a radio button
+/// with the tab subrole, not a check box as for a button with a toggled state); the bar it is in
+/// is a [`tab_list`] and the page it opens a [`tab_panel`] (see [`tab_controls`]).
 pub fn tab_button_in(ui: &mut Ui, bar: &mut Roving, id: &str, label: &str, open: bool) -> Response {
     let label = crate::i18n::tr(label);
     let t = Tokens::get(ui.ctx());
@@ -945,7 +946,8 @@ pub fn tab_button_in(ui: &mut Ui, bar: &mut Roving, id: &str, label: &str, open:
     let size = vec2((galley.size().x + 20.0).max(37.0), TAB_HEIGHT);
     let (r, resp) = ui.allocate_exact_size(size, bar.sense());
     bar.drawn(ui, &resp);
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, open, label));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Tab, true, label));
+    ui.ctx().accesskit_node_builder(resp.id, |node| node.set_selected(open));
     register(ui, format!("button:{id}"), r);
     let p = ui.painter();
     // (on whole pixels, so the line under the open tab is crisp at a whole-number scale)
@@ -960,6 +962,24 @@ pub fn tab_button_in(ui: &mut Ui, bar: &mut Roving, id: &str, label: &str, open:
     }
     focus_ring(ui, &t, &resp, r);
     resp
+}
+
+/// The tabs `add` draws, told to a screen reader as a list of tabs named `name` (already
+/// translated). The tabs are [`tab_button_in`]s.
+pub fn tab_list<R>(ui: &mut Ui, name: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.scope_builder(egui::UiBuilder::new().accessibility_role(egui::Role::TabList).accessibility_label(name), add).inner
+}
+
+/// The page `add` draws, told to a screen reader as the panel of the open tab: named `name` (the
+/// tab's), with the id `panel` that [`tab_controls`] names.
+pub fn tab_panel<R>(ui: &mut Ui, panel: egui::Id, name: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.scope_builder(egui::UiBuilder::new().scope_id(panel).accessibility_role(egui::Role::TabPanel).accessibility_label(name), add).inner
+}
+
+/// Tells a screen reader that the tab `tab` controls the [`tab_panel`] `panel`. Only the open tab
+/// does: the page of another is not on screen, and a node it names would not be in the tree.
+pub fn tab_controls(tab: &Response, panel: egui::Id) {
+    tab.ctx.accesskit_node_builder(tab.id, |node| node.push_controlled(panel.accesskit_id()));
 }
 
 /// A segmented control: `labels` share the available width equally, `per_row` per row. Each segment is
