@@ -2738,5 +2738,7 @@
   "An import is running": "იმპორტი მიმდინარეობს",
   "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება",
   "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი",
+  "Loupe Overlay": "ლუპის ზედდება",
+  "View Options…": "ხედის პარამეტრები…",
   "View → Loupe Overlay → View Options chooses the lines Info 1 and Info 2 show.": "ხედი → ლუპის ზედდება → ხედის პარამეტრები ირჩევს სტრიქონებს, რომლებსაც Info 1 და Info 2 აჩვენებს."
 }

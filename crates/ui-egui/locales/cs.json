@@ -2412,5 +2412,7 @@
   "An import is running": "Import už běží",
   "An import is running. Drop photos when it has finished": "Import už běží. Fotky přetáhněte, až skončí",
   "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky",
+  "Loupe Overlay": "Překrytí lupy",
+  "View Options…": "Možnosti zobrazení…",
   "View → Loupe Overlay → View Options chooses the lines Info 1 and Info 2 show.": "Zobrazení → Překrytí lupy → Možnosti zobrazení určuje, které řádky zobrazují Info 1 a Info 2."
 }

@@ -2353,5 +2353,7 @@
   "An import is running": "Импорт уже выполняется",
   "An import is running. Drop photos when it has finished": "Импорт уже выполняется. Перетащите фото, когда он закончится",
   "Finish Lightroom catalog import before adding photos": "Завершите импорт каталога Lightroom, прежде чем добавлять фото",
+  "Loupe Overlay": "Накладка лупы",
+  "View Options…": "Параметры вида…",
   "View → Loupe Overlay → View Options chooses the lines Info 1 and Info 2 show.": "Вид → Накладка лупы → Параметры вида выбирает строки, которые показывают Info 1 и Info 2."
 }

@@ -2394,5 +2394,7 @@
   "The photos are imported once a library is open": "Les photos seront importées dès qu'une bibliothèque sera ouverte",
   "Open a library first, then drop the presets again": "Ouvrez d'abord une bibliothèque, puis déposez à nouveau les préréglages",
   "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :",
+  "Loupe Overlay": "Incrustation de la loupe",
+  "View Options…": "Options d'affichage…",
   "View → Loupe Overlay → View Options chooses the lines Info 1 and Info 2 show.": "Affichage → Incrustation de la loupe → Options d'affichage choisit les lignes que montrent Info 1 et Info 2."
 }

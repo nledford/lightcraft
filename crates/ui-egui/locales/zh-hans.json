@@ -2204,5 +2204,7 @@
   "An import is running": "正在导入",
   "An import is running. Drop photos when it has finished": "正在导入。导入完成后再拖放照片",
   "Finish Lightroom catalog import before adding photos": "添加照片前，请先完成 Lightroom 目录的导入",
+  "Loupe Overlay": "放大镜叠加",
+  "View Options…": "视图选项…",
   "View → Loupe Overlay → View Options chooses the lines Info 1 and Info 2 show.": "视图 → 放大镜叠加 → 视图选项 用于选择“信息 1”和“信息 2”显示的行。"
 }
