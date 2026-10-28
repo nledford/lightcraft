@@ -2417,5 +2417,10 @@
   "Import dropped files without review": "Importera släppta filer utan granskning",
   "Before/After": "Före/efter",
   "History & Activity": "Historik och aktivitet",
-  "Show overlay": "Visa överlägg"
+  "Show overlay": "Visa överlägg",
+  "Reduce Motion": "Minska rörelse",
+  "Reduce motion": "Minska rörelse",
+  "Turns off zoom and spinner animations. Fades stay.": "Stänger av zoom- och snurranimationer. Toningar finns kvar.",
+  "Turns off zoom and spinner animations. Fades stay. Follows the system's Reduce Motion until you change it here.": "Stänger av zoom- och snurranimationer. Toningar finns kvar. Följer systemets Minska rörelse tills du ändrar det här.",
+  "Use the system setting": "Använd systeminställningen"
 }

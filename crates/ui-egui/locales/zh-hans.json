@@ -2188,5 +2188,10 @@
   "Finish Lightroom catalog import before adding photos": "添加照片前，请先完成 Lightroom 目录的导入",
   "Before/After": "修改前/修改后",
   "History & Activity": "历史记录与活动",
-  "Show overlay": "显示叠加"
+  "Show overlay": "显示叠加",
+  "Reduce Motion": "减少动态效果",
+  "Reduce motion": "减少动态效果",
+  "Turns off zoom and spinner animations. Fades stay. Follows the system's Reduce Motion until you change it here.": "关闭缩放和旋转指示器的动画。淡入淡出效果保留。在你于此处更改之前，跟随系统的“减弱动态效果”设置。",
+  "Use the system setting": "使用系统设置",
+  "Turns off zoom and spinner animations. Fades stay.": "关闭缩放和旋转指示器的动画。淡入淡出效果保留。"
 }
