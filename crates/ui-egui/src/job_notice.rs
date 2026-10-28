@@ -19,7 +19,8 @@ pub struct Ended {
     pub labels: Vec<String>,
     /// What the window said about the end meanwhile ("Exported 24 photos"), when it said anything.
     pub said: Option<String>,
-    /// The window was in the background at some moment between the first job's end and now: somebody to tell.
+    /// The window was in the background at some moment between the first job's end (or the end of the follow-on work the
+    /// announcement waited for) and now: somebody to tell.
     pub away: bool,
 }
 
@@ -45,7 +46,7 @@ pub struct JobWatch {
     claimed: Option<(String, u64)>,
     /// Jobs that ended and wait for their announcement, and when the last of them was missed.
     pending: Option<(f64, Vec<String>)>,
-    /// Jobs that started while jobs waited in `pending`, still running: a second phase of the same work (a folder read
+    /// Jobs named like one waiting in `pending` that started meanwhile, still running: a second phase of the same work (a folder read
     /// that goes on to add its photos), so nothing is announced until they have ended.
     follow_on: Vec<u64>,
     /// The window was in the background while jobs waited in `pending`.
@@ -64,23 +65,27 @@ impl JobWatch {
                 self.toast = Some((key.0, key.1, now));
             }
         }
-        let started: Vec<u64> = jobs.iter().filter(|j| !self.running.iter().any(|(id, ..)| *id == j.id)).map(|j| j.id).collect();
+        let started: Vec<(u64, &str)> =
+            jobs.iter().filter(|j| !self.running.iter().any(|(id, ..)| *id == j.id)).map(|j| (j.id, j.label.as_str())).collect();
         let follow_on_stopped =
             self.follow_on.iter().any(|f| !jobs.iter().any(|j| j.id == *f) && self.running.iter().any(|(id, _, stopping)| id == f && *stopping));
         // a job that vanished without having been asked to stop has ended on its own (done, or failed)
-        let gone: Vec<String> = self
+        let gone: Vec<(u64, String)> = self
             .running
             .iter()
             .filter(|(id, _, stopping)| !stopping && !jobs.iter().any(|j| j.id == *id))
-            .map(|(_, label, _)| label.clone())
+            .map(|(id, label, _)| (*id, label.clone()))
             .collect();
         self.running = jobs.iter().map(|j| (j.id, j.label.clone(), j.cancelling)).collect();
         if !gone.is_empty() {
-            // (an end after the window came forward is one it saw)
-            self.away = false;
+            if self.pending.is_none() || gone.iter().any(|(id, _)| self.follow_on.contains(id)) {
+                // a new batch, or the end of the work the batch waited for: an end after the window came forward is
+                // one it saw (an unrelated job joining a batch keeps what the first end found)
+                self.away = false;
+            }
             let (since, labels) = self.pending.get_or_insert_with(|| (now, Vec::new()));
             *since = now;
-            for label in gone {
+            for (_, label) in gone {
                 if !labels.contains(&label) {
                     labels.push(label);
                 }
@@ -92,8 +97,9 @@ impl JobWatch {
             self.follow_on.clear();
             self.away = false;
         } else {
-            if self.pending.is_some() {
-                self.follow_on.extend(started);
+            // only a job with the name of one that ended carries its work on (a folder read's second phase)
+            if let Some((_, labels)) = &self.pending {
+                self.follow_on.extend(started.iter().filter(|(_, label)| labels.iter().any(|l| l == label)).map(|(id, _)| *id));
             }
             self.follow_on.retain(|f| jobs.iter().any(|j| j.id == *f));
         }
@@ -329,5 +335,37 @@ mod tests {
         w.update(20.0, &[], None, false);
         let ended = w.update(20.0 + GRACE_SECS, &[], None, false).expect("announced");
         assert!(!ended.away);
+    }
+
+    #[test]
+    fn a_job_with_another_name_that_starts_while_one_waits_does_not_hold_the_announcement() {
+        let a = Activity::default();
+        let mut w = JobWatch::default();
+        let export = a.start("export", "Exporting", Cancel::Yes);
+        w.update(0.0, &running(&a), None, true);
+        drop(export);
+        // an unrelated job starts during the grace (an Auto Import, say)
+        let other = a.start("import", "Importing", Cancel::Yes);
+        w.update(0.5, &running(&a), None, true);
+        let ended = w.update(1.0, &running(&a), None, true).expect("not held by an unrelated job");
+        assert_eq!(ended.labels, ["Exporting"]);
+        drop(other);
+    }
+
+    #[test]
+    fn a_second_end_joining_a_batch_keeps_that_the_window_was_away_at_the_first() {
+        let a = Activity::default();
+        let mut w = JobWatch::default();
+        let x = a.start("export", "Exporting", Cancel::Yes);
+        let i = a.start("import", "Importing", Cancel::Yes);
+        w.update(0.0, &running(&a), None, true);
+        drop(x);
+        w.update(1.0, &running(&a), None, true);
+        // the window comes forward, then the second job ends within the same wait
+        drop(i);
+        w.update(1.2, &[], None, false);
+        let ended = w.update(1.2 + GRACE_SECS, &[], None, false).expect("announced");
+        assert_eq!(ended.labels, ["Exporting", "Importing"]);
+        assert!(ended.away, "the first end happened while nobody looked");
     }
 }
