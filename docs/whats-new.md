@@ -3,7 +3,7 @@
 ## 2026-10-28
 
 ### A stack badge's tooltip names the stack key as it is bound
-- Hovering a stack's badge in the grid said "(S)" even after you had remapped the key that expands and collapses stacks. It now shows the key you set, written as the menu bar writes it, and no key when none is set. In the filmstrip, where S is Soft Proofing, the tooltip names a key only when Expand/Collapse Stack has one of its own.
+- Hovering a stack's badge in the grid said "(S)" even after you had remapped the key that expands and collapses stacks. It now shows the key you set for Expand/Collapse Stack, written as the menu bar writes it. With that unbound, it shows Soft Proofing's key (which a grid reads as the stack toggle) unless the native menu takes that key, and then no key. In the filmstrip, where S is Soft Proofing, the tooltip names a key only when Expand/Collapse Stack has one of its own.
 
 ## 2026-10-24
 
