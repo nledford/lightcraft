@@ -1,5 +1,10 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### The grid's title, count and empty messages are read by screen readers
+- VoiceOver and other screen readers now read the photo grid's heading (for example "All Photos") and its photo count ("0 of 24 photos"), and the messages an empty view shows: "No photos match the active filters" with its reason, "No photos in this folder", and the same for the compare, survey, detail and people views.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

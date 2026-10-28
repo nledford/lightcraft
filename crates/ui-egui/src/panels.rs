@@ -123,8 +123,12 @@ pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
 pub fn empty_message(ui: &egui::Ui, rect: Rect, title: &str, body: &str) {
     let t = Tokens::get(ui.ctx());
     let p = ui.painter();
-    p.text(rect.center() - vec2(0.0, 12.0), Align2::CENTER_CENTER, crate::i18n::tr(title), t.semibold(18.0), t.text);
-    p.text(rect.center() + vec2(0.0, 14.0), Align2::CENTER_CENTER, crate::i18n::tr(body), t.font(13.0), t.text_dim);
+    let (title, body) = (crate::i18n::tr(title), crate::i18n::tr(body));
+    let title_rect = p.text(rect.center() - vec2(0.0, 12.0), Align2::CENTER_CENTER, title, t.semibold(18.0), t.text);
+    let body_rect = p.text(rect.center() + vec2(0.0, 14.0), Align2::CENTER_CENTER, body, t.font(13.0), t.text_dim);
+    // read by a screen reader, as the welcome's words are
+    readable(ui, title_rect, "message-title", title, false);
+    readable(ui, body_rect, "message-body", body, false);
 }
 
 /// A button under an empty state's message: the command it runs, its label, and the id it is
