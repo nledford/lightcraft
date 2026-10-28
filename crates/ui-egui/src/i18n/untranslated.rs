@@ -350,15 +350,30 @@ fn parse_def(file: &str, name: &str, tokens: &[Tok], at: usize, crate_button: bo
     Some((method, Some(Def { file, name, public, method, params, calls, shows: vec![false; count], translates: vec![false; count] })))
 }
 
+/// Which definitions have a parameter that shows (or translates) its text: `(key, position)` → the `(file, public)` of each such
+/// definition. egui's own calls are the entries with an empty file.
+type Flow = BTreeMap<(String, usize), BTreeSet<(String, bool)>>;
+
+/// Does a call to `key` written in `file` reach a parameter in `flow`? Like [`Sinks::args`]: a function the file defines itself
+/// wins, otherwise the public ones elsewhere count; egui's calls always do.
+fn reaches(flow: &Flow, defined: &BTreeSet<(String, String, bool)>, file: &str, key: &str, position: usize) -> bool {
+    let Some(places) = flow.get(&(key.to_string(), position)) else { return false };
+    let own = defined.contains(&(file.to_string(), key.trim_start_matches('.').to_string(), key.starts_with('.')));
+    places.iter().any(|(at, public)| at.is_empty() || if own { at == file } else { *public })
+}
+
 /// Flow to a fixed point: a parameter shows when it is handed to a widget call (or to a function whose parameter shows) outside `tr`,
-/// and translates when it is handed to `tr` (or to a function that translates it). `defs[n]` is from `files[tokens_of[n]]`.
-fn flow_params(defs: &mut [Def], tokens_of: &[usize], files: &[Vec<Tok>]) {
-    let mut shown: BTreeSet<(String, usize)> = BTreeSet::new();
+/// and translates when it is handed to `tr` (or to a function that translates it). `defs[n]` is from `files[tokens_of[n]]`;
+/// `defined` is every function the sources define, a sink or not.
+fn flow_params(defs: &mut [Def], tokens_of: &[usize], files: &[Vec<Tok>], defined: &BTreeSet<(String, String, bool)>) {
+    let mut shown = Flow::new();
     for call in CALLS {
         let key = call.owner.map_or_else(|| format!(".{}", call.name), |owner| format!("{owner}::{}", call.name));
-        shown.extend(call.args.iter().map(|arg| (key.clone(), *arg)));
+        for arg in call.args {
+            shown.entry((key.clone(), *arg)).or_default().insert((String::new(), true));
+        }
     }
-    let mut translated: BTreeSet<(String, usize)> = BTreeSet::new();
+    let mut translated = Flow::new();
     loop {
         let mut changed = false;
         for (def, ti) in defs.iter_mut().zip(tokens_of) {
@@ -371,19 +386,24 @@ fn flow_params(defs: &mut [Def], tokens_of: &[usize], files: &[Vec<Tok>]) {
                         if !uses_param(arg, param) {
                             continue;
                         }
-                        if is_translator(key.trim_start_matches('.')) || translated.contains(&(key.clone(), position)) {
+                        // (a slider's `.text(label)` has one argument; the painter's `.text(pos, anchor, text, …)` has more)
+                        let slider_text = key == ".text" && ranges.len() == 1 && position == 0;
+                        if is_translator(key.trim_start_matches('.')) || reaches(&translated, defined, &def.file, key, position) {
                             def.translates[index] = true;
-                        } else if shown.contains(&(key.clone(), position)) && !has_translator(arg) && shows_param(arg, param) {
+                        } else if (slider_text || reaches(&shown, defined, &def.file, key, position))
+                            && !has_translator(arg)
+                            && shows_param(arg, param)
+                        {
                             def.shows[index] = true;
                         }
                     }
                 }
-                let me = def.key();
+                let (me, place) = (def.key(), (def.file.clone(), def.public));
                 if def.translates[index] {
-                    changed |= translated.insert((me.clone(), index));
+                    changed |= translated.entry((me.clone(), index)).or_default().insert(place.clone());
                 }
                 if def.shows[index] {
-                    changed |= shown.insert((me, index));
+                    changed |= shown.entry((me, index)).or_default().insert(place);
                 }
             }
         }
@@ -415,7 +435,7 @@ impl Sinks {
                 }
             }
         }
-        flow_params(&mut defs, &tokens_of, &files);
+        flow_params(&mut defs, &tokens_of, &files, &defined);
         let mut sinks = Sinks { defined, ..Sinks::default() };
         for def in defs {
             let args: Vec<usize> = (0..def.params.len()).filter(|index| def.shows[*index] && !def.translates[*index]).collect();
@@ -951,6 +971,29 @@ fn test_helper(ui: &mut Ui, label: &str) { ui.label(label); }
         assert_eq!(sinks.args("c.rs", "own_row", false), [1]);
         // Items under `#[cfg(test)]` are not helpers.
         assert_eq!(sinks.args("c.rs", "in_tests", false), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn helpers_of_the_same_name_in_different_files_do_not_share_what_they_do_with_their_text() {
+        // Both are public, so another file could reach them: what keeps a call from them is the file's own function of that name.
+        // `a.rs` has its own `caption`, which translates; `b.rs`'s shows its text.
+        let a = "pub fn caption(ui: &mut Ui, text: &str) { ui.label(tr(text)); }\nfn calls_a(ui: &mut Ui, text: &str) { caption(ui, text); }";
+        let b = "pub fn caption(ui: &mut Ui, text: &str) { ui.label(text); }\nfn calls_b(ui: &mut Ui, text: &str) { caption(ui, text); }";
+        // `c.rs`'s `row` shows its text; `d.rs` has a `row` that takes none, so `d.rs`'s call is not to it.
+        let c = "pub fn row(ui: &mut Ui, label: &str) { ui.label(label); }";
+        let d = "fn row(ui: &mut Ui, count: usize) {}\nfn wraps(ui: &mut Ui, label: &str) { row(ui, label); }";
+        let files = ["a.rs", "b.rs", "c.rs", "d.rs"].map(String::from).into_iter().zip([a, b, c, d].map(String::from)).collect::<Vec<_>>();
+        let sinks = Sinks::derive(&files);
+        assert_eq!(sinks.args("a.rs", "calls_a", false), Vec::<usize>::new(), "its own `caption` translates");
+        assert_eq!(sinks.args("b.rs", "calls_b", false), [1], "its own `caption` shows, whatever another file's does");
+        assert_eq!(sinks.args("d.rs", "wraps", false), Vec::<usize>::new(), "`row` here shows nothing");
+    }
+
+    #[test]
+    fn a_helper_that_gives_its_text_to_a_slider_is_a_sink() {
+        let source = "fn slider(ui: &mut Ui, label: &str, v: &mut f32) { ui.add(Slider::new(v, 0.0..=1.0).text(label)); }";
+        let sinks = Sinks::derive(&[("a.rs".to_string(), source.to_string())]);
+        assert_eq!(sinks.args("a.rs", "slider", false), [1]);
     }
 
     /// The scan reads the repository's sources (a wrong folder would make the report empty and look clean).
