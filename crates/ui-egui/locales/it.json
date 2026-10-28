@@ -2362,5 +2362,6 @@
   "An import is running": "Un'importazione è in corso",
   "An import is running. Drop photos when it has finished": "Un'importazione è in corso. Trascina le foto quando è finita",
   "Finish Lightroom catalog import before adding photos": "Termina l'importazione del catalogo Lightroom prima di aggiungere foto",
-  "Counting library": "Conteggio della libreria"
+  "Counting library": "Conteggio della libreria",
+  "Same Content as Another Photo": "Stesso contenuto di un'altra foto"
 }

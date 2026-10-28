@@ -2328,5 +2328,6 @@
   "Dropped Files": "Pudotetut tiedostot",
   "Finish Lightroom catalog import before adding photos": "Viimeistele Lightroom-luettelon tuonti ennen kuvien lisäämistä",
   "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta",
-  "Counting library": "Lasketaan kirjastoa"
+  "Counting library": "Lasketaan kirjastoa",
+  "Same Content as Another Photo": "Sama sisältö kuin toisella kuvalla"
 }

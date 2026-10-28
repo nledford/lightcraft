@@ -174,6 +174,15 @@
   the library again, which made the window slow and at times unresponsive for as long as the import ran. A change
   too large to follow, such as opening a library, is counted in the background while the sidebar keeps its counts.
 
+### Find photos whose file is in the library twice
+- Smart albums and the library filter have a new rule, File ▸ Same Content as Another Photo. It finds the photos
+  whose file has the same content as another photo's, under another name or in another folder, such as a copy made
+  with Photo ▸ Duplicate. Virtual copies don't count, and neither do photos in Recently Deleted or only browsed in
+  Local. An album with the rule keeps its count up to date as copies are deleted, restored or removed.
+- The rule needs the library to have recorded each file's content. Photos added by an import have it; photos taken
+  over from a Lightroom catalog don't until you run Photo ▸ Reload from Disk on them, so they match nothing until
+  then, even when their files are identical.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around

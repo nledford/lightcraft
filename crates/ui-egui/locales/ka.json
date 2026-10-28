@@ -2735,5 +2735,6 @@
   "An import is running": "იმპორტი მიმდინარეობს",
   "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება",
   "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი",
+  "Same Content as Another Photo": "იგივე შიგთავსი, რაც სხვა ფოტოს",
   "Counting library": "ბიბლიოთეკის დათვლა"
 }

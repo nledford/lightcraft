@@ -2430,5 +2430,6 @@
   "Dropped Files": "Släppta filer",
   "Finish Lightroom catalog import before adding photos": "Slutför importen av Lightroom-katalogen innan du lägger till foton",
   "Import dropped files without review": "Importera släppta filer utan granskning",
-  "Counting library": "Räknar biblioteket"
+  "Counting library": "Räknar biblioteket",
+  "Same Content as Another Photo": "Samma innehåll som ett annat foto"
 }
