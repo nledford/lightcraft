@@ -160,7 +160,12 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             } else {
                 // not loaded yet (or unreadable): the selection shows on the placeholder drawn above, as in the grid
                 // (a light theme's skeleton is itself mid-gray: the other selected photos' ring takes the dim text color)
-                let ring = if t.skeleton.r() > 0x80 { t.text_dim } else { Color32::from_gray(170) };
+                let light = t.skeleton.r() > 0x80;
+                let ring = if light { t.text_dim } else { Color32::from_gray(170) };
+                // in a light theme the white ring is pale on the pale cell: a dark line outside it keeps it readable
+                if light && state == lightcraft_engine::SelectionState::Active {
+                    p.rect_stroke(img_area.expand(1.5), 0.0, Stroke::new(1.0, Color32::from_black_alpha(160)), StrokeKind::Outside);
+                }
                 film_ring(p, img_area, state, ring);
             }
             if resp.clicked() {

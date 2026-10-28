@@ -103,3 +103,32 @@ fn filmstrip_rings_selected_cells_whose_thumbnail_is_not_loaded() {
     assert!(rings_in(&h, vis[2], egui::Color32::WHITE).is_empty(), "an unselected cell has no ring");
     assert!(rings_in(&h, vis[2], egui::Color32::from_gray(170)).is_empty(), "an unselected cell has no gray ring");
 }
+
+/// Given an active photo whose thumbnail is not loaded, in a light theme, Then a dark line runs
+/// outside its white ring (white on the pale cell is about 1.5:1); in a dark theme the ring needs none.
+#[test]
+fn filmstrip_outlines_the_active_placeholder_ring_in_a_light_theme() {
+    let underlays = |theme: &str| {
+        let mut session = lightcraft_engine::Session::with_demo();
+        let active = session.visible_cloned()[0];
+        let app = LightcraftApp::new(session, Services { png: None, ..Default::default() });
+        let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
+        // renders are held: the thumbnail stays unloaded however fast the machine is
+        h.app.renderer.set_offload(Box::new(crate::headless::RenderGate::new(std::rc::Rc::new(std::cell::Cell::new(false)))));
+        for (method, params) in [
+            ("engine.execute", json!({"command": "view.theme", "params": {"theme": theme}})),
+            ("engine.execute", json!({"command": "library.select", "params": {"ids": [active.0]}})),
+            ("ui.set", json!({"view": "detail"})),
+        ] {
+            let r = h.request(method, params, T);
+            assert_eq!(r["ok"], true, "{r}");
+        }
+        h.step();
+        h.step();
+        assert!(h.app.renderer.thumb(active).is_none(), "the thumbnail is still loading");
+        assert_eq!(rings_in(&h, active, egui::Color32::WHITE).len(), 1, "the active cell has its white ring in {theme}");
+        rings_in(&h, active, egui::Color32::from_black_alpha(160)).len()
+    };
+    assert_eq!(underlays("paper"), 1, "a dark line outside the white ring in a light theme");
+    assert_eq!(underlays("midnight"), 0, "none in a dark theme");
+}
