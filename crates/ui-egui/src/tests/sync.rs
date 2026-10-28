@@ -194,6 +194,38 @@ fn ticking_remove_missing_also_removes_the_missing_photos() {
     assert_eq!(in_library(&h), vec!["a.png", "b.png"], "one undo step");
 }
 
+/// The count beside a choice is part of it: a click on the number ticks the box, as it did when the count was in the label.
+#[test]
+fn a_click_on_the_count_ticks_the_box_beside_it() {
+    let dir = Scratch::new("count-click");
+    let mut h = changed_folder(&dir);
+    open_and_scan(&mut h, &dir.path("trip"));
+    let ticked = |h: &Headless| matches!(h.app.ui.dialog, Some(Dialog::SynchronizeFolder { remove_missing: true, .. }));
+    assert!(!ticked(&h));
+    for _ in 0..5 {
+        h.step();
+        let row = h.app.widgets.iter().find(|(w, _)| w == "syncRemoveMissing").map(|(_, r)| *r).expect("the row is drawn");
+        // the number painted on that row (the other rows' counts are at other heights)
+        let at = h
+            .view
+            .painted_shapes()
+            .iter()
+            .find_map(|s| match s {
+                egui::Shape::Text(t) if t.galley.job.text == "(1)" && row.y_range().contains(t.visual_bounding_rect().center().y) => {
+                    Some(t.visual_bounding_rect().center())
+                }
+                _ => None,
+            })
+            .expect("the count is painted on its row");
+        let r = h.request("ui.click", json!({"x": at.x, "y": at.y}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        if h.step_until(Duration::from_secs(3), ticked) {
+            return;
+        }
+    }
+    panic!("a click on the count never ticked the box: {:?}", h.app.ui.dialog);
+}
+
 #[test]
 fn cancel_leaves_the_library_as_it_was() {
     let dir = Scratch::new("cancel");

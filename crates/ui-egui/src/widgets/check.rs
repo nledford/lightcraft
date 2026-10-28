@@ -64,6 +64,7 @@ pub struct Check<'a> {
     emphasis: Emphasis,
     translated: bool,
     accessible_name: Option<&'a str>,
+    suffix: Option<&'a str>,
 }
 
 /// How loud the label reads among its neighbours.
@@ -80,7 +81,18 @@ pub enum Emphasis {
 impl<'a> Check<'a> {
     /// A tick box for `value`, addressable as `check:{id}`.
     pub fn new(id: &'a str, value: &'a mut bool, label: &'a str) -> Self {
-        Check { id, value, label, enabled: true, tooltip: None, reason: None, emphasis: Emphasis::Normal, translated: false, accessible_name: None }
+        Check {
+            id,
+            value,
+            label,
+            enabled: true,
+            tooltip: None,
+            reason: None,
+            emphasis: Emphasis::Normal,
+            translated: false,
+            accessible_name: None,
+            suffix: None,
+        }
     }
 
     /// Off: drawn faded, and a click or a key does nothing.
@@ -117,6 +129,13 @@ impl<'a> Check<'a> {
         self
     }
 
+    /// Dimmed text after the label inside the row (a count): the hit area takes it in, so a click on it is a
+    /// click on the row. It is not announced by itself: give the row an [`Check::accessible_name`] that says it.
+    pub fn suffix(mut self, text: &'a str) -> Self {
+        self.suffix = Some(text);
+        self
+    }
+
     /// How loud the label reads.
     pub fn emphasis(mut self, emphasis: Emphasis) -> Self {
         self.emphasis = emphasis;
@@ -139,6 +158,7 @@ impl<'a> Check<'a> {
                 emphasis: self.emphasis,
                 translated: self.translated,
                 accessible_name: self.accessible_name,
+                suffix: self.suffix,
             },
         );
         if toggled {
@@ -204,6 +224,7 @@ impl<'a, V: PartialEq> Radio<'a, V> {
                 emphasis: Emphasis::Normal,
                 translated: self.translated,
                 accessible_name: None,
+                suffix: None,
             },
         );
         if clicked && !on {
@@ -233,6 +254,8 @@ struct Spec<'a> {
     translated: bool,
     /// What assistive technology announces instead of `label`.
     accessible_name: Option<&'a str>,
+    /// Dimmed text after the label, inside the hit area.
+    suffix: Option<&'a str>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -244,7 +267,7 @@ enum Form {
 /// Lay out, interact with and draw one row (the box and its wrapped label); true when it was
 /// activated by a click or the keyboard.
 fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
-    let Spec { widget, label, enabled, tooltip, reason, form: shape, on, emphasis, translated, accessible_name } = spec;
+    let Spec { widget, label, enabled, tooltip, reason, form: shape, on, emphasis, translated, accessible_name, suffix } = spec;
     let kind = match shape {
         Form::Box => egui::Role::CheckBox,
         Form::Round => egui::Role::RadioButton,
@@ -252,18 +275,29 @@ fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
     let t = Tokens::get(ui.ctx());
     let label = if translated { label } else { crate::i18n::tr(label) };
     let enabled = enabled && ui.is_enabled();
-    let wrap = (ui.available_width() - BOX - GAP).max(60.0);
+    // (the dimmed text after the label has its width taken off what the label may wrap to)
+    let suffix = suffix.map(|s| ui.painter().layout_no_wrap(s.to_string(), t.font(13.0), t.text_dim));
+    let after = suffix.as_ref().map_or(0.0, |s| GAP + s.size().x);
+    let wrap = (ui.available_width() - BOX - GAP - after).max(60.0);
     let (font, base) = match emphasis {
         Emphasis::Normal => (t.font(13.0), t.text),
         Emphasis::Strong => (t.semibold(13.0), t.text),
         Emphasis::Muted => (t.font(13.0), t.text_dim),
     };
     let galley = ui.painter().layout(label.to_string(), font, base, wrap);
-    let size = vec2(BOX + GAP + galley.size().x, galley.size().y.max(ui.spacing().interact_size.y));
+    let label_width = galley.size().x;
+    let size = vec2(BOX + GAP + label_width + after, galley.size().y.max(ui.spacing().interact_size.y));
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     let id = ui.scope_id().with(("lc-check", widget.as_str()));
     let resp = ui.interact(rect, id, if enabled { Sense::click() } else { Sense::hover() });
-    resp.widget_info(|| WidgetInfo::selected(kind, enabled, on, accessible_name.unwrap_or(label)));
+    let activated = resp.clicked();
+    // what the row is once this activation is applied: the caller updates its value only after `row` returns,
+    // and a screen reader must not hear the previous state in the frame that changed it (a radio stays on)
+    let announced = match shape {
+        Form::Box => on != activated,
+        Form::Round => on || activated,
+    };
+    resp.widget_info(|| WidgetInfo::selected(kind, enabled, announced, accessible_name.unwrap_or(label)));
     crate::widgets::register(ui, widget, rect);
 
     let state = if !enabled {
@@ -308,8 +342,11 @@ fn row(ui: &mut Ui, spec: Spec) -> (Response, bool) {
     }
     let text_color = if enabled { base } else { t.text_disabled };
     p.galley_with_override_text_color(pos2(rect.min.x + BOX + GAP, rect.center().y - galley.size().y / 2.0), galley, text_color);
+    if let Some(suffix) = suffix {
+        let at = pos2(rect.min.x + BOX + GAP + label_width + GAP, rect.center().y - suffix.size().y / 2.0);
+        p.galley_with_override_text_color(at, suffix, if enabled { t.text_dim } else { t.text_disabled });
+    }
 
-    let activated = resp.clicked();
     // `resp.enabled()` is false only when the whole ui is disabled around this control; one turned
     // off with `.enabled(false)` sits in an enabled ui. egui's disabled hover text shows only in the
     // first case, so the reason is shown with the plain hover text in the second.

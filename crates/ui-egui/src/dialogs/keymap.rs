@@ -100,9 +100,10 @@ pub(crate) fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, b: &Bi
     };
     ui.label(name).on_hover_text(hover);
     let recording = app.recording_shortcut.as_deref() == Some(b.id);
-    // an unset shortcut shows a dimmed dash
+    // an unset shortcut shows a dimmed dash; the button being recorded is filled with the pressed color, which the
+    // theme's own text reads on in every theme (white did not on Silver and Paper)
     let (text, ink) = if recording {
-        (crate::i18n::tr("Press keys…").to_string(), Some(egui::Color32::WHITE))
+        (crate::i18n::tr("Press keys…").to_string(), None)
     } else {
         match sc {
             Some(sc) => (menu_text(sc, mac), None),

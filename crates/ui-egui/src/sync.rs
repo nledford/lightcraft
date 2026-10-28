@@ -183,18 +183,14 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
         ui.label(crate::i18n::tr("This folder isn't there: it was moved or renamed, or its disk isn't connected."));
         return;
     }
-    // the label is the English key (`Check` translates it); the count sits beside it
+    // the label is the English key (`Check` translates it); the count is dimmed text inside the same row, so a click
+    // on it is a click on the tick box
     let choice = |ui: &mut egui::Ui, on: &mut bool, n: usize, text: &str, widget: &str| {
-        ui.horizontal(|ui| {
-            // screen readers hear the count too, as the label used to carry it
-            let name = format!("{} ({n})", crate::i18n::tr(text));
-            let r = Check::new(&format!("sync.{widget}"), on, text).accessible_name(&name).enabled(n > 0).show(ui);
-            // painted, not a Label: a Label adds its own accessibility node and the count would be heard twice
-            let galley = ui.painter().layout_no_wrap(format!("({n})"), t.font(13.0), t.text_dim);
-            let (rect, _) = ui.allocate_exact_size(galley.size(), egui::Sense::hover());
-            ui.painter().galley(rect.min, galley, t.text_dim);
-            crate::widgets::register(ui, widget, r.rect);
-        });
+        // screen readers hear the count too, as the label used to carry it (the count itself is not a node of its own)
+        let name = format!("{} ({n})", crate::i18n::tr(text));
+        let count = format!("({n})");
+        let r = Check::new(&format!("sync.{widget}"), on, text).accessible_name(&name).suffix(&count).enabled(n > 0).show(ui);
+        crate::widgets::register(ui, widget, r.rect);
     };
     let count = |text: &str, n: usize| format!("{} ({n})", crate::i18n::tr(text));
     let dim = |ui: &mut egui::Ui, s: &str| ui.label(egui::RichText::new(s).color(t.text_dim));

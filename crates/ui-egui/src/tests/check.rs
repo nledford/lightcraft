@@ -218,6 +218,29 @@ fn screen_readers_hear_a_checkbox_and_a_radio_with_their_state() {
     assert_eq!(other.2.as_deref(), Some("False"));
 }
 
+/// The frame a click turns a row on or off already reports the new state, not the one before it.
+#[test]
+fn screen_readers_hear_the_new_state_in_the_frame_a_click_changes_it() {
+    let rig = Rig::new();
+    let (mut on, mut choice) = (false, 3);
+    let draw = |ui: &mut egui::Ui, on: &mut bool, choice: &mut i32| {
+        let c = check(ui, "x", on, "Auto Crop");
+        let r4 = radio(ui, "y-4", choice, 4, "Cylindrical");
+        (c, r4)
+    };
+    let ((c, r4), _) = rig.frame(Vec::new(), |ui| draw(ui, &mut on, &mut choice));
+    let toggled = |nodes: &[(String, String, Option<String>)], name: &str| nodes.iter().find(|n| n.1 == name).and_then(|n| n.2.clone());
+    let (_, nodes) = rig.frame(click_at(c.rect.center()), |ui| draw(ui, &mut on, &mut choice));
+    assert!(on);
+    assert_eq!(toggled(&nodes, "Auto Crop").as_deref(), Some("True"), "ticked by this very click: {nodes:?}");
+    let (_, nodes) = rig.frame(click_at(c.rect.center()), |ui| draw(ui, &mut on, &mut choice));
+    assert!(!on);
+    assert_eq!(toggled(&nodes, "Auto Crop").as_deref(), Some("False"), "and cleared by the next: {nodes:?}");
+    let (_, nodes) = rig.frame(click_at(r4.rect.center()), |ui| draw(ui, &mut on, &mut choice));
+    assert_eq!(choice, 4);
+    assert_eq!(toggled(&nodes, "Cylindrical").as_deref(), Some("True"), "chosen by this very click: {nodes:?}");
+}
+
 #[test]
 fn a_check_is_addressable_by_its_id() {
     let rig = Rig::new();
