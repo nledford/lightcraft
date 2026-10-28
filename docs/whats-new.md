@@ -15,6 +15,11 @@
 - Esc gives up a drag of photos, as it already did for albums, sidebar sections and keywords: that press ends the drag and does nothing else
   (it does not also close a dialog, leave full screen or light back on). A drag started before entering full screen or a slideshow now ends with the mouse button, so Esc works there again.
 
+### A right-click on a text field while you carry photos opens no menu
+- While you drag photos from the grid, a right-click on a text field, such as the search box, opens no Cut, Copy and
+  Paste menu. Before, the menu opened over the field the photos were on. Right-clicking a field without a drag works
+  as before.
+
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
   minute, even when no catalog edit occurred. This fixes stale photos remaining in the grid and stale counts for
