@@ -26,7 +26,7 @@
 //!      the day it is written, with no list to update.
 //!
 //!   A string with no word of two letters, or only capitals (`"{}%"`, `"—"`, `"R"`, `"PDF"`), is not
-//!   text. Test code (`tests_*.rs` and `*_tests.rs` files, `tests/`, items under `#[cfg(test)]`,
+//!   text. Test code (`tests.rs`, `tests_*.rs` and `*_tests.rs` files, `tests/`, items under `#[cfg(test)]`,
 //!   `#[cfg(debug_assertions)]` or `#[test]`) is skipped. The scanner is the `gaps` lexer, so a call
 //!   in a comment or a string is not a call. `Button::new` is egui's only when the file does not
 //!   use this crate's `Button` (which takes the English key) or the call says `egui::Button::new`.
