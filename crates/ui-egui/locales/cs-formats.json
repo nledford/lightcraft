@@ -308,5 +308,7 @@
   ", rating {} of 5": ", hodnocení: {} z 5",
   "Add {n} photo{} to “{}”": "Přidat do „{1}“ fotografie: {n}{0:.0}",
   "{n} already there": "již tam je: {n}",
-  "Add “{keyword}” to {n} photo{}": "Přidat „{keyword}“ k fotografiím: {n}{:.0}"
+  "Add “{keyword}” to {n} photo{}": "Přidat „{keyword}“ k fotografiím: {n}{:.0}",
+  "Rule {n} of {m}: {what}. Move with the arrow keys": "Pravidlo {n} z {m}: {what}. Přesun pomocí šipek",
+  "Group {n} of {m}: match {mode}, {count} inside. Move with the arrow keys": "Skupina {n} z {m}: shoda {mode}, uvnitř {count}. Přesun pomocí šipek"
 }

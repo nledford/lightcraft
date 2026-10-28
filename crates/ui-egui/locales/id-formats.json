@@ -308,5 +308,7 @@
   ", rating {} of 5": ", rating: {} dari 5",
   "Add {n} photo{} to “{}”": "Tambahkan {n} foto{0:.0} ke “{1}”",
   "Add “{keyword}” to {n} photo{}": "Tambahkan “{keyword}” ke {n} foto{:.0}",
-  "{n} already there": "{n} sudah ada"
+  "{n} already there": "{n} sudah ada",
+  "Rule {n} of {m}: {what}. Move with the arrow keys": "Aturan {n} dari {m}: {what}. Pindahkan dengan tombol panah",
+  "Group {n} of {m}: match {mode}, {count} inside. Move with the arrow keys": "Grup {n} dari {m}: cocokkan {mode}, isi: {count}. Pindahkan dengan tombol panah"
 }

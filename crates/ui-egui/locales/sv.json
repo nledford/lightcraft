@@ -2444,5 +2444,8 @@
   "Stack — click to expand (S)": "Stapel — klicka för att expandera (S)",
   "Stars on hover": "Stjärnor vid pekaren",
   "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "Stjärnor vid pekaren: flaggor och färgetiketter visas alltid; stjärnorna och märket för redigerad visas när pekaren är över ett foto eller när det är markerat.",
-  "Virtual copy": "Virtuell kopia"
+  "Virtual copy": "Virtuell kopia",
+  "Drag to move, or use the arrow keys": "Dra för att flytta, eller använd piltangenterna",
+  "A group can't go inside itself": "En grupp kan inte läggas inuti sig själv",
+  "Groups can't nest any deeper": "Grupper kan inte nästlas djupare"
 }

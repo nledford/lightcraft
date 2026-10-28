@@ -2217,5 +2217,8 @@
   "Stack — click to collapse (S)": "Pilha — clique para recolher (S)",
   "Virtual copy": "Cópia virtual",
   "Right-click ▸ Locate Missing File… to find it again.": "Clique com o botão direito → Localizar arquivo ausente… para encontrá-lo de novo.",
-  "Right-click ▸ Reload from Disk to try again.": "Clique com o botão direito → Recarregar do disco para tentar de novo."
+  "Right-click ▸ Reload from Disk to try again.": "Clique com o botão direito → Recarregar do disco para tentar de novo.",
+  "Drag to move, or use the arrow keys": "Arraste para mover ou use as setas",
+  "A group can't go inside itself": "Um grupo não pode ficar dentro de si mesmo",
+  "Groups can't nest any deeper": "Os grupos não podem ser aninhados mais fundo"
 }

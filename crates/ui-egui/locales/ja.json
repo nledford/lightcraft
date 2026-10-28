@@ -2371,5 +2371,8 @@
   "Stack — click to collapse (S)": "スタック — クリックして折りたたむ (S)",
   "Virtual copy": "仮想コピー",
   "Right-click ▸ Locate Missing File… to find it again.": "右クリック → 見つからないファイルを指定… で、ファイルをもう一度指定できます。",
-  "Right-click ▸ Reload from Disk to try again.": "右クリック → ディスクから再読み込み で、もう一度試せます。"
+  "Right-click ▸ Reload from Disk to try again.": "右クリック → ディスクから再読み込み で、もう一度試せます。",
+  "Drag to move, or use the arrow keys": "ドラッグして移動、または矢印キーを使います",
+  "A group can't go inside itself": "グループを自分自身の中に入れることはできません",
+  "Groups can't nest any deeper": "グループはこれ以上深く入れ子にできません"
 }

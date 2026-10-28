@@ -308,5 +308,7 @@
   ", rating {} of 5": ", valutazione: {} su 5",
   "Add {n} photo{} to “{}”": "Aggiungi {n} foto{0:.0} a “{1}”",
   "{n} already there": "{n} già presenti",
-  "Add “{keyword}” to {n} photo{}": "Aggiungi “{keyword}” a {n} foto{:.0}"
+  "Add “{keyword}” to {n} photo{}": "Aggiungi “{keyword}” a {n} foto{:.0}",
+  "Rule {n} of {m}: {what}. Move with the arrow keys": "Regola {n} di {m}: {what}. Sposta con le frecce",
+  "Group {n} of {m}: match {mode}, {count} inside. Move with the arrow keys": "Gruppo {n} di {m}: corrispondenza {mode}, {count} all’interno. Sposta con le frecce"
 }

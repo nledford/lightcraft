@@ -2250,5 +2250,8 @@
   "Stack — click to expand (S)": "Chồng — nhấp để mở rộng (S)",
   "Stars on hover": "Sao khi rê chuột",
   "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "Sao khi rê chuột: cờ và nhãn màu luôn hiển thị; sao và dấu đã chỉnh sửa xuất hiện khi ảnh được rê chuột qua hoặc được chọn.",
-  "Virtual copy": "Bản sao ảo"
+  "Virtual copy": "Bản sao ảo",
+  "Drag to move, or use the arrow keys": "Kéo để di chuyển, hoặc dùng phím mũi tên",
+  "A group can't go inside itself": "Nhóm không thể nằm trong chính nó",
+  "Groups can't nest any deeper": "Không thể lồng nhóm sâu hơn"
 }

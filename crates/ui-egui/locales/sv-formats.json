@@ -308,5 +308,7 @@
   ", rating {} of 5": ", betyg: {} av 5",
   "Add {n} photo{} to “{}”": "Lägg till foton i ”{1}”: {n}{0:.0}",
   "Add “{keyword}” to {n} photo{}": "Lägg till ”{keyword}” på foton: {n}{:.0}",
-  "{n} already there": "redan i albumet: {n}"
+  "{n} already there": "redan i albumet: {n}",
+  "Rule {n} of {m}: {what}. Move with the arrow keys": "Regel {n} av {m}: {what}. Flytta med piltangenterna",
+  "Group {n} of {m}: match {mode}, {count} inside. Move with the arrow keys": "Grupp {n} av {m}: matcha {mode}, antal i gruppen: {count}. Flytta med piltangenterna"
 }

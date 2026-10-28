@@ -2423,5 +2423,8 @@
   "Stack — click to collapse (S)": "Sada — kliknutím sbalíte (S)",
   "Virtual copy": "Virtuální kopie",
   "Right-click ▸ Locate Missing File… to find it again.": "Klikněte pravým tlačítkem → Najít chybějící soubor… a najděte jej znovu.",
-  "Right-click ▸ Reload from Disk to try again.": "Klikněte pravým tlačítkem → Znovu načíst z disku a zkuste to znovu."
+  "Right-click ▸ Reload from Disk to try again.": "Klikněte pravým tlačítkem → Znovu načíst z disku a zkuste to znovu.",
+  "Drag to move, or use the arrow keys": "Přetažením přesunete, nebo použijte šipky",
+  "A group can't go inside itself": "Skupinu nelze vložit do sebe samé",
+  "Groups can't nest any deeper": "Skupiny nelze vnořovat hlouběji"
 }

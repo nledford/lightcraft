@@ -308,5 +308,7 @@
   ", rating {} of 5": "、評価: 5段階中{}",
   "Add {n} photo{} to “{}”": "{n}枚を「{1}」に追加{0:.0}",
   "{n} already there": "{n}枚は追加済み",
-  "Add “{keyword}” to {n} photo{}": "写真{n}枚に「{keyword}」を追加{:.0}"
+  "Add “{keyword}” to {n} photo{}": "写真{n}枚に「{keyword}」を追加{:.0}",
+  "Rule {n} of {m}: {what}. Move with the arrow keys": "条件 {n}/{m}：{what}。矢印キーで移動",
+  "Group {n} of {m}: match {mode}, {count} inside. Move with the arrow keys": "グループ {n}/{m}：一致条件 {mode}、中に {count} 件。矢印キーで移動"
 }

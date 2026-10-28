@@ -2342,5 +2342,8 @@
   "Stack — click to expand (S)": "Pino — napsauta laajentaaksesi (S)",
   "Stars on hover": "Tähdet osoitettaessa",
   "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "Tähdet osoitettaessa: liput ja värimerkinnät näkyvät aina; tähdet ja muokattu-merkki näkyvät, kun kuvaa osoitetaan tai se on valittuna.",
-  "Virtual copy": "Virtuaalikopio"
+  "Virtual copy": "Virtuaalikopio",
+  "Drag to move, or use the arrow keys": "Siirrä vetämällä tai käytä nuolinäppäimiä",
+  "A group can't go inside itself": "Ryhmää ei voi siirtää itsensä sisään",
+  "Groups can't nest any deeper": "Ryhmiä ei voi sisentää syvemmälle"
 }

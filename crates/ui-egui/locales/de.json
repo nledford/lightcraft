@@ -3455,5 +3455,8 @@
   "Stack — click to collapse (S)": "Stapel — Klicken zum Zuklappen (S)",
   "Virtual copy": "Virtuelle Kopie",
   "Right-click ▸ Locate Missing File… to find it again.": "Rechtsklick → Fehlende Datei suchen…, um sie wiederzufinden.",
-  "Right-click ▸ Reload from Disk to try again.": "Rechtsklick → Vom Datenträger neu laden, um es erneut zu versuchen."
+  "Right-click ▸ Reload from Disk to try again.": "Rechtsklick → Vom Datenträger neu laden, um es erneut zu versuchen.",
+  "Drag to move, or use the arrow keys": "Zum Verschieben ziehen oder die Pfeiltasten verwenden",
+  "A group can't go inside itself": "Eine Gruppe kann nicht in sich selbst liegen",
+  "Groups can't nest any deeper": "Gruppen lassen sich nicht tiefer verschachteln"
 }

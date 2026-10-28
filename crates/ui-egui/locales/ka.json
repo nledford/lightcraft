@@ -2749,5 +2749,8 @@
   "Stack — click to collapse (S)": "დასტა — დააწკაპუნეთ ჩასაკეცად (S)",
   "Virtual copy": "ვირტუალური ასლი",
   "Right-click ▸ Locate Missing File… to find it again.": "მარჯვენა დაწკაპუნება → დაკარგული ფაილის მოძებნა… ფაილის ხელახლა საპოვნელად.",
-  "Right-click ▸ Reload from Disk to try again.": "მარჯვენა დაწკაპუნება → დისკიდან ხელახლა ჩატვირთვა, ხელახლა საცდელად."
+  "Right-click ▸ Reload from Disk to try again.": "მარჯვენა დაწკაპუნება → დისკიდან ხელახლა ჩატვირთვა, ხელახლა საცდელად.",
+  "Drag to move, or use the arrow keys": "გადასატანად გადაიტანეთ ან გამოიყენეთ ისრები",
+  "A group can't go inside itself": "ჯგუფს საკუთარ თავში ვერ ჩადებთ",
+  "Groups can't nest any deeper": "ჯგუფების უფრო ღრმად ჩადგმა შეუძლებელია"
 }

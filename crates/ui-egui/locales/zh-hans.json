@@ -2215,5 +2215,8 @@
   "Stack — click to collapse (S)": "堆叠 — 单击折叠 (S)",
   "Virtual copy": "虚拟副本",
   "Right-click ▸ Locate Missing File… to find it again.": "右键单击 → 定位缺失的文件…，即可重新找到它。",
-  "Right-click ▸ Reload from Disk to try again.": "右键单击 → 从磁盘重新读取，即可重试。"
+  "Right-click ▸ Reload from Disk to try again.": "右键单击 → 从磁盘重新读取，即可重试。",
+  "Drag to move, or use the arrow keys": "拖动以移动，或使用方向键",
+  "A group can't go inside itself": "组不能放入它自己里面",
+  "Groups can't nest any deeper": "组不能再嵌套得更深"
 }
