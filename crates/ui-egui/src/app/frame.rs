@@ -103,7 +103,7 @@ impl LightcraftApp {
         if !self.ui.settings.notify_when_done || !ended.away {
             return;
         }
-        let notice = job_notice::compose(&ended);
+        let notice = crate::job_notice::compose(&ended);
         if let Some(notify) = self.services.notify.as_mut() {
             notify(&notice);
         }
