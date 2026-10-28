@@ -103,59 +103,14 @@ struct SmartAsk {
 /// the effective folder, what is in it, and choosing another one.
 #[cfg(not(target_arch = "wasm32"))]
 fn smart_previews(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
-    // listing a big folder every frame would be slow: refresh every 2 s and after a change
     let cache = egui::Id::unique("smart-location");
-    let now = ui.input(|i| i.time);
-    let loc: Value = match ui.data(|d| d.get_temp::<(f64, Value)>(cache)) {
-        Some((at, v)) if now - at < 2.0 => v,
-        _ => {
-            let v = app.run("library.smartPreviewsLocation", json!({})).unwrap_or(Value::Null);
-            ui.data_mut(|d| d.insert_temp(cache, (now, v.clone())));
-            v
-        }
-    };
-    if loc.is_null() {
-        return;
-    }
+    let Some(loc) = smart_location(app, ui, cache) else { return };
     heading(ui, t, crate::i18n::tr("Smart previews"));
     let path = loc["path"].as_str().unwrap_or_default().to_string();
-    let available = loc["available"].as_bool().unwrap_or(true);
     let custom = loc["custom"].as_bool().unwrap_or(false);
-    row(ui, t, crate::i18n::tr("Folder"), |ui| {
-        path_label(
-            ui,
-            "settingsSmartFolder",
-            &path,
-            egui::TextStyle::Body.resolve(ui.style()),
-            if available { t.text } else { t.reject },
-            if custom { 0.0 } else { label_width(ui, "(library default)", egui::TextStyle::Body) },
-        );
-        if !custom {
-            let r = ui.label(RichText::new("(library default)").color(t.text));
-            register(ui, "text:settingsSmartDefault", r.rect);
-        }
-    });
+
+    smart_folder_rows(ui, t, &loc);
     let (count, bytes) = (loc["count"].as_u64().unwrap_or(0), loc["bytes"].as_u64().unwrap_or(0));
-    if available {
-        hint(
-            ui,
-            t,
-            &crate::i18n::tr_format!(
-                "{count} smart preview{} · {:.1} MB",
-                if count == 1 { "" } else { "s" },
-                bytes as f64 / 1048576.0,
-                count = count
-            ),
-        );
-    } else {
-        hint(
-            ui,
-            t,
-            crate::i18n::tr(
-                "This folder is not available (drive disconnected?). Smart previews are not built or used until it is back or you choose another folder.",
-            ),
-        );
-    }
     // what happens to the previews already built when the folder changes
     // That choice, and a change waiting for an answer, are kept from one frame of this section to
     // the next only, and only for this library and this folder: with Settings closed, another
@@ -241,19 +196,84 @@ fn smart_previews(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let result = change.map(|params| app.run("library.smartPreviewsLocation", params));
     if let Some(r) = result {
         ui.data_mut(|d| d.remove::<(f64, Value)>(cache));
-        match r {
-            Ok(v) => {
-                let failed = v["failed"].as_array().map_or(0, Vec::len);
-                let msg = match (existing, v["handled"].as_u64().unwrap_or(0)) {
-                    (_, 0) => "Smart previews folder changed".to_string(),
-                    ("move", n) => format!("Smart previews folder changed; moved {n}"),
-                    ("discard", n) => format!("Smart previews folder changed; deleted {n}"),
-                    _ => "Smart previews folder changed".to_string(),
-                };
-                app.toast(ui.ctx(), if failed > 0 { crate::i18n::tr_format!("{msg} ({failed} failed)", failed = failed, msg = msg) } else { msg });
-            }
-            Err(e) => app.toast(ui.ctx(), e),
-        }
+        smart_change_toast(app, ui, r, existing);
     }
     hint(ui, t, crate::i18n::tr("Keep it on a drive with room: smart previews are about 1 MB per photo. The thumbnail cache stays in the library."));
+}
+
+/// The smart previews' location, listed at most every 2 s (listing a big folder every frame would be slow)
+/// and again after a change (`cache` is dropped then); `None` when the library has none.
+#[cfg(not(target_arch = "wasm32"))]
+fn smart_location(app: &mut LightcraftApp, ui: &egui::Ui, cache: egui::Id) -> Option<Value> {
+    let now = ui.input(|i| i.time);
+    let loc: Value = match ui.data(|d| d.get_temp::<(f64, Value)>(cache)) {
+        Some((at, v)) if now - at < 2.0 => v,
+        _ => {
+            let v = app.run("library.smartPreviewsLocation", json!({})).unwrap_or(Value::Null);
+            ui.data_mut(|d| d.insert_temp(cache, (now, v.clone())));
+            v
+        }
+    };
+    (!loc.is_null()).then_some(loc)
+}
+
+/// The Folder row and the line under it: how many previews are there, or that the folder is not available.
+#[cfg(not(target_arch = "wasm32"))]
+fn smart_folder_rows(ui: &mut egui::Ui, t: &Tokens, loc: &Value) {
+    let path = loc["path"].as_str().unwrap_or_default();
+    let available = loc["available"].as_bool().unwrap_or(true);
+    let custom = loc["custom"].as_bool().unwrap_or(false);
+    row(ui, t, crate::i18n::tr("Folder"), |ui| {
+        path_label(
+            ui,
+            "settingsSmartFolder",
+            path,
+            egui::TextStyle::Body.resolve(ui.style()),
+            if available { t.text } else { t.reject },
+            if custom { 0.0 } else { label_width(ui, "(library default)", egui::TextStyle::Body) },
+        );
+        if !custom {
+            let r = ui.label(RichText::new("(library default)").color(t.text));
+            register(ui, "text:settingsSmartDefault", r.rect);
+        }
+    });
+    let (count, bytes) = (loc["count"].as_u64().unwrap_or(0), loc["bytes"].as_u64().unwrap_or(0));
+    if available {
+        hint(
+            ui,
+            t,
+            &crate::i18n::tr_format!(
+                "{count} smart preview{} · {:.1} MB",
+                crate::i18n::plural_s(count as usize),
+                bytes as f64 / 1048576.0,
+                count = count
+            ),
+        );
+    } else {
+        hint(
+            ui,
+            t,
+            crate::i18n::tr(
+                "This folder is not available (drive disconnected?). Smart previews are not built or used until it is back or you choose another folder.",
+            ),
+        );
+    }
+}
+
+/// Says what a folder change did: how many previews were moved or deleted, and how many failed.
+#[cfg(not(target_arch = "wasm32"))]
+fn smart_change_toast(app: &mut LightcraftApp, ui: &egui::Ui, result: Result<Value, String>, existing: &str) {
+    match result {
+        Ok(v) => {
+            let failed = v["failed"].as_array().map_or(0, Vec::len);
+            let msg = match (existing, v["handled"].as_u64().unwrap_or(0)) {
+                (_, 0) => "Smart previews folder changed".to_string(),
+                ("move", n) => format!("Smart previews folder changed; moved {n}"),
+                ("discard", n) => format!("Smart previews folder changed; deleted {n}"),
+                _ => "Smart previews folder changed".to_string(),
+            };
+            app.toast(ui.ctx(), if failed > 0 { crate::i18n::tr_format!("{msg} ({failed} failed)", failed = failed, msg = msg) } else { msg });
+        }
+        Err(e) => app.toast(ui.ctx(), e),
+    }
 }
