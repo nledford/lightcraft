@@ -280,6 +280,9 @@ fn writing_xmp_by_itself_says_what_is_written_where() {
     let mut h = demo();
     show(&mut h, "import");
     assert!(says(&h, "beside the photo"), "{:?}", h.painted_text().iter().filter(|t| t.contains("XMP")).collect::<Vec<_>>());
+    // not every change is written (face names, a write that failed and waits to be retried): it doesn't promise so
+    assert!(!says(&h, "every change"), "{:?}", h.painted_text().iter().filter(|t| t.contains("XMP")).collect::<Vec<_>>());
+    assert!(says(&h, "when possible"), "{:?}", h.painted_text().iter().filter(|t| t.contains("XMP")).collect::<Vec<_>>());
 }
 
 /// A second library on disk with a smart preview of its own, in a folder chosen for it.

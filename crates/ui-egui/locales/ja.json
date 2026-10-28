@@ -2058,7 +2058,7 @@
   "Face recognition": "顔認識",
   "Faces": "顔",
   "Keep": "残す",
-  "On, every change to a photo's edits or metadata is written to an XMP file beside the photo, for other apps to read. Off, that happens when you choose Save Metadata to File in the Photo menu.": "オンの場合、写真の編集内容やメタデータを変更するたびに、写真と同じ場所のXMPファイルに書き込み、他のアプリで読み取れるようにします。オフの場合は、「写真」メニューの「メタデータをファイルに保存」を選んだときに書き込みます",
+  "On, supported changes to a photo's edits or metadata are written to an XMP file beside the photo automatically when possible, for other apps to read. Off, that happens when you choose Save Metadata to File in the Photo menu.": "オンの場合、写真の編集内容やメタデータの変更のうち対応しているものは、可能なときに自動的に写真と同じ場所のXMPファイルに書き込まれ、他のアプリで読み取れるようになります。オフの場合は、「写真」メニューの「メタデータをファイルに保存」を選んだときに書き込みます",
   "Photos whose originals are not connected are shown and edited from their smart previews; new ones can only be made from originals that are connected.": "元画像が接続されていない写真は、スマートプレビューを使って表示・編集されます。新しいスマートプレビューは、接続されている元画像からのみ作成できます",
   "The model's file is deleted. To use it again you download or add it again.": "モデルのファイルは削除されます。再び使用するには、もう一度ダウンロードまたは追加してください",
   "Thumbnails and previews are made again as you browse, which takes a while in a large library. Your photos and edits are not touched.": "サムネイルとプレビューは閲覧時に作り直されるため、大きなライブラリでは時間がかかります。写真と編集内容には影響しません",
