@@ -1527,7 +1527,6 @@
   "Watched folder": "Відстежувана тека",
   "Watermark": "Водяний знак",
   "What's New": "Що нового",
-  "When rated or hovered": "Після оцінювання або наведення",
   "White Balance": "Баланс білого",
   "White Balance Selector": "Вибір балансу білого",
   "White Balance Selector (W)": "Вибір балансу білого (W)",
@@ -2363,5 +2362,12 @@
   "Add keywords in the Keyword List": "Додавайте ключові слова у списку ключових слів",
   "Give photos a keyword in the Keyword List (Window → Keywords, K): drop them on it there": "Щоб задати фото ключове слово, скористайтеся списком ключових слів (Вікно → Ключові слова, K): киньте фото там на потрібне слово",
   "Already on these photos": "Уже є в цих фото",
-  "Can't go inside itself": "Не можна помістити всередину себе"
+  "Can't go inside itself": "Не можна помістити всередину себе",
+  "Stars on hover": "Зірки при наведенні",
+  "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "Зірки при наведенні: прапорці й кольорові мітки видно завжди; зірки та позначка редагування з’являються, поки фото під курсором або вибране.",
+  "Stack — click to expand (S)": "Стос — клацніть, щоб розгорнути (S)",
+  "Stack — click to collapse (S)": "Стос — клацніть, щоб згорнути (S)",
+  "Virtual copy": "Віртуальна копія",
+  "Right-click ▸ Locate Missing File… to find it again.": "Клацніть правою кнопкою → Знайти відсутній файл…, щоб знайти його знову.",
+  "Right-click ▸ Reload from Disk to try again.": "Клацніть правою кнопкою → Перезавантажити з диска, щоб спробувати ще раз."
 }

@@ -1591,7 +1591,6 @@
   "Watermark": "Marca d'água",
   "Wednesday": "Quarta-feira",
   "What's New": "Novidades",
-  "When rated or hovered": "Ao avaliar ou passar o mouse",
   "White Balance": "Balanço de branco",
   "White Balance Selector": "Seletor de balanço de branco",
   "White Balance Selector (W)": "Seletor de balanço de branco (W)",
@@ -2211,5 +2210,12 @@
   "Add keywords in the Keyword List": "Adicione palavras-chave na Lista de palavras-chave",
   "Give photos a keyword in the Keyword List (Window → Keywords, K): drop them on it there": "Para dar uma palavra-chave às fotos, use a Lista de palavras-chave (Janela → Palavras-chave, K): solte-as lá sobre ela",
   "Already on these photos": "Já estão nestas fotos",
-  "Can't go inside itself": "Não pode ficar dentro de si mesma"
+  "Can't go inside itself": "Não pode ficar dentro de si mesma",
+  "Stars on hover": "Estrelas ao passar o mouse",
+  "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "Estrelas ao passar o mouse: sinalizadores e etiquetas de cor sempre aparecem; as estrelas e a marca de edição aparecem enquanto a foto está sob o mouse ou selecionada.",
+  "Stack — click to expand (S)": "Pilha — clique para expandir (S)",
+  "Stack — click to collapse (S)": "Pilha — clique para recolher (S)",
+  "Virtual copy": "Cópia virtual",
+  "Right-click ▸ Locate Missing File… to find it again.": "Clique com o botão direito → Localizar arquivo ausente… para encontrá-lo de novo.",
+  "Right-click ▸ Reload from Disk to try again.": "Clique com o botão direito → Recarregar do disco para tentar de novo."
 }

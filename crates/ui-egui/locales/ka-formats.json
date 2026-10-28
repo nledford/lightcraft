@@ -18,7 +18,6 @@
   "+{} more": "+ კიდევ {}",
   ", {failed} file{} not readable": ", ვერ იკითხება ფაილი: {failed}{:.0}",
   ", {} label": ", იარლიყი: {}",
-  ", {} star{}": ", ვარსკვლავი: {}{:.0}",
   "1 task is still running: {names}. Quitting stops it.": "ჯერ კიდევ მიმდინარეობს 1 ამოცანა: {names}. გასვლა მას შეწყვეტს.",
   "; {kept} already had a location": "; მდებარეობა უკვე ჰქონდა: {kept}",
   "; {n} gained synonyms": "; სინონიმები დაემატა: {n}",
@@ -306,6 +305,7 @@
   "Added {n} photo{}": "დაემატა ფოტო: {n}{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "სად გადავიტანოთ Lightroom-ის კატალოგი „{catalog}“?",
   "Merge into the open library “{library}” ({count} photo{})": "გაერთიანება ღია ბიბლიოთეკასთან „{library}“ (ფოტოები: {count}){:.0}",
+  ", rating {} of 5": ", შეფასება: {} 5-დან",
   "Add {n} photo{} to “{}”": "დაამატეთ ფოტო „{1}“-ში: {n}{0:.0}",
   "{n} already there": "{n} უკვე არის",
   "Add “{keyword}” to {n} photo{}": "დაამატეთ „{keyword}“ ფოტოებს: {n}{:.0}"

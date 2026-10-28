@@ -202,7 +202,6 @@
   "{n} similar photo{} · View ▸ Clear Filters to see all": "{n} foto{0} semelhante{0} · Exibir → Limpar filtros para ver todas",
   "Moved; {} photo(s) relinked": "Movida; {} foto(s) vinculada(s) novamente",
   "{} label (click more labels to show any of them)": "Rótulo {} (clique em mais rótulos para mostrar qualquer um deles)",
-  ", {} star{}": ", {} estrela{}",
   ", {} label": ", rótulo {}",
   "Downloads from {host}. Once it has arrived and checked out, LightCraft installs it, {after}.": "Faz o download de {host}. Depois que chegar e for verificado, o LightCraft o instala e {after}.",
   "{:.1} MB": "{:.1} MB",
@@ -306,6 +305,7 @@
   "Added {n} photo{}": "{n} foto{0} adicionada{0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Para onde vai o catálogo do Lightroom “{catalog}”?",
   "Merge into the open library “{library}” ({count} photo{})": "Mesclar na biblioteca aberta “{library}” ({count} foto{})",
+  ", rating {} of 5": ", avaliação: {} de 5",
   "Add {n} photo{} to “{}”": "Adicionar {n} foto{0} a “{1}”",
   "{n} already there": "já no álbum: {n}",
   "Add “{keyword}” to {n} photo{}": "Adicionar “{keyword}” a {n} foto{}"

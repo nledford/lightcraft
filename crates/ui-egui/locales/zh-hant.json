@@ -1572,7 +1572,6 @@
   "Watermark": "浮水印",
   "Wednesday": "星期三",
   "What's New": "新增功能",
-  "When rated or hovered": "評分或游標停留時",
   "White Balance": "白平衡",
   "White Balance Selector": "白平衡選取器",
   "White Balance Selector (W)": "白平衡選取器（W）",
@@ -2166,5 +2165,12 @@
   "Add keywords in the Keyword List": "請在關鍵字清單中加入關鍵字",
   "Give photos a keyword in the Keyword List (Window → Keywords, K): drop them on it there": "要替照片加入關鍵字，請使用關鍵字清單（視窗 → 關鍵字，K），把照片拖到那裡的關鍵字上",
   "Already on these photos": "這些照片已有",
-  "Can't go inside itself": "不能放入自身"
+  "Can't go inside itself": "不能放入自身",
+  "Stars on hover": "游標停留時顯示星級",
+  "Stars on hover: flags and colour labels always show; the stars and the edited mark appear while a photo is hovered or selected.": "游標停留時顯示星級：旗標和顏色標籤一律顯示；星級和已編輯標記在照片被游標停留或選取時顯示。",
+  "Stack — click to expand (S)": "堆疊 — 按一下以展開 (S)",
+  "Stack — click to collapse (S)": "堆疊 — 按一下以收合 (S)",
+  "Virtual copy": "虛擬副本",
+  "Right-click ▸ Locate Missing File… to find it again.": "按右鍵 → 尋找遺失的檔案…，即可重新找到它。",
+  "Right-click ▸ Reload from Disk to try again.": "按右鍵 → 從磁碟重新載入，即可重試。"
 }
