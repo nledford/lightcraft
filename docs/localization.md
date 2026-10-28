@@ -115,7 +115,11 @@ when a region has no dedicated entry.
 
 With no saved setting, the app starts in the first of the system's preferred languages it has a
 catalog for (the browser's languages in the web build), else English. `LIGHTCRAFT_LANGUAGE`
-overrides that, and a language chosen in Settings ▸ General ▸ Language is saved and kept.
+overrides that. A language chosen in Settings ▸ General ▸ Language is saved and kept; the first choice
+there, Sync with System, goes back to the system's language and follows it at every start. It is on
+for a new installation, and off for the settings file of an older build, which holds a chosen language.
+It is stored as `followSystemLanguage` in the settings file, written only while on, beside the
+`language` it last resolved to.
 
 ## Release notes
 

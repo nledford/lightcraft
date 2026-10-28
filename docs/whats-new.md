@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### Language: Sync with System
+- Settings ▸ General ▸ Language has a new first choice, Sync with System. Choosing it switches to the system's
+  preferred language right away (the browser's in the web build) and keeps following it each time LightCraft starts.
+  Before, a language chosen once was kept for good and nothing went back. A new installation starts with it chosen,
+  and choosing any language turns it off.
+
 ## 2026-10-27
 
 ### The desktop app starts in the system's language
