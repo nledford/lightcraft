@@ -18,6 +18,7 @@ mod date_picker;
 mod dialog_fit;
 mod dialog_primary;
 mod dialog_settings;
+mod dialog_settings_filter;
 mod dialog_tab;
 mod dialogs;
 mod docking_acceptance;

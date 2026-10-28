@@ -2357,5 +2357,8 @@
   "Virtual copy": "Salinan virtual",
   "Drag to move, or use the arrow keys": "Seret untuk memindahkan, atau gunakan tombol panah",
   "A group can't go inside itself": "Grup tidak dapat dimasukkan ke dalam dirinya sendiri",
-  "Groups can't nest any deeper": "Grup tidak dapat disarangkan lebih dalam"
+  "Groups can't nest any deeper": "Grup tidak dapat disarangkan lebih dalam",
+  "Filter settings": "Filter pengaturan",
+  "No setting matches what is typed.": "Tidak ada pengaturan yang cocok dengan yang diketik.",
+  "Try one word, or part of one: the names of tabs and sections, labels and explanations are all looked through.": "Coba satu kata atau sebagiannya: yang dicari adalah nama tab dan bagian, label, serta penjelasan."
 }

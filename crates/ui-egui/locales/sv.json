@@ -2447,5 +2447,8 @@
   "Virtual copy": "Virtuell kopia",
   "Drag to move, or use the arrow keys": "Dra för att flytta, eller använd piltangenterna",
   "A group can't go inside itself": "En grupp kan inte läggas inuti sig själv",
-  "Groups can't nest any deeper": "Grupper kan inte nästlas djupare"
+  "Groups can't nest any deeper": "Grupper kan inte nästlas djupare",
+  "Filter settings": "Filtrera inställningar",
+  "No setting matches what is typed.": "Ingen inställning matchar det som skrivits.",
+  "Try one word, or part of one: the names of tabs and sections, labels and explanations are all looked through.": "Prova ett ord eller en del av ett: namnen på flikar och avsnitt, etiketter och förklaringar genomsöks."
 }

@@ -2752,5 +2752,8 @@
   "Right-click ▸ Reload from Disk to try again.": "მარჯვენა დაწკაპუნება → დისკიდან ხელახლა ჩატვირთვა, ხელახლა საცდელად.",
   "Drag to move, or use the arrow keys": "გადასატანად გადაიტანეთ ან გამოიყენეთ ისრები",
   "A group can't go inside itself": "ჯგუფს საკუთარ თავში ვერ ჩადებთ",
-  "Groups can't nest any deeper": "ჯგუფების უფრო ღრმად ჩადგმა შეუძლებელია"
+  "Groups can't nest any deeper": "ჯგუფების უფრო ღრმად ჩადგმა შეუძლებელია",
+  "Filter settings": "პარამეტრების გაფილტვრა",
+  "No setting matches what is typed.": "აკრეფილს არც ერთი პარამეტრი არ ემთხვევა.",
+  "Try one word, or part of one: the names of tabs and sections, labels and explanations are all looked through.": "სცადეთ ერთი სიტყვა ან მისი ნაწილი: იძებნება ჩანართებისა და სექციების სახელებში, წარწერებსა და განმარტებებში."
 }
