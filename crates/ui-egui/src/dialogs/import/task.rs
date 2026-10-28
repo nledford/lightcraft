@@ -442,13 +442,18 @@ fn finish(app: &mut LightcraftApp, ctx: &egui::Context, task: ImportTask) {
         quiet_finish(app, ctx, &task);
         return;
     }
+    // the reason the first photo can't be selected (it went before the import ended): the report
+    // below would write over its toast, so it is kept for the report
+    let mut selection_refused = None;
     if let Some(f) = task.first.filter(|_| !task.moved_on) {
         // a view the new photos aren't in (an album, Picks, a Local folder) would leave the active
         // photo off screen: show All Photos, as Lightroom shows the import's own collection (#1446)
         if !app.session.visible().contains(&lightcraft_catalog::PhotoId(f)) {
             app.act("library.source", json!({"kind": "all"}));
         }
-        app.act("library.select", json!({"ids": [f]}));
+        if app.act("library.select", json!({"ids": [f]})).is_none() {
+            selection_refused = app.ui.toast.take().map(|toast| toast.0);
+        }
     }
     // nothing new, only files the library already has: show where they are (Recently Deleted is
     // easy to miss, and the side panel that lists it starts collapsed)
@@ -462,7 +467,15 @@ fn finish(app: &mut LightcraftApp, ctx: &egui::Context, task: ImportTask) {
         return;
     }
     let mut msg = import_summary(app, &task);
-    if task.warnings.is_empty() {
+    let refused = selection_refused.is_some();
+    if let Some(why) = selection_refused {
+        msg.push_str("\n\n");
+        msg.push_str(&why);
+    }
+    if task.warnings.is_empty() && refused {
+        // as long as the refusal's own toast stays, so the reason can be read
+        app.toast_for(ctx, msg, crate::REFUSAL_SECONDS);
+    } else if task.warnings.is_empty() {
         app.toast(ctx, msg);
     } else {
         msg.push_str("\n\n");
@@ -551,4 +564,46 @@ fn show_existing(app: &mut LightcraftApp, ctx: &egui::Context, existing: &[u64])
     };
     app.toast_for(ctx, msg, 6.0);
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn done_with_first(first: u64) -> ImportTask {
+        ImportTask { imported: 1, first: Some(first), ..Default::default() }
+    }
+
+    fn toast_text(app: &LightcraftApp) -> String {
+        app.ui.toast.as_ref().map(|toast| toast.0.clone()).unwrap_or_default()
+    }
+
+    /// The first photo is gone by the time the import ends: selecting it is refused, and the report
+    /// says that too, not only what was imported.
+    #[test]
+    fn a_first_photo_that_went_keeps_the_reason_it_could_not_be_selected_in_the_report() {
+        let new_app = || LightcraftApp::new(lightcraft_engine::Session::with_demo(), crate::Services { png: None, ..Default::default() });
+        // the reason the refused selection gives on its own
+        let mut other = new_app();
+        assert!(other.act("library.select", json!({"ids": [u64::MAX]})).is_none(), "selecting a photo that is not there is refused");
+        let reason = toast_text(&other);
+        let mut app = new_app();
+        let summary = import_summary(&app, &done_with_first(u64::MAX));
+        finish(&mut app, &egui::Context::default(), done_with_first(u64::MAX));
+        assert_eq!(toast_text(&app), format!("{summary}\n\n{reason}"));
+        // and it stays as long as a refusal does, so the reason can be read
+        let left = app.ui.toast.as_ref().map(|toast| toast.1).unwrap_or_default() - app.tick_now();
+        assert!(left > crate::REFUSAL_SECONDS - 1.0, "the toast stays {left} s");
+    }
+
+    /// The other branch: a first photo that is there is selected, and the report is only the summary.
+    #[test]
+    fn a_first_photo_that_is_there_is_selected_and_the_report_is_only_the_summary() {
+        let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), crate::Services { png: None, ..Default::default() });
+        let first = app.session.visible().first().map(|photo| photo.0).expect("the demo library has photos");
+        let summary = import_summary(&app, &done_with_first(first));
+        finish(&mut app, &egui::Context::default(), done_with_first(first));
+        assert_eq!(toast_text(&app), summary);
+        assert_eq!(app.session.active().map(|photo| photo.0), Some(first));
+    }
 }
