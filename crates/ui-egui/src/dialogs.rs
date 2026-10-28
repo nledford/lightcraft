@@ -377,8 +377,8 @@ fn sam_ok_label(dlg: &Dialog, sam: &SamState) -> &'static str {
     }
 }
 
-/// Whether the confirm button works: installing waits for the licence to be accepted (and Synchronize waits for the
-/// scan), a rename waits for its conflicts to be settled, smart-album rules that can't mean anything wait to be fixed.
+/// Whether the confirm button works: installing waits for the licence to be accepted (and Synchronize for the short
+/// settle after its scan), a rename waits for its conflicts to be settled, smart-album rules that can't mean anything wait to be fixed.
 fn can_confirm(app: &LightcraftApp, ctx: &egui::Context, dlg: &Dialog, informational: bool) -> bool {
     let rename_blocked = match dlg {
         Dialog::RenamePerson { from, to, merge } => {
