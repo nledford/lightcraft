@@ -851,7 +851,7 @@
   "In library": "Trong thư viện",
   "In memory — nothing is saved": "Trong bộ nhớ — chưa lưu gì",
   "In use": "Đang dùng",
-  "In-memory session: these settings last until LightCraft quits.": "Phiên trong bộ nhớ: các cài đặt này chỉ tồn tại đến khi LightCraft thoát.",
+  "In-memory session: the library's settings last until LightCraft quits.": "Phiên trong bộ nhớ: các cài đặt của thư viện chỉ tồn tại đến khi LightCraft thoát.",
   "Include on Export": "Bao gồm khi xuất",
   "Include selected photos": "Bao gồm ảnh đã chọn",
   "Include subfolders": "Bao gồm thư mục con",

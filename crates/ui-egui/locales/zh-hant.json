@@ -810,7 +810,7 @@
   "In library": "在照片庫中",
   "In memory — nothing is saved": "僅存於記憶體，尚未儲存",
   "In use": "使用中",
-  "In-memory session: these settings last until LightCraft quits.": "記憶體工作階段：這些設定只保留至 LightCraft 結束。",
+  "In-memory session: the library's settings last until LightCraft quits.": "記憶體工作階段：照片庫的設定只保留至 LightCraft 結束。",
   "Include subfolders": "包含子資料夾",
   "Increase Brush Feather": "增加筆刷羽化",
   "Increase Brush Size": "放大筆刷尺寸",

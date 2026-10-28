@@ -32,7 +32,7 @@ pub(super) fn files_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) 
 /// It must not follow settings saved elsewhere (those in ui.json last).
 pub(super) fn in_memory_note(app: &LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     if app.session.library.is_none() {
-        hint(ui, t, "In-memory session: these settings last until LightCraft quits.");
+        hint(ui, t, "In-memory session: the library's settings last until LightCraft quits.");
     }
 }
 

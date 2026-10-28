@@ -916,7 +916,7 @@
   "In library": "V knihovně",
   "In memory — nothing is saved": "V paměti — nic není uloženo",
   "In use": "Používané",
-  "In-memory session: these settings last until LightCraft quits.": "Relace v paměti: tato nastavení platí do ukončení LightCraft.",
+  "In-memory session: the library's settings last until LightCraft quits.": "Relace v paměti: nastavení knihovny platí do ukončení LightCraft.",
   "Include selected photos": "Zahrnout vybrané fotografie",
   "Include on Export": "Zahrnout do exportu",
   "Include subfolders": "Zahrnout podsložky",

@@ -145,7 +145,7 @@ fn each_section_is_under_the_tab_a_person_would_look_in() {
 #[test]
 fn what_is_saved_with_a_library_in_memory_says_it_will_not_last() {
     let mut h = demo();
-    let note = "In-memory session: these settings last until LightCraft quits.";
+    let note = "In-memory session: the library's settings last until LightCraft quits.";
     for tab in ["library", "import", "files", "performance"] {
         show(&mut h, tab);
         assert!(h.painted_text().iter().any(|text| text == note), "{tab} says so");

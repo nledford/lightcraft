@@ -669,7 +669,7 @@
   "In library": "W bibliotece",
   "In memory — nothing is saved": "W pamięci — nic nie zapisano",
   "In use": "W użyciu",
-  "In-memory session: these settings last until LightCraft quits.": "Sesja w pamięci: te ustawienia obowiązują do zamknięcia LightCraft.",
+  "In-memory session: the library's settings last until LightCraft quits.": "Sesja w pamięci: ustawienia biblioteki obowiązują do zamknięcia LightCraft.",
   "Include subfolders": "Uwzględnij podfoldery",
   "Increase Brush Feather": "Zwiększ miękkość pędzla",
   "Increase Brush Size": "Zwiększ rozmiar pędzla",

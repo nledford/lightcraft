@@ -842,7 +842,7 @@
   "In library": "ライブラリ内",
   "In memory — nothing is saved": "メモリ上のみ（保存されません）",
   "In use": "使用中",
-  "In-memory session: these settings last until LightCraft quits.": "メモリ上のセッション：設定はLightCraftの終了まで有効です",
+  "In-memory session: the library's settings last until LightCraft quits.": "メモリ上のセッション：ライブラリの設定はLightCraftの終了まで有効です",
   "Include subfolders": "サブフォルダを含める",
   "Info": "情報",
   "Info (I)": "情報（I）",
