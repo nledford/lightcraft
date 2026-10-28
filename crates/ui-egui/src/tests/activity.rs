@@ -636,3 +636,109 @@ fn a_job_asked_to_stop_stays_in_the_dock_count_until_it_has_stopped() {
     h.step();
     assert_eq!(*badges.borrow(), [1, 0]);
 }
+
+/// What `services.notify` was shown, in order.
+type Notices = std::rc::Rc<std::cell::RefCell<Vec<crate::Notice>>>;
+
+fn demo_with_notifications() -> (Headless, Notices) {
+    let shown = Notices::default();
+    let sink = shown.clone();
+    let notify: crate::NotifyFn = Box::new(move |n| sink.borrow_mut().push(n.clone()));
+    let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, notify: Some(notify), ..Default::default() });
+    let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
+    h.settle(T);
+    shown.borrow_mut().clear();
+    (h, shown)
+}
+
+/// A job runs in front, then another app takes the keyboard (the window reports it unfocused) and the job ends.
+fn end_in_the_background(h: &mut Headless, kind: &'static str, label: &str) {
+    let g = h.app.session.activity.start(kind, label, Cancel::Yes);
+    h.step();
+    h.step();
+    h.window_focused = false;
+    drop(g);
+    h.step();
+}
+
+#[test]
+fn a_job_that_ends_in_the_background_is_announced() {
+    let (mut h, shown) = demo_with_notifications();
+    end_in_the_background(&mut h, "export", "Exporting");
+    assert!(h.step_until(T, |_| !shown.borrow().is_empty()), "the announcement is made once the toast had its moment");
+    let shown = shown.borrow();
+    assert_eq!(shown.len(), 1, "{shown:?}");
+    assert_eq!((shown[0].title.as_str(), shown[0].body.as_str()), ("LightCraft", "Exporting finished"));
+}
+
+#[test]
+fn the_toast_that_reports_the_end_is_what_the_notification_says() {
+    let (mut h, shown) = demo_with_notifications();
+    let g = h.app.session.activity.start("export", "Exporting", Cancel::Yes);
+    h.step();
+    h.step();
+    h.window_focused = false;
+    drop(g);
+    h.app.toast_for(&h.view.ctx.clone(), "Exported 24 photos", 15.0);
+    assert!(h.step_until(T, |_| !shown.borrow().is_empty()));
+    assert_eq!(shown.borrow()[0].body, "Exported 24 photos");
+}
+
+#[test]
+fn a_job_that_ends_while_the_window_is_in_front_is_not_announced() {
+    let (mut h, shown) = demo_with_notifications();
+    let g = h.app.session.activity.start("export", "Exporting", Cancel::Yes);
+    h.step();
+    h.step();
+    drop(g);
+    // (the simulated clock runs well past the grace the announcement would wait for)
+    for _ in 0..120 {
+        h.step();
+    }
+    assert!(shown.borrow().is_empty(), "{:?}", shown.borrow());
+}
+
+/// Frames enough for the simulated clock to run well past the grace an announcement would wait for.
+fn past_the_grace(h: &mut Headless) {
+    for _ in 0..120 {
+        h.step();
+    }
+}
+
+#[test]
+fn a_job_that_was_asked_to_stop_makes_no_notification() {
+    let (mut h, shown) = demo_with_notifications();
+    let g = h.app.session.activity.start("export", "Exporting", Cancel::Yes);
+    h.step();
+    h.app.session.activity.cancel(g.id()).unwrap();
+    h.step();
+    h.window_focused = false;
+    drop(g);
+    h.step();
+    past_the_grace(&mut h);
+    assert!(shown.borrow().is_empty(), "{:?}", shown.borrow());
+}
+
+#[test]
+fn work_that_starts_by_itself_makes_no_notification() {
+    let (mut h, shown) = demo_with_notifications();
+    end_in_the_background(&mut h, "cache", "Tidying the thumbnail cache");
+    past_the_grace(&mut h);
+    assert!(shown.borrow().is_empty(), "{:?}", shown.borrow());
+}
+
+#[test]
+fn with_the_setting_off_a_job_that_ends_in_the_background_makes_no_notification() {
+    let (mut h, shown) = demo_with_notifications();
+    h.app.ui.settings.notify_when_done = false;
+    end_in_the_background(&mut h, "import", "Importing");
+    past_the_grace(&mut h);
+    assert!(shown.borrow().is_empty(), "{:?}", shown.borrow());
+}
+
+#[test]
+fn notifications_are_on_for_settings_saved_before_they_existed() {
+    let old: crate::state::AppSettings = serde_json::from_value(json!({"libraryPath": "/somewhere"})).unwrap();
+    assert!(old.notify_when_done);
+    assert_eq!(serde_json::to_value(&old).unwrap()["notifyWhenDone"], true);
+}

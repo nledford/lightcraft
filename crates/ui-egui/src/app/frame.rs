@@ -82,6 +82,33 @@ impl LightcraftApp {
         }
     }
 
+    /// Tell the host, through `services.notify`, that jobs the person started have ended: when the window is in the
+    /// background (another app has the keyboard, or the window is minimized; `raw.focused` and the viewport state are
+    /// refreshed by a hidden logic tick too, unlike `i.focused`) and the setting is on.
+    /// The watch always looks, so a job that ends in front is not announced later. While one waits for its toast the
+    /// window looks again soon.
+    pub(super) fn sync_job_notices(&mut self, ctx: &egui::Context) {
+        if self.services.notify.is_none() || lightcraft_engine::gpu::shutting_down() {
+            return;
+        }
+        let jobs = self.session.activity.person_jobs();
+        let now = self.tick_now();
+        let in_background = ctx.input(|i| !i.raw.focused || i.viewport().minimized.unwrap_or(false));
+        let toast = self.ui.toast.as_ref().map(|t| (t.0.as_str(), t.1));
+        let ended = self.job_watch.update(now, &jobs, toast, in_background);
+        if self.job_watch.waiting() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        }
+        let Some(ended) = ended else { return };
+        if !self.ui.settings.notify_when_done || !ended.away {
+            return;
+        }
+        let notice = job_notice::compose(&ended);
+        if let Some(notify) = self.services.notify.as_mut() {
+            notify(&notice);
+        }
+    }
+
     /// Clear the badge the host was told about, if any (quitting).
     pub(super) fn release_dock_badge(&mut self) {
         if let Some(dock_badge) = self.services.dock_badge.as_mut()
@@ -96,6 +123,7 @@ impl LightcraftApp {
     /// a no-op rather than a duplicate.
     pub(super) fn logic_background(&mut self, ctx: &egui::Context) {
         self.sync_dock_badge(ctx);
+        self.sync_job_notices(ctx);
         self.sync_keep_awake(ctx);
         panels::notices::logic(self);
         // closing the window (or Quit) with changes only in memory: retry, else ask first

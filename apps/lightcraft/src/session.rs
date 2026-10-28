@@ -156,6 +156,11 @@ pub(crate) fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::
         dock_badge: Some(dock_badge::service()),
         #[cfg(not(target_os = "macos"))]
         dock_badge: None,
+        // macOS: a notification when a job ends while the window is in the background
+        #[cfg(target_os = "macos")]
+        notify: Some(notify::service()),
+        #[cfg(not(target_os = "macos"))]
+        notify: None,
         pick_display_profile: Some(Box::new(|| {
             let mut d = file_dialog()
                 .set_title(lightcraft_ui_egui::i18n::tr("Choose Monitor Profile"))

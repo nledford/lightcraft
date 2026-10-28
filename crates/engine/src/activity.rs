@@ -237,6 +237,12 @@ impl Activity {
     pub fn running_jobs(&self) -> usize {
         lock(&self.inner.tasks).iter().filter(|e| started_by_person(e.kind)).count()
     }
+
+    /// The jobs the person started that are running, oldest first, each as [`Activity::list`] shows it: what the
+    /// person is told about when one ends ([`started_by_person`]).
+    pub fn person_jobs(&self) -> Vec<TaskInfo> {
+        lock(&self.inner.tasks).iter().filter(|e| started_by_person(e.kind)).map(|e| e.info()).collect()
+    }
 }
 
 /// Whether a task of `kind` is work the person started, one they would not want cut short by the machine sleeping
@@ -426,6 +432,16 @@ mod running_jobs_tests {
         assert_eq!(a.running_jobs(), 1);
         drop(x);
         assert_eq!(a.running_jobs(), 0);
+    }
+
+    #[test]
+    fn person_jobs_lists_what_the_person_started_oldest_first() {
+        let a = Activity::default();
+        let _x = a.start("export", "Exporting", Cancel::Yes);
+        let _c = a.start("cache", "Tidying the thumbnail cache", Cancel::Yes);
+        let _i = a.start("import", "Importing", Cancel::Yes);
+        let labels: Vec<_> = a.person_jobs().into_iter().map(|t| t.label).collect();
+        assert_eq!(labels, ["Exporting", "Importing"]);
     }
 }
 

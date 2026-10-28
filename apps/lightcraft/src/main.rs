@@ -40,6 +40,8 @@ mod logging;
 #[cfg(target_os = "macos")]
 mod native_menu;
 #[cfg(target_os = "macos")]
+mod notify;
+#[cfg(target_os = "macos")]
 mod screen_profile;
 mod window_gpu;
 

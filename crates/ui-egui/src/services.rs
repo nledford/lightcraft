@@ -43,6 +43,18 @@ pub type KeepAwakeFn = Box<dyn FnMut(Option<&str>)>;
 /// a change, always from the UI thread.
 pub type DockBadgeFn = Box<dyn FnMut(usize)>;
 
+/// A system notification: what to say to a person who is in another app.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Notice {
+    pub title: String,
+    pub body: String,
+}
+
+/// Show a system notification (a job that was started has ended while the window is not in front). The host asks
+/// for the system's permission the first time and does nothing where notifications are not available. Called from the
+/// UI thread.
+pub type NotifyFn = Box<dyn FnMut(&Notice)>;
+
 /// Whether an external editor can be started (its name as in [`Services::open_with`]); the
 /// error says why not and what to do (e.g. PhotoCraft isn't installed).
 pub type CheckEditorFn = Box<dyn Fn(&str) -> Result<(), String>>;
@@ -141,4 +153,6 @@ pub struct Services {
     pub keep_awake: Option<KeepAwakeFn>,
     /// Show how many jobs are running on the app's Dock icon (macOS).
     pub dock_badge: Option<DockBadgeFn>,
+    /// Tell the person a job has ended while LightCraft is in the background (macOS notification).
+    pub notify: Option<NotifyFn>,
 }
