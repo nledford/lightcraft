@@ -7,7 +7,7 @@ use super::selection::{
 };
 use super::{
     Album, AlbumId, ColorLabel, CommandSpec, CopyrightStatus, Filter, Flag, GroupBy, LibrarySource, Op, PhotoId, Result, Selection, Sort, SortKey,
-    Value, always, bad, bool_or, cmd, has_active, has_library_selection, has_selection, json, ok, str_param,
+    Value, always, bad, bool_or, cmd, has_active, has_library_selection, has_samples, has_selection, json, no_samples, ok, str_param,
 };
 
 /// Seeds stay exactly representable as a JSON double, so web and agent clients read back what they wrote.
