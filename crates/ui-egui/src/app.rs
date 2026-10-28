@@ -546,7 +546,7 @@ impl LightcraftApp {
     /// matches the files. A worker still running is abandoned, as quitting always did.
     pub fn finish_ready_move(&mut self) {
         let ctx = self.tasks.repaint.clone().unwrap_or_default();
-        move_task::poll(self, &ctx);
+        crate::move_task::poll(self, &ctx);
     }
 
     /// The process is about to end (settings and library are saved by then): make sure nothing is
