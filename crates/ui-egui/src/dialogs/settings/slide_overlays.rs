@@ -219,7 +219,13 @@ pub fn sections(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         row(ui, t, &format!("{} {}", crate::i18n::tr("Text"), i + 1), |ui| {
             text(app, ui, &id, &o.text, "{title} · {exposure}", &|v| wrap(json!({"text": v})));
             if crate::widgets::text_button(ui, &format!("{id}Remove"), "Remove", false).clicked() {
-                set(app, json!({"removeText": i}));
+                // (an edit under way in another box is saved first, while its index is still right: the page
+                // returns below before that box is drawn again, so its save would be swept afterwards for
+                // the old list, onto another overlay, bringing the removed one back)
+                match app.save_unfinished_edits(ui.ctx()) {
+                    Ok(()) => set(app, json!({"removeText": i})),
+                    Err(e) => app.toast_error(ui.ctx(), e),
+                }
             }
         });
         if app.session.slide_overlays.texts.len() != n {

@@ -1111,3 +1111,33 @@ fn a_click_in_another_box_of_the_page_saves_the_first_and_edits_the_second() {
     assert!(h.view.ctx.memory(|m| m.has_focus(crate::text_field::id("field:slideshowEndingText"))), "the second box has the focus");
     h.settle(SETTLE);
 }
+
+/// Text 2 is being edited and Remove is clicked on Text 1: the settings page returns before Text 2's
+/// box is drawn again, and the overlay it was typed for is now at index 0. The text typed is saved
+/// first, while the indices are right, not sent for the old list afterwards (it would go onto
+/// another overlay and bring the removed one back).
+#[test]
+fn removing_an_overlay_above_the_one_being_edited_saves_the_edit_first() {
+    let mut h = grid();
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    run(&mut h, "slideshow.overlays", json!({"texts": [{"text": "{title}"}, {"text": "{iso}"}]}));
+    h.step();
+    h.step();
+    reveal(&mut h, "field:slideshowText1");
+    let r = h.request("ui.clickWidget", json!({"id": "field:slideshowText1"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.text", json!({"text": "x"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    reveal(&mut h, "button:slideshowText0Remove");
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowText0Remove"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        h.step();
+    }
+    let texts: Vec<String> = h.app.session.slide_overlays.texts.iter().map(|t| t.text.clone()).collect();
+    assert!(texts.len() == 1 && texts[0].contains('x') && texts[0].contains("{iso}"), "the text typed in Text 2 was lost: {texts:?}");
+}
