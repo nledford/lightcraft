@@ -141,6 +141,20 @@ fn an_answer_for_a_dialog_closed_meanwhile_is_dropped() {
 }
 
 #[test]
+fn a_closed_dialogs_pick_is_forgotten_in_the_full_screen_preview_too() {
+    let (mut h, asked, _) = app();
+    open_export(&mut h);
+    click(&mut h, "button:exportChooseFolder");
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    // the full-screen frame returns early: it must still poll, or a reopened export dialog would
+    // take the old dialog's answer
+    h.app.ui.fullscreen = true;
+    h.app.ui.dialog = None;
+    h.step();
+    assert!(h.app.pending_picks.is_empty(), "the entry of the closed dialog is forgotten in the full-screen frame");
+}
+
+#[test]
 fn the_import_destination_dialog_does_not_block_and_its_answer_sets_the_destination() {
     let dir = std::env::temp_dir().join(format!("lc-bgdlg-import-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
