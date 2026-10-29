@@ -210,17 +210,49 @@ mod download {
     const MAX_ZIP: u64 = 64 * 1024 * 1024;
     const MAX_TEXT: usize = 256 * 1024 * 1024;
 
-    fn get(name: &str, base: &str, dir: &Path, cancel: &AtomicBool, task: &crate::activity::TaskHandle) -> std::result::Result<(), String> {
+    /// Why the download stopped: the person canceled it, or something failed. Only the first is `Stopped`; a disk or
+    /// mirror error that arrives after the cancel flag was set is still a failure and keeps its reason.
+    #[derive(Debug, PartialEq)]
+    pub(super) enum Stop {
+        Cancelled,
+        Failed(String),
+    }
+
+    impl From<String> for Stop {
+        fn from(e: String) -> Self {
+            Self::Failed(e)
+        }
+    }
+
+    impl std::fmt::Display for Stop {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Cancelled => f.write_str("cancelled"),
+                Self::Failed(e) => f.write_str(e),
+            }
+        }
+    }
+
+    impl From<lightcraft_fetch::DownloadError> for Stop {
+        fn from(e: lightcraft_fetch::DownloadError) -> Self {
+            match e {
+                lightcraft_fetch::DownloadError::Cancelled => Self::Cancelled,
+                e => Self::Failed(e.to_string()),
+            }
+        }
+    }
+
+    fn get(name: &str, base: &str, dir: &Path, cancel: &AtomicBool, task: &crate::activity::TaskHandle) -> std::result::Result<(), Stop> {
         let _ = std::fs::remove_file(dir.join(name));
         let file = lightcraft_fetch::FileSpec { name, size: None, sha256: None, max: MAX_ZIP };
         lightcraft_fetch::download_url(&file, &format!("{base}{name}"), dir, &lightcraft_fetch::Options::default(), cancel, &mut |pr| {
             task.progress(pr.done, pr.total.max(pr.done))
         })
-        .map_err(|e| e.to_string())
+        .map_err(Stop::from)
     }
 
     /// Fetch and unpack the place names into `dir`; the new files replace the old ones only when complete.
-    pub(super) fn run(base: &str, dir: &Path, cancel: &AtomicBool, task: &crate::activity::TaskHandle) -> std::result::Result<usize, String> {
+    pub(super) fn run(base: &str, dir: &Path, cancel: &AtomicBool, task: &crate::activity::TaskHandle) -> std::result::Result<usize, Stop> {
         let staging = dir.join(".download");
         std::fs::create_dir_all(&staging).map_err(|e| format!("could not create {}: {e}", staging.display()))?;
         get(GEONAMES_ZIP, base, &staging, cancel, task)?;
@@ -228,13 +260,13 @@ mod download {
         let cities = lightcraft_geocode::unzip::extract(&zip, GEONAMES_FILES[0], MAX_TEXT).map_err(|e| e.to_string())?;
         let places = GeoNames::parse(&String::from_utf8_lossy(&cities), None, None).len();
         if places == 0 {
-            return Err("the downloaded place list is empty".into());
+            return Err(Stop::Failed("the downloaded place list is empty".into()));
         }
         let _ = std::fs::remove_file(staging.join(GEONAMES_ZIP));
         let write = |name: &str, data: &[u8]| std::fs::write(dir.join(name), data).map_err(|e| format!("could not save {name}: {e}"));
         for name in &GEONAMES_FILES[1..] {
             // optional: without them states stay blank and countries are ISO codes
-            match get(name, base, &staging, cancel, task).and_then(|()| std::fs::read(staging.join(name)).map_err(|e| e.to_string())) {
+            match get(name, base, &staging, cancel, task).and_then(|()| std::fs::read(staging.join(name)).map_err(|e| Stop::Failed(e.to_string()))) {
                 Ok(b) => write(name, &b)?,
                 Err(e) => log::warn!("place names: {name}: {e}"),
             }
@@ -243,6 +275,19 @@ mod download {
         write(GEONAMES_FILES[0], &cities)?;
         let _ = std::fs::remove_dir(&staging);
         Ok(places)
+    }
+
+    /// How the download ended, from what the worker returned (or the panic it died of). Only a real cancel is `Cancelled`:
+    /// a failure is a failure even when the cancel flag happens to be set by then.
+    pub(super) fn outcome_of(r: std::thread::Result<std::result::Result<usize, Stop>>) -> DownloadOutcome {
+        match r {
+            Ok(Ok(n)) => DownloadOutcome::Done(n),
+            Ok(Err(Stop::Cancelled)) => DownloadOutcome::Cancelled,
+            Ok(Err(Stop::Failed(e))) => {
+                DownloadOutcome::Failed(format!("Could not download the place names: {e}. Check the connection and try again."))
+            }
+            Err(_) => DownloadOutcome::Failed("The place names download stopped unexpectedly. Try again.".into()),
+        }
     }
 
     /// A download base: https, or plain http to this machine's loopback address only (a test
@@ -280,12 +325,7 @@ mod download {
             // the activity row says how it ended when the thread ends, however it ends
             let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&base, &thread_dir, &cancel, &handle)));
             let panicked = outcome.is_err();
-            let outcome = match outcome {
-                Ok(Ok(n)) => DownloadOutcome::Done(n),
-                _ if cancel.load(std::sync::atomic::Ordering::Relaxed) => DownloadOutcome::Cancelled,
-                Ok(Err(e)) => DownloadOutcome::Failed(format!("Could not download the place names: {e}. Check the connection and try again.")),
-                Err(_) => DownloadOutcome::Failed("The place names download stopped unexpectedly. Try again.".into()),
-            };
+            let outcome = outcome_of(outcome);
             if let DownloadOutcome::Failed(e) = &outcome {
                 log::warn!("{e}");
             }
@@ -413,7 +453,9 @@ mod tests {
         set_gps(&mut s, ids[0], Some((48.86, 2.34)), "");
         set_gps(&mut s, ids[1], Some((51.5, -0.1)), "");
         s.execute("metadata.reverseGeocode", &json!({"ids": [ids[0].0, ids[1].0], "dataset": dir})).unwrap();
-        assert!(s.activity.finished().iter().all(|r| r.ending == crate::activity::Ending::Done), "every photo found a place");
+        let rows = s.activity.finished();
+        assert!(!rows.is_empty(), "a row for the lookup");
+        assert!(rows.iter().all(|r| r.ending == crate::activity::Ending::Done), "every photo found a place");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -562,6 +604,22 @@ mod tests {
         // admin1 was a 404 (optional): the state stays blank, the rest is filled
         assert_eq!((m.city.as_str(), m.state.as_str(), m.country.as_str()), ("Paris", "", "France"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// What the worker returned decides the ending, not the cancel flag (which may be set when a disk or mirror error
+    /// arrives): the row says `Failed` with the reason, and only the downloader's own `Cancelled` is `Stopped`.
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn a_download_error_is_not_a_cancel_even_with_the_cancel_flag_set() {
+        use lightcraft_fetch::DownloadError;
+        for e in [DownloadError::Disk("disk full".into()), DownloadError::AllMirrorsFailed { file: "f".into(), errors: vec!["404".into()] }] {
+            let reason = e.to_string();
+            let DownloadOutcome::Failed(why) = download::outcome_of(Ok(Err(download::Stop::from(e)))) else { panic!("a failure") };
+            assert!(why.contains(&reason), "{why}");
+        }
+        assert_eq!(download::outcome_of(Ok(Err(download::Stop::from(DownloadError::Cancelled)))), DownloadOutcome::Cancelled);
+        assert_eq!(download::outcome_of(Ok(Ok(3))), DownloadOutcome::Done(3));
+        assert!(matches!(download::outcome_of(Err(Box::new("boom"))), DownloadOutcome::Failed(_)));
     }
 
     #[test]
