@@ -284,3 +284,18 @@ fn a_drop_with_an_unreadable_file_is_an_error_toast_and_a_clean_one_is_not() {
     h.app.toast_dropped_photos(&c, &json!({"imported": [], "restored": [], "failed": [], "duplicates": [4]}));
     assert!(!shown(&h), "duplicates only say nothing");
 }
+
+#[test]
+fn a_pointer_crossing_an_error_toast_does_not_cut_its_six_seconds_short() {
+    let mut h = app();
+    let r = crate::menubar::run_item(&mut h.app, "file.importKeywords", json!({"path": "/no/such/keywords.txt"}));
+    assert!(r.is_err());
+    let p = toast_centre(&h);
+    point_at(&mut h, p);
+    point_at(&mut h, egui::pos2(5.0, 5.0));
+    // the pointer was on it for a frame: the six seconds it had are still there
+    run_for(&mut h, 4.0);
+    assert!(shown(&h), "an error toast the pointer only crossed stays its full time, not 1.75 s after the pointer left");
+    run_for(&mut h, 2.2);
+    assert!(!shown(&h), "and still goes");
+}

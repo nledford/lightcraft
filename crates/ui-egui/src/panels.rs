@@ -112,12 +112,11 @@ pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
     // a slideshow's playback controls sit at the bottom: the toast goes to the top there, clear of them
     let y = if app.ui.slideshow.is_some() { canvas.top() + 60.0 } else { canvas.bottom() - 60.0 };
     let r = Rect::from_center_size(pos2(canvas.center().x, y), size);
-    // while the pointer rests on it, the clock stops; the first frame after it leaves starts the 1.5 s hold
+    // while the pointer rests on it, the clock stops; the first frame after it leaves starts the 1.5 s hold,
+    // unless what the toast had left (an error's 6 s the pointer only crossed) is longer
     let hovered = ctx.pointer_hover_pos().is_some_and(|p| r.contains(p));
-    if hovered {
+    if hovered || shown.hovered {
         shown.until = shown.until.max(now + HOVER_HOLD);
-    } else if shown.hovered {
-        shown.until = now + HOVER_HOLD;
     }
     shown.hovered = hovered;
     let alpha = toast_alpha(now, shown.shown_at, shown.until);
