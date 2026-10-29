@@ -179,7 +179,9 @@ impl<'a> TextField<'a> {
     /// under way the save is recorded; the frame the edit ends in the field shows it as
     /// [`TextFieldResponse::save`] (and forgets it), and one that is still recorded when the field
     /// was not drawn is run by [`take_left_behind`] / [`take_all`]. Leave it off where Return
-    /// means OK and Cancel must not save (a dialog's own fields).
+    /// means OK and Cancel must not save (a dialog's own fields). A save the sweep runs after the
+    /// view changed must not depend on the view: its command is `always` enabled or it saves to
+    /// the ids captured when the edit started; a new opt-in keeps to that.
     pub fn saves_with(mut self, save: impl FnOnce(&str) -> Option<Save> + 'a) -> Self {
         self.saves = Some(Box::new(save));
         self
