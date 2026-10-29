@@ -206,6 +206,32 @@ fn watermark_takes_the_export_insets_and_rotation() {
     assert!(OverlaySettings::default().merged(&json!({"watermark": {"rotation": 45}})).is_err());
 }
 
+/// `editText` changes a text overlay only while it is the one the edit started from: removed, or
+/// another one in its place, it writes nothing (the whole list sent by `texts` would bring it back).
+#[test]
+fn edit_text_changes_only_the_overlay_it_was_made_for() {
+    let s = OverlaySettings::default().merged(&json!({"texts": [{"text": "{title}"}, {"text": "{caption}"}]})).unwrap();
+    let edited = s.merged(&json!({"editText": {"index": 1, "was": "{caption}", "text": "{file}", "size": 0.1}})).unwrap();
+    assert_eq!((edited.texts[0].text.as_str(), edited.texts[1].text.as_str(), edited.texts[1].size), ("{title}", "{file}", 0.1));
+    // removed: nothing is written, nothing comes back
+    let removed = s.merged(&json!({"removeText": 1})).unwrap();
+    let err = removed.merged(&json!({"editText": {"index": 1, "was": "{caption}", "text": "{file}"}})).unwrap_err();
+    assert_eq!(err, "no text overlay 1");
+    // the one at that index is another now (the first was removed)
+    let shifted = s.merged(&json!({"removeText": 0})).unwrap();
+    let err = shifted.merged(&json!({"editText": {"index": 0, "was": "{title}", "text": "{file}"}})).unwrap_err();
+    assert!(err.contains("not \"{title}\" any more"), "{err}");
+    assert_eq!(shifted.texts.len(), 1);
+    for bad in [
+        json!({"editText": 0}),
+        json!({"editText": {"was": "a"}}),
+        json!({"editText": {"index": 0}}),
+        json!({"editText": {"index": 0, "was": "{title}", "sparkle": 1}}),
+    ] {
+        assert!(s.merged(&bad).is_err(), "{bad}");
+    }
+}
+
 #[test]
 fn hostile_settings_are_refused_or_clamped_and_never_panic() {
     let d = OverlaySettings::default();
