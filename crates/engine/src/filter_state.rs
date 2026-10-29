@@ -99,6 +99,9 @@ pub struct FilterState {
     /// tells a filter built afterwards from the one a step left ([`crate::undo_filters`]). Putting a filter aside
     /// and bringing it back, and editing it, do not count.
     replaced: u64,
+    /// `toggle` brought back a filter and the source shown took its last criterion out: the filter ended there, and
+    /// the next one set is a new filter, not an edit of it (`set` counts it then).
+    ended: bool,
     /// A top-level command is running ([`FilterState::begin_recording`]): the person's filter as it was before the
     /// first change the command made, copied only then.
     recording: bool,
@@ -165,9 +168,14 @@ impl FilterState {
     /// Setting a filter forgets the one put aside.
     pub fn set(&mut self, source: LibrarySource, mut f: Filter) -> Vec<SourceOwned> {
         self.touch();
+        let ended = self.ended;
         let left_out = source.reconcile(&mut f);
-        // an edit that empties the filter ends it, as forgetting the one put aside does
-        self.replaced += u64::from(self.aside.is_some() || (f == Filter::default() && self.current != Filter::default()));
+        // an edit that empties the filter ends it, as forgetting the one put aside does; so does a filter built after
+        // `toggle` found the one it brought back emptied by the source
+        self.replaced +=
+            u64::from(self.aside.is_some() || (f == Filter::default() && self.current != Filter::default()) || (ended && f != Filter::default()));
+        // (an edit that leaves the filter empty changes nothing: the filter is still the one that ended)
+        self.ended = ended && f == Filter::default();
         self.current = f;
         self.aside = None;
         left_out
@@ -210,9 +218,15 @@ impl FilterState {
     pub fn toggle(&mut self, source: LibrarySource) -> bool {
         self.touch();
         if self.current != Filter::default() {
+            self.ended = false;
             self.aside = Some(std::mem::take(&mut self.current));
         } else if let Some(mut f) = self.aside.take() {
+            let had_criteria = f != Filter::default();
             source.reconcile(&mut f);
+            // a source that owns the last criterion of the one brought back ends it: what is set next is not an edit of
+            // it (counted then, see `set`, so that undo and redo leave it alone, but not before: the person has no
+            // filter, and what a step dropped can still be put aside for them)
+            self.ended = had_criteria && f == Filter::default();
             self.current = f;
         }
         self.aside.is_none()
@@ -262,6 +276,8 @@ impl FilterState {
         if !aside {
             source.reconcile(&mut self.current);
         }
+        // the filter that ended is still the person's only if nothing came back into it
+        self.ended = self.ended && self.aside.is_none() && self.current == Filter::default();
     }
 
     /// Enable Filters is off (a filter is put aside).

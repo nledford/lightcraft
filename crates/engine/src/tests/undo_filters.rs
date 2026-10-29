@@ -253,6 +253,84 @@ fn undoing_a_step_leaves_a_filter_built_after_showing_a_source_emptied_the_old_o
 }
 
 #[test]
+fn undoing_a_step_leaves_a_filter_built_after_showing_a_source_emptied_the_put_aside_one_alone() {
+    // the same, with the filter put aside: Enable Filters under Picks takes the pick flag out of the one it brings back
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip", "flag": "pick"}));
+    remove_trip(&mut s);
+    toggle(&mut s);
+    run(&mut s, "library.source", json!({"kind": "picks"}));
+    toggle(&mut s);
+    assert!(!s.filters_off());
+    assert_eq!(*s.filter(), Filter::default(), "nothing is left of the filter put aside");
+    run(&mut s, "library.filter", json!({"rating": 3}));
+    undo(&mut s);
+    assert_eq!(*s.filter(), filtered(None, None, 3), "the folder does not join the new filter");
+}
+
+#[test]
+fn a_filter_ended_by_the_source_stays_ended_through_enable_filters_and_empty_edits() {
+    // Enable Filters pressed again with nothing to bring back, Clear Filters on the empty filter, and an edit that
+    // sets nothing, do not make the filter set next an edit of the one that ended
+    for presses in 0..4 {
+        let mut s = session();
+        run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip", "flag": "pick"}));
+        remove_trip(&mut s);
+        toggle(&mut s);
+        run(&mut s, "library.source", json!({"kind": "picks"}));
+        toggle(&mut s);
+        assert_eq!(*s.filter(), Filter::default());
+        match presses {
+            0 => toggle(&mut s),
+            1 => run(&mut s, "library.clearFilter", json!({})),
+            2 => run(&mut s, "library.filter", json!({})),
+            _ => run(&mut s, "library.filter", json!({"rating": 0})),
+        }
+        run(&mut s, "library.filter", json!({"rating": 3}));
+        undo(&mut s);
+        assert_eq!(*s.filter(), filtered(None, None, 3), "variant {presses}: the folder does not join the new filter");
+    }
+}
+
+#[test]
+fn an_undo_that_moves_nothing_does_not_make_the_filter_that_ended_an_edit_target() {
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip", "flag": "pick"}));
+    remove_trip(&mut s);
+    // a later step that touched the filter, then left nothing of it in the filter
+    run(&mut s, "library.filter", json!({"keyword": "dog"}));
+    run(&mut s, "keyword.rename", json!({"from": "dog", "to": "hound"}));
+    run(&mut s, "library.filter", json!({"keyword": null}));
+    toggle(&mut s);
+    run(&mut s, "library.source", json!({"kind": "picks"}));
+    toggle(&mut s);
+    assert_eq!(*s.filter(), Filter::default(), "the source emptied the filter that came back");
+    // undoing the rename finds no keyword in the filter: it moves nothing, and the filter is still the one that ended
+    undo(&mut s);
+    assert_eq!(*s.filter(), Filter::default());
+    run(&mut s, "library.filter", json!({"rating": 3}));
+    undo(&mut s);
+    assert_eq!(*s.filter(), filtered(None, None, 3), "the folder does not join the new filter");
+}
+
+#[test]
+fn what_the_person_sets_after_an_undo_brought_a_folder_back_into_the_ended_filter_is_an_edit_of_it() {
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip", "flag": "pick"}));
+    remove_trip(&mut s);
+    toggle(&mut s);
+    run(&mut s, "library.source", json!({"kind": "picks"}));
+    toggle(&mut s);
+    assert_eq!(*s.filter(), Filter::default());
+    // undo brings the folder back into the empty filter: it is the person's filter again, not an ended one
+    undo(&mut s);
+    assert_eq!(*s.filter(), filtered(None, Some("/pics/trip"), 0), "undo brings the folder back into the empty filter");
+    run(&mut s, "library.filter", json!({"rating": 3}));
+    redo(&mut s);
+    assert_eq!(*s.filter(), filtered(None, None, 3), "redoing the removal takes the folder out of the filter again");
+}
+
+#[test]
 fn undoing_a_step_follows_the_filter_to_where_it_is_now() {
     // put aside after the delete: the keyword goes back into the put-aside filter, and the live filter stays empty
     let mut s = session();

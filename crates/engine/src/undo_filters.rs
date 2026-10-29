@@ -23,7 +23,10 @@
 //!
 //! A filter the step itself emptied is not one the person threw away: what they add to it afterwards is an edit of
 //! it, so undo brings the keyword back beside it. One the person emptied (by hand, with Clear Filters, or by showing
-//! a source that owns its last criterion) ended there (it is counted), and the filter after it is a new one.
+//! a source that owns its last criterion) ended there (it is counted), and the filter after it is a new one. The same
+//! holds for the one Enable Filters brings back when the source shown owns its last criterion: it is counted once the
+//! person sets another filter (until then they have none, so undo can still bring a folder or keyword back into it,
+//! and what they set after that is an edit of it, or put the filter a step dropped aside for them).
 
 use lightcraft_catalog::{Catalog, Filter};
 use serde_json::{Map, Value};
