@@ -488,7 +488,7 @@ fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, 
                         });
                     }
                     (Some("failed"), Some(d)) => {
-                        let why = sentence(d["error"].as_str().unwrap_or("The download failed"));
+                        let why = sentence(d["error"].as_str().unwrap_or(crate::i18n::tr("The download failed")));
                         ui.add(egui::Label::new(RichText::new(why).font(t.font(11.5)).color(t.legible(t.caution, t.chrome, 4.5))).wrap());
                     }
                     _ => {}
