@@ -317,7 +317,7 @@ fn photo_tile(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, slot: Slo
             if *photo != id {
                 (*photo, *wait) = (id, None);
             }
-            super::detail::rendering_overdue(wait, keys, coming, now)
+            super::detail::rendering_overdue(wait, keys, coming, now, super::detail::RENDERING_AFTER_SECS)
         });
         let failed = (!rendering && mine(slot).is_none() && (!r.is_pending(slot) || r.retrying(slot))).then(|| r.failure_of(slot, id)).flatten();
         let over = display.intersect(img_area);
