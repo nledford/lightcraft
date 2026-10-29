@@ -216,10 +216,12 @@
   edit; a thumbnail opens the one clicked. A library that already has photos, or a Local folder or Recently Deleted on
   screen, stays where it was.
 - The banner then walks the first edit through: "Drag any slider: the original never changes. Press Y to compare before
-  and after." (the key Before/After Side by Side is bound to); once a slider is dragged, "That's your first edit. Press Y
-  to see it beside the original."; while a Before / After layout shows it, "The original beside your edit: the file
-  itself never changes."; then the usual message. A rating or a keyword is not an edit; another unedited sample, or an
-  undo back to the start, is invited again.
+  and after."; once a slider is dragged, "That's your first edit. Press Y to see it beside the original."; while a
+  Before / After layout shows it, "The original beside your edit: the file itself never changes."; then the usual
+  message. Y is the default key of Before/After Side by Side: the banner names whatever key it is bound to, and with
+  none bound it leaves the key out ("That's your first edit. View → Before/After Side by Side shows it beside the
+  original."). A rating or a keyword is not an edit; another unedited sample, or an undo back to the start, is invited
+  again.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
