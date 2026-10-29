@@ -126,6 +126,25 @@ fn a_renamed_browsed_folder_keeps_the_filter_put_aside() {
     assert_eq!(*s.filter(), put_aside, "Enable Filters brings back the filter put aside, not a folder");
 }
 
+/// A `folder` a script set through `library.filter` names a place on disk like a library folder does: when that
+/// folder (or one above it) moves, the filter and the one put aside follow it; another folder's move changes nothing.
+#[test]
+fn a_folder_filter_set_by_a_script_follows_the_folder_it_names() {
+    let (mut s, ..) = session().unwrap();
+    let at = |s: &Session| s.filter().folder.clone().map(std::path::PathBuf::from);
+    s.execute("library.filter", &json!({"folder": "/lightcraft-reconcile/local/trip/day1", "subfolders": true, "rating": 3})).unwrap();
+    crate::cmd::browse::follow_folder(&mut s, "/lightcraft-reconcile/local/trip", "/lightcraft-reconcile/local/holiday");
+    assert_eq!(at(&s), Some("/lightcraft-reconcile/local/holiday/day1".into()));
+    assert!(s.filter().subfolders && s.filter().rating == 3, "the rest of the filter is untouched");
+    s.execute("library.toggleFilters", &json!({})).unwrap();
+    crate::cmd::browse::follow_folder(&mut s, "/lightcraft-reconcile/local/holiday", "/lightcraft-reconcile/local/trip2");
+    s.execute("library.toggleFilters", &json!({})).unwrap();
+    assert_eq!(at(&s), Some("/lightcraft-reconcile/local/trip2/day1".into()), "the one put aside follows too");
+    crate::cmd::browse::follow_folder(&mut s, "/lightcraft-reconcile/local/other", "/lightcraft-reconcile/local/elsewhere");
+    assert_eq!(at(&s), Some("/lightcraft-reconcile/local/trip2/day1".into()), "another folder's move changes nothing");
+    assert!(s.browse.is_none(), "following a filter never starts browsing");
+}
+
 #[test]
 fn library_filter_refuses_what_the_source_owns_and_changes_nothing() {
     let (mut s, x, y) = session().unwrap();

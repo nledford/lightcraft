@@ -482,7 +482,12 @@ fn move_to_folder(s: &mut Session, p: &Value) -> Result<Value> {
 pub(crate) fn follow_folder(s: &mut Session, from: &str, to: &str) {
     // a library folder chosen at or below it follows too, as a source or as a filter
     follow_library_folder(&mut s.library_folder, from, to);
-    s.filters.follow(|f| follow_library_folder(&mut f.library_folder, from, to));
+    // so does a `folder` a script set through `library.filter`: it is rewritten in place, never created from
+    // the browsed folder (that one is filled in by `Session::view_filter`, and no chip names it)
+    s.filters.follow(|f| {
+        follow_library_folder(&mut f.library_folder, from, to);
+        follow_library_folder(&mut f.folder, from, to);
+    });
     if let Some(b) = &mut s.browse
         && let Ok(rel) = Path::new(&b.path).strip_prefix(from)
     {
