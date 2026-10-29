@@ -304,6 +304,44 @@ fn a_cancelled_looking_keeps_its_row_until_its_worker_has_ended() {
     assert!(h.app.session.activity.list().is_empty(), "the row goes with it");
 }
 
+/// Given the lookings of libraries that were left have workers that never answer (a share that is down),
+/// When a looking is started in each next library,
+/// Then the app holds at most `MAX_LEFT_BEHIND` of those workers: a looking is refused beside that many, and starts again once some have ended.
+#[test]
+fn workers_left_behind_by_library_switches_are_bounded() {
+    let dir = Scratch::new("stale-bound");
+    let mut h = moved_folder(&dir, "archive/journey");
+    let request = Request { path: dir.path("trip"), to: dir.path("archive/journey"), disk: false, incomplete: false, synchronize: false, asks: true };
+    // (a folder no photo came from passes the bound and is refused after it, by what the library says: that tells the two refusals apart)
+    let nowhere = Request { path: dir.path("nowhere"), ..request.clone() };
+    let bound = crate::relocate::MAX_LEFT_BEHIND;
+    let mut workers = Vec::new();
+    let mut hold_one = |h: &mut Headless| {
+        workers.push(crate::relocate::track_held_worker(&mut h.app, request.clone()));
+        // the library is switched: the next frame lets go of the looking
+        h.app.relocate_library = h.app.relocate_library.wrapping_add(1);
+        h.step();
+        assert!(h.app.relocate.is_none());
+    };
+    for _ in 1..bound {
+        hold_one(&mut h);
+    }
+    let why = crate::relocate::start(&mut h.app, nowhere.clone()).unwrap_err();
+    assert!(why.contains("no photo"), "below the bound a looking goes on to be read: {why}");
+    hold_one(&mut h);
+    assert_eq!(h.app.relocate_left_behind.len(), bound);
+    let why = crate::relocate::start(&mut h.app, nowhere.clone()).unwrap_err();
+    assert!(why.contains("already being located"), "workers that never end are not left to pile up: {why}");
+
+    for w in &workers {
+        w.send(Err("locating the folder was stopped: nothing was changed".to_string())).unwrap();
+    }
+    h.step();
+    assert!(h.app.relocate_left_behind.is_empty());
+    let why = crate::relocate::start(&mut h.app, nowhere).unwrap_err();
+    assert!(why.contains("no photo"), "once they have ended a looking is read again: {why}");
+}
+
 #[test]
 fn a_refusal_that_needs_no_disk_is_said_at_once() {
     let dir = Scratch::new("refused");

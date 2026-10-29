@@ -100,6 +100,7 @@ impl LightcraftApp {
             sync_owns_changes: false,
             sync_run: None,
             relocate: None,
+            relocate_left_behind: Vec::new(),
             relocate_asked: None,
             relocate_library: 0,
             relocate_last: None,

@@ -298,6 +298,9 @@ pub struct LightcraftApp {
     pub sync_run: Option<sync::SyncRun>,
     /// A folder's files being looked for where the person said the folder is now.
     pub relocate: Option<relocate::RelocateTask>,
+    /// Lookings of a library that was left whose workers have not answered yet (a share that does
+    /// not), at most [`relocate::MAX_LEFT_BEHIND`]; a looking is refused beyond that.
+    pub relocate_left_behind: Vec<relocate::RelocateTask>,
     /// What was found when only some of them are there, for the dialog that asks about it (and
     /// whether that dialog was shown yet: it waits for another dialog to be done with).
     pub relocate_asked: Option<(relocate::Request, lightcraft_engine::relocate::Located, bool)>,

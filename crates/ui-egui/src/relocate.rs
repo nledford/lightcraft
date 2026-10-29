@@ -68,6 +68,11 @@ impl Drop for RelocateTask {
 pub fn start(app: &mut LightcraftApp, request: Request) -> Result<Value, String> {
     // (a step of the library left, not yet seen by a frame, is not in the way of this one)
     drop_stale(app);
+    reap_left_behind(app);
+    if app.relocate_left_behind.len() >= MAX_LEFT_BEHIND {
+        // (the reads of the libraries left have not ended: a share is not answering)
+        return Err(crate::i18n::tr("A folder is already being located").to_string());
+    }
     // (a question that waits is about the library as it is: another step meanwhile, an agent's
     // say, would have its answer relink photos that are no longer where they were found)
     if app.relocate.is_some() {
@@ -123,24 +128,43 @@ pub(crate) fn track_held_worker(app: &mut LightcraftApp, request: Request) -> st
     tx
 }
 
+/// How many workers of lookings in libraries that were left are kept while they still read (a
+/// share that does not answer holds a worker in `std::fs::metadata`, which nothing can interrupt);
+/// a looking is refused beyond that, so library switches can't pile up blocked threads.
+pub const MAX_LEFT_BEHIND: usize = 4;
+
 /// The files were looked for (or the question asked) in a library that is no longer open: its
 /// plan names that library's photos, and an answer would relink whatever the open library has
 /// at the same paths. Dropped, with how it ended; the worker of a looking in progress is told to
-/// stop (see `Drop`), and the next library's first request must not wait for it.
+/// stop and kept (with its row) in `relocate_left_behind` until it answers, so the next library's
+/// first request need not wait for it, and [`reap_left_behind`] and [`MAX_LEFT_BEHIND`] bound them.
 fn drop_stale(app: &mut LightcraftApp) {
     if (app.relocate.is_some() || app.relocate_asked.is_some()) && app.relocate_library != app.session.library_generation() {
         let request = app.relocate.as_ref().map(|t| &t.request).or(app.relocate_asked.as_ref().map(|a| &a.0));
         app.relocate_last = request.map(|r| ended(r, json!({"cancelled": true})));
-        app.relocate = None;
+        if let Some(task) = app.relocate.take() {
+            task.progress.cancel.store(true, Ordering::Relaxed);
+            app.relocate_left_behind.push(task);
+        }
         if app.relocate_asked.take().is_some() && matches!(app.ui.dialog, Some(Dialog::LocateFolder { .. })) {
             app.ui.dialog = None;
         }
     }
 }
 
+/// Let go of the left-behind workers that have answered (or ended without a word); whether some
+/// are still reading.
+fn reap_left_behind(app: &mut LightcraftApp) -> bool {
+    app.relocate_left_behind.retain(|t| matches!(t.rx.try_recv(), Err(std::sync::mpsc::TryRecvError::Empty)));
+    !app.relocate_left_behind.is_empty()
+}
+
 /// Each frame: when the looking is done, relink the photos, say why not, or ask.
 pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
     drop_stale(app);
+    if reap_left_behind(app) {
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+    }
     // Synchronize Folder afterwards is for its dialog, which waits for the answer: closed (or
     // another dialog opened) while the files are looked for, it is not opened again unasked.
     // (Once the question is shown it stands in for that dialog, and carries the wish itself.)
