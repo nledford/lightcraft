@@ -239,6 +239,20 @@ fn undoing_a_step_leaves_a_filter_built_after_the_old_one_was_emptied_or_replace
 }
 
 #[test]
+fn undoing_a_step_leaves_a_filter_built_after_showing_a_source_emptied_the_old_one_alone() {
+    // the folder removal leaves only the pick flag; showing Picks takes that flag out, so the filter is empty by the
+    // person's own doing, and the rating they set next is a new filter, not an edit of the old one
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip", "flag": "pick"}));
+    remove_trip(&mut s);
+    run(&mut s, "library.source", json!({"kind": "picks"}));
+    assert_eq!(*s.filter(), Filter::default());
+    run(&mut s, "library.filter", json!({"rating": 3}));
+    undo(&mut s);
+    assert_eq!(*s.filter(), filtered(None, None, 3), "the folder does not join the new filter");
+}
+
+#[test]
 fn undoing_a_step_follows_the_filter_to_where_it_is_now() {
     // put aside after the delete: the keyword goes back into the put-aside filter, and the live filter stays empty
     let mut s = session();

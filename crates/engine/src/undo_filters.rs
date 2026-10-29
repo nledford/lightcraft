@@ -22,8 +22,8 @@
 //! filter's `replaced` count), nor into a filter the person has again after the step dropped the put-aside one.
 //!
 //! A filter the step itself emptied is not one the person threw away: what they add to it afterwards is an edit of
-//! it, so undo brings the keyword back beside it. One the person emptied by hand ended there (it is counted), and
-//! the filter after it is a new one.
+//! it, so undo brings the keyword back beside it. One the person emptied (by hand, with Clear Filters, or by showing
+//! a source that owns its last criterion) ended there (it is counted), and the filter after it is a new one.
 
 use lightcraft_catalog::{Catalog, Filter};
 use serde_json::{Map, Value};

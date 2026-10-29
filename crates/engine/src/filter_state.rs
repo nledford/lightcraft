@@ -199,7 +199,10 @@ impl FilterState {
     /// reconciled when it comes back, against the source shown then.
     pub fn source_shown(&mut self, source: LibrarySource) {
         self.touch();
+        let had_criteria = self.current != Filter::default();
         source.reconcile(&mut self.current);
+        // a source that takes the last criterion out ends the filter, as taking it off by hand does
+        self.replaced += u64::from(had_criteria && self.current == Filter::default());
     }
 
     /// Enable Filters: a filter set is put aside, one put aside comes back as it was except what the
