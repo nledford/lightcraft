@@ -23,7 +23,8 @@
 //! - the item after `#[cfg(test)]` ends at the first `;` or `,` outside brackets (a `,` also
 //!   outside `<…>`, where `<` and `>` are counted as brackets unless the `>` belongs to `->` or
 //!   `=>`), or, when a `{` comes first, at the brace that closes it; so `a < b` in a test-only
-//!   constant can stretch the skip as far as the next `;` or `{…}`;
+//!   constant can stretch the skip as far as the next `;` or `{…}`; once a `where` is seen outside
+//!   brackets its commas (between predicates) end nothing: the item runs to its `{` or `;`;
 //! - only the exact attribute `#[cfg(test)]` (or `#![cfg(test)]` for a whole file) counts as
 //!   test code, not `cfg(all(test, …))` or a `cfg_attr`;
 //! - a dropped result is a `let _ =` whose expression, up to its first `;`, contains one of the
@@ -149,9 +150,14 @@ fn code_only(text: &str) -> Vec<char> {
 /// Where what `#[cfg(test)]` applies to ends: `from` is just past the attribute.
 fn end_of_item(code: &[char], from: usize) -> usize {
     let (mut round, mut square, mut angle) = (0usize, 0usize, 0usize);
+    // a `where` clause runs to the item's `{` (or `;`): its commas separate predicates, not items
+    let mut in_where = false;
     let mut i = from;
     while let Some(&c) = code.get(i) {
         let outside = round == 0 && square == 0;
+        if outside && !in_where && at(code, i, "where") && !after_ident(code, i) && !code.get(i + 5).is_some_and(|c| is_ident(*c)) {
+            in_where = true;
+        }
         match c {
             '(' => round += 1,
             '[' => square += 1,
@@ -163,7 +169,7 @@ fn end_of_item(code: &[char], from: usize) -> usize {
             '<' => angle += 1,
             '>' if !matches!(i.checked_sub(1).and_then(|p| code.get(p)), Some('-' | '=')) => angle = angle.saturating_sub(1),
             ';' if outside => return i + 1,
-            ',' if outside && angle == 0 => return i + 1,
+            ',' if outside && angle == 0 && !in_where => return i + 1,
             // the last field of a struct: the brace is the struct's
             '}' if outside => return i,
             '{' if outside => {
@@ -372,6 +378,9 @@ mod tests {
         // a statement
         let text = "fn f(app: &mut App) {\n    #[cfg(test)]\n    let _ = app.run(\"x\", p);\n    let _ = app.run(\"y\", p);\n}\n";
         assert_eq!(lines(text), [4]);
+        // a `where` clause: its commas separate predicates, they don't end the fn
+        let text = "#[cfg(test)]\nfn poke<T>(app: &mut App)\nwhere\n    T: Into<u8>,\n    T: Copy,\n{\n    let _ = app.run(\"x\", p);\n}\nfn real(app: &mut App) {\n    let _ = app.run(\"y\", p);\n}\n";
+        assert_eq!(lines(text), [10]);
     }
 
     #[test]
