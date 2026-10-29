@@ -325,6 +325,7 @@ impl LightcraftApp {
             self.session.activity.started();
             if let Err(e) = r {
                 log::warn!("{}: a task that waited could not start: {e}", w.request.command);
+                self.session.activity.start_failed(&w.request);
                 self.toast_error(ctx, e);
             }
         }

@@ -15,8 +15,8 @@
 - A waiting Synchronize Folder looks at its folder again when its turn comes. It removes, relinks or reads sidecars of
   only the photos its dialog showed: one that went missing, moved or got a sidecar update while it waited is left
   alone, and the message at the end says how many ("Left alone: 1 (synchronize again to review them)").
-- An Auto Import that waits in line and is taken out of it (✕, `activity.cancel`) is not lost: its
-  files are looked at again by the next Auto Import scans and imported then.
+- An Auto Import that waits in line and is taken out of it (✕, `activity.cancel`), or is refused when its turn comes (its album was deleted meanwhile),
+  is not lost: its files are looked at again by the next Auto Import scans and imported then.
 - Nothing waits across another library: a Synchronize Folder that is still scanning when another library opens does
   nothing. It also does nothing, and says so, when a photo of its folder is changed in the library (a rating, an edit)
   while it scans, because what it saw is no longer what is there.

@@ -423,7 +423,15 @@ impl Activity {
     /// Keep the files of the Auto Imports among `dropped`, which left the line without running: they were noted as
     /// tried when the scan handed them over, so nothing would ever import them ([`Activity::take_untried`]).
     fn note_untried(&self, dropped: &[Waiting]) {
-        let paths: Vec<String> = dropped.iter().flat_map(|w| w.request.auto_import_paths()).collect();
+        for w in dropped {
+            self.start_failed(&w.request);
+        }
+    }
+
+    /// The task [`Activity::take_ready_if`] handed over could not start (the Auto Import album was deleted while it
+    /// waited, say): like one taken out of the line, its Auto Import files are to be tried again.
+    pub fn start_failed(&self, request: &Request) {
+        let paths = request.auto_import_paths();
         if !paths.is_empty() {
             lock(&self.inner.untried).extend(paths);
         }
@@ -771,8 +779,10 @@ mod tests {
         assert_eq!(a.take_untried(), vec!["/w/d.jpg".to_string()]);
         a.enqueue("import", "Importing", import(&["/w/e.jpg"], true)).unwrap();
         drop(running);
-        assert!(a.take_ready().is_some());
+        let started = a.take_ready().unwrap();
         assert!(a.take_untried().is_empty(), "an import that starts keeps its files tried");
+        a.start_failed(&started.request);
+        assert_eq!(a.take_untried(), vec!["/w/e.jpg".to_string()], "one whose start was refused gives them back");
     }
 
     /// The engine starts only the requests it can run; one it can't (an app import) holds its lane for the app, and a

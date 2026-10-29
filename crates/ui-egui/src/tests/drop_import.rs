@@ -894,6 +894,33 @@ fn an_auto_import_taken_out_of_the_line_is_offered_again() {
     assert_eq!(photos(&h), 1, "w.png came in after all");
 }
 
+/// Given an Auto Import that waits in line for its album, when the album is deleted before its turn and the start is
+/// refused, then its files are offered again: the next listings import them.
+#[test]
+fn an_auto_import_whose_start_is_refused_is_offered_again() {
+    let dir = Scratch::new("auto-refused");
+    let mut h = app(&dir);
+    write_png(&dir.path("watched/w.png"), 7);
+    let watched = dir.path("watched");
+    h.app.session.import_defaults.auto_folder = Some(watched.clone());
+    h.app.session.import_defaults.auto_album = Some("Arrivals".into());
+    let album = h.app.session.execute("album.create", &json!({"name": "Arrivals"})).unwrap()["id"].as_u64().unwrap();
+    let listing = || lightcraft_engine::cmd::library::list_auto_import_folder(&watched).unwrap();
+    crate::import::auto_import_listed(&mut h.app, listing());
+    let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
+    crate::import::auto_import_listed(&mut h.app, listing());
+    assert_eq!(h.app.session.activity.waiting().len(), 1, "it waits in line");
+    h.app.session.execute("album.delete", &json!({"id": album})).unwrap();
+    drop(hold);
+    h.step();
+    assert!(h.app.import.is_none() && h.app.session.activity.list().is_empty(), "its start was refused: nothing runs");
+    assert_eq!(photos(&h), 0);
+    crate::import::auto_import_listed(&mut h.app, listing());
+    crate::import::auto_import_listed(&mut h.app, listing());
+    assert!(h.step_until(SETTLE, |h| h.app.import.is_none() && h.app.session.activity.list().is_empty()), "it ran");
+    assert_eq!(photos(&h), 1, "w.png came in after all");
+}
+
 /// Given a line that is full, when Auto Import's listing comes in while an import runs, then the folder is left to its
 /// next listing (its files aren't noted as tried), and imported once there is room.
 #[test]
