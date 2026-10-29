@@ -147,7 +147,8 @@ fn addr(p: &Photo) -> usize {
 /// What the free-text search looks through for one photo, lower-cased as `str::to_lowercase` does
 /// for each field alone: file name, title, caption, camera, lens, location, format, then each
 /// keyword, then the name of each person (a named face), separated by NUL. A search word may hold
-/// white space (a quoted phrase) but never NUL, so it never runs over a field.
+/// white space (a quoted phrase); one that holds NUL is read from the fields one by one
+/// ([`PhotoText::field_contains`]), so no word runs over a field.
 pub(crate) struct PhotoText {
     /// The address of the photo this was made from ([`addr`]).
     at: usize,
@@ -155,8 +156,13 @@ pub(crate) struct PhotoText {
 }
 
 impl PhotoText {
+    /// The fields of `p` that the text joins before its keywords and people.
+    fn fields(p: &Photo) -> [&String; 7] {
+        [&p.file_name, &p.meta.title, &p.meta.caption, &p.meta.camera, &p.meta.lens, &p.meta.location, &p.format]
+    }
+
     pub(crate) fn of(p: &Photo) -> PhotoText {
-        let fields = [&p.file_name, &p.meta.title, &p.meta.caption, &p.meta.camera, &p.meta.lens, &p.meta.location, &p.format];
+        let fields = Self::fields(p);
         let people = p.people();
         // (exact for ASCII, which most text is: the box takes the buffer without copying it)
         let len = fields
@@ -184,6 +190,17 @@ impl PhotoText {
     /// location, format, a keyword or the name of a person.
     pub(crate) fn contains(&self, t: &str) -> bool {
         self.text.contains(t)
+    }
+
+    /// [`PhotoText::contains`] read from `p`'s fields one by one, for a word that holds NUL: the joined text can't tell
+    /// the NUL that separates two fields from one inside a field, and a word never runs over two fields.
+    pub(crate) fn field_contains(p: &Photo, t: &str) -> bool {
+        Self::fields(p)
+            .into_iter()
+            .map(String::as_str)
+            .chain(p.meta.keywords.iter().map(String::as_str))
+            .chain(p.people())
+            .any(|f| f.to_lowercase().contains(t))
     }
 
     #[cfg(test)]

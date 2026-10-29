@@ -434,3 +434,20 @@ fn the_kept_text_holds_the_people_and_a_phrase_stays_in_one_field() {
     assert_eq!(found(&c, "ana"), 0, "and the old name is gone");
     assert_current(&c);
 }
+
+/// A word that holds NUL (a filter's text can) is looked for inside one field, as before the cache: it never matches across
+/// the NUL the cache puts between two fields, and still matches a field that holds NUL itself.
+#[test]
+fn a_word_holding_nul_never_runs_over_two_fields() {
+    let mut c = Catalog::new();
+    let mut p = photo(1, "a");
+    p.meta.title = "b".into();
+    c.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let mut p = photo(2, "c\0d");
+    p.meta.title = "e".into();
+    c.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    for text in ["a\0b", "\"a\0b\"", "b\0", "\0e"] {
+        assert_eq!(shown(&c, text), Vec::<u64>::new(), "{text:?}");
+    }
+    assert_eq!(shown(&c, "c\0d"), vec![2], "a field's own NUL is still found");
+}

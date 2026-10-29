@@ -221,11 +221,11 @@ fn token_matches(p: &Photo, t: &str, hay: &Hay) -> bool {
             "name" | "file" => p.file_name.to_lowercase().contains(val),
             // Not a known field: the colon is part of a plain word ("10:30", "Re:"), its value unquoted
             // (`re:"a b"` is the text `re:a b`).
-            _ if val.len() != quoted.len() => hay.text().contains(&format!("{field}:{val}")),
-            _ => hay.text().contains(t),
+            _ if val.len() != quoted.len() => hay.contains(&format!("{field}:{val}")),
+            _ => hay.contains(t),
         };
     }
-    hay.text().contains(unquote(t))
+    hay.contains(unquote(t))
 }
 
 /// A photo's lower-cased text for the free-text search: the one the catalog keeps when `p` is its
@@ -244,6 +244,12 @@ impl Hay<'_> {
             Some(t) => t,
             None => self.own.get_or_init(|| crate::index::PhotoText::of(self.p)),
         }
+    }
+
+    /// Whether `t` (lower-cased) is in one field of the photo ([`crate::index::PhotoText::contains`]): a word with NUL
+    /// is read from the fields themselves, for the joined text separates them with NUL.
+    fn contains(&self, t: &str) -> bool {
+        if t.contains('\0') { crate::index::PhotoText::field_contains(self.p, t) } else { self.text().contains(t) }
     }
 }
 
