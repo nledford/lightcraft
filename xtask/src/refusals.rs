@@ -22,10 +22,16 @@
 //!   backslash, and for a lifetime otherwise;
 //! - the item after `#[cfg(test)]` ends at the first `;` or `,` outside brackets (a `,` also
 //!   outside `<…>`, where `<` and `>` are counted as brackets unless the `>` belongs to `->` or
-//!   `=>`) or, for an attribute written inside a `<…>` list (a test-only generic parameter, the last of its
-//!   list), at that list's closing `>`, or, when a `{` comes first, at the brace that closes it; so `a < b` in a test-only
-//!   constant can stretch the skip as far as the next `;` or `{…}`; once a `where` is seen outside
-//!   brackets its commas (between predicates) end nothing: the item runs to its `{` or `;`;
+//!   `=>`) or, for an attribute written inside a `<…>` list (a test-only generic parameter, the last
+//!   of its list), at that list's closing `>`, or, when a `{` comes first, at the brace that closes
+//!   it; so `a < b` in a test-only constant can stretch the skip as far as the next `;` or `{…}`;
+//!   once a `where` is seen outside brackets its commas (between predicates) end nothing: the item
+//!   runs to its `{` or `;`;
+//! - "inside a `<…>` list" is read by looking back from the attribute to the nearest `<` nothing has
+//!   closed, stopping at `{`, `}`, `;` or an unmatched bracket; so a `<` comparison in an earlier
+//!   comma-separated sibling (an argument, a match arm) makes the attribute look like it is in a
+//!   list, and a `>` comparison in the test-only item ends its skip early: test code is then
+//!   checked, never production code hidden;
 //! - only the exact attribute `#[cfg(test)]` (or `#![cfg(test)]` for a whole file) counts as
 //!   test code, not `cfg(all(test, …))` or a `cfg_attr`;
 //! - a dropped result is a `let _ =` whose expression, up to its first `;`, contains one of the
