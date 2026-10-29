@@ -148,8 +148,7 @@ impl Downloader {
                     log::info!("SAM 3 model downloaded to {}", dir.display());
                     (None, Outcome::default())
                 }
-                Ok(Err(e)) if s.cancel.load(Ordering::SeqCst) => (Some(e.to_string()), Outcome::ended(Ending::Stopped)),
-                Ok(Err(e)) => (Some(e.to_string()), Outcome::failed(e.to_string())),
+                Ok(Err(e)) => (Some(e.to_string()), error_outcome(&e)),
                 Err(_) => (Some("the download failed unexpectedly".to_string()), Outcome::ended(Ending::Died)),
             };
             if let Some(e) = &error {
@@ -170,5 +169,29 @@ impl Downloader {
                 Err(format!("could not start the download: {e}"))
             }
         }
+    }
+}
+
+/// How a download that ended with `e` ends its row: only one that was cancelled is stopped (the cancel flag may be set
+/// when another error comes, and the status says `cancelled` for the cancelled ones alone).
+fn error_outcome(e: &fetch::DownloadError) -> Outcome {
+    match e {
+        fetch::DownloadError::Cancelled => Outcome::ended(Ending::Stopped),
+        e => Outcome::failed(e.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Given a download that failed for a reason other than being cancelled (the cancel flag may be set meanwhile), then
+    /// the row says it failed: only a cancelled download is stopped.
+    #[test]
+    fn only_a_cancelled_download_is_stopped() {
+        let disk = fetch::DownloadError::Disk("disk full".into());
+        let o = error_outcome(&disk);
+        assert_eq!((o.ending, o.detail.as_str()), (Ending::Failed, "disk full"));
+        assert_eq!(error_outcome(&fetch::DownloadError::Cancelled).ending, Ending::Stopped);
     }
 }

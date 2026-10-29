@@ -146,6 +146,8 @@ fn reverse(s: &mut Session, p: &Value) -> Result<Value> {
     let task = (todo.len() > 1).then(|| s.activity.start("geocode", "Looking up places", Cancel::Yes));
     let mut ops = Vec::new();
     let mut found = Vec::new();
+    // photos a place was not found for (open country: the sea, a pole): the lookup ran to its end, not for them
+    let mut missed = 0;
     for (n, (id, at)) in todo.iter().enumerate() {
         if let Some(t) = &task {
             if t.cancel_flag().is_some_and(|f| f.load(std::sync::atomic::Ordering::Relaxed)) {
@@ -156,7 +158,10 @@ fn reverse(s: &mut Session, p: &Value) -> Result<Value> {
             }
             t.progress(n as u64, todo.len() as u64);
         }
-        let Some(mut place) = names.reverse(*at) else { continue };
+        let Some(mut place) = names.reverse(*at) else {
+            missed += 1;
+            continue;
+        };
         // too far from the town found: State and Country still hold, City (and below) doesn't
         let too_far = max_distance.is_some_and(|m| place.distance > m);
         let nearest_city = too_far.then(|| std::mem::take(&mut place.city));
@@ -179,6 +184,7 @@ fn reverse(s: &mut Session, p: &Value) -> Result<Value> {
     let committed = if !bool_or(p, "dryRun", false) && changed > 0 { s.commit("Reverse Geocode", Op::Batch { ops }) } else { Ok(()) };
     if let Some(t) = task {
         t.finish(match &committed {
+            Ok(_) if missed > 0 => crate::activity::Outcome { ending: crate::activity::Ending::Problems, failed: missed, ..Default::default() },
             Ok(_) => crate::activity::Outcome::default(),
             Err(e) => crate::activity::Outcome::failed(e.to_string()),
         });
@@ -382,6 +388,32 @@ mod tests {
         // overwrite replaces typed text
         s.execute("metadata.reverseGeocode", &json!({"ids": [ids[1].0], "dataset": dir, "overwrite": true})).unwrap();
         assert_eq!(s.catalog.photo(ids[1]).unwrap().meta.city, "London");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A lookup that ran to its end but found no place for a photo (open country: the sea, a pole) is not a clean end:
+    /// its row says `Problems` and how many photos had none. When every photo found a place it is `Done`.
+    #[test]
+    fn a_lookup_that_found_no_place_for_a_photo_ends_with_problems() {
+        let dir = dataset("problems");
+        let mut s = Session::with_demo();
+        s.activity.keep_after(0);
+        let ids = s.visible_cloned();
+        set_gps(&mut s, ids[0], Some((48.86, 2.34)), "");
+        set_gps(&mut s, ids[1], Some((0.0, 0.0)), "");
+        set_gps(&mut s, ids[2], Some((51.5, -0.1)), "");
+        let both = json!({"ids": [ids[0].0, ids[1].0], "dataset": dir});
+        let r = s.execute("metadata.reverseGeocode", &both).unwrap();
+        assert_eq!((r["looked"].as_u64(), r["found"].as_u64()), (Some(2), Some(1)), "{r}");
+        let row = s.activity.finished().into_iter().next().expect("a row for the lookup");
+        assert_eq!((row.kind, row.ending, row.failed), ("geocode", crate::activity::Ending::Problems, 1));
+        let mut s = Session::with_demo();
+        s.activity.keep_after(0);
+        let ids = s.visible_cloned();
+        set_gps(&mut s, ids[0], Some((48.86, 2.34)), "");
+        set_gps(&mut s, ids[1], Some((51.5, -0.1)), "");
+        s.execute("metadata.reverseGeocode", &json!({"ids": [ids[0].0, ids[1].0], "dataset": dir})).unwrap();
+        assert!(s.activity.finished().iter().all(|r| r.ending == crate::activity::Ending::Done), "every photo found a place");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
