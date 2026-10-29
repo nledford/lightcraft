@@ -1205,3 +1205,18 @@ fn undo_to_embedded_thumb_rejects_late_full_render() {
     assert_eq!(quick.pixels.as_ref().unwrap().pixels, pixels_a);
     assert!(!app.renderer.is_pending(full_slot));
 }
+
+#[test]
+fn thumb_failure_reports_only_a_thumbnail_that_will_not_arrive() {
+    let id = PhotoId(5);
+    let mut r = Renderer::default();
+    assert_eq!(r.thumb_failure(id), None, "nothing failed");
+    // An unedited raw asks only for the embedded preview: its failure is final.
+    r.failed.insert(Slot::ThumbQuick(id), (1, "no embedded preview".into(), 0, id));
+    assert_eq!(r.thumb_failure(id), Some("no embedded preview"));
+    // While the full render is still on its way, the cell is loading, not unreadable.
+    r.pending.insert(Slot::Thumb(id), (2, 10));
+    assert_eq!(r.thumb_failure(id), None, "a pending thumbnail may still arrive");
+    r.failed.insert(Slot::Thumb(id), (2, "decode failed".into(), 0, id));
+    assert_eq!(r.thumb_failure(id), Some("decode failed"));
+}
