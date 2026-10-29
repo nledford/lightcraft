@@ -240,6 +240,54 @@ fn object_clicks_are_capped() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Given a download whose only mirror answers 404 after the cancel flag was set (the person pressed ✕ while that request was
+/// out), then it failed: the status says it was not cancelled, and the finished row says `Failed`, not `Stopped`.
+#[cfg(feature = "sam")]
+#[test]
+fn a_download_that_fails_while_the_cancel_flag_is_set_is_not_reported_as_stopped() {
+    use std::io::{BufRead, BufReader, Write};
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}/sam3", l.local_addr().unwrap());
+    let (arrived, arrived_rx) = std::sync::mpsc::channel::<()>();
+    let (go, go_rx) = std::sync::mpsc::channel::<()>();
+    std::thread::spawn(move || {
+        for mut c in l.incoming().flatten() {
+            let mut r = BufReader::new(c.try_clone().unwrap());
+            let mut line = String::new();
+            while r.read_line(&mut line).unwrap_or(0) > 2 {
+                line.clear();
+            }
+            let _ = arrived.send(());
+            let _ = go_rx.recv_timeout(Duration::from_secs(10));
+            let _ = c.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 13\r\nConnection: close\r\n\r\n<h1>404</h1>\n");
+        }
+    });
+    let dir = tmp("download-cancel-then-404");
+    let mirrors = dir.with_extension("cancel-404-mirrors.txt");
+    std::fs::write(&mirrors, format!("# test mirror\n{base}\n")).unwrap();
+    let mut s = Session::with_demo();
+    s.segmenter.dir = Some(dir.clone());
+    s.segmenter.mirrors_file = Some(mirrors.clone());
+    assert_eq!(s.execute("segment.model.download", &json!({"acknowledged": true})).unwrap()["started"], true);
+    arrived_rx.recv_timeout(Duration::from_secs(10)).expect("the mirror was asked");
+    let rows = s.activity.list();
+    assert_eq!(rows.len(), 1);
+    s.execute("activity.cancel", &json!({"id": rows[0].id})).unwrap();
+    let _ = go.send(());
+    let t = Instant::now();
+    while s.segmenter.download_status().running || !s.activity.list().is_empty() {
+        assert!(t.elapsed() < Duration::from_secs(10), "the download never ended");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let st = s.segmenter.download_status();
+    assert!(!st.cancelled, "an error that is not a cancel is not reported as one: {st:?}");
+    let finished = s.activity.finished();
+    assert_eq!(finished.len(), 1);
+    assert_eq!(finished[0].ending, crate::activity::Ending::Failed, "{:?}", finished[0]);
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_file(&mirrors);
+}
+
 #[cfg(feature = "sam")]
 #[test]
 fn a_running_model_download_shows_in_activity_and_cancels() {
