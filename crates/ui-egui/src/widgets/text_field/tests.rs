@@ -30,6 +30,8 @@ struct Rig {
     sweep: bool,
     /// As a caller does, `start` follows the text on a frame no edit is under way (the saved value).
     adopts: bool,
+    /// What the field's text is for (`saves_with`'s target): a caller shows another photo's, say.
+    target: u8,
 }
 
 impl Rig {
@@ -50,6 +52,7 @@ impl Rig {
             swept: vec![],
             sweep: true,
             adopts: false,
+            target: 0,
         };
         rig.frame(vec![]);
         rig
@@ -66,14 +69,16 @@ impl Rig {
         let mut raw = HeadlessView::raw_input(egui::vec2(400.0, 300.0), 1.0, self.time, events);
         raw.focused = self.window_focused;
         let (text, select, shown, endings, editing) = (&mut self.text, self.select_on_focus, self.shown, &mut self.endings, &mut self.editing);
-        let (declares, start, saved, swept, sweep) = (self.declares, &self.start, &mut self.saved, &mut self.swept, self.sweep);
+        let (declares, start, saved, swept, sweep, target) = (self.declares, &self.start, &mut self.saved, &mut self.swept, self.sweep, &self.target);
         self.view.run(raw, |ui| {
             ui.add_space(20.0);
             if shown {
                 let start = start.as_str();
                 let field = TextField::singleline(FIELD, text).width(200.0).select_on_focus(select);
                 let field = if declares {
-                    field.saves_with(|typed| (typed != start).then(|| Save { command: "city.set", params: serde_json::json!({ "city": typed }) }))
+                    field.saves_with(*target, |typed| {
+                        (typed != start).then(|| Save { command: "city.set", params: serde_json::json!({ "city": typed }) })
+                    })
                 } else {
                     field
                 };
@@ -632,4 +637,26 @@ fn a_save_is_kept_across_a_pass_that_was_thrown_away() {
     rig.frame(vec![]);
     assert!(rig.saved.is_empty(), "the field was not in an edit to hand it over");
     assert_eq!(rig.swept, vec![city("Rome")], "the sweep ran it");
+}
+
+/// The field is drawn for another target than its edit under way (the caller shows another photo's
+/// text): the edit ends there and its save, made for the first target, is left for the sweep; the
+/// field goes on from the new target's text, which Esc gives back and leaving saves nothing for.
+#[test]
+fn a_field_drawn_for_another_target_ends_its_edit_and_leaves_its_save_for_the_sweep() {
+    let mut rig = saving_rig();
+    rig.type_text("Rome");
+    assert!(rig.swept.is_empty(), "the field is still drawn for its target");
+    rig.target = 1;
+    rig.text = "Paris".into();
+    rig.start = "Paris".into();
+    rig.frame(vec![]);
+    assert_eq!(rig.swept, vec![city("Rome")], "the first target's text, as it was typed");
+    assert!(!rig.editing, "no edit is under way on the frame the target changed");
+    rig.settle();
+    assert!(rig.editing && rig.focused(), "the focus is still in the field: a new edit");
+    assert!(take_all(&rig.view.ctx).is_empty(), "nothing typed for the new target");
+    rig.key(Key::Escape, Modifiers::NONE);
+    assert_eq!(rig.text, "Paris", "Esc gives back the new target's text");
+    assert!(rig.saved.is_empty() && rig.swept.len() == 1, "and nothing else was saved");
 }

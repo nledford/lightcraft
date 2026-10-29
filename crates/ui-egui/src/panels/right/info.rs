@@ -141,12 +141,12 @@ pub(super) fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let library = app.session.library_generation();
         let mut edit = ui
             .data(|d| d.get_temp::<FieldEdit>(gid))
-            .filter(|e| e.library == library)
+            .filter(|e| e.is_for(library, &targets))
             .unwrap_or_else(|| FieldEdit::new(&gps, gps_mixed, &targets, library));
         let hint = crate::i18n::tr(if gps_mixed { MIXED } else { "latitude, longitude" });
         let (ids, start, clears) = (edit.ids.clone(), edit.start.clone(), edit.clears());
         let r = crate::text_field::TextField::singleline("field:gps", &mut edit.text)
-            .saves_with(|text| {
+            .saves_with((library, &ids), |text| {
                 let text = text.trim();
                 (text != start || clears).then(|| crate::text_field::Save { command: "photo.setMeta", params: json!({"ids": ids, "gps": text}) })
             })
@@ -308,8 +308,9 @@ const MIXED: &str = "Mixed";
 /// An Info panel field's edit under way, kept in egui memory between frames. A field saves when
 /// its text is not the text the edit started from, so a field left as it was saves nothing, even
 /// when what the panel shows changed during the edit. It saves to the photos it edited when the
-/// edit started (the selected photos, or Target Photo's photo alone), also when the selection
-/// changed since.
+/// edit started (the selected photos, or Target Photo's photo alone). When those change (another
+/// active photo, another selection), the edit ends there, saved to them, and the field shows the
+/// new photos' value: it is never typed text for one photo shown under another.
 #[derive(Clone)]
 struct FieldEdit {
     text: String,
@@ -329,6 +330,11 @@ impl FieldEdit {
     fn new(value: &str, mixed: bool, targets: &[PhotoId], library: u64) -> Self {
         let ids = targets.iter().map(|id| id.0).collect();
         FieldEdit { text: value.to_string(), start: value.to_string(), ids, mixed, typed: false, library }
+    }
+
+    /// The edit is for this library and these photos: another selection or active photo is another edit.
+    fn is_for(&self, library: u64, targets: &[PhotoId]) -> bool {
+        self.library == library && self.ids.iter().copied().eq(targets.iter().map(|id| id.0))
     }
 
     /// A Mixed field that was typed in and left empty: it clears the field on every selected photo.
@@ -458,8 +464,10 @@ fn meta_field(app: &mut LightcraftApp, ui: &mut egui::Ui, label: &str, key: &str
     let id = egui::Id::unique(("info-field", key));
     let value = if mixed { "" } else { value };
     let library = app.session.library_generation();
-    let mut edit =
-        ui.data(|d| d.get_temp::<FieldEdit>(id)).filter(|e| e.library == library).unwrap_or_else(|| FieldEdit::new(value, mixed, targets, library));
+    let mut edit = ui
+        .data(|d| d.get_temp::<FieldEdit>(id))
+        .filter(|e| e.is_for(library, targets))
+        .unwrap_or_else(|| FieldEdit::new(value, mixed, targets, library));
     // (saved when the edit ends, however it ends but Esc; also if the field is not drawn again)
     let (ids, start, clears) = (edit.ids.clone(), edit.start.clone(), edit.clears());
     let widget = format!("field:{key}");
@@ -470,7 +478,7 @@ fn meta_field(app: &mut LightcraftApp, ui: &mut egui::Ui, label: &str, key: &str
     };
     let field = if mixed { field.hint(crate::i18n::tr(MIXED)) } else { field };
     let r = field
-        .saves_with(|text| {
+        .saves_with((library, &ids), |text| {
             (text != start || clears).then(|| crate::text_field::Save { command: "photo.setMeta", params: json!({"ids": ids, key: text}) })
         })
         .label(crate::i18n::tr(label))

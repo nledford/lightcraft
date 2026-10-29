@@ -316,6 +316,25 @@ fn a_flush_ends_the_edit_whose_box_stays_drawn() {
     }
 }
 
+/// The active photo changes under a box that stays drawn (Select by, an agent's `library.select`):
+/// the text typed is saved to the photo it was typed for, and the box shows the new photo's value,
+/// not the old photo's draft, which Return would save to the old photo.
+#[test]
+fn a_change_of_the_active_photo_mid_edit_saves_to_the_photo_typed_for_and_shows_the_new_ones_text() {
+    let (mut h, a) = typing_in_title("Rome");
+    let b = h.app.session.visible_cloned()[1].0;
+    h.app.run("photo.setMeta", json!({"ids": [b], "title": "Paris"})).unwrap();
+    let r = h.request("engine.execute", json!({"command": "library.select", "params": {"ids": [b]}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    steps(&mut h);
+    assert!(has(&h, "field:title"), "the box stays drawn, for the new photo");
+    assert_eq!(title(&h, a), "Rome", "the text typed for the first photo was saved to it when the photo changed");
+    assert_eq!(title(&h, b), "Paris");
+    key(&mut h, egui::Key::Enter);
+    assert_eq!(title(&h, b), "Paris", "Return saves nothing for the new photo: the box showed its own text");
+    assert_eq!(title(&h, a), "Rome");
+}
+
 /// Esc still gives the edit up: the text is back and nothing is saved.
 #[test]
 fn esc_still_discards_the_edit() {

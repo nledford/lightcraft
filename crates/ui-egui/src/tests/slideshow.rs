@@ -708,6 +708,164 @@ fn settings_shows_the_overlays_and_the_preview_follows_them() {
     h.settle(SETTLE);
 }
 
+/// A text overlay removed from outside (the control channel, MCP) while its template is being edited
+/// stays removed: the box goes away, and the save the sweep then runs for it is refused rather than
+/// sending the list as it was, which would bring the overlay back.
+#[test]
+fn a_text_overlay_removed_while_its_template_is_edited_does_not_come_back() {
+    let mut h = grid();
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    run(&mut h, "slideshow.overlays", json!({"addText": {"text": "{title}"}}));
+    h.step();
+    h.step();
+    reveal(&mut h, "field:slideshowText0");
+    let r = h.request("ui.clickWidget", json!({"id": "field:slideshowText0"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.text", json!({"text": "{caption}"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    assert_eq!(h.app.session.slide_overlays.texts[0].text, "{title}", "nothing is saved while the edit is under way");
+    run(&mut h, "slideshow.overlays", json!({"removeText": 0}));
+    for _ in 0..4 {
+        h.step();
+    }
+    assert!(!h.app.widgets.iter().any(|(id, _)| id == "field:slideshowText0"), "the box is gone with its overlay");
+    assert!(h.app.session.slide_overlays.texts.is_empty(), "the overlay came back: {:?}", h.app.session.slide_overlays.texts);
+    h.request_close();
+    h.step();
+    assert!(h.app.session.slide_overlays.texts.is_empty(), "and the window closing brought it back");
+}
+
+/// Text overlay 0 is being edited and removed from outside while another overlay is below it: the
+/// box stays drawn, now for the other overlay. The text typed for the removed one is not written to
+/// the other, however the edit then ends.
+#[test]
+fn a_text_edited_for_an_overlay_that_another_took_the_place_of_is_not_written_to_the_other() {
+    let mut h = grid();
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    run(&mut h, "slideshow.overlays", json!({"texts": [{"text": "{title}"}, {"text": "{iso}"}]}));
+    h.step();
+    h.step();
+    reveal(&mut h, "field:slideshowText0");
+    let r = h.request("ui.clickWidget", json!({"id": "field:slideshowText0"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.text", json!({"text": "{caption}"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    run(&mut h, "slideshow.overlays", json!({"removeText": 0}));
+    for _ in 0..4 {
+        h.step();
+    }
+    let r = h.request("ui.key", json!({"key": "Enter"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        h.step();
+    }
+    let texts: Vec<String> = h.app.session.slide_overlays.texts.iter().map(|t| t.text.clone()).collect();
+    assert_eq!(texts, ["{iso}"], "the text typed for the removed overlay went to the one that took its index");
+}
+
+/// Two overlays read the same text; the one being edited is removed, so the other moves up into its
+/// index with the same text. The box is still for the same text, but not for the same list: what was
+/// typed is not written to the overlay that moved up.
+#[test]
+fn a_text_edited_for_an_overlay_whose_twin_moved_into_its_place_is_not_written_to_the_twin() {
+    let mut h = grid();
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    run(&mut h, "slideshow.overlays", json!({"texts": [{"text": "{file}"}, {"text": "{file}"}]}));
+    h.step();
+    h.step();
+    reveal(&mut h, "field:slideshowText0");
+    let r = h.request("ui.clickWidget", json!({"id": "field:slideshowText0"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.text", json!({"text": "{caption}"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    run(&mut h, "slideshow.overlays", json!({"removeText": 0}));
+    for _ in 0..4 {
+        h.step();
+    }
+    let r = h.request("ui.key", json!({"key": "Enter"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        h.step();
+    }
+    let texts: Vec<String> = h.app.session.slide_overlays.texts.iter().map(|t| t.text.clone()).collect();
+    assert_eq!(texts, ["{file}"], "the text typed for the removed overlay went to its twin");
+}
+
+/// An overlay is added at the end (by a command) while Text 1 is typed in: the box's list changed
+/// under it, but index 0 is the same overlay, so the text typed is saved, not lost to a refusal.
+#[test]
+fn a_text_typed_while_an_overlay_is_added_at_the_end_is_saved() {
+    let mut h = grid();
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    run(&mut h, "slideshow.overlays", json!({"texts": [{"text": "{title}"}]}));
+    h.step();
+    h.step();
+    reveal(&mut h, "field:slideshowText0");
+    let r = h.request("ui.clickWidget", json!({"id": "field:slideshowText0"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.text", json!({"text": "{caption}"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    run(&mut h, "slideshow.overlays", json!({"addText": {}}));
+    for _ in 0..4 {
+        h.step();
+    }
+    let r = h.request("ui.key", json!({"key": "Enter"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        h.step();
+    }
+    let texts: Vec<String> = h.app.session.slide_overlays.texts.iter().map(|t| t.text.clone()).collect();
+    assert_eq!(texts, ["{title}{caption}", "{file}"], "the text typed was lost when an overlay was added");
+}
+
+/// A template is applied while an overlay's template text is being typed in: the Template Browser is
+/// drawn above the box, so the template's overlays replace the one the text was for before the box
+/// is drawn again. The text is saved first, into what "Previous settings" brings back, and no error
+/// is shown for it.
+#[test]
+fn applying_a_template_while_an_overlay_text_is_edited_saves_the_edit_first() {
+    let mut h = grid();
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    run(&mut h, "slideshow.overlays", json!({"texts": [{"text": "{title}"}]}));
+    h.step();
+    h.step();
+    reveal(&mut h, "field:slideshowText0");
+    let r = h.request("ui.clickWidget", json!({"id": "field:slideshowText0"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.text", json!({"text": "x"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    reveal(&mut h, "template:builtin:gallery-wall");
+    let r = h.request("ui.clickWidget", json!({"id": "template:builtin:gallery-wall"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        h.step();
+    }
+    let typed = h.app.session.slide_templates_previous.as_ref().map(|look| look.overlays.texts.iter().map(|t| t.text.clone()).collect::<Vec<_>>());
+    assert!(typed.as_ref().is_some_and(|t| t.len() == 1 && t[0].contains('x')), "the text typed is not in Previous settings: {typed:?}");
+    let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
+    assert!(!toast.contains("text overlay"), "the applied template raised an error for the typed text: {toast}");
+}
+
 /// Shows the playback controls (the pointer moves over the canvas).
 fn show_controls(h: &mut Headless) {
     for fx in [0.3, 0.6] {

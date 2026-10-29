@@ -538,7 +538,7 @@ pub fn manage_body(
                         let r = crate::text_field::TextField::singleline("field:effectRename", text)
                             .width(220.0)
                             .select_on_focus(true)
-                            .saves_with(|typed| {
+                            .saves_with(old.as_str(), |typed| {
                                 let to = typed.trim();
                                 (!to.is_empty() && to != old.as_str())
                                     .then(|| crate::text_field::Save { command: "mask.renameEffect", params: json!({"name": old, "to": to}) })

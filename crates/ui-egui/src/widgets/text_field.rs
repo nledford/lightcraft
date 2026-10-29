@@ -73,6 +73,7 @@ pub struct TextField<'a> {
     select_on_focus: bool,
     begin_edit: bool,
     saves: Option<SaveWith<'a>>,
+    target: u64,
     frame: bool,
     font: Option<egui::FontId>,
     color: Option<egui::Color32>,
@@ -95,10 +96,10 @@ pub(crate) fn was_editing(ctx: &egui::Context, widget: &str) -> bool {
 /// A field's declaration of its save ([`TextField::saves_with`]).
 type SaveWith<'a> = Box<dyn FnOnce(&str) -> Option<Save> + 'a>;
 
-/// The saves of edits under way, in the order they were recorded: the field's id, the pass it
-/// was last drawn in, and what it saves.
+/// The saves of edits under way, in the order they were recorded: the field's id, what its text is
+/// for ([`TextField::saves_with`]), the pass it was last drawn in, and what it saves.
 #[derive(Clone, Default)]
-struct Unfinished(Vec<(egui::Id, u64, Save)>);
+struct Unfinished(Vec<(egui::Id, u64, u64, Save)>);
 
 /// The save of an edit taken from the record to be run ([`take_left_behind`], [`take_all`]): once it
 /// succeeds, [`end_edits`] tells the field its edit is over.
@@ -125,17 +126,27 @@ fn unfinished_id() -> egui::Id {
     egui::Id::unique("lc-text-field-unfinished")
 }
 
-/// Record (or, with `None`, forget) the save of the field `id` drawn in `pass`. Only an entry from
-/// the pass just before is forgotten: an older one means the field was not drawn since (a pass
-/// egui discarded, a panel switched away), so it is for the sweep to run, not for the field to drop.
-fn record(ctx: &egui::Context, id: egui::Id, pass: u64, save: Option<Save>) {
+/// A key for what a field's text is for ([`TextField::saves_with`]).
+pub(crate) fn target_key(target: &impl std::hash::Hash) -> u64 {
+    use std::hash::Hasher;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    target.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Record (or, with `None`, forget) the save of the field `id` for `target`, drawn in `pass`. Only
+/// an entry from the pass just before is forgotten: an older one means the field was not drawn
+/// since (a pass egui discarded, a panel switched away), so it is for the sweep to run, not for
+/// the field to drop. An entry for another target of the same field is left alone: that edit was
+/// for something else, and it is the sweep's.
+fn record(ctx: &egui::Context, id: egui::Id, target: u64, pass: u64, save: Option<Save>) {
     ctx.data_mut(|d| {
         let list = &mut d.get_temp_mut_or_default::<Unfinished>(unfinished_id()).0;
-        match (list.iter().position(|(other, ..)| *other == id), save) {
-            (Some(at), Some(save)) => list[at] = (id, pass, save),
-            (None, Some(save)) => list.push((id, pass, save)),
+        match (list.iter().position(|(other, t, ..)| *other == id && *t == target), save) {
+            (Some(at), Some(save)) => list[at] = (id, target, pass, save),
+            (None, Some(save)) => list.push((id, target, pass, save)),
             (Some(at), None) => {
-                if list[at].1.checked_add(1) == Some(pass) {
+                if list[at].2.checked_add(1) == Some(pass) {
                     list.remove(at);
                 }
             }
@@ -144,15 +155,15 @@ fn record(ctx: &egui::Context, id: egui::Id, pass: u64, save: Option<Save>) {
     });
 }
 
-/// Take the saves of the edits whose field was not drawn in the pass that is ending: each went
-/// away mid-edit, and what is taken is no longer recorded.
+/// Take the saves of the edits whose field was not drawn in the pass that is ending, or was drawn
+/// for another target: each went away mid-edit, and what is taken is no longer recorded.
 pub(crate) fn take_left_behind(ctx: &egui::Context) -> Vec<Pending> {
     let pass = ctx.cumulative_pass_nr();
     ctx.data_mut(|d| {
         let list = &mut d.get_temp_mut_or_default::<Unfinished>(unfinished_id()).0;
-        let (gone, kept): (Vec<_>, Vec<_>) = std::mem::take(list).into_iter().partition(|(_, at, _)| *at != pass);
+        let (gone, kept): (Vec<_>, Vec<_>) = std::mem::take(list).into_iter().partition(|(_, _, at, _)| *at != pass);
         *list = kept;
-        gone.into_iter().map(|(id, _, save)| Pending { id, save }).collect()
+        gone.into_iter().map(|(id, _, _, save)| Pending { id, save }).collect()
     })
 }
 
@@ -165,8 +176,28 @@ pub(crate) fn any_unfinished(ctx: &egui::Context) -> bool {
 pub(crate) fn take_all(ctx: &egui::Context) -> Vec<Pending> {
     ctx.data_mut(|d| {
         let list = std::mem::take(&mut d.get_temp_mut_or_default::<Unfinished>(unfinished_id()).0);
-        list.into_iter().map(|(id, _, save)| Pending { id, save }).collect()
+        list.into_iter().map(|(id, _, _, save)| Pending { id, save }).collect()
     })
+}
+
+/// What a box shows while its edit is under way: the text typed, kept between frames for the
+/// `target` it was typed for (the library, the photo, the overlay). Another target is another edit:
+/// the box then shows `value`, as when no edit is under way.
+pub(crate) fn draft(ui: &Ui, key: impl std::hash::Hash + std::fmt::Debug, target: &impl std::hash::Hash, value: &str) -> String {
+    let at = target_key(target);
+    let draft = ui.data(|d| d.get_temp::<(u64, String)>(egui::Id::unique(("lc-text-field-draft", &key))));
+    draft.filter(|(t, _)| *t == at).map_or_else(|| value.to_owned(), |(_, text)| text)
+}
+
+/// Keep the text of an edit under way as the [`draft`] for `target` (or, once no edit is under
+/// way, forget it).
+pub(crate) fn keep_draft(ui: &Ui, key: impl std::hash::Hash + std::fmt::Debug, target: &impl std::hash::Hash, editing: bool, text: &str) {
+    let id = egui::Id::unique(("lc-text-field-draft", &key));
+    if editing {
+        ui.data_mut(|d| d.insert_temp(id, (target_key(target), text.to_owned())));
+    } else {
+        ui.data_mut(|d| d.remove::<(u64, String)>(id));
+    }
 }
 
 impl<'a> TextField<'a> {
@@ -182,6 +213,7 @@ impl<'a> TextField<'a> {
             select_on_focus: false,
             begin_edit: false,
             saves: None,
+            target: 0,
             frame: true,
             font: None,
             color: None,
@@ -207,7 +239,15 @@ impl<'a> TextField<'a> {
     /// view changed must not depend on the view: its command is `always` enabled or it saves to
     /// the ids captured when the edit started; a new opt-in keeps to that. A save that ran from
     /// outside the field (the window's close) ends the edit of a field still drawn ([`end_edits`]).
-    pub fn saves_with(mut self, save: impl FnOnce(&str) -> Option<Save> + 'a) -> Self {
+    ///
+    /// `target` is what the text is for: the library, the photos, the overlay, anything that
+    /// makes the same text another edit when it differs. A field drawn for another target than
+    /// its edit under way ends that edit there; the pass did not record it again, so the sweep
+    /// runs its save, made for the first target, and the field starts afresh on the new one. The
+    /// save names its target too (ids, an index with the text it had), and the engine refuses one
+    /// that is gone or changed rather than write to the wrong one or bring it back.
+    pub fn saves_with(mut self, target: impl std::hash::Hash, save: impl FnOnce(&str) -> Option<Save> + 'a) -> Self {
+        self.target = target_key(&target);
         self.saves = Some(Box::new(save));
         self
     }
@@ -382,9 +422,11 @@ impl<'a> TextField<'a> {
             select_all(ui.ctx(), id, self.text);
         }
 
-        // an edit whose save ran while the field stayed drawn (the window's close, a library switch that
-        // did not happen) is over, before anything below can end it a second time
-        let flushed = memo.end_if_flushed(self.text, pass, focused);
+        // an edit that is over before this frame (its save ran while the field stayed drawn: the window's
+        // close, a library switch that did not happen) or was for another target (the field now shows
+        // another photo's text) ends here, before anything below can end it a second time; the sweep
+        // runs the save of one for another target, which the pass did not record again
+        let ended_here = memo.end_if_over(self.text, pass, focused, self.saves.is_some().then_some(self.target));
         track_edit_start(&mut memo, ui, id, self.text, self.select_on_focus, focused, response.lost_focus());
         let menu_was_open = memo.menu_open;
         // a click on a greyed-out item does nothing, as in a native menu: only a choice or a click
@@ -432,7 +474,7 @@ impl<'a> TextField<'a> {
         if ending.is_some() {
             memo = Memo { pass, ..Memo::default() };
         }
-        let editing = !flushed && ending.is_none() && (focused || memo.away || memo.menu_open || memo.action.is_some());
+        let editing = !ended_here && ending.is_none() && (focused || memo.away || memo.menu_open || memo.action.is_some());
         // the save the field declares from its text now: recorded while the edit is under way (to
         // be run if the field is not drawn again), handed over once, with the text kept, when it ends
         let kept = matches!(ending, Some(Ending::Return | Ending::Away));
@@ -440,7 +482,7 @@ impl<'a> TextField<'a> {
         memo.recorded = recorded_text(declared.as_ref(), editing, self.text);
         ui.data_mut(|d| d.insert_temp(id.with("memo"), memo));
         let save = if kept { declared.clone() } else { None };
-        record(ui.ctx(), id, pass, declared.filter(|_| editing));
+        record(ui.ctx(), id, self.target, pass, declared.filter(|_| editing));
         TextFieldResponse { response, ending, editing, save }
     }
 }
@@ -494,18 +536,24 @@ struct Memo {
     /// The save ran from outside the field ([`end_edits`]): the edit ends on the next frame that
     /// shows `recorded` again.
     flushed: bool,
+    /// What the text was for, the last frame it was drawn ([`TextField::saves_with`]).
+    target: Option<u64>,
 }
 
 impl Memo {
-    /// Take the [`end_edits`] mark: the edit is over (the memo starts afresh) when the field still
-    /// shows the text that was saved. A field that keeps the focus goes on from that text as a new
-    /// edit (Esc gives back what was saved; it is not a new focus, so nothing is selected).
-    fn end_if_flushed(&mut self, text: &str, pass: u64, focused: bool) -> bool {
-        let ended = std::mem::take(&mut self.flushed) && self.recorded.as_deref() == Some(text);
-        if ended {
-            *self = Memo { pass, before: focused.then(|| text.to_owned()), ..Memo::default() };
+    /// Whether the edit under way is over before this frame: its save ran from outside and the field
+    /// still shows the text that was saved ([`end_edits`]), or the field is now for another
+    /// `target` (another photo, library, overlay) than the edit was. The memo then starts afresh.
+    /// A field that keeps the focus goes on from the text it shows as a new edit (Esc gives back
+    /// that text; it is not a new focus, so nothing is selected).
+    fn end_if_over(&mut self, text: &str, pass: u64, focused: bool, target: Option<u64>) -> bool {
+        let saved = std::mem::take(&mut self.flushed) && self.recorded.as_deref() == Some(text);
+        let moved = self.before.is_some() && self.target.is_some() && target.is_some() && self.target != target;
+        if saved || moved {
+            *self = Memo { pass, before: focused.then(|| text.to_owned()), target, ..Memo::default() };
         }
-        ended
+        self.target = target;
+        saved || moved
     }
 }
 
