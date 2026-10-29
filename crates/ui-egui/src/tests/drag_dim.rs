@@ -192,3 +192,65 @@ fn a_dragged_photos_selection_ring_is_not_dimmed() {
         assert_eq!(ring_brightest(&during), ring_brightest(&before), "photo {id}: the selection ring keeps its brightness");
     }
 }
+
+/// The picture's own rectangle in the square grid's cell: a thumbnail is letterboxed inside it.
+fn square_image_area(cell: egui::Rect) -> egui::Rect {
+    egui::Rect::from_min_max(cell.min + egui::vec2(10.0, 24.0), cell.max - egui::vec2(10.0, 10.0))
+}
+
+#[test]
+fn the_dimming_covers_the_picture_and_not_the_letterbox_around_it() {
+    // Given the square grid, where a 4:3 thumbnail leaves a band above and below it inside its cell
+    let mut h = app(ViewMode::SquareGrid);
+    let before = h.paint();
+    let during = carry(&mut h);
+    for id in [1, 2] {
+        let cell = h.app.widgets.iter().find(|(w, _)| *w == format!("thumb:{id}")).unwrap().1;
+        let img = square_image_area(cell);
+        let [tw, th] = h.app.renderer.thumb(PhotoId(id)).unwrap().size;
+        let scale = (img.width() / tw as f32).min(img.height() / th as f32);
+        let gap = (img.height() - th as f32 * scale) / 2.0;
+        assert!(gap > 6.0, "the fixture's thumbnails are letterboxed");
+        // Then the picture is darker, and the band beside it (clear of the selection ring) is as it was
+        let band = Pos2::new(img.center().x, img.top() + 1.0);
+        assert_eq!(pixel(&during, band), pixel(&before, band), "photo {id}: the letterbox band is not dimmed");
+        assert!(brightness(pixel(&during, centre(&h, id))) < brightness(pixel(&before, centre(&h, id))), "photo {id}: the picture is dimmed");
+    }
+}
+
+#[test]
+fn the_dimming_covers_a_placeholder_and_not_the_cell_around_it() {
+    // Given the square grid and two selected photos whose files are missing: a skeleton is drawn, not a picture
+    let mut s = lightcraft_engine::Session::new();
+    for id in 1..=6 {
+        let p = Photo::new(
+            PhotoId(id),
+            Source::File { path: format!("/nonexistent/lightcraft-drag-dim/{id}.jpg") },
+            &format!("{id}.jpg"),
+            "JPEG",
+            640,
+            480,
+            "2026-10-08",
+        );
+        s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    }
+    s.execute("library.sort", &json!({"key": "fileName", "ascending": true, "group": "none"})).unwrap();
+    s.execute("library.select", &json!({"ids": [1, 2]})).unwrap();
+    let mut h = Headless::new(LightcraftApp::new(s, Services { png: None, ..Default::default() }), [1200.0, 800.0], 1.0);
+    h.app.ui.view = ViewMode::SquareGrid;
+    h.app.ui.right = crate::state::RightPanel::None;
+    h.app.ui.thumb_size = 160.0;
+    assert!(h.settle(SETTLE), "fixture did not settle");
+    assert!(h.app.renderer.thumb(PhotoId(1)).is_none(), "no picture: the skeleton is what is drawn");
+    let before = h.paint();
+    let during = carry(&mut h);
+    for id in [1, 2] {
+        let cell = h.app.widgets.iter().find(|(w, _)| *w == format!("thumb:{id}")).unwrap().1;
+        let img = square_image_area(cell);
+        // Then the skeleton (inset 20 points from the picture area) is darker, the area around it is as it was
+        let outside = Pos2::new(img.center().x, img.top() + 4.0);
+        assert_eq!(pixel(&during, outside), pixel(&before, outside), "photo {id}: the area around the skeleton is not dimmed");
+        let inside = Pos2::new(img.left() + 24.0, img.top() + 24.0);
+        assert!(brightness(pixel(&during, inside)) < brightness(pixel(&before, inside)), "photo {id}: the skeleton is dimmed");
+    }
+}
