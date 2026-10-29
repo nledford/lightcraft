@@ -127,7 +127,7 @@ fn measure(kind: ThemeKind) -> Vec<Pair> {
     };
     let (text, graphic) = (Need::Text, Need::Graphic);
     // Constants the widgets paint in every theme: the grid's selection rings and its chips.
-    let (white_ring, grey_ring, chip, slab) = (Color32::WHITE, Color32::from_gray(170), Color32::from_gray(26), Color32::from_gray(38));
+    let (white_ring, grey_ring, chip) = (Color32::WHITE, Color32::from_gray(170), Color32::from_gray(26));
     // A row the pointer is over in the sidebar: the hover fill at 60 % over the panel.
     let hovered_row = over(t.chrome, t.hover, 0.6);
 
@@ -252,13 +252,16 @@ fn measure(kind: ThemeKind) -> Vec<Pair> {
     add("mark: reject flag on bottom pill", graphic, t.reject, t.canvas, "the Reject flag of the bottom bar's pill (bottombar.rs)");
     add("mark: caution icon on canvas", graphic, t.caution, t.canvas, "the Preview only card (widgets.rs)");
     add("mark: dim star on inset", graphic, t.text_dim, t.inset, "a theme card's star that is not a favourite (settings.rs)");
-    add("mark: failure on thumbnail slab", graphic, t.text_dim, slab, "the \"!\" of a thumbnail that could not be read (grid.rs)");
+    add("mark: failure on empty thumbnail", graphic, t.text, t.skeleton, "the \"!\" of a thumbnail that could not be read (panels/grid.rs)");
+    // (a light theme's skeleton is itself mid-grey: the ring of a selected empty thumbnail takes the dim text color there)
+    let empty_ring = if t.skeleton.r() > 0x80 { t.text_dim } else { grey_ring };
+    add("ring: selected empty thumbnail", graphic, empty_ring, t.skeleton, "the ring round a selected thumbnail that is not drawn yet (panels/grid.rs)");
     add("state: hidden eye on panel", graphic, t.text_disabled, t.chrome, "an effect's eye when it is off (widgets.rs, edit.rs)");
     // Sliders and progress.
     add("slider: track on panel", graphic, t.track, t.chrome, "the track of a Develop slider (widgets.rs)");
     add("slider: thumb on panel", graphic, t.thumb, t.chrome, "the thumb's ring (widgets.rs)");
     add("slider: thumb in use on panel", graphic, t.thumb_hover, t.chrome, "the thumb's ring under the pointer (widgets.rs)");
-    add("progress: bar on its track", graphic, t.accent, t.field, "the Activity panel's progress bar (activity.rs)");
+    add("progress: bar on its track", graphic, t.accent, t.inset, "the Activity panel's progress bar (widgets/progress.rs)");
     pairs
 }
 
