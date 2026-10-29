@@ -89,6 +89,8 @@ pub struct HeadlessView {
     pub clipboard: String,
     /// Events the host owes the next frame (a paste request's paste, as a desktop host sends it).
     owed: Vec<egui::Event>,
+    /// When the last frame asked to be run again (`Duration::MAX`: only on input or an explicit repaint).
+    pub repaint_after: Duration,
 }
 
 impl Default for HeadlessView {
@@ -111,6 +113,7 @@ impl HeadlessView {
             frames: 0,
             clipboard: String::new(),
             owed: vec![],
+            repaint_after: Duration::MAX,
         }
     }
 
@@ -162,7 +165,9 @@ impl HeadlessView {
                 self.clipboard.clone_from(text);
             }
         }
-        let mut commands = out.viewport_output.remove(&ViewportId::ROOT).map(|v| v.commands).unwrap_or_default();
+        let viewport = out.viewport_output.remove(&ViewportId::ROOT);
+        self.repaint_after = viewport.as_ref().map_or(Duration::MAX, |v| v.repaint_delay);
+        let mut commands = viewport.map(|v| v.commands).unwrap_or_default();
         // 0.37: `ViewportCommand::Screenshot` carries a one-shot callback. A headless host answers
         // it here, after the pass it was issued in, exactly once.
         let mut shots = Vec::new();

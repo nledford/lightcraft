@@ -10,7 +10,7 @@ pub struct LibraryCounts {
 
 /// How often every library photo's file is checked for the Missing Photos count (each one once,
 /// after whatever the panels ask: a library on a share is not checked over and over).
-const SWEEP_SECONDS: f64 = 300.0;
+pub(crate) const SWEEP_SECONDS: f64 = 300.0;
 
 /// The values the filter bar's pickers offer.
 #[derive(Clone, Debug, Default)]

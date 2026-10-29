@@ -264,3 +264,23 @@ fn a_listing_thread_that_panics_still_clears_the_flag() {
         std::thread::sleep(Duration::from_millis(2));
     }
 }
+
+/// Given every file is there, the checks have ended and nothing else asks for frames (no card scan, no watched folder),
+/// When the app sits idle,
+/// Then the sidebar still asks for a frame no later than the next sweep is due, so the sweep isn't left waiting for unrelated activity.
+#[test]
+fn an_idle_app_still_asks_for_a_frame_by_the_time_the_next_sweep_is_due() {
+    let mut h = app(40, 0, Arc::new(|_: &str| true));
+    // (the card scan asks for a frame every few seconds while this is on, which would hide the gap)
+    h.app.session.import_defaults.show_on_card = false;
+    assert!(h.step_until(T, |h| h.app.session.media.availability.sweeping() == 0 && h.app.session.media.availability.pending() == 0));
+    // frames until nothing else asks for one within a few seconds (the renderer's idle trim does, once, for 3 s)
+    let t0 = std::time::Instant::now();
+    h.step();
+    while h.view.repaint_after < Duration::from_secs(10) && t0.elapsed() < T {
+        std::thread::sleep(Duration::from_millis(50));
+        h.step();
+    }
+    assert!(h.view.repaint_after >= Duration::from_secs(10), "frames were still asked for every few seconds after {T:?}: {:?}", h.view.repaint_after);
+    assert!(h.view.repaint_after <= Duration::from_secs(300), "no frame was asked for within the sweep interval: {:?}", h.view.repaint_after);
+}

@@ -393,6 +393,9 @@ pub(super) fn missing_count(app: &mut LightcraftApp, ui: &mut egui::Ui) -> usize
     } else if checking {
         // (a check that ends wakes nobody when every file is there: a frame now and then notes when it ended)
         ui.ctx().request_repaint_after(std::time::Duration::from_secs(2));
+    } else {
+        // idle: the next sweep is due after this long, and nothing else need ask for the frame that starts it
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(crate::caches::SWEEP_SECONDS));
     }
     n
 }
