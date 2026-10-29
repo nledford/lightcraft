@@ -373,21 +373,27 @@ fn a_clone_builds_its_own() {
     assert_current(&c);
 }
 
-/// The words of Text rules (not the search) read the same with the cache as without.
+/// The words of Text rules (not the search) read the same with the cache as without: what the fields give when each
+/// photo is read alone (a copy of a photo is not the catalog's own, so its text is not looked up), and what the
+/// kept text gives.
 #[test]
 fn text_rules_match_as_the_fields_do() {
     let c = library();
     let every_op = ["contains", "notContains", "is", "isNot", "startsWith", "endsWith", "isEmpty", "isNotEmpty"];
     let values =
         ["", "ōsaka", "TRIP TO", "kyōto japan", "ana lima", "zürich", "img_0001.jpg", "black and white", "ς", "i̇stanbul", "png", "re: 10:30 meeting"];
-    let before: Vec<Vec<usize>> =
-        every_op.iter().map(|op| values.iter().map(|v| c.photos().filter(|p| text_rule(op, v).matches(p, &c)).count()).collect()).collect();
+    assert!(!c.rule_text_made(), "nothing made the text yet");
     let after: Vec<Vec<usize>> = every_op.iter().map(|op| values.iter().map(|v| c.count(&text_rule(op, v))).collect()).collect();
-    assert_eq!(before, after);
-    assert!(c.photos().all(|p| c.rule_text_of(p).is_some()), "the first rule asked made the text");
+    assert!(c.rule_text_made(), "the first rule asked made the text");
+    let from_the_fields: Vec<Vec<usize>> = every_op
+        .iter()
+        .map(|op| values.iter().map(|v| c.photos().filter(|p| text_rule(op, v).matches(&Photo::clone(p), &c)).count()).collect())
+        .collect();
+    assert_eq!(from_the_fields, after);
+    assert!(after.iter().flatten().any(|&n| n > 0), "the rules found something");
     let again: Vec<Vec<usize>> =
         every_op.iter().map(|op| values.iter().map(|v| c.photos().filter(|p| text_rule(op, v).matches(p, &c)).count()).collect()).collect();
-    assert_eq!(before, again);
+    assert_eq!(after, again);
 }
 
 /// A smart album's count through the tally path (`album_contains`, one photo at a time) reads the
@@ -399,8 +405,9 @@ fn a_smart_album_count_reads_the_kept_text() {
     album.smart = Some(Box::new(text_rule("contains", "ōsaka")));
     c.apply(Op::AddAlbum { album }).unwrap();
     let one_by_one = |c: &Catalog| c.photos().filter(|p| c.album_contains(AlbumId(1), p)).count();
+    assert!(!c.rule_text_made(), "nothing made the text yet");
     assert_eq!(one_by_one(&c), 1);
-    assert!(c.photos().all(|p| c.rule_text_of(p).is_some()), "counting made the text");
+    assert!(c.rule_text_made(), "counting made the text");
     let mut meta = c.photo(PhotoId(3)).unwrap().meta.clone();
     meta.title = "Ōsaka again".into();
     c.apply(Op::SetMeta { id: PhotoId(3), meta: Box::new(meta) }).unwrap();

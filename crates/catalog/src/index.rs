@@ -1,12 +1,14 @@
 //! Lookups derived from the catalog's own data, so questions asked once per photo of a big library
-//! don't scan a list each time: which stack a photo is in, whether a regular album holds it.
+//! don't scan a list each time: which stack a photo is in, whether a regular album holds it, the lower-cased text
+//! the free-text search reads, and the text a smart album's Text rule reads (each made for every photo on first use).
 //!
 //! They are never saved (the on-disk format is unchanged). Each is built on first use from what
 //! the catalog holds, so a catalog read from a snapshot, replayed from the journal or cloned starts
 //! without them and builds them when asked. Once built, [`crate::Catalog::apply`] keeps them up to
 //! date: the ops that change stacks or album photos (`AddStack`, `RemoveStack`, `SetStack`,
 //! `AddAlbum`, `RemoveAlbum`, `SetAlbumPhotos`) update them as they apply, inverses and the
-//! rollback of a failed batch included, as those are ops too.
+//! rollback of a failed batch included, as those are ops too. The two texts follow every op that changes
+//! a photo's fields, and the photo moving to another place in memory.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
@@ -261,5 +263,12 @@ impl Catalog {
         let m = self.index.rule_text.get_or_init(|| self.photos.values().map(|p| (p.id, RuleText::of(p))).collect());
         let t = m.get(&p.id)?;
         (t.at == addr(p)).then_some(&*t.text)
+    }
+
+    /// Whether the Text rules' text has been made (asking for it makes it, so a test cannot look with
+    /// [`Catalog::rule_text_of`]).
+    #[cfg(test)]
+    pub(crate) fn rule_text_made(&self) -> bool {
+        self.index.rule_text.get().is_some()
     }
 }
