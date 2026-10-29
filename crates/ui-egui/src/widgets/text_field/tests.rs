@@ -549,19 +549,23 @@ fn a_save_run_from_outside_ends_the_edit_of_a_field_still_drawn() {
     }
 }
 
-/// Text typed after the save ran, before the field is drawn again, is a new edit that goes on; and
-/// a field that selects on focus does not select its text again, as it never took a new focus.
+/// Text typed after the save ran is a new edit that goes on, whether the field was drawn once more
+/// first or not; and a field that selects on focus does not select its text again, as it never
+/// took a new focus (the next key would replace the saved text).
 #[test]
 fn text_typed_after_a_save_run_from_outside_stays_an_edit() {
-    for select in [false, true] {
+    for (select, drawn_first) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut rig = saving_rig();
         rig.select_on_focus = select;
         rig.adopts = true;
         rig.type_text("Rome");
         let taken = take_all(&rig.view.ctx);
         end_edits(&rig.view.ctx, taken.iter().map(|p| p.id));
+        if drawn_first {
+            rig.settle();
+        }
         rig.type_text("!");
-        assert_eq!(rig.text, "Rome!", "select {select}");
+        assert_eq!(rig.text, "Rome!", "select {select}, drawn first {drawn_first}");
         assert_eq!(take_all(&rig.view.ctx).into_iter().map(|p| p.save).collect::<Vec<_>>(), vec![city("Rome!")]);
     }
 }
