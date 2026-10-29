@@ -138,9 +138,12 @@ fn a_row_out_of_room_for_a_moment_keeps_its_thumbnails() {
     // a resize past the threshold and back: no new worker, no placeholders flashing back
     let mut h = headless(library("resize"), [1600.0, 1000.0]);
     assert!(thumbnails_shown(&mut h));
-    assert_eq!(h.request("ui.resize", json!({"width": 1600, "height": 440}), T)["ok"], true);
+    // 380 is below the room check (`a_short_view_offers_the_button_instead_of_the_row` shows the same height): 440 no longer is
+    assert_eq!(h.request("ui.resize", json!({"width": 1600, "height": 380}), T)["ok"], true);
     h.step();
     h.step();
+    assert!(has(&h, "button:emptySamples"), "the row is out of room: the button stands in for it");
+    assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("button:sample:")), "no thumbnail is drawn");
     assert!(h.app.welcome_samples.as_ref().is_some_and(|s| s.has_thumbnail()), "kept while the row is out of room");
     assert_eq!(h.request("ui.resize", json!({"width": 1600, "height": 1000}), T)["ok"], true);
     h.step();
