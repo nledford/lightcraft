@@ -348,7 +348,8 @@ impl LightcraftApp {
     }
 
     /// Save the text edits under way, whether their fields are drawn or not: the window is closing
-    /// (or Quit was chosen), before the question about unsaved changes, which they may add to.
+    /// (or Quit was chosen), before the question about unsaved changes, which they may add to; or a
+    /// change is about to move what other boxes were typed for (Remove on a text overlay).
     /// A save the engine refuses is an `Err` with its message, and the caller stops: the fields
     /// still hold their text and record the saves again. Offered again unchanged, once the error
     /// was shown, that text is given up (`Ok`): the person asked to leave twice.
