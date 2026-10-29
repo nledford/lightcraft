@@ -3442,5 +3442,6 @@
   "An import is running. Drop photos when it has finished": "Ein Import läuft. Lege die Fotos ab, wenn er fertig ist",
   "Finish Lightroom catalog import before adding photos": "Schließe den Import des Lightroom-Katalogs ab, bevor du Fotos hinzufügst",
   "Recently Added always shows the newest imports first.": "Zuletzt hinzugefügt zeigt immer die neuesten Importe zuerst.",
-  "Recently Deleted shows no date groups.": "Zuletzt gelöscht zeigt keine Datumsgruppen."
+  "Recently Deleted shows no date groups.": "Zuletzt gelöscht zeigt keine Datumsgruppen.",
+  "Previous Shuffle": "Vorheriges Mischen"
 }

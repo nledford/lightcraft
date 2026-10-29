@@ -2392,5 +2392,6 @@
   "Open a library first, then drop the presets again": "Ouvrez d'abord une bibliothèque, puis déposez à nouveau les préréglages",
   "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :",
   "Recently Added always shows the newest imports first.": "Ajoutées récemment affiche toujours les importations les plus récentes en premier.",
-  "Recently Deleted shows no date groups.": "Supprimées récemment n'affiche aucun groupe par date."
+  "Recently Deleted shows no date groups.": "Supprimées récemment n'affiche aucun groupe par date.",
+  "Previous Shuffle": "Mélange précédent"
 }

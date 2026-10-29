@@ -270,12 +270,12 @@ fn click_zoom_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 }
 
 /// One row of the Sort popup, registered as `sortMenu:{id}`: a check row where `checked` is `Some`, a plain
-/// button where it is `None`; a row that is off can't be clicked.
-fn sort_row(ui: &mut egui::Ui, id: &str, label: &str, enabled: bool, checked: Option<bool>) -> bool {
+/// button (with its key, when it has one) where it is `None`; a row that is off can't be clicked.
+fn sort_row(ui: &mut egui::Ui, id: &str, label: &str, enabled: bool, checked: Option<bool>, hint: Option<String>) -> bool {
     let r = ui
         .add_enabled_ui(enabled, |ui| match checked {
             Some(on) => ui.selectable_label(on, crate::i18n::tr(label)),
-            None => ui.button(crate::i18n::tr(label)),
+            None => ui.add(egui::Button::new(crate::i18n::tr(label)).shortcut_text(hint.unwrap_or_default())),
         })
         .inner;
     register(ui, format!("sortMenu:{id}"), r.rect);
@@ -310,13 +310,19 @@ fn sort_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         ("File Size", FileSize, "fileSize"),
         ("Random", Random, "random"),
     ] {
-        if sort_row(ui, &format!("key:{k}"), label, m.keys_enabled(), Some(m.key_checked(key))) {
+        if sort_row(ui, &format!("key:{k}"), label, m.keys_enabled(), Some(m.key_checked(key)), None) {
             let _ = app.run("library.sort", json!({"key": k}));
         }
     }
     ui.separator();
-    if sort_row(ui, "reshuffle", "Reshuffle", m.reshuffle_enabled(), None) {
+    let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
+    let hint = |id: &str| crate::shortcuts::shortcut_of(&app.ui.settings.keymap, id).map(|sc| crate::menubar::shortcut_text(sc, mac));
+    let (shuffle_hint, previous_hint) = (hint("library.shuffle"), hint("library.previousShuffle"));
+    if sort_row(ui, "reshuffle", "Reshuffle", m.reshuffle_enabled(), None, shuffle_hint) {
         let _ = app.run("library.shuffle", json!({}));
+    }
+    if sort_row(ui, "previous", "Previous Shuffle", m.previous_enabled(), None, previous_hint) {
+        let _ = app.run("library.previousShuffle", json!({}));
     }
     // a view that holds its photos shows what matches now when asked to
     if app.session.hold_view {
@@ -329,7 +335,7 @@ fn sort_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     ui.separator();
     for (label, id, ascending) in [("Ascending", "ascending", true), ("Descending", "descending", false)] {
         let checked = m.direction_checked(ascending).unwrap_or(false);
-        if sort_row(ui, id, label, m.direction_enabled(), Some(checked)) {
+        if sort_row(ui, id, label, m.direction_enabled(), Some(checked), None) {
             let _ = app.run("library.sort", json!({"ascending": ascending}));
         }
     }
@@ -343,7 +349,7 @@ fn sort_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         ("Year", GroupBy::Year, "year"),
         ("None", GroupBy::None, "none"),
     ] {
-        if sort_row(ui, &format!("group:{k}"), label, m.groups_enabled(), Some(m.group_checked(g))) {
+        if sort_row(ui, &format!("group:{k}"), label, m.groups_enabled(), Some(m.group_checked(g)), None) {
             let _ = app.run("library.sort", json!({"group": k}));
         }
     }

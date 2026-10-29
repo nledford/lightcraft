@@ -31,11 +31,12 @@ impl SortNote {
 pub struct SortMenu {
     sort: Sort,
     source: LibrarySource,
+    has_previous: bool,
 }
 
 impl SortMenu {
     pub fn of(session: &Session) -> Self {
-        SortMenu { sort: session.sort, source: session.source }
+        SortMenu { sort: session.sort, source: session.source, has_previous: session.has_previous_shuffle() }
     }
 
     /// Recently Added orders by import date whatever the sort says.
@@ -66,6 +67,11 @@ impl SortMenu {
     /// Reshuffle means something only under Random (and where the sort is used at all).
     pub fn reshuffle_enabled(&self) -> bool {
         self.keys_enabled() && self.sort.key == SortKey::Random
+    }
+
+    /// Previous Shuffle: only where Reshuffle is, and once a reshuffle has replaced an order to go back to.
+    pub fn previous_enabled(&self) -> bool {
+        self.reshuffle_enabled() && self.has_previous
     }
 
     /// Date headers: only the date keys draw them (not a shuffle, File Name, Rating or File Size), and not

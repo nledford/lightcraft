@@ -290,6 +290,33 @@ fn reshuffle_follows_a_separator_below_the_sort_keys() {
     assert!(at > random);
 }
 
+/// Previous Shuffle sits right under Reshuffle, is on only while a reshuffle has replaced an order under Random (not in
+/// Recently Added, where the sort is not used), and both rows show their keys.
+#[test]
+fn previous_shuffle_follows_reshuffle_and_both_show_their_shortcuts() {
+    let mut a = app();
+    let kids = sort_submenu(&a);
+    let at = kids.iter().position(|n| matches!(n, MenuNode::Item { id, .. } if id == "library.shuffle")).expect("Reshuffle");
+    assert!(matches!(&kids[at + 1], MenuNode::Item { id, label, .. } if id == "library.previousShuffle" && label == "Previous Shuffle"));
+    let shortcut = |id: &str| match find(&sort_submenu(&a), id) {
+        Some(MenuNode::Item { shortcut, .. }) => shortcut.clone(),
+        other => panic!("{id}: {other:?}"),
+    };
+    assert_eq!(shortcut("library.shuffle").as_deref(), Some("Cmd+Alt+Shift+R"));
+    assert_eq!(shortcut("library.previousShuffle").as_deref(), Some("Cmd+Alt+Shift+P"));
+    let previous = |a: &LightcraftApp| sort_row(&sort_submenu(a), "Previous Shuffle");
+    assert_eq!(previous(&a), (false, None), "a date sort");
+    a.session.execute("library.sort", &json!({"key": "random"})).expect("sort at random");
+    assert!(!previous(&a).0, "nothing replaced yet");
+    run_item(&mut a, "library.shuffle", Value::Null).expect("reshuffle");
+    assert!(previous(&a).0, "a reshuffle replaced an order");
+    a.session.execute("library.source", &json!({"kind": "recentlyAdded"})).expect("Recently Added");
+    assert!(!previous(&a).0, "the sort is not used there");
+    a.session.execute("library.source", &json!({"kind": "all"})).expect("All Photos");
+    run_item(&mut a, "library.previousShuffle", Value::Null).expect("previous shuffle");
+    assert!(!previous(&a).0, "nothing earlier is left");
+}
+
 /// File opens with the import entry points, worded as importing (not as adding a sidebar
 /// folder): Import Photos… (⇧⌘I), Import from Folder…, Import from Device ▸.
 #[test]

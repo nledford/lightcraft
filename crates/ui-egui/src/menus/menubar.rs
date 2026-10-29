@@ -343,6 +343,7 @@ const HIDDEN: &[&str] = &[
     "photo.label",
     "library.sort",
     "library.shuffle",
+    "library.previousShuffle",
     "album.addPhotos",
     "album.create",
     "library.import",
@@ -669,7 +670,11 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
                 .map(|(label, key, k)| item("library.sort", json!({"key": k}), label, None, m.keys_enabled(), Some(m.key_checked(key)))),
             );
             v.push(MenuNode::Separator);
-            v.push(item("library.shuffle", json!({}), "Reshuffle", None, m.reshuffle_enabled(), None));
+            let keys = &app.ui.settings.keymap;
+            let shuffle = crate::shortcuts::shortcut_of(keys, "library.shuffle");
+            v.push(item("library.shuffle", json!({}), "Reshuffle", shuffle, m.reshuffle_enabled(), None));
+            let previous = crate::shortcuts::shortcut_of(keys, "library.previousShuffle");
+            v.push(item("library.previousShuffle", Value::Null, "Previous Shuffle", previous, m.previous_enabled(), None));
             v.push(MenuNode::Separator);
             v.push(item("library.sort", json!({"ascending": true}), "Ascending", None, m.direction_enabled(), m.direction_checked(true)));
             v.push(item("library.sort", json!({"ascending": false}), "Descending", None, m.direction_enabled(), m.direction_checked(false)));

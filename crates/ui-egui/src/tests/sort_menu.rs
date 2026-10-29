@@ -77,3 +77,15 @@ fn a_shuffle_turns_the_date_groups_off_and_keeps_the_choice() {
     click_in_sort_menu(&mut h, "sortMenu:group:day");
     assert_eq!(h.app.session.sort.group, lightcraft_catalog::GroupBy::Day, "groups are choosable for a date sort");
 }
+
+#[test]
+fn the_popups_previous_shuffle_brings_back_the_order_a_reshuffle_replaced() {
+    let mut h = demo();
+    exec(&mut h, "library.sort", json!({"key": "random", "seed": 7}));
+    click_in_sort_menu(&mut h, "sortMenu:previous");
+    assert_eq!(h.app.session.sort.seed, 7, "off until a reshuffle replaced something");
+    click_in_sort_menu(&mut h, "sortMenu:reshuffle");
+    assert_ne!(h.app.session.sort.seed, 7);
+    click_in_sort_menu(&mut h, "sortMenu:previous");
+    assert_eq!(h.app.session.sort.seed, 7, "the exact earlier shuffle is back");
+}
