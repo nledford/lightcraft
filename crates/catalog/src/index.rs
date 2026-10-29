@@ -1,6 +1,6 @@
 //! Lookups derived from the catalog's own data, so questions asked once per photo of a big library
 //! don't scan a list each time: which stack a photo is in, whether a regular album holds it, the lower-cased text
-//! the free-text search reads, and the text a smart album's Text rule reads (each made for every photo on first use).
+//! the free-text search reads, and the text a smart album's Text rule reads (each made for every photo the first time it is needed for every photo).
 //!
 //! They are never saved (the on-disk format is unchanged). Each is built on first use from what
 //! the catalog holds, so a catalog read from a snapshot, replayed from the journal or cloned starts

@@ -374,7 +374,7 @@ fn a_clone_builds_its_own() {
 }
 
 /// The words of Text rules (not the search) read the same with the cache as without: what the fields give when each
-/// photo is read alone (a copy of a photo is not the catalog's own, so its text is not looked up), and what the
+/// photo is read alone (a copy of a photo is not the catalog's own, so the text kept for its id is not used), and what the
 /// kept text gives.
 #[test]
 fn text_rules_match_as_the_fields_do() {
