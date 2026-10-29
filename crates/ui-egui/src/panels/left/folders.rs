@@ -468,9 +468,11 @@ pub(crate) fn folder_drop_refusal(app: &LightcraftApp, from: &str, target: &Fold
 }
 
 /// The Folders row being dragged. A drag doesn't outlive the library it was picked up in: when
-/// another one opens meanwhile it is given up.
-fn dragged_folder(app: &mut LightcraftApp) -> Option<String> {
-    if app.ui.dragging_folder.is_some() && app.ui.dragging_folder_library != app.session.library_generation() {
+/// another one opens meanwhile it is given up. Esc gives it up too, before any row acts on a release
+/// that came in the same frame.
+fn dragged_folder(app: &mut LightcraftApp, ctx: &egui::Context) -> Option<String> {
+    let other_library = app.ui.dragging_folder_library != app.session.library_generation();
+    if app.ui.dragging_folder.is_some() && (other_library || ctx.input(|i| i.key_pressed(egui::Key::Escape))) {
         app.ui.dragging_folder = None;
     }
     app.ui.dragging_folder.clone()
@@ -487,7 +489,7 @@ fn folder_name(path: &str, fallback: &str) -> String {
 /// not-allowed cursor with the reason in the label, and a release says it too. Held over a
 /// closed row, it opens, so a folder inside it can be reached.
 fn folder_drag_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, n: &FolderNode, open_id: egui::Id, open: &mut bool) {
-    let Some(from) = dragged_folder(app) else { return };
+    let Some(from) = dragged_folder(app, ui.ctx()) else { return };
     // only where the row can be seen: not scrolled out of the sidebar or beneath the pinned header
     if !pointer_over_row(ui, resp.rect) {
         return;
@@ -555,12 +557,11 @@ pub(crate) fn toast_folder_moved(app: &mut LightcraftApp, ctx: &egui::Context, r
 
 /// While a Folders row is dragged: its name at the pointer, or what the row under it says (where
 /// the folder would go, or why it can't). The drag ends when the button is up (the drop targets
-/// act on the release frame, before this runs) and Esc gives it up.
+/// act on the release frame, before this runs); Esc gives it up (see [`dragged_folder`]).
 pub fn folder_drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
-    let Some(from) = dragged_folder(app) else { return };
-    let (released, down, pos, esc) =
-        ctx.input(|i| (i.pointer.primary_released(), i.pointer.primary_down(), i.pointer.latest_pos(), i.key_pressed(egui::Key::Escape)));
-    if released || !down || esc {
+    let Some(from) = dragged_folder(app, ctx) else { return };
+    let (released, down, pos) = ctx.input(|i| (i.pointer.primary_released(), i.pointer.primary_down(), i.pointer.latest_pos()));
+    if released || !down {
         app.ui.dragging_folder = None;
         return;
     }

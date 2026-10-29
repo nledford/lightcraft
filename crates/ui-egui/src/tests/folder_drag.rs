@@ -196,6 +196,25 @@ fn escape_gives_the_drag_up() {
 }
 
 #[test]
+fn escape_in_the_frame_of_the_release_cancels_the_drop() {
+    let (mut h, root) = tree("escape-release");
+    let (trip, archive) = (root.join("trip"), root.join("archive"));
+    // with the question off, a drop that got through would move the folder at once
+    h.app.ui.settings.ask_before_move = false;
+    drag_over(&mut h, &trip, &archive);
+    let at = centre(&h, &archive);
+    // (both go to egui in one frame: the synthetic queue would deliver the release a frame apart from the key)
+    h.events.push(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE });
+    h.events.push(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+    h.step();
+    h.step();
+    assert_eq!(h.app.ui.dragging_folder, None, "given up");
+    assert!(h.app.ui.dialog.is_none(), "a drop that Esc cancelled asks nothing");
+    assert!(trip.join("beach.png").is_file() && !archive.join("trip").exists(), "nothing moved");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn with_the_question_turned_off_the_drop_moves_at_once() {
     let (mut h, root) = tree("noask");
     let (trip, archive) = (root.join("trip"), root.join("archive"));
