@@ -286,6 +286,22 @@ pub(crate) fn rendering_overdue(wait: &mut RenderingWait, keys: [Option<u64>; 4]
     *up
 }
 
+/// [`rendering_overdue`] for a pane that shows one photo at a time: the wait belongs to the photo
+/// in `state`, so one moved in starts its own (the pill of the last photo doesn't carry over).
+pub(crate) fn rendering_overdue_for(
+    state: &mut (PhotoId, RenderingWait),
+    id: PhotoId,
+    keys: [Option<u64>; 4],
+    coming: bool,
+    now: f64,
+    after: f64,
+) -> bool {
+    if state.0 != id {
+        *state = (id, None);
+    }
+    rendering_overdue(&mut state.1, keys, coming, now, after)
+}
+
 /// A pill over the photo, 12 pt above the bottom of `over` or just above the Navigator when that
 /// is in the way, registered as `id`; `caution` adds the preview-only pill's caution icon. The
 /// loupe's "Rendering…" says the pixels on screen aren't final, so it isn't an activity row (see
