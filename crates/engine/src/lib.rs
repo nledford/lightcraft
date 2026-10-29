@@ -602,12 +602,22 @@ impl Session {
         std::mem::take(&mut self.unreported_builds)
     }
 
+    /// Make the files of the Auto Imports that left the line without running eligible for Auto Import again (the
+    /// scan noted them as tried when it handed them over, so nothing would import them otherwise): they go through
+    /// the size check once more, like a file seen for the first time. Run before each scan and by [`Session::start_waiting`].
+    pub fn untry_auto_imports(&mut self) {
+        for path in self.activity.take_untried() {
+            self.auto_import_seen.remove(&path);
+        }
+    }
+
     /// Start the tasks waiting in line whose lane is free ([`crate::activity`]), each by running the command it was
     /// asked with. One that can't start is logged and the next in line goes on. Every frontend gets this after each
     /// command; the app also calls it every frame, for a lane that frees while nothing is asked.
     /// Requests that aren't engine commands (the app's own, `app:…`: an import, a Synchronize Folder) are left to the
     /// app, which starts them the same way.
     pub fn start_waiting(&mut self) {
+        self.untry_auto_imports();
         if self.depth > 0 || self.starting_waiting {
             return;
         }

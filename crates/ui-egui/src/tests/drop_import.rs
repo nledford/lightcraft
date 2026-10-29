@@ -870,6 +870,30 @@ fn an_auto_import_that_finds_files_while_an_import_runs_waits_in_line() {
     assert_eq!(photos(&h), 1, "w.png came in");
 }
 
+/// Given an Auto Import that waits in line, when it is taken out of the line (the ✕, `activity.cancel`), then its
+/// files are offered again: the next listings import them (they were noted as tried when the scan handed them over).
+#[test]
+fn an_auto_import_taken_out_of_the_line_is_offered_again() {
+    let dir = Scratch::new("auto-untried");
+    let mut h = app(&dir);
+    write_png(&dir.path("watched/w.png"), 7);
+    let watched = dir.path("watched");
+    h.app.session.import_defaults.auto_folder = Some(watched.clone());
+    let listing = || lightcraft_engine::cmd::library::list_auto_import_folder(&watched).unwrap();
+    crate::import::auto_import_listed(&mut h.app, listing());
+    let hold = h.app.session.activity.start("import", "Importing", lightcraft_engine::activity::Cancel::Yes);
+    crate::import::auto_import_listed(&mut h.app, listing());
+    let waiting = h.app.session.activity.waiting();
+    assert_eq!(waiting.len(), 1, "it waits in line");
+    h.app.session.activity.cancel(waiting[0].id).unwrap();
+    drop(hold);
+    // (the file is taken again once its size has stayed the same between two listings)
+    crate::import::auto_import_listed(&mut h.app, listing());
+    crate::import::auto_import_listed(&mut h.app, listing());
+    assert!(h.step_until(SETTLE, |h| h.app.import.is_none() && h.app.session.activity.list().is_empty()), "it ran");
+    assert_eq!(photos(&h), 1, "w.png came in after all");
+}
+
 /// Given a line that is full, when Auto Import's listing comes in while an import runs, then the folder is left to its
 /// next listing (its files aren't noted as tried), and imported once there is room.
 #[test]

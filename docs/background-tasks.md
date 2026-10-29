@@ -77,7 +77,9 @@ and `Session::start_waiting` runs it, under the id it had in line, once the lane
 every command and the app every frame. `activity.list` shows a waiting task after the running ones (`waiting`,
 `place`, `lane`); the activity stack in the app draws a waiting task too, at once, as a row without a bar ("Starts next" or "Starts after N more") with ✕, "Remove from Queue", which runs `activity.cancel`. `activity.cancel` takes a waiting task out
 of the line, `activity.cancel {all: true}` empties it, and opening another library drops it: the photos it names
-belong to the old one. At most `MAX_WAITING` (100) tasks wait. Without `queue` a call is refused while its lane is
+belong to the old one. An Auto Import's request (`app:import` with `auto: true`) that leaves the line this way gives its
+files back (`Activity::take_untried`, applied by `Session::untry_auto_imports`): `library.autoImportScan` had noted them
+as tried, so without it nothing would import them. At most `MAX_WAITING` (100) tasks wait. Without `queue` a call is refused while its lane is
 busy, as before. A waiting task whose start fails (there is no smart previews folder any more, say) is logged (the app's own, an import or a Synchronize Folder, also says why in a toast) and the next in line goes on.
 
 ## Examples in the code
