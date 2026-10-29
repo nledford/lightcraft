@@ -2428,6 +2428,7 @@
   "Dropped Files": "Släppta filer",
   "Finish Lightroom catalog import before adding photos": "Slutför importen av Lightroom-katalogen innan du lägger till foton",
   "Import dropped files without review": "Importera släppta filer utan granskning",
+  "cancelled": "avbruten",
   "Imports, exports and other long jobs show here while they run.": "Importer, exporter och andra långa jobb visas här medan de pågår.",
   "No tasks are running": "Inga uppgifter körs",
   "Tasks": "Uppgifter"

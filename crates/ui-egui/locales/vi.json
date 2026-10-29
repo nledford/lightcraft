@@ -2234,6 +2234,7 @@
   "Dropped Files": "Tệp đã thả",
   "Finish Lightroom catalog import before adding photos": "Hoàn tất nhập danh mục Lightroom trước khi thêm ảnh",
   "Import dropped files without review": "Nhập các tệp đã thả mà không xem lại",
+  "cancelled": "đã hủy",
   "Imports, exports and other long jobs show here while they run.": "Nhập, xuất và các tác vụ dài khác hiển thị tại đây khi đang chạy.",
   "No tasks are running": "Không có tác vụ nào đang chạy",
   "Tasks": "Tác vụ"

@@ -2338,6 +2338,7 @@
   "Dropped Files": "File yang dijatuhkan",
   "Finish Lightroom catalog import before adding photos": "Selesaikan impor katalog Lightroom sebelum menambahkan foto",
   "Import dropped files without review": "Impor file yang dijatuhkan tanpa tinjauan",
+  "cancelled": "dibatalkan",
   "Imports, exports and other long jobs show here while they run.": "Impor, ekspor, dan tugas panjang lainnya ditampilkan di sini selama berjalan.",
   "No tasks are running": "Tidak ada tugas yang berjalan",
   "Tasks": "Tugas"

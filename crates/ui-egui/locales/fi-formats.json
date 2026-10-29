@@ -306,5 +306,8 @@
   "Drop to review {n} item{} for import": "Pudota tarkistaaksesi ennen tuontia (kohteita: {n}){:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Minne Lightroom-luettelo ”{catalog}” tuodaan?",
   "Merge into the open library “{library}” ({count} photo{})": "Yhdistä avoimeen kirjastoon ”{library}” (kuvia: {count}{:.0})",
+  "Exported contact sheet: {photos} photos, {pages} pages": "Kontaktivedos viety (kuvia: {photos}, sivuja: {pages})",
+  "Printed to PDF: {photos} photos, {pages} pages": "Tulostettu PDF-tiedostoon (kuvia: {photos}, sivuja: {pages})",
+  "{} import warning{}": "Tuontivaroituksia: {}{:.0}",
   "{n} tasks": "{n} tehtävää"
 }

@@ -11,7 +11,7 @@ the list (Window ▸ Tasks, `view.tasks`): each task has a row with its name, a 
 working on, and ✕ if it can stop, the task started last at the top. "No tasks are running" when none is. Esc, a click
 elsewhere or a dialog closes it. Nothing floats over the panels: the list covers them only while it is open.
 Quitting asks first while a task that can stop is running. Agents see the same list through `activity.list` /
-`activity.cancel`, and `ui.inspect` reports it as `activity` (and whether the list is open as `activityOpen`).
+`activity.cancel`, and `ui.inspect` reports it as `activity` (and whether the list is open as `activityOpen`); the tasks that ended and left a row are `activity.finished` / `activity.dismiss` and `activityFinished`.
 
 The registry is `lightcraft_engine::activity` (`crates/engine/src/activity.rs`, `Session::activity`). The stack is
 `crates/ui-egui/src/panels/activity.rs`. Every job that can last more than a moment uses it; **don't add a progress
@@ -55,6 +55,20 @@ guard.detail(&file_name);
   - `set_cancellable(false)` for a phase that has to finish once started (a Lightroom import adding its photos).
 - **Quiet periodic work** shows no row: the auto-import folder listing runs every few seconds through
   `tasks::spawn(.., None, ..)`.
+- **Say how it ended:** `guard.finish(Outcome { ending, summary, detail, failures, failed, path })` in place of
+  letting the guard drop. These jobs do: exports (contact sheet and Print to PDF from the app included), imports,
+  folder scans, Synchronize Folder, Build / Smart Previews, Photo Merge, Lightroom catalog inspect / import, model and
+  place-name downloads, Fill Location from GPS, moving photos, Find Missing Photos and Reload from Disk. These do not
+  yet: slideshow export, the engine's `print.exportPdf`, reading focus points, thumbnail-cache tidying, the face GPU
+  check, Apple Photos imports, and the face scan and AI Denoise (queues whose row goes when they empty). `ending` is `Done`, `Problems` (not for every file),
+  `Failed`, `Stopped`, or `Died` when the job finds its worker gone; `summary` is the sentence the row shows (UI code
+  passes it translated); `failures` are the files with their reasons (`failed` when the job only counts them); `path`
+  is one of the files it made, or the folder they are in or were to go to. `Outcome::ended(ending)` and `Outcome::failed(why)` cover the plain cases. The row
+  stays in `activity.finished` until `activity.dismiss` lets go of it, for this
+  session: always for a task that did not end well, and for one that ended well only if it ran 10 s or more. Keep the
+  toast that says how it went: the row is the record, not the announcement. A guard that is only dropped leaves
+  nothing, as before, unless a panic dropped it: then the row says the task stopped unexpectedly. A scan or Local folder read
+  that another replaced leaves nothing either: only the row's ✕ makes it a stopped task.
 
 ## Examples in the code
 
@@ -78,3 +92,5 @@ job-specific tests show the pattern (`tests_sync.rs`, `export_task.rs`, `tests_d
 task once it is 0.5 s old (`activity:ring`; `activity:readout` is the line beside it, `activity:count` the count on
 the bell), and its row is on screen only while the list is open: tests that click a row's ✕ open the list first
 (`view.tasks` with `{"show": true}`, or a click on `icon:bell`) and wait for `activity:cancel:<id>`.
+For a job that reports how it ended, assert `session.activity.finished()` (ending, summary, failures);
+`session.activity.keep_after(0)` keeps a clean end's row however short the test's job.
