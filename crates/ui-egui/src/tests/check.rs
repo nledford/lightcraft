@@ -241,6 +241,25 @@ fn screen_readers_hear_the_new_state_in_the_frame_a_click_changes_it() {
     assert_eq!(toggled(&nodes, "Cylindrical").as_deref(), Some("True"), "chosen by this very click: {nodes:?}");
 }
 
+/// A choice button (one of a row of Format or Color space buttons) reports itself chosen in the frame of the click that chose it.
+#[test]
+fn a_choice_button_says_it_is_chosen_in_the_frame_of_its_click() {
+    let rig = Rig::new();
+    let mut chosen = false;
+    let draw = |ui: &mut egui::Ui, chosen: &mut bool| {
+        let r = crate::widgets::choice_button(ui, "format-jpeg", "Format JPEG", *chosen);
+        if r.clicked() {
+            *chosen = true;
+        }
+        r
+    };
+    let (r, _) = rig.frame(Vec::new(), |ui| draw(ui, &mut chosen));
+    let (_, nodes) = rig.frame(click_at(r.rect.center()), |ui| draw(ui, &mut chosen));
+    assert!(chosen);
+    let toggled = nodes.iter().find(|n| n.1 == "Format JPEG").and_then(|n| n.2.clone());
+    assert_eq!(toggled.as_deref(), Some("True"), "chosen by this very click: {nodes:?}");
+}
+
 #[test]
 fn a_check_is_addressable_by_its_id() {
     let rig = Rig::new();

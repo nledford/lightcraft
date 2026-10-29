@@ -1323,7 +1323,12 @@ pub(crate) fn announce_button(resp: &egui::Response, enabled: bool, name: impl I
     match press {
         Press::Command | Press::Opens => resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, name.clone())),
         Press::Toggle(on) => resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, enabled, on, name.clone())),
-        Press::Choice(chosen) => resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, enabled, chosen, name.clone())),
+        // (the caller sets the choice after drawing, so the frame of the click already says it is chosen; a click the
+        // app turns down, such as Compare with one photo, reads as chosen for that one frame)
+        Press::Choice(chosen) => {
+            let chosen = chosen || resp.clicked();
+            resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, enabled, chosen, name.clone()));
+        }
     }
 }
 
