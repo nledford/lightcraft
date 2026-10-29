@@ -384,7 +384,7 @@ impl<'a> TextField<'a> {
 
         // an edit whose save ran while the field stayed drawn (the window's close, a library switch that
         // did not happen) is over, before anything below can end it a second time
-        let flushed = memo.end_if_flushed(self.text, pass);
+        let flushed = memo.end_if_flushed(self.text, pass, focused);
         track_edit_start(&mut memo, ui, id, self.text, self.select_on_focus, focused, response.lost_focus());
         let menu_was_open = memo.menu_open;
         // a click on a greyed-out item does nothing, as in a native menu: only a choice or a click
@@ -498,11 +498,12 @@ struct Memo {
 
 impl Memo {
     /// Take the [`end_edits`] mark: the edit is over (the memo starts afresh) when the field still
-    /// shows the text that was saved.
-    fn end_if_flushed(&mut self, text: &str, pass: u64) -> bool {
+    /// shows the text that was saved. A field that keeps the focus goes on from that text as a new
+    /// edit (Esc gives back what was saved; it is not a new focus, so nothing is selected).
+    fn end_if_flushed(&mut self, text: &str, pass: u64, focused: bool) -> bool {
         let ended = std::mem::take(&mut self.flushed) && self.recorded.as_deref() == Some(text);
         if ended {
-            *self = Memo { pass, ..Memo::default() };
+            *self = Memo { pass, before: focused.then(|| text.to_owned()), ..Memo::default() };
         }
         ended
     }

@@ -324,7 +324,7 @@ impl LightcraftApp {
         // edit saves except Esc (an Esc that came with the pass gives it up)
         let left = crate::text_field::take_left_behind(ctx);
         if !ctx.input(|i| i.key_pressed(egui::Key::Escape))
-            && let Err(e) = self.run_saves(ctx, left)
+            && let Err((e, _)) = self.run_saves(ctx, left)
         {
             // (the box is gone with its text: all that is left is to say so)
             self.toast_error(ctx, e);
@@ -361,11 +361,10 @@ impl LightcraftApp {
         if !saves.is_empty() && refused == saves {
             return Ok(());
         }
-        let saved = self.run_saves(ctx, saves.clone());
-        if saved.is_err() {
-            self.edit_saves_refused = (ctx.cumulative_pass_nr(), saves);
-        }
-        saved
+        self.run_saves(ctx, saves).map_err(|(e, refused)| {
+            self.edit_saves_refused = (ctx.cumulative_pass_nr(), refused);
+            e
+        })
     }
 
     /// The one way to the question "may the app close now?", for the window's close button and
@@ -391,25 +390,27 @@ impl LightcraftApp {
         }
     }
 
-    /// Run the saves fields declared ([`crate::text_field::Save`]), all of them; the first
-    /// refusal's message is the `Err`. The fields of the saves that succeeded are told their edit
-    /// is over ([`crate::text_field::end_edits`]): one that is still drawn must not save the same
-    /// text again, nor have an Esc to undo it.
-    fn run_saves(&mut self, ctx: &egui::Context, saves: Vec<crate::text_field::Pending>) -> Result<(), String> {
+    /// Run the saves fields declared ([`crate::text_field::Save`]), all of them. The fields of the
+    /// saves that succeeded are told their edit is over ([`crate::text_field::end_edits`]): one
+    /// that is still drawn must not save the same text again, nor have an Esc to undo it. The
+    /// first refusal's message is the `Err`, with every save that was refused.
+    fn run_saves(&mut self, ctx: &egui::Context, saves: Vec<crate::text_field::Pending>) -> Result<(), (String, Vec<crate::text_field::Pending>)> {
         if saves.is_empty() {
             return Ok(());
         }
-        let mut refused = Ok(());
-        let mut done = Vec::new();
+        let (mut first, mut refused, mut done) = (None, Vec::new(), Vec::new());
         for pending in saves {
-            match self.run(pending.save.command, pending.save.params) {
+            match self.run(pending.save.command, pending.save.params.clone()) {
                 Ok(_) => done.push(pending.id),
-                Err(e) => refused = refused.and(Err(e)),
+                Err(e) => {
+                    first.get_or_insert(e);
+                    refused.push(pending);
+                }
             }
         }
         crate::text_field::end_edits(ctx, done);
         ctx.request_repaint();
-        refused
+        first.map_or(Ok(()), |e| Err((e, refused)))
     }
 
     /// Presentation only: the window's panels, dialogs and overlays.

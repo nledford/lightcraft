@@ -28,6 +28,8 @@ struct Rig {
     swept: Vec<Save>,
     /// The app's sweep runs at the end of each pass (off: the pass is one egui throws away).
     sweep: bool,
+    /// As a caller does, `start` follows the text on a frame no edit is under way (the saved value).
+    adopts: bool,
 }
 
 impl Rig {
@@ -47,6 +49,7 @@ impl Rig {
             saved: vec![],
             swept: vec![],
             sweep: true,
+            adopts: false,
         };
         rig.frame(vec![]);
         rig
@@ -87,6 +90,9 @@ impl Rig {
                 swept.extend(take_left_behind(ui.ctx()).into_iter().map(|p| p.save));
             }
         });
+        if self.adopts && !self.editing {
+            self.start.clone_from(&self.text);
+        }
         self.widgets = crate::widgets::take_registry(&self.view.ctx);
     }
 
@@ -521,16 +527,16 @@ fn closing_takes_the_save_of_a_field_still_drawn() {
 }
 
 /// A save that ran from outside while the field stays drawn ends its edit: leaving does not hand the
-/// text over a second time and Esc has nothing to give up.
+/// text over a second time and Esc has nothing to give up. (As a caller does, the rig takes the
+/// text as the field's value once no edit is under way.)
 #[test]
 fn a_save_run_from_outside_ends_the_edit_of_a_field_still_drawn() {
     for esc in [false, true] {
         let mut rig = saving_rig();
+        rig.adopts = true;
         rig.type_text("Rome");
         let taken = take_all(&rig.view.ctx);
         end_edits(&rig.view.ctx, taken.iter().map(|p| p.id));
-        // (the caller's text now holds what the save wrote)
-        rig.start = "Rome".into();
         rig.settle();
         assert!(take_all(&rig.view.ctx).is_empty(), "esc {esc}: the saved edit is not recorded again");
         if esc {
@@ -543,16 +549,35 @@ fn a_save_run_from_outside_ends_the_edit_of_a_field_still_drawn() {
     }
 }
 
-/// Text typed after the save ran, before the field is drawn again, is a new edit that goes on.
+/// Text typed after the save ran, before the field is drawn again, is a new edit that goes on; and
+/// a field that selects on focus does not select its text again, as it never took a new focus.
 #[test]
 fn text_typed_after_a_save_run_from_outside_stays_an_edit() {
+    for select in [false, true] {
+        let mut rig = saving_rig();
+        rig.select_on_focus = select;
+        rig.adopts = true;
+        rig.type_text("Rome");
+        let taken = take_all(&rig.view.ctx);
+        end_edits(&rig.view.ctx, taken.iter().map(|p| p.id));
+        rig.type_text("!");
+        assert_eq!(rig.text, "Rome!", "select {select}");
+        assert_eq!(take_all(&rig.view.ctx).into_iter().map(|p| p.save).collect::<Vec<_>>(), vec![city("Rome!")]);
+    }
+}
+
+/// A field that went on after its save ran gives back the saved text on Esc, not the one before it.
+#[test]
+fn a_field_that_went_on_after_a_save_run_from_outside_gives_back_the_saved_text() {
     let mut rig = saving_rig();
+    rig.adopts = true;
     rig.type_text("Rome");
     let taken = take_all(&rig.view.ctx);
     end_edits(&rig.view.ctx, taken.iter().map(|p| p.id));
+    rig.settle();
     rig.type_text("!");
-    assert_eq!(rig.text, "Rome!");
-    assert_eq!(take_all(&rig.view.ctx).into_iter().map(|p| p.save).collect::<Vec<_>>(), vec![city("Rome!")]);
+    rig.key(Key::Escape, Modifiers::NONE);
+    assert_eq!(rig.text, "Rome");
 }
 
 /// Esc gives the edit up: nothing is handed over or left.
