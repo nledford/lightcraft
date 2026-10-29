@@ -283,6 +283,39 @@ fn closing_the_window_saves_the_text_typed_in_an_info_box() {
     assert_eq!(title(&h, photo), "Rome", "the text typed in the Info panel was dropped when the window was closed");
 }
 
+/// A flush whose window then stays open (the library switch that fails, a Quit that is not
+/// followed through) leaves the box drawn and focused: its edit is over, as the save ran. Esc has
+/// nothing to discard, and clicking away or Return save nothing a second time (that would add an
+/// undo step that changes nothing, so the first ⌘Z seems to do nothing).
+#[test]
+fn a_flush_ends_the_edit_whose_box_stays_drawn() {
+    for ending in ["click away", "return", "esc"] {
+        let (mut h, photo) = typing_in_title("Rome");
+        let undo = h.app.session.undo.len();
+        let ctx = h.view.ctx.clone();
+        h.app.save_unfinished_edits(&ctx).unwrap();
+        assert_eq!(title(&h, photo), "Rome", "{ending}: the flush saved the text");
+        for _ in 0..3 {
+            h.step();
+        }
+        assert!(has(&h, "field:title"), "{ending}: the box is still drawn");
+        assert!(!crate::text_field::any_unfinished(&ctx), "{ending}: the saved edit is not recorded again");
+        match ending {
+            "esc" => key(&mut h, egui::Key::Escape),
+            "return" => key(&mut h, egui::Key::Enter),
+            _ => {
+                let at = egui::pos2(h.size.x - 20.0, h.size.y - 60.0);
+                press_and_release(&mut h, at);
+            }
+        }
+        for _ in 0..5 {
+            h.step();
+        }
+        assert_eq!(title(&h, photo), "Rome", "{ending}: the text stays");
+        assert_eq!(h.app.session.undo.len(), undo + 1, "{ending}: and is saved once");
+    }
+}
+
 /// Esc still gives the edit up: the text is back and nothing is saved.
 #[test]
 fn esc_still_discards_the_edit() {

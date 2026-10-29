@@ -392,17 +392,22 @@ impl LightcraftApp {
     }
 
     /// Run the saves fields declared ([`crate::text_field::Save`]), all of them; the first
-    /// refusal's message is the `Err`.
-    fn run_saves(&mut self, ctx: &egui::Context, saves: Vec<crate::text_field::Save>) -> Result<(), String> {
+    /// refusal's message is the `Err`. The fields of the saves that succeeded are told their edit
+    /// is over ([`crate::text_field::end_edits`]): one that is still drawn must not save the same
+    /// text again, nor have an Esc to undo it.
+    fn run_saves(&mut self, ctx: &egui::Context, saves: Vec<crate::text_field::Pending>) -> Result<(), String> {
         if saves.is_empty() {
             return Ok(());
         }
         let mut refused = Ok(());
-        for save in saves {
-            if let Err(e) = self.run(save.command, save.params) {
-                refused = refused.and(Err(e));
+        let mut done = Vec::new();
+        for pending in saves {
+            match self.run(pending.save.command, pending.save.params) {
+                Ok(_) => done.push(pending.id),
+                Err(e) => refused = refused.and(Err(e)),
             }
         }
+        crate::text_field::end_edits(ctx, done);
         ctx.request_repaint();
         refused
     }

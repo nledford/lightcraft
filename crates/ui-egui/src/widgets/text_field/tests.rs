@@ -84,7 +84,7 @@ impl Rig {
             }
             // (the app's sweep at the end of each pass)
             if sweep {
-                swept.extend(take_left_behind(ui.ctx()));
+                swept.extend(take_left_behind(ui.ctx()).into_iter().map(|p| p.save));
             }
         });
         self.widgets = crate::widgets::take_registry(&self.view.ctx);
@@ -517,7 +517,42 @@ fn a_field_not_drawn_with_its_menu_open_leaves_its_save_for_the_sweep() {
 fn closing_takes_the_save_of_a_field_still_drawn() {
     let mut rig = saving_rig();
     rig.type_text("Rome");
-    assert_eq!(take_all(&rig.view.ctx), vec![city("Rome")]);
+    assert_eq!(take_all(&rig.view.ctx).into_iter().map(|p| p.save).collect::<Vec<_>>(), vec![city("Rome")]);
+}
+
+/// A save that ran from outside while the field stays drawn ends its edit: leaving does not hand the
+/// text over a second time and Esc has nothing to give up.
+#[test]
+fn a_save_run_from_outside_ends_the_edit_of_a_field_still_drawn() {
+    for esc in [false, true] {
+        let mut rig = saving_rig();
+        rig.type_text("Rome");
+        let taken = take_all(&rig.view.ctx);
+        end_edits(&rig.view.ctx, taken.iter().map(|p| p.id));
+        // (the caller's text now holds what the save wrote)
+        rig.start = "Rome".into();
+        rig.settle();
+        assert!(take_all(&rig.view.ctx).is_empty(), "esc {esc}: the saved edit is not recorded again");
+        if esc {
+            rig.key(Key::Escape, Modifiers::NONE);
+        } else {
+            rig.click_at(Pos2::new(300.0, 250.0), PointerButton::Primary);
+        }
+        assert!(rig.saved.is_empty(), "esc {esc}: nothing handed over a second time");
+        assert_eq!(rig.text, "Rome", "esc {esc}: the saved text stays");
+    }
+}
+
+/// Text typed after the save ran, before the field is drawn again, is a new edit that goes on.
+#[test]
+fn text_typed_after_a_save_run_from_outside_stays_an_edit() {
+    let mut rig = saving_rig();
+    rig.type_text("Rome");
+    let taken = take_all(&rig.view.ctx);
+    end_edits(&rig.view.ctx, taken.iter().map(|p| p.id));
+    rig.type_text("!");
+    assert_eq!(rig.text, "Rome!");
+    assert_eq!(take_all(&rig.view.ctx).into_iter().map(|p| p.save).collect::<Vec<_>>(), vec![city("Rome!")]);
 }
 
 /// Esc gives the edit up: nothing is handed over or left.

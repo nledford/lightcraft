@@ -171,7 +171,7 @@ pub struct LightcraftApp {
     /// leaving (close, Quit, another library): the same text offered again is given up.
     /// With the pass the refusal was in: a box drawn earlier in that same pass records its save
     /// again only in the next one.
-    edit_saves_refused: (u64, Vec<crate::text_field::Save>),
+    edit_saves_refused: (u64, Vec<crate::text_field::Pending>),
     control_rx: Option<Receiver<ControlRequest>>,
     pending_screenshots: Vec<PendingShot>,
     /// Synthetic-input control requests waiting for a fresh layout and delivery (plan §4.5).
