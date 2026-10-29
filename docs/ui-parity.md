@@ -85,8 +85,8 @@ under the UI command that wraps it (a no-op error); the UI command now wins.
 ## Accessibility audit
 
 `crates/ui-egui/tests/it/accessibility.rs` walks the AccessKit tree egui hands to VoiceOver, Narrator and
-AT-SPI, headless, on 52 screens: Photo Grid, Square Grid, Detail, Compare, Survey, Reference and People (the cards, and one
-person's page); each
+AT-SPI, headless, on 52 screens: Photo Grid, Square Grid, Detail, Compare, Survey, Reference and People (the cards, the
+cards with an unnamed face selected, and one person's page); each
 right panel (Edit, Profiles, Crop, Remove, Masking, Red Eye, Versions, Activity, Keywords, Info); 16
 dialogs (Export, Copy / Paste Settings, Create Preset, Rename, New Album, New Smart Album, Capture
 Time, Label Names, All Metadata, Save Metadata Preset, Auto Stack, Contact Sheet, About, Keyboard
@@ -104,7 +104,7 @@ listed one that occurs more often than its count. A control that
 gets a name does not have to touch the file, and the test prints the entries that are fixed now.
 `LIGHTCRAFT_A11Y_BASELINE=shrink cargo test -p lightcraft-ui-egui --test it accessibility` removes
 them; `LIGHTCRAFT_A11Y_BASELINE=write` regenerates the file (a new screen needs it, once). Listed
-today, 48 controls on 22 of the 52 screens: dropdowns, spin boxes and fields with no caption (View
+today, 48 controls on 21 of the 52 screens: dropdowns, spin boxes and fields with no caption (View
 Options, Export, Contact Sheet, Import review, Settings' Import and Slideshow tabs, Crop, Info and
 Keywords panels, Auto-Stack, Capture Time and Rename), Settings' Slideshow colour well, sliders and hand-drawn
 rows, the symbol-only buttons of the Keywords panel and of the Keyboard Shortcuts dialog (that dialog
