@@ -128,7 +128,8 @@ pub fn is_open(ctx: &egui::Context) -> bool {
 pub fn bell(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, icon: Rect, room_left: f32) {
     let ctx = ui.ctx().clone();
     // newest first: the one just started is the one looked for
-    let mut all = app.session.activity.list();
+    // (a task waiting in line has no progress to draw yet: agents see it in `activity.list`)
+    let mut all: Vec<TaskInfo> = app.session.activity.list().into_iter().filter(|t| !t.waiting).collect();
     all.reverse();
     if !all.is_empty() {
         // look again soon: a young task becomes due, the ring and the bars move
