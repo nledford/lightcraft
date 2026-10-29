@@ -8,6 +8,8 @@
   changing the filter (the bar, a saved preset, View ▸ Enable Filters, showing a source) leaves them out. A preset that
   holds an album, the library folder shown or Picks' flag applies the rest and leaves them out (a script is told
   which); setting one of them in the filter by hand is refused, and the flag buttons are off while Picks is shown.
+- Renaming or moving a Local folder you browsed earlier no longer narrows All Photos to it, and no longer replaces the
+  filter View ▸ Enable Filters put aside: the browsed folder follows the rename, and the filter is left as it was.
 
 ## 2026-10-24
 

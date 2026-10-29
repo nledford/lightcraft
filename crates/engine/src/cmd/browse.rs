@@ -486,9 +486,8 @@ pub(crate) fn follow_folder(s: &mut Session, from: &str, to: &str) {
     if let Some(b) = &mut s.browse
         && let Ok(rel) = Path::new(&b.path).strip_prefix(from)
     {
+        // the filter is not written: the Local folder shown is filled in from here (`Session::view_filter`)
         b.path = Path::new(to).join(rel).to_string_lossy().to_string();
-        let f = b.path.clone();
-        s.filters.follow_current(|filter| filter.folder = Some(f));
     }
 }
 

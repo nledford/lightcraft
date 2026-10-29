@@ -91,6 +91,41 @@ fn a_preset_with_a_flag_leaves_it_out_while_picks_is_shown() {
     assert_eq!(s.filter().flag, Some(Flag::Reject));
 }
 
+/// A browsed (Local) folder is shown through `Session::browse`, which `view_filter` turns into the folder
+/// filter while the Local folder is shown. The filter never holds it: no chip names it.
+fn browsing(s: &mut Session, path: &str) {
+    s.browse = Some(crate::view::Browse { path: path.into(), subfolders: false });
+}
+
+#[test]
+fn a_renamed_browsed_folder_does_not_narrow_all_photos() {
+    let (mut s, ..) = session().unwrap();
+    browsing(&mut s, "/lightcraft-reconcile/local/trip");
+    s.execute("library.filter", &json!({"rating": 5})).unwrap();
+    crate::cmd::browse::follow_folder(&mut s, "/lightcraft-reconcile/local/trip", "/lightcraft-reconcile/local/holiday");
+    assert_eq!(
+        s.browse.as_ref().map(|b| std::path::Path::new(&b.path)),
+        Some(std::path::Path::new("/lightcraft-reconcile/local/holiday")),
+        "the browsed folder follows"
+    );
+    assert_eq!(s.filter().folder, None, "no chip names a folder, so the filter holds none");
+    assert_eq!(s.visible().len(), 2, "All Photos shows what its rating chip says: the two photos rated 5");
+}
+
+#[test]
+fn a_renamed_browsed_folder_keeps_the_filter_put_aside() {
+    let (mut s, ..) = session().unwrap();
+    browsing(&mut s, "/lightcraft-reconcile/local/trip");
+    s.execute("library.filter", &json!({"keyword": "cat", "rating": 3})).unwrap();
+    let put_aside = s.filter().clone();
+    s.execute("library.toggleFilters", &json!({})).unwrap();
+    assert!(s.filters_off());
+    crate::cmd::browse::follow_folder(&mut s, "/lightcraft-reconcile/local/trip", "/lightcraft-reconcile/local/holiday");
+    assert_eq!(*s.filter(), Filter::default(), "filters stay off");
+    s.execute("library.toggleFilters", &json!({})).unwrap();
+    assert_eq!(*s.filter(), put_aside, "Enable Filters brings back the filter put aside, not a folder");
+}
+
 #[test]
 fn library_filter_refuses_what_the_source_owns_and_changes_nothing() {
     let (mut s, x, y) = session().unwrap();

@@ -7,6 +7,10 @@
 //! Every write to the filter therefore goes through [`FilterState`], whose fields stay private to this module, so
 //! no writer can skip [`LibrarySource::reconcile`]. The source itself is shown through `library.source` (and a
 //! library opening), which reconcile the filter against it: a new way to change `Session::source` does the same.
+//!
+//! That covers the three fields of [`SourceOwned`], not every field a source overwrites: `deleted`, `importedFrom`
+//! and `folder`/`subfolders` (the Local folder shown, which `Session::browse` supplies) are replaced by their sources
+//! too, but are not listed there and have no chip, so `library.filter` still accepts them.
 
 use lightcraft_catalog::Filter;
 
@@ -139,11 +143,6 @@ impl FilterState {
         if let Some(f) = self.aside.as_mut() {
             edit(f);
         }
-    }
-
-    /// [`FilterState::follow`] for the filter shown only (a field no put-aside filter keeps).
-    pub fn follow_current(&mut self, edit: impl FnOnce(&mut Filter)) {
-        edit(&mut self.current);
     }
 
     /// A put-aside filter that [`FilterState::follow`] left empty has nothing to bring back.
