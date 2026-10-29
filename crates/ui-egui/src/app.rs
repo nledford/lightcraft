@@ -594,9 +594,16 @@ impl LightcraftApp {
 
     /// Who has the keyboard as the frame ends: a text field (`text_focus`: the native menu leaves it its letters and edit
     /// keys) or a plain button (not a text field the person is typing in, but Esc there still only lets go).
-    fn note_keyboard_owner(&mut self, ctx: &egui::Context) {
+    /// The native menu reads `text_focus` in the next frame's `logic`, and egui draws no frame until the next
+    /// input when nothing asks for one: a change asks for it, so the menu's letters follow the focus now, not at
+    /// the key's release (Shift+Tab from a plain button into a field).
+    pub(crate) fn note_keyboard_owner(&mut self, ctx: &egui::Context) {
+        let before = self.text_focus;
         self.plain_button_focus = widgets::plain_button_has_focus(ctx);
         self.text_focus = ctx.egui_wants_keyboard_input() && !self.plain_button_focus;
+        if self.text_focus != before {
+            ctx.request_repaint();
+        }
     }
 
     /// Frame timings once layout is done (`t0`: when layout started).

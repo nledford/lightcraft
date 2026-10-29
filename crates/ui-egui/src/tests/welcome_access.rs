@@ -230,3 +230,32 @@ fn shortcuts_still_work_with_the_keyboard_on_the_welcome() {
     assert_eq!(asked.get(), 1, "Cmd/Ctrl+Shift+I opened Import Photos…");
     assert!(!h.app.text_focus, "a focused button isn't a text field");
 }
+
+/// Given the keyboard on a plain button (`text_focus` false),
+/// When it moves to a text field (Shift+Tab from the welcome's button),
+/// Then a frame is asked for at once, so the native menu hears of it in the next `logic` and not at the key's release.
+#[test]
+fn a_frame_is_asked_for_when_the_keyboard_moves_to_a_text_field() {
+    let mut app = LightcraftApp::new(library("text-focus-repaint"), Services::default());
+    let ctx = egui::Context::default();
+    crate::theme::install_fonts(&ctx);
+    let mut text = String::new();
+    let mut frame = |app: &mut LightcraftApp, focus: bool| {
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))), ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let field = ui.text_edit_singleline(&mut text);
+            if focus {
+                field.request_focus();
+            }
+            app.note_keyboard_owner(ui.ctx());
+        });
+        out.textures_delta.clear();
+        out.viewport_output[&egui::ViewportId::ROOT].repaint_delay
+    };
+    for _ in 0..3 {
+        frame(&mut app, false);
+    }
+    assert!(!app.text_focus);
+    assert_eq!(frame(&mut app, true), Duration::ZERO, "the change asks for a frame");
+    assert!(app.text_focus);
+}
