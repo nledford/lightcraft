@@ -253,15 +253,29 @@ fn measure(kind: ThemeKind) -> Vec<Pair> {
     add("mark: caution icon on canvas", graphic, t.caution, t.canvas, "the Preview only card (widgets.rs)");
     add("mark: dim star on inset", graphic, t.text_dim, t.inset, "a theme card's star that is not a favourite (settings.rs)");
     add("mark: failure on empty thumbnail", graphic, t.text, t.skeleton, "the \"!\" of a thumbnail that could not be read (panels/grid.rs)");
-    // (a light theme's skeleton is itself mid-grey: the ring of a selected empty thumbnail takes the dim text color there)
+    // (a light theme's skeleton is itself mid-grey: the ring of a selected empty thumbnail takes the dim text colour there)
     let empty_ring = if t.skeleton.r() > 0x80 { t.text_dim } else { grey_ring };
-    add("ring: selected empty thumbnail", graphic, empty_ring, t.skeleton, "the ring round a selected thumbnail that is not drawn yet (panels/grid.rs)");
+    add(
+        "ring: selected empty thumbnail",
+        graphic,
+        empty_ring,
+        t.skeleton,
+        "the ring round a selected thumbnail that is not drawn yet (panels/grid.rs)",
+    );
+    add(
+        "ring: active empty thumbnail",
+        graphic,
+        white_ring,
+        t.skeleton,
+        "the ring round the active thumbnail that is not drawn yet (panels/grid.rs)",
+    );
     add("state: hidden eye on panel", graphic, t.text_disabled, t.chrome, "an effect's eye when it is off (widgets.rs, edit.rs)");
     // Sliders and progress.
     add("slider: track on panel", graphic, t.track, t.chrome, "the track of a Develop slider (widgets.rs)");
     add("slider: thumb on panel", graphic, t.thumb, t.chrome, "the thumb's ring (widgets.rs)");
     add("slider: thumb in use on panel", graphic, t.thumb_hover, t.chrome, "the thumb's ring under the pointer (widgets.rs)");
-    add("progress: bar on its track", graphic, t.accent, t.inset, "the Activity panel's progress bar (widgets/progress.rs)");
+    add("progress: bar on its track", graphic, t.accent, t.inset, "every progress bar: Activity, downloads, Denoise, Masking (widgets/progress.rs)");
+    add("text: strong on progress track", text, t.text, t.inset, "the text of a labeled progress bar (widgets/progress.rs)");
     pairs
 }
 

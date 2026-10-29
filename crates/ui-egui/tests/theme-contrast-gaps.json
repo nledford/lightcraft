@@ -45,6 +45,7 @@
     "paper": [
       "outline: control on panel",
       "outline: text box on panel",
+      "ring: active empty thumbnail",
       "ring: active photo on grid",
       "ring: active photo on selected cell",
       "ring: selected empty thumbnail",
@@ -73,6 +74,7 @@
       "outline: active filter on panel",
       "outline: control on panel",
       "outline: text box on panel",
+      "ring: active empty thumbnail",
       "ring: active photo on grid",
       "ring: active photo on selected cell",
       "ring: selected empty thumbnail",
