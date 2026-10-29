@@ -22,7 +22,8 @@
 //!   backslash, and for a lifetime otherwise;
 //! - the item after `#[cfg(test)]` ends at the first `;` or `,` outside brackets (a `,` also
 //!   outside `<…>`, where `<` and `>` are counted as brackets unless the `>` belongs to `->` or
-//!   `=>`), or, when a `{` comes first, at the brace that closes it; so `a < b` in a test-only
+//!   `=>`) or, for an attribute written inside a `<…>` list (a test-only generic parameter, the last of its
+//!   list), at that list's closing `>`, or, when a `{` comes first, at the brace that closes it; so `a < b` in a test-only
 //!   constant can stretch the skip as far as the next `;` or `{…}`; once a `where` is seen outside
 //!   brackets its commas (between predicates) end nothing: the item runs to its `{` or `;`;
 //! - only the exact attribute `#[cfg(test)]` (or `#![cfg(test)]` for a whole file) counts as
@@ -147,8 +148,30 @@ fn code_only(text: &str) -> Vec<char> {
     code
 }
 
-/// Where what `#[cfg(test)]` applies to ends: `from` is just past the attribute.
-fn end_of_item(code: &[char], from: usize) -> usize {
+/// Whether the attribute at `attr` is written inside an open `<…>` (a generic parameter list), looking back
+/// to the nearest `<` that nothing before the attribute closed. A `{`, `}` or `;` first, or a bracket that is not
+/// matched, means it is not.
+fn inside_angle_list(code: &[char], attr: usize) -> bool {
+    let (mut angle, mut nested) = (0usize, 0usize);
+    for i in (0..attr).rev() {
+        let arrow = code.get(i.wrapping_sub(1)).is_some_and(|p| matches!(p, '-' | '='));
+        match code[i] {
+            ')' | ']' => nested += 1,
+            '(' | '[' if nested == 0 => return false,
+            '(' | '[' => nested -= 1,
+            '{' | '}' | ';' if nested == 0 => return false,
+            '>' if !arrow && nested == 0 => angle += 1,
+            '<' if nested == 0 && angle == 0 => return true,
+            '<' if nested == 0 => angle -= 1,
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Where what `#[cfg(test)]` applies to ends: `from` is just past the attribute; `in_list`: it is written inside
+/// a `<…>` list, whose closing `>` ends it too ([`inside_angle_list`]).
+fn end_of_item(code: &[char], from: usize, in_list: bool) -> usize {
     let (mut round, mut square, mut angle) = (0usize, 0usize, 0usize);
     // a `where` clause runs to the item's `{` (or `;`): its commas separate predicates, not items
     let mut in_where = false;
@@ -167,7 +190,11 @@ fn end_of_item(code: &[char], from: usize) -> usize {
             ')' => round -= 1,
             ']' => square -= 1,
             '<' => angle += 1,
-            '>' if !matches!(i.checked_sub(1).and_then(|p| code.get(p)), Some('-' | '=')) => angle = angle.saturating_sub(1),
+            // `->` and `=>` are not brackets
+            '>' if matches!(i.checked_sub(1).and_then(|p| code.get(p)), Some('-' | '=')) => {}
+            // the `>` that closes the generic list the attribute is in (a test-only parameter, the last)
+            '>' if in_list && angle == 0 && outside => return i,
+            '>' => angle = angle.saturating_sub(1),
             ';' if outside => return i + 1,
             ',' if outside && angle == 0 && !in_where => return i + 1,
             // the last field of a struct: the brace is the struct's
@@ -225,7 +252,7 @@ pub fn dropped(text: &str) -> Vec<(usize, String)> {
             return Vec::new();
         }
         if at(&code, i, TEST_ONLY) {
-            let end = end_of_item(&code, i + TEST_ONLY.len()).max(i + 1);
+            let end = end_of_item(&code, i + TEST_ONLY.len(), inside_angle_list(&code, i)).max(i + 1);
             line += code.iter().take(end).skip(i).filter(|c| **c == '\n').count();
             i = end;
             continue;
@@ -381,6 +408,20 @@ mod tests {
         // a `where` clause: its commas separate predicates, they don't end the fn
         let text = "#[cfg(test)]\nfn poke<T>(app: &mut App)\nwhere\n    T: Into<u8>,\n    T: Copy,\n{\n    let _ = app.run(\"x\", p);\n}\nfn real(app: &mut App) {\n    let _ = app.run(\"y\", p);\n}\n";
         assert_eq!(lines(text), [10]);
+        // a test-only generic parameter, the last of its list: the `>` is the list's, so the `where` after it and
+        // the production body below are not the parameter's
+        let text =
+            "fn ui<U, #[cfg(test)] T>(app: &mut App, p: Params, #[cfg(test)] _extra: T)\nwhere\n    U: Copy,\n{\n    let _ = app.run(\"x\", p);\n}\n";
+        assert_eq!(lines(text), [5]);
+        // not the last: its comma ends it, as for any other item
+        let text = "fn ui<#[cfg(test)] T, U>(app: &mut App)\nwhere\n    U: Copy,\n{\n    let _ = app.run(\"x\", p);\n}\n";
+        assert_eq!(lines(text), [5]);
+        // a bracket pair before it in the list doesn't hide the list
+        let text = "fn ui<F: Fn(u8), #[cfg(test)] T>(app: &mut App)\nwhere\n    F: Copy,\n{\n    let _ = app.run(\"x\", p);\n}\n";
+        assert_eq!(lines(text), [5]);
+        // a `>` that is a comparison is not a list's end: the test-only `if` is skipped whole
+        let text = "fn f(app: &mut App, n: u8) {\n    #[cfg(test)]\n    if n > 0 {\n        let _ = app.run(\"x\", p);\n    }\n    let _ = app.run(\"y\", p);\n}\n";
+        assert_eq!(lines(text), [6]);
     }
 
     #[test]
