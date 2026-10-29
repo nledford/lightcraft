@@ -279,6 +279,31 @@ fn the_files_are_looked_for_under_a_row_whose_cross_stops_it() {
     assert!(r.is_err() && h.app.relocate.is_none(), "not while importing: {r:?}");
 }
 
+/// Given the looking is cancelled while its worker is still reading (a share that doesn't answer),
+/// When frames go by,
+/// Then its row and the one-at-a-time rule stay until the worker has ended, and only then is it said to be cancelled.
+#[test]
+fn a_cancelled_looking_keeps_its_row_until_its_worker_has_ended() {
+    let dir = Scratch::new("held-worker");
+    let mut h = moved_folder(&dir, "archive/journey");
+    let request = Request { path: dir.path("trip"), to: dir.path("archive/journey"), disk: false, incomplete: false, synchronize: false, asks: true };
+    let worker = crate::relocate::track_held_worker(&mut h.app, request.clone());
+    let row = h.app.session.activity.list()[0].id;
+    h.app.session.activity.cancel(row).unwrap();
+    h.step();
+    h.step();
+    assert!(h.app.relocate.is_some(), "the worker hasn't ended");
+    assert_eq!(h.app.session.activity.list().len(), 1, "its row stays");
+    assert!(crate::relocate::start(&mut h.app, request).is_err(), "no second worker beside the first");
+    assert!(h.app.relocate_last.is_none(), "{:?}", h.app.relocate_last);
+
+    worker.send(Err("locating the folder was stopped: nothing was changed".to_string())).unwrap();
+    assert!(h.step_until(T, |h| h.app.relocate.is_none()), "it ends with its worker");
+    let last = h.app.relocate_last.clone().unwrap_or_default();
+    assert_eq!(last["cancelled"].as_bool(), Some(true), "{last}");
+    assert!(h.app.session.activity.list().is_empty(), "the row goes with it");
+}
+
 #[test]
 fn a_refusal_that_needs_no_disk_is_said_at_once() {
     let dir = Scratch::new("refused");
@@ -404,6 +429,10 @@ fn a_file_that_is_not_the_size_the_library_recorded_is_said_in_the_question() {
     row_menu(&mut h, &dir.path("trip"), "folderLocate");
     let asked = |h: &Headless| matches!(&h.app.ui.dialog, Some(Dialog::LocateFolder { found: 1, total: 2, different: 1, .. }));
     assert!(h.step_until(T, asked), "{:?} · {:?}", h.app.ui.dialog, toast(&h));
+    h.step();
+    let text = h.painted_text();
+    assert!(text.iter().any(|t| t.contains("photos whose file there is another size are linked to that file")), "{text:?}");
+    assert!(!text.iter().any(|t| t.contains("The other photos stay missing there")), "{text:?}");
     shot(&mut h, "locate-different.png");
 }
 

@@ -2017,6 +2017,7 @@
   "Choose the folder in the dialog that is already open": "請在已開啟的對話框中選擇資料夾",
   "Locate Anyway": "仍然指定",
   "Locate the folder there anyway?": "仍然將資料夾指定到那裡嗎？",
+  "Photos with no file there stay missing, and photos whose file there is another size are linked to that file. Synchronize Folder can find them again or remove them from the library. No file is touched.": "那裡沒有檔案的照片仍為遺失；那裡的檔案大小不同的照片會被連結到該檔案。「同步資料夾」可以重新找到它們或將它們從照片庫中移除。不會更動任何檔案。",
   "The other photos stay missing there; Synchronize Folder can find them again or remove them from the library. No file is touched.": "其餘照片在那裡仍為遺失；「同步資料夾」可以重新找到它們或將它們從照片庫中移除。不會更動任何檔案。",
   "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "找不到圖形處理器：LightCraft 改用 CPU 算繪，速度會慢很多。詳情請見「說明 → 系統資訊」。",
   "On NixOS, start it from `nix develop`.": "在 NixOS 上，請從 `nix develop` 啟動。",

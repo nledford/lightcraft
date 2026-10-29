@@ -2167,6 +2167,7 @@
   "Choose the folder in the dialog that is already open": "Wybierz folder w już otwartym oknie dialogowym",
   "Locate Anyway": "Użyj mimo to",
   "Locate the folder there anyway?": "Mimo to użyć folderu w tym miejscu?",
+  "Photos with no file there stay missing, and photos whose file there is another size are linked to that file. Synchronize Folder can find them again or remove them from the library. No file is touched.": "Zdjęć bez pliku w tym miejscu nadal będzie brakować, a zdjęcia, których plik ma tam inny rozmiar, zostaną powiązane z tym plikiem. „Synchronizuj folder” może je odnaleźć lub usunąć z biblioteki. Żaden plik nie jest zmieniany.",
   "The other photos stay missing there; Synchronize Folder can find them again or remove them from the library. No file is touched.": "Pozostałych zdjęć nadal będzie tam brakować; „Synchronizuj folder” może je odnaleźć lub usunąć z biblioteki. Żaden plik nie jest zmieniany.",
   "Vertical inset (% of short edge)": "Margines pionowy (% krótszego boku)",
   "not added to Apple Photos (cancelled)": "nie dodano do aplikacji Zdjęcia (anulowano)",

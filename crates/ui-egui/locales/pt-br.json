@@ -2017,6 +2017,7 @@
   "Choose the folder in the dialog that is already open": "Escolha a pasta na caixa de diálogo que já está aberta",
   "Locate Anyway": "Localizar mesmo assim",
   "Locate the folder there anyway?": "Localizar a pasta ali mesmo assim?",
+  "Photos with no file there stay missing, and photos whose file there is another size are linked to that file. Synchronize Folder can find them again or remove them from the library. No file is touched.": "As fotos sem arquivo ali continuam ausentes, e as fotos cujo arquivo ali tem outro tamanho são vinculadas a esse arquivo. Sincronizar pasta pode encontrá-las de novo ou removê-las da biblioteca. Nenhum arquivo é tocado.",
   "The other photos stay missing there; Synchronize Folder can find them again or remove them from the library. No file is touched.": "As outras fotos continuam ausentes ali; Sincronizar pasta pode encontrá-las de novo ou removê-las da biblioteca. Nenhum arquivo é tocado.",
   "Sort Albums A–Z": "Ordenar álbuns de A a Z",
   "Go back to listing them by name": "Voltar a listá-los por nome",

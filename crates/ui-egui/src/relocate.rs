@@ -101,17 +101,32 @@ pub fn start(app: &mut LightcraftApp, request: Request) -> Result<Value, String>
     std::thread::Builder::new().name("lc-relocate".into()).spawn(job).map_err(|e| format!("could not start: {e}"))?;
     #[cfg(target_arch = "wasm32")]
     job();
+    track(app, request, progress, rx, &name);
+    Ok(json!({"started": true}))
+}
+
+/// The row in the activity stack and the task that [`poll`] collects the worker's answer from.
+fn track(app: &mut LightcraftApp, request: Request, progress: Arc<ScanProgress>, rx: std::sync::mpsc::Receiver<Result<Located, String>>, name: &str) {
     let guard = app.session.activity.start("relocate", "Locating folder", Cancel::Flag(progress.cancel.clone()));
-    guard.detail(&name);
+    guard.detail(name);
     app.relocate = Some(RelocateTask { request, progress, rx, guard });
     app.relocate_last = None;
     app.relocate_library = app.session.library_generation();
-    Ok(json!({"started": true}))
+}
+
+/// A task whose worker is the caller: it answers on the returned sender when it likes, so a
+/// test can hold the worker "still reading" while the row is cancelled.
+#[cfg(test)]
+pub(crate) fn track_held_worker(app: &mut LightcraftApp, request: Request) -> std::sync::mpsc::Sender<Result<Located, String>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    track(app, request, Arc::new(ScanProgress::default()), rx, "held");
+    tx
 }
 
 /// The files were looked for (or the question asked) in a library that is no longer open: its
 /// plan names that library's photos, and an answer would relink whatever the open library has
-/// at the same paths. Dropped, with how it ended.
+/// at the same paths. Dropped, with how it ended; the worker of a looking in progress is told to
+/// stop (see `Drop`), and the next library's first request must not wait for it.
 fn drop_stale(app: &mut LightcraftApp) {
     if (app.relocate.is_some() || app.relocate_asked.is_some()) && app.relocate_library != app.session.library_generation() {
         let request = app.relocate.as_ref().map(|t| &t.request).or(app.relocate_asked.as_ref().map(|a| &a.0));
@@ -173,14 +188,13 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
         }
     }
     let Some(task) = app.relocate.as_ref() else { return };
-    if task.guard.is_cancelled() {
-        // ✕ on its row: a count stopped part-way says nothing
-        app.relocate_last = Some(ended(&task.request, json!({"cancelled": true})));
-        app.relocate = None;
-        return;
+    // ✕ on its row: a count stopped part-way says nothing. The task and its row stay until the
+    // worker has ended, so no second worker starts beside one that is still reading
+    let cancelled = task.guard.is_cancelled();
+    if !cancelled {
+        let (done, total) = (task.progress.done.load(Ordering::Relaxed), task.progress.total.load(Ordering::Relaxed));
+        task.guard.progress(done as u64, total as u64);
     }
-    let (done, total) = (task.progress.done.load(Ordering::Relaxed), task.progress.total.load(Ordering::Relaxed));
-    task.guard.progress(done as u64, total as u64);
     ctx.request_repaint_after(std::time::Duration::from_millis(100));
     let located = match task.rx.try_recv() {
         Ok(l) => l,
@@ -191,6 +205,10 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
     let request = task.request.clone();
     // (the row goes before anything is said or asked)
     drop(task);
+    if cancelled {
+        app.relocate_last = Some(ended(&request, json!({"cancelled": true})));
+        return;
+    }
     let located = match located {
         Ok(l) => l,
         Err(e) => {
@@ -292,12 +310,17 @@ pub fn body(ui: &mut egui::Ui, dlg: &Dialog) {
     }
     ui.add_space(6.0);
     ui.label(crate::i18n::tr("Locate the folder there anyway?"));
-    ui.label(
-        egui::RichText::new(crate::i18n::tr(
+    // (a photo whose file there is another size is relinked too: Locate Anyway takes every photo of the folder)
+    let others = if *different > 0 {
+        crate::i18n::tr(
+            "Photos with no file there stay missing, and photos whose file there is another size are linked to that file. Synchronize Folder can find them again or remove them from the library. No file is touched.",
+        )
+    } else {
+        crate::i18n::tr(
             "The other photos stay missing there; Synchronize Folder can find them again or remove them from the library. No file is touched.",
-        ))
-        .color(t.text_dim),
-    );
+        )
+    };
+    ui.label(egui::RichText::new(others).color(t.text_dim));
 }
 
 /// "Locate Anyway": what was found is relinked on the next frame ([`poll`]); the files are not

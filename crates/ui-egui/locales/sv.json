@@ -2443,5 +2443,6 @@
   "Choose the folder in the dialog that is already open": "Välj mappen i dialogrutan som redan är öppen",
   "Locate Anyway": "Leta upp ändå",
   "Locate the folder there anyway?": "Leta upp mappen där ändå?",
+  "Photos with no file there stay missing, and photos whose file there is another size are linked to that file. Synchronize Folder can find them again or remove them from the library. No file is touched.": "Foton utan fil där förblir saknade, och foton vars fil där har en annan storlek länkas till den filen. Synkronisera mapp kan hitta dem igen eller ta bort dem från biblioteket. Ingen fil påverkas.",
   "The other photos stay missing there; Synchronize Folder can find them again or remove them from the library. No file is touched.": "De andra fotona förblir saknade där; Synkronisera mapp kan hitta dem igen eller ta bort dem från biblioteket. Ingen fil påverkas."
 }

@@ -2214,6 +2214,7 @@
   "Choose the folder in the dialog that is already open": "Виберіть теку в уже відкритому діалоговому вікні",
   "Locate Anyway": "Усе одно вказати",
   "Locate the folder there anyway?": "Усе одно вказати теку там?",
+  "Photos with no file there stay missing, and photos whose file there is another size are linked to that file. Synchronize Folder can find them again or remove them from the library. No file is touched.": "Фото без файлу там залишаться відсутніми, а фото, чий файл там іншого розміру, буде пов’язано з цим файлом. «Синхронізувати теку» може знайти їх знову або вилучити з бібліотеки. Файли не зачіпаються.",
   "The other photos stay missing there; Synchronize Folder can find them again or remove them from the library. No file is touched.": "Інші фото залишаться там відсутніми; «Синхронізувати теку» може знайти їх знову або вилучити з бібліотеки. Файли не зачіпаються.",
   "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "Графічний процесор не знайдено: LightCraft виконує рендеринг на ЦП, а це набагато повільніше. Докладніше: Довідка → Інформація про систему.",
   "On NixOS, start it from `nix develop`.": "У NixOS запускайте його з `nix develop`.",

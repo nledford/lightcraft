@@ -2654,6 +2654,7 @@
   "Choose the folder in the dialog that is already open": "აირჩიეთ საქაღალდე უკვე გახსნილ დიალოგში",
   "Locate Anyway": "მაინც გამოყენება",
   "Locate the folder there anyway?": "მაინც გამოვიყენოთ საქაღალდე იქ?",
+  "Photos with no file there stay missing, and photos whose file there is another size are linked to that file. Synchronize Folder can find them again or remove them from the library. No file is touched.": "ფოტოები, რომელთა ფაილი იქ არ არის, კვლავ დაკარგულია, ხოლო ფოტოები, რომელთა ფაილს იქ სხვა ზომა აქვს, იმ ფაილს დაუკავშირდება. „საქაღალდის სინქრონიზაციას“ შეუძლია მათი ხელახლა პოვნა ან ბიბლიოთეკიდან ამოღება. ფაილებს არ ეხება.",
   "The other photos stay missing there; Synchronize Folder can find them again or remove them from the library. No file is touched.": "დანარჩენი ფოტოები იქ კვლავ დაკარგულია; „საქაღალდის სინქრონიზაციას“ შეუძლია მათი ხელახლა პოვნა ან ბიბლიოთეკიდან ამოღება. ფაილებს არ ეხება.",
   "smart preview\" or \"This photo can't be opened\", the reason on hover) instead of showing that preview as if it were": "წინასწარი ხედი არ არის“ ან „ამ ფოტოს გახსნა შეუძლებელია“, მიზეზი — მიტანისას), ნაცვლად იმისა, რომ ეს წინასწარი ხედი ისე აჩვენოს, თითქოს",
   "smart previews": "ჭკვიანი წინასწარი ხედი",

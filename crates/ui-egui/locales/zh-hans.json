@@ -2049,6 +2049,7 @@
   "Choose the folder in the dialog that is already open": "请在已打开的对话框中选择文件夹",
   "Locate Anyway": "仍然定位",
   "Locate the folder there anyway?": "仍然将文件夹定位到那里吗？",
+  "Photos with no file there stay missing, and photos whose file there is another size are linked to that file. Synchronize Folder can find them again or remove them from the library. No file is touched.": "那里没有文件的照片仍为缺失；那里的文件大小不同的照片会被链接到该文件。“同步文件夹”可以重新找到它们或将它们从图库中移除。不会改动任何文件。",
   "The other photos stay missing there; Synchronize Folder can find them again or remove them from the library. No file is touched.": "其余照片在那里仍为缺失；“同步文件夹”可以重新找到它们或将它们从图库中移除。不会改动任何文件。",
   "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "未找到图形处理器：LightCraft 改用 CPU 渲染，速度会慢很多。详情见“帮助 → 系统信息”。",
   "On NixOS, start it from `nix develop`.": "在 NixOS 上，请从 `nix develop` 启动。",
