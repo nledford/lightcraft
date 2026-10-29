@@ -21,7 +21,7 @@
 
 ## 2026-10-23
 
-### Settings text can be read in every theme
+### Settings text can be read in more themes
 
 - What Settings says can be read in more themes. Its explanations, the text a box shows while it is empty, "In Use"
   on a theme's card and the warnings and refusals on the AI Denoise and Faces tabs now stand at least 4.5:1 against
