@@ -931,3 +931,21 @@ fn open_dialogs_count_once_per_library_change() {
     }
     assert_eq!(h.app.caches.dialog_count_scans, before + 3, "another dialog counts its own photos, once");
 }
+
+// Given the Merge Keywords dialog and a suggested keyword whose path is wider than the dialog,
+// When the suggestions are shown, Then the chip wraps its label inside the dialog instead of
+// running past its edge.
+#[test]
+fn a_merge_suggestion_wider_than_the_dialog_wraps_inside_it() {
+    let (mut h, ids) = two_selected();
+    let long = format!("Places|{}", "Alfama Miradouro da Senhora do Monte ".repeat(6).trim_end());
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": [ids[0]], "addKeywords": [long]}}));
+    h.app.ui.dialog = Some(crate::state::Dialog::MergeKeywords { from: vec!["Weddings".into()], into: String::new() });
+    for _ in 0..4 {
+        h.step();
+    }
+    let chip = rect(&h, &format!("mergeSuggest:{long}"));
+    let window = rect(&h, "dialog:window");
+    assert!(chip.right() <= window.right() + 1.0, "the chip {chip:?} stays inside the dialog {window:?}");
+    assert!(chip.height() > 30.0, "its label wrapped onto more lines, {chip:?}");
+}

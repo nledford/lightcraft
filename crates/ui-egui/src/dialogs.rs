@@ -1014,8 +1014,11 @@ fn merge_keywords_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, c
         .cloned()
         .collect();
     ui.horizontal_wrapped(|ui| {
+        // a keyword wider than the dialog wraps its label inside it
+        let row = ui.available_width();
         for k in options {
-            if crate::button::Button::new(&k).verbatim().small().show(ui).clicked() {
+            let chip = crate::button::Button::new(&k).verbatim().small().max_width(row).widget(format!("mergeSuggest:{k}"));
+            if chip.show(ui).clicked() {
                 *into = k;
             }
         }
