@@ -165,6 +165,9 @@ fn undoing_a_person_rename_shows_the_one_photo_it_changed_under_the_filter_it_gi
 
 #[test]
 fn undoing_a_step_keeps_what_the_filter_got_since() {
+    // the delete emptied the filter, which the person did not throw away: the stars they add are an edit of it (when the
+    // person empties the filter by hand instead, what comes after is a new filter: see
+    // `undoing_a_step_leaves_a_filter_built_after_the_old_one_was_emptied_or_replaced_alone`)
     let mut s = session();
     run(&mut s, "library.filter", json!({"keyword": "cat"}));
     delete_cat(&mut s);
@@ -315,15 +318,17 @@ fn redoing_a_folder_removal_drops_the_put_aside_filter_it_emptied_again() {
 }
 
 #[test]
-fn undoing_a_folder_removal_does_not_put_an_empty_filter_aside_when_another_folder_is_shown() {
+fn undoing_a_folder_removal_puts_the_filter_aside_again_when_another_folder_is_shown() {
     let mut s = session();
     run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip"}));
     toggle(&mut s);
     remove_trip(&mut s);
     run(&mut s, "library.source", json!({"kind": "libraryFolder", "path": "/pics/home"}));
     undo(&mut s);
-    assert!(!s.filters_off(), "the folder shown wins, so nothing is left to put aside");
-    assert_eq!(*s.filter(), Filter::default());
+    assert!(s.filters_off(), "the filter the step dropped is put aside again, as it was");
+    assert_eq!(*s.filter(), Filter::default(), "and the folder shown stays the only folder");
+    toggle(&mut s);
+    assert_eq!(*s.filter(), Filter::default(), "the folder shown wins when the filter comes back, as for any put-aside filter");
 }
 
 #[test]
@@ -372,13 +377,225 @@ fn a_step_carries_the_fields_of_a_chip_together() {
     let from = Filter { only: vec![PhotoId(1)], only_none: false, ..Default::default() };
     let to = Filter { only: Vec::new(), only_none: true, ..Default::default() };
     let mut now = from.clone();
-    crate::undo_filters::carry(&mut now, &from, &to, &cat);
+    crate::undo_filters::carry(&mut now, &from, &to, &cat, &serde_json::Map::new());
     assert_eq!(now, to, "both fields move");
     let mut half = Filter { only: vec![PhotoId(1)], only_none: true, ..Default::default() };
-    crate::undo_filters::carry(&mut half, &from, &to, &cat);
+    crate::undo_filters::carry(&mut half, &from, &to, &cat, &serde_json::Map::new());
     assert_eq!(half, Filter { only: vec![PhotoId(1)], only_none: true, ..Default::default() }, "a chip changed since moves not at all");
     // what the step left alone is never touched, whatever it holds now
     let mut other = Filter { only: vec![PhotoId(1)], rating: 5, text: "x".into(), ..Default::default() };
-    crate::undo_filters::carry(&mut other, &from, &to, &cat);
+    crate::undo_filters::carry(&mut other, &from, &to, &cat, &serde_json::Map::new());
     assert_eq!((other.only_none, other.rating, other.text.as_str()), (true, 5, "x"));
+}
+
+#[test]
+fn redoing_a_step_leaves_alone_what_undo_left_alone() {
+    // the person picks "cat" by hand after the rename: undo leaves it, and so must redo, though it now holds what the
+    // step's undo found
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    run(&mut s, "keyword.rename", json!({"from": "cat", "to": "kitten"}));
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    undo(&mut s);
+    assert_eq!(s.filter().keyword.as_deref(), Some("cat"), "undo leaves the keyword picked since");
+    redo(&mut s);
+    assert_eq!(s.filter().keyword.as_deref(), Some("cat"), "and so does redo: the person's filter is theirs");
+    assert_eq!(s.visible().len(), 0, "whatever it matches: the photos have \"kitten\" again, and the chip says \"cat\"");
+    undo(&mut s);
+    assert_eq!(s.filter().keyword.as_deref(), Some("cat"));
+}
+
+#[test]
+fn redoing_a_step_still_carries_what_undo_carried() {
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"keyword": "cat", "rating": 3}));
+    run(&mut s, "keyword.rename", json!({"from": "cat", "to": "kitten"}));
+    run(&mut s, "library.filter", json!({"rating": 4}));
+    undo(&mut s);
+    assert_eq!(*s.filter(), filtered(Some("cat"), None, 4));
+    redo(&mut s);
+    assert_eq!(*s.filter(), filtered(Some("kitten"), None, 4), "the keyword goes forward, the stars are the person's");
+}
+
+#[test]
+fn a_command_that_commits_several_steps_keeps_no_filter_change_with_the_last_of_them() {
+    // none does today (the ones that merge steps keep `filters` empty on purpose): the change belongs to no single step
+    let mut s = session();
+    let id = s.catalog.photos().map(|p| p.id).min().unwrap();
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    s.execute_fn("two steps", |s| {
+        s.commit("one", Op::SetRating { id, rating: 1 })?;
+        s.commit("two", Op::SetRating { id, rating: 2 })?;
+        s.set_filter(Filter::default());
+        Ok(json!({}))
+    })
+    .unwrap();
+    assert!(s.undo.iter().all(|e| e.filters.is_none()), "no step takes the change for its own");
+    undo(&mut s);
+    assert_eq!(*s.filter(), Filter::default(), "undoing the last step leaves the filter as it is");
+}
+
+#[test]
+fn a_command_that_committed_a_step_and_then_failed_keeps_its_filter_change_with_the_step() {
+    // the step is on the undo stack whatever the command answered, and undo moves the filter back with it
+    let mut s = session();
+    let id = s.catalog.photos().map(|p| p.id).min().unwrap();
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    let failed = s.execute_fn("fails after its step", |s| {
+        s.commit("one", Op::SetRating { id, rating: 1 })?;
+        s.set_filter(Filter::default());
+        Err(crate::EngineError::Other("boom".into()))
+    });
+    assert!(failed.is_err());
+    assert_eq!(*s.filter(), Filter::default());
+    undo(&mut s);
+    assert_eq!(s.filter().keyword.as_deref(), Some("cat"), "the step's filter change is carried back with it");
+}
+
+#[test]
+fn undoing_a_folder_removal_while_another_folder_is_shown_keeps_the_put_aside_folder_for_later() {
+    // the folder is restored as Enable Filters would restore it: put aside, and reconciled when it comes back
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip"}));
+    toggle(&mut s);
+    remove_trip(&mut s);
+    run(&mut s, "library.source", json!({"kind": "libraryFolder", "path": "/pics/home"}));
+    undo(&mut s);
+    assert!(s.filters_off(), "the folder it had is put aside again");
+    run(&mut s, "library.source", json!({"kind": "all"}));
+    toggle(&mut s);
+    assert_eq!(s.filter().library_folder.as_deref(), Some("/pics/trip"), "and comes back once no other folder is shown");
+    assert_eq!(s.visible().len(), 2);
+}
+
+#[test]
+fn undoing_redoing_and_undoing_again_puts_the_dropped_filter_aside_again_not_an_empty_one() {
+    // Enable Filters was turned back on under the other folder before redo: the folder is out of the filter in use, redo
+    // moves nothing, and the second undo puts the filter the step dropped aside with its folder, which comes back
+    // once no other folder is shown (an empty filter aside would leave filters off with nothing to bring back)
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip"}));
+    toggle(&mut s);
+    remove_trip(&mut s);
+    run(&mut s, "library.source", json!({"kind": "libraryFolder", "path": "/pics/home"}));
+    undo(&mut s);
+    toggle(&mut s);
+    assert!(!s.filters_off());
+    redo(&mut s);
+    undo(&mut s);
+    assert!(s.filters_off(), "the filter the step dropped is put aside again");
+    run(&mut s, "library.source", json!({"kind": "all"}));
+    toggle(&mut s);
+    assert_eq!(s.filter().library_folder.as_deref(), Some("/pics/trip"), "with the folder it had");
+}
+
+#[test]
+fn a_folder_the_shown_source_took_out_of_the_filter_comes_back_with_the_second_undo() {
+    // undo restored the folder while another folder was shown, which left it out; redo and a second undo under All
+    // Photos restore it all the same, as they would have without the other folder shown
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip"}));
+    remove_trip(&mut s);
+    run(&mut s, "library.source", json!({"kind": "libraryFolder", "path": "/pics/home"}));
+    undo(&mut s);
+    redo(&mut s);
+    run(&mut s, "library.source", json!({"kind": "all"}));
+    undo(&mut s);
+    assert_eq!(s.filter().library_folder.as_deref(), Some("/pics/trip"));
+    assert_eq!(s.visible().len(), 2);
+}
+
+#[test]
+fn a_folder_the_shown_source_took_out_comes_back_when_redo_runs_under_another_source() {
+    // undo ran under another folder (which left the restored folder out), redo under All Photos: the second undo restores it
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip"}));
+    remove_trip(&mut s);
+    run(&mut s, "library.source", json!({"kind": "libraryFolder", "path": "/pics/home"}));
+    undo(&mut s);
+    run(&mut s, "library.source", json!({"kind": "all"}));
+    redo(&mut s);
+    undo(&mut s);
+    assert_eq!(s.filter().library_folder.as_deref(), Some("/pics/trip"));
+}
+
+/// A scratch folder that goes away with the test, however it ends.
+struct Scratch(std::path::PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn a_folder_the_person_took_out_of_the_put_aside_filter_stays_out_whichever_folder_is_shown() {
+    // the put-aside filter is not cleaned up for the folder shown, so a folder missing from it was removed by the person,
+    // not left out by the source: undo must not bring it back because another folder is shown
+    let dir = Scratch(std::env::temp_dir().join(format!("lc-undo-filters-{}", std::process::id())));
+    let _ = std::fs::remove_dir_all(&dir.0);
+    std::fs::create_dir_all(dir.0.join("trip")).unwrap();
+    let trip = dir.0.join("trip").to_string_lossy().to_string();
+    let mut s = session();
+    let id = s.catalog.alloc_photo_id();
+    let p = Photo::new(id, Source::File { path: format!("{trip}/d.jpg") }, "d.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    run(&mut s, "library.filter", json!({"libraryFolder": trip, "rating": 3}));
+    run(&mut s, "folder.rename", json!({"path": trip, "name": "holiday"}));
+    run(&mut s, "library.filter", json!({"libraryFolder": null}));
+    toggle(&mut s);
+    run(&mut s, "library.source", json!({"kind": "libraryFolder", "path": "/pics/home"}));
+    undo(&mut s);
+    run(&mut s, "library.source", json!({"kind": "all"}));
+    toggle(&mut s);
+    assert_eq!(*s.filter(), filtered(None, None, 3), "the folder chip the person removed stays removed");
+}
+
+#[test]
+fn a_group_left_alone_once_moves_again_when_the_filter_holds_what_the_step_left() {
+    // the person picked another keyword after the rename: undo and redo leave it, and a later undo still brings "cat" back
+    // once the filter holds "kitten" again
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    run(&mut s, "keyword.rename", json!({"from": "cat", "to": "kitten"}));
+    run(&mut s, "library.filter", json!({"keyword": "dog"}));
+    undo(&mut s);
+    redo(&mut s);
+    assert_eq!(s.filter().keyword.as_deref(), Some("dog"));
+    run(&mut s, "library.filter", json!({"keyword": "kitten"}));
+    undo(&mut s);
+    assert_eq!(s.filter().keyword.as_deref(), Some("cat"));
+    assert_eq!(s.visible().len(), 2);
+    // the same when the person had picked the keyword the step found
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    run(&mut s, "keyword.rename", json!({"from": "cat", "to": "kitten"}));
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    undo(&mut s);
+    redo(&mut s);
+    run(&mut s, "library.filter", json!({"keyword": "kitten"}));
+    undo(&mut s);
+    assert_eq!(s.filter().keyword.as_deref(), Some("cat"));
+}
+
+#[test]
+fn a_group_left_alone_is_carried_again_when_the_person_changed_it_since() {
+    // undo left the person's "dog", then they picked "cat", which is what redo moves from: redo follows the rename
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    run(&mut s, "keyword.rename", json!({"from": "cat", "to": "kitten"}));
+    run(&mut s, "library.filter", json!({"keyword": "dog"}));
+    undo(&mut s);
+    run(&mut s, "library.filter", json!({"keyword": "cat"}));
+    redo(&mut s);
+    assert_eq!(s.filter().keyword.as_deref(), Some("kitten"), "no filter on a keyword the redo took away");
+    // the same for a folder removal: the folder is not brought back by hand and left in the filter
+    let mut s = session();
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip"}));
+    remove_trip(&mut s);
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/home"}));
+    undo(&mut s);
+    run(&mut s, "library.filter", json!({"libraryFolder": "/pics/trip"}));
+    redo(&mut s);
+    assert_eq!(s.filter().library_folder, None);
 }

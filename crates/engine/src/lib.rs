@@ -595,7 +595,6 @@ impl Session {
         self.depth -= 1;
         if self.depth == 0
             && let Some(before) = self.filters.end_recording()
-            && r.is_ok()
         {
             self.note_filter_change(before, commits);
         }

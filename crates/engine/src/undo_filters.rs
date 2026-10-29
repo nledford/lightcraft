@@ -10,12 +10,20 @@
 //! Only what the step changed is carried, group by group (the fields one filter chip clears together, see
 //! [`filter_chips`]), and a group only moves while it still holds what the step left: a keyword or folder chosen
 //! since is not replaced, and the rest of the filter is never touched. What the source shown now owns is left out
-//! ([`crate::LibrarySource::reconcile`]), as for every other way into the filter.
+//! ([`crate::LibrarySource::reconcile`]), as for every other way into the filter. The entry undo hands to redo (and
+//! redo's to undo) leaves alone a group that was left alone because the person had chosen a value of their own since,
+//! for as long as the group still holds that value: redo does not overwrite it either, though it may now hold what the
+//! step found. It is the person's filter, whatever it matches. Once they change it, the group moves whenever the filter
+//! holds what the step left.
 //!
 //! A filter the person built after the step is left alone, and the one the step put aside is not brought back beside
 //! it (setting a filter while filters are off forgets the one put aside, `library.toggleFilters`): nothing is carried
 //! once the filter was thrown away since (replaced, emptied, or the one put aside forgotten by setting another: the
 //! filter's `replaced` count), nor into a filter the person has again after the step dropped the put-aside one.
+//!
+//! A filter the step itself emptied is not one the person threw away: what they add to it afterwards is an edit of
+//! it, so undo brings the keyword back beside it. One the person emptied by hand ended there (it is counted), and
+//! the filter after it is a new one.
 
 use lightcraft_catalog::{Catalog, Filter};
 use serde_json::{Map, Value};
@@ -30,12 +38,10 @@ pub(crate) struct FilterChange {
     to: Snapshot,
     /// [`crate::filter_state::FilterState`]'s `replaced` count after the step.
     replaced: u64,
-}
-
-impl FilterChange {
-    fn reversed(&self) -> Self {
-        Self { from: self.to.clone(), to: self.from.clone(), replaced: self.replaced }
-    }
+    /// The fields of groups the carry that made this change left alone, because the person had chosen a value of their own
+    /// (see [`carry`]), with that value: this change leaves such a group alone once too, while it still holds it, though
+    /// it may hold what this change moves from.
+    skip: Map<String, Value>,
 }
 
 /// The fields of a filter by their names in commands (a few at their default are left out).
@@ -58,33 +64,47 @@ fn groups(from: &Map<String, Value>, to: &Map<String, Value>, chips: Vec<Vec<Str
     groups
 }
 
-/// Move the groups of `filter` that the step changed (`from` → `to`) and that still hold what the step left.
-pub(crate) fn carry(filter: &mut Filter, from: &Filter, to: &Filter, cat: &Catalog) {
+/// Move the groups of `filter` that the step changed (`from` → `to`) and that still hold what the step left, except the
+/// ones `skip` names while they still hold the value it gives. Returns the fields of the groups left alone because the
+/// person had set them to a value of their own since (not empty, and not what the step left), with that value: the step's
+/// reverse leaves them alone once too.
+pub(crate) fn carry(filter: &mut Filter, from: &Filter, to: &Filter, cat: &Catalog, skip: &Map<String, Value>) -> Map<String, Value> {
     let (mut now, left, found) = (fields(filter), fields(from), fields(to));
+    // (the groups are judged against the filter as it was: a chip of both filters comes up twice)
+    let held = now.clone();
+    let value = |m: &Map<String, Value>, k: &String| m.get(k).cloned().unwrap_or(Value::Null);
+    let mut chosen = Map::new();
     let chips = filter_chips(from, cat).into_iter().chain(filter_chips(to, cat));
     let chips = chips.filter_map(|c| c.clear.as_object().map(|o| o.keys().cloned().collect())).collect();
     for group in groups(&left, &found, chips) {
-        let changed = group.iter().any(|k| left.get(k) != found.get(k));
-        if changed && group.iter().all(|k| now.get(k) == left.get(k)) {
+        if group.iter().all(|k| left.get(k) == found.get(k)) || group.iter().all(|k| skip.get(k) == Some(&value(&held, k))) {
+            continue;
+        }
+        if group.iter().all(|k| held.get(k) == left.get(k)) {
             for k in &group {
                 match found.get(k) {
                     Some(v) => now.insert(k.clone(), v.clone()),
                     None => now.remove(k),
                 };
             }
+        } else if group.iter().any(|k| held.get(k) != left.get(k) && !matches!(held.get(k), None | Some(Value::Null))) {
+            chosen.extend(group.iter().map(|k| (k.clone(), value(&held, k))));
         }
     }
     if let Ok(moved) = serde_json::from_value(Value::Object(now)) {
         *filter = moved;
     }
+    chosen
 }
 
 impl Session {
-    /// A command that changed the person's filter ran: if it also committed a step, keep what it did to the filter
-    /// with the step, so undo can bring it back. `before` is the filter before its first change, `commits` is
-    /// [`Session::commits`] before it ran: what shows a step was committed.
+    /// A command that changed the person's filter ran: if it also committed one step, keep what it did to the filter
+    /// with that step, so undo can bring it back. `before` is the filter before its first change, `commits` is
+    /// [`Session::commits`] before it ran: what shows how many steps it committed. A command that committed several
+    /// has no single step the change belongs to (none does today), and one that failed after committing one still
+    /// left that step to undo.
     pub(crate) fn note_filter_change(&mut self, before: Snapshot, commits: u64) {
-        if self.commits == commits {
+        if self.commits.wrapping_sub(commits) != 1 {
             return;
         }
         let after = self.filters.snapshot();
@@ -93,13 +113,15 @@ impl Session {
         }
         let replaced = self.filters.replaced();
         if let Some(step) = self.undo.last_mut() {
-            step.filters = Some(FilterChange { from: after, to: before, replaced });
+            step.filters = Some(FilterChange { from: after, to: before, replaced, skip: Map::new() });
         }
     }
 
     /// Apply a step's filter change (undo or redo); returns the change that takes it back, for the other history stack.
+    /// That change leaves alone once what this one left alone because the person had chosen it since (see [`carry`]).
     pub(crate) fn carry_filters(&mut self, change: Option<&FilterChange>) -> Option<FilterChange> {
         let change = change?;
+        let mut skip = Map::new();
         if self.filters.replaced() == change.replaced {
             let (from, to) = (&change.from, &change.to);
             let cat = &self.catalog;
@@ -109,7 +131,7 @@ impl Session {
                 if !from.aside && to.aside && *filter != Filter::default() {
                     return Carried::InPlace;
                 }
-                carry(filter, &from.filter, &to.filter, cat);
+                skip = carry(filter, &from.filter, &to.filter, cat, &change.skip);
                 // the step had dropped the put-aside filter after emptying it: drop it again once nothing is left in it
                 if aside && from.aside && !to.aside && *filter == to.filter {
                     Carried::Drop
@@ -121,6 +143,6 @@ impl Session {
                 }
             });
         }
-        Some(change.reversed())
+        Some(FilterChange { from: change.to.clone(), to: change.from.clone(), replaced: change.replaced, skip })
     }
 }

@@ -245,17 +245,19 @@ impl FilterState {
             None => (false, &mut self.current),
         };
         let verdict = edit(filter, aside);
-        if !aside {
-            source.reconcile(&mut self.current);
-        }
         match verdict {
             Carried::InPlace => {}
             Carried::Drop if aside => self.aside = None,
-            // (a filter that is now empty has nothing to put aside, unless it was the step's)
+            // put aside as the step had it: what the source shown owns is left out when it comes back (`toggle`), not
+            // now, or a source that changes back first would find it gone (a filter that is empty has nothing to put
+            // aside, unless it was the step's)
             Carried::PutAside { even_if_empty } if !aside && was_empty && (self.current != Filter::default() || even_if_empty) => {
                 self.aside = Some(std::mem::take(&mut self.current));
             }
             Carried::Drop | Carried::PutAside { .. } => {}
+        }
+        if !aside {
+            source.reconcile(&mut self.current);
         }
     }
 
