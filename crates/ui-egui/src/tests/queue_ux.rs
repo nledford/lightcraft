@@ -356,7 +356,7 @@ fn the_line_holds_while_the_switch_question_is_up() {
 /// starts: a stale question holds nothing.
 #[test]
 fn a_stale_switch_question_does_not_hold_the_line() {
-    let (mut h, dir) = library_app("switch-stale");
+    let (mut h, dir) = library_app("switch-stale-hold");
     let running = hold_a_line(&mut h);
     h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
     let generation = h.app.session.library_generation();
