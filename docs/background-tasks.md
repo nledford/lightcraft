@@ -82,7 +82,8 @@ every command and the app every frame. `activity.list` shows a waiting task afte
 of the line, `activity.cancel {all: true}` empties it, and opening another library drops it: the photos it names
 belong to the old one. Opening another library while tasks wait asks first in the app (an agent says `dropWaiting: true` to agree; without it
 `app.openLibrary` and `app.newLibrary` return `asked: true` and the question is up), and the switch says how many it
-dropped. At most `MAX_WAITING` (100) tasks wait; the app's own refusals of a full line say so in the window's language,
+dropped. While the question is up nothing leaves the line (the app holds it: a task that started then would refuse the
+switch (an import) or escape the drop the person is agreeing to (a build)), and a switch that fails opens the old library again with its line intact. At most `MAX_WAITING` (100) tasks wait; the app's own refusals of a full line say so in the window's language,
 the engine's (`Activity::line_full_error`) stays English. Without `queue` a call is refused while its lane is
 busy, as before. A waiting task whose start fails (there is no smart previews folder any more, say) is logged (the app's own, an import or a Synchronize Folder, also says why in a toast) and the next in line goes on.
 

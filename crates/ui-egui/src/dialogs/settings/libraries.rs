@@ -77,6 +77,8 @@ fn ask_before_dropping_the_line(app: &mut LightcraftApp, path: &str, create: boo
     let ids = waiting.iter().map(|t| t.id).collect();
     app.switch_prompt =
         Some(crate::SwitchPrompt { path: path.to_string(), create, text, generation: app.session.library_generation(), waiting: ids });
+    // (held from now: a lane that frees before the next frame must not start what the question is about)
+    app.session.activity.hold_line(true);
     json!({"opened": false, "asked": true, "waiting": waiting.len()})
 }
 
@@ -122,7 +124,7 @@ fn switch_library(app: &mut LightcraftApp, path: &str, agreed: bool) -> Result<V
     app.renderer.forget_all();
     if let Err(err) = opened {
         let Some(prev) = previous_dir else { return Err(err) };
-        return match app.session.open_library(&prev, false) {
+        return match app.session.reopen_library(&prev) {
             Ok(_) => Err(err),
             Err(e) => Err(format!("{err}; reopening the previous library {} failed too: {e}", prev.display())),
         };

@@ -106,6 +106,8 @@ struct Inner {
     waiting: Mutex<Vec<Waiting>>,
     /// The id the waiting task being started keeps (its kind, its id): see [`Activity::take_ready`].
     reserved: Mutex<Option<(&'static str, u64)>>,
+    /// Set while a question about the line is open: nothing leaves it ([`Activity::hold_line`]).
+    line_held: AtomicBool,
     next: AtomicU64,
 }
 
@@ -384,10 +386,20 @@ impl Activity {
         self.take_ready_if(|_| true)
     }
 
+    /// While `held`, no task leaves the line ([`Activity::take_ready`] hands none over): a question about the line is
+    /// open (switching libraries would drop it), and what the person answers must still be true when they answer. The
+    /// frontend that asks sets it and clears it when the question is gone.
+    pub fn hold_line(&self, held: bool) {
+        self.inner.line_held.store(held, Ordering::Relaxed);
+    }
+
     /// [`Activity::take_ready`] among the tasks whose request `runs` can run: each frontend starts what it knows how to
     /// (the engine its commands, the app its own). Only the first in each lane's line is looked at: one the caller
     /// can't run holds its lane, as it would if it had started.
     pub fn take_ready_if(&self, runs: impl Fn(&Request) -> bool) -> Option<Waiting> {
+        if self.inner.line_held.load(Ordering::Relaxed) {
+            return None;
+        }
         let mut waiting = lock(&self.inner.waiting);
         let mut held: Vec<Lane> = lock(&self.inner.tasks).iter().filter_map(|e| Lane::of(e.kind)).collect();
         let mut at = None;
@@ -692,6 +704,17 @@ mod tests {
         assert_eq!(w.id, id);
         a.started(); // the command failed before starting anything
         assert_ne!(a.start("previews", "P", Cancel::Yes).id(), id, "a later task of the kind doesn't take it");
+    }
+
+    #[test]
+    fn a_held_line_hands_nothing_over_until_it_is_let_go() {
+        let a = Activity::default();
+        a.enqueue("previews", "P", request("engine")).unwrap();
+        a.hold_line(true);
+        assert!(a.take_ready().is_none(), "the lane is free but the line is held");
+        assert_eq!(a.waiting().len(), 1, "it stays in line");
+        a.hold_line(false);
+        assert!(a.take_ready().is_some());
     }
 
     #[test]

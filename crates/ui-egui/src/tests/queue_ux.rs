@@ -332,6 +332,59 @@ fn a_task_put_in_line_while_the_question_is_up_is_asked_about_too() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Given the switch question up for one waiting task, when the task running ahead of it ends, then the waiting one stays
+/// in line (it would start, and then escape the drop the question names): Switch Library still switches and drops it.
+#[test]
+fn the_line_holds_while_the_switch_question_is_up() {
+    let (mut h, dir) = library_app("switch-holds");
+    let running = hold_a_line(&mut h);
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
+    h.step();
+    drop(running);
+    for _ in 0..6 {
+        h.step();
+    }
+    assert!(h.app.switch_prompt.is_some(), "still asking");
+    assert_eq!(h.app.session.activity.waiting().len(), 1, "the waiting build did not start while the question was up");
+    click(&mut h, "button:switchAnyway");
+    assert_eq!(library_dir(&h), Some(dir.join("second")), "the switch went through");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given a switch question that is about a library no longer open (a control call switched while the window was hidden, so
+/// no frame drew the question and dropped it), when the task ahead ends and only the logic tick runs, then the waiting task
+/// starts: a stale question holds nothing.
+#[test]
+fn a_stale_switch_question_does_not_hold_the_line() {
+    let (mut h, dir) = library_app("switch-stale");
+    let running = hold_a_line(&mut h);
+    h.app.run("app.newLibrary", json!({"path": dir.join("second").to_string_lossy()})).expect("asks");
+    let generation = h.app.session.library_generation();
+    h.app.switch_prompt.as_mut().expect("asked").generation = generation.wrapping_add(1);
+    drop(running);
+    let ctx = h.view.ctx.clone();
+    h.app.logic(&ctx);
+    assert!(h.app.session.activity.waiting().is_empty(), "the waiting build started");
+    assert!(h.step_until(T, |h| h.app.session.activity.list().is_empty()), "and it ended before the test did");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Given a task waiting in line and a library that can't be opened, when the person agrees to drop the line and the open
+/// fails, then the old library is opened again and its line is still there: nothing was switched, so nothing is dropped.
+#[test]
+fn a_switch_that_fails_keeps_the_line() {
+    let (mut h, dir) = library_app("switch-fails");
+    let _running = hold_a_line(&mut h);
+    let first = library_dir(&h);
+    std::fs::create_dir_all(dir.join("broken")).unwrap();
+    std::fs::write(dir.join("broken").join("catalog.snap"), b"not a catalog").unwrap();
+    let r = h.app.run("app.openLibrary", json!({"path": dir.join("broken").to_string_lossy(), "dropWaiting": true}));
+    assert!(r.is_err(), "the broken library does not open: {r:?}");
+    assert_eq!(library_dir(&h), first, "the old library is open again");
+    assert_eq!(h.app.session.activity.waiting().len(), 1, "its line was not dropped");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Given the switch question with focus moved to Switch Library, when a task waiting in line is replaced by another with
 /// the same name before Switch Library is pressed, then the question comes back with the same words and focus back on the
 /// safe Cancel, not on the button that was just used.

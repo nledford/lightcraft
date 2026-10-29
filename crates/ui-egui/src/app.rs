@@ -309,6 +309,11 @@ impl LightcraftApp {
     /// and the app's own (`app:import`, `app:synchronize`), each the way it was asked. One that can't start says why
     /// in a toast; the next in line goes on.
     fn start_waiting(&mut self, ctx: &egui::Context) {
+        // nothing leaves the line while the question about dropping it is open: a task started now would refuse the
+        // switch (an import) or escape the drop the person is agreeing to (a build). A question about a library no
+        // longer open is stale (the next drawn frame drops it; a hidden window draws none) and holds nothing.
+        let asked = self.switch_prompt.as_ref().is_some_and(|p| p.generation == self.session.library_generation());
+        self.session.activity.hold_line(asked);
         self.session.start_waiting();
         // The app's own wait while its slots are taken, row or no row yet: an import set this frame (Auto Import, its
         // row comes at the next tick), a synchronize, or a Local folder being read (it becomes an import when read).
