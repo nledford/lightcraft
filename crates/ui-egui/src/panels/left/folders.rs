@@ -508,7 +508,7 @@ fn last_name(path: &str) -> String {
 /// on disk (photos follow, one undo step) and say in a toast where it went.
 pub(crate) fn move_folder_to(app: &mut LightcraftApp, ctx: &egui::Context, path: &str, into: &str) {
     match app.run("folder.move", json!({"path": path, "into": into})) {
-        Ok(r) => app.toast(ctx, folder_moved_text(&last_name(path), &last_name(into), r["relinked"].as_u64().unwrap_or(0))),
+        Ok(r) => app.toast(ctx, folder_moved_text(&last_name(path), &last_name(into), r["inLibrary"].as_u64().unwrap_or(0))),
         Err(e) => app.toast(ctx, e),
     }
 }
