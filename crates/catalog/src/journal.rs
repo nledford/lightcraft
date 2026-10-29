@@ -118,6 +118,13 @@ impl Default for SnapshotPolicy {
 }
 
 impl SnapshotPolicy {
+    /// The policy for a store whose append rewrites the whole log ([`Store::appends_in_place`] is `false`: the
+    /// browser's): compacted by the log's length alone, the rule before the share (`snapshot_share` 0), so a save
+    /// never rewrites more than a log of 2000 records or 16 MB, however large the snapshot is.
+    pub fn whole_file_appends() -> Self {
+        SnapshotPolicy { snapshot_share: 0, ..SnapshotPolicy::default() }
+    }
+
     /// Whether a log of `records` records and `bytes` bytes is due for compaction into a snapshot
     /// that is now `snapshot_bytes` long.
     pub fn due(&self, records: u64, bytes: u64, snapshot_bytes: u64) -> bool {
@@ -422,6 +429,7 @@ impl Journal {
             None => (Catalog::new(), 0, None),
         };
         report.snapshot_seq = snapshot_seq;
+        let policy = if store.appends_in_place() { SnapshotPolicy::default() } else { SnapshotPolicy::whole_file_appends() };
         let mut j = Journal {
             store,
             seq: snapshot_seq,
@@ -430,7 +438,7 @@ impl Journal {
             behind: false,
             log_records: 0,
             log_bytes: 0,
-            policy: SnapshotPolicy::default(),
+            policy,
             stats: PersistStats::default(),
             pending: None,
             retry_at_records: 0,
