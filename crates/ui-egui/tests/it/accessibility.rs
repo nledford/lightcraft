@@ -366,7 +366,7 @@ fn context_menu(what: &'static str, label: &'static str) -> Screen {
 }
 
 /// The screens the gate walks: every view, every right panel, the dialogs, Settings' tabs, the
-/// import review, the menus and a context menu. The left sidebar is part of every one of them.
+/// import review, the menus and two context menus. The left sidebar is part of every one of them.
 fn screens() -> Vec<Screen> {
     let mut all = Vec::new();
     for view in VIEWS {

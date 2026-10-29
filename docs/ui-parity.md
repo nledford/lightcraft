@@ -105,7 +105,8 @@ gets a name does not have to touch the file, and the test prints the entries tha
 `LIGHTCRAFT_A11Y_BASELINE=shrink cargo test -p lightcraft-ui-egui --test it accessibility` removes
 them; `LIGHTCRAFT_A11Y_BASELINE=write` regenerates the file (a new screen needs it, once). Listed
 today, 48 controls on 21 of the 52 screens: dropdowns, spin boxes and fields with no caption (View
-Options, Export, Contact Sheet, Import review, Settings' Import and Slideshow tabs, Crop, Info and
+Options, Export, Contact Sheet, Import review, Keyboard Shortcuts (its search field), Settings' Import and Slideshow tabs, Crop,
+Info and
 Keywords panels, Auto-Stack, Capture Time and Rename), Settings' Slideshow colour well, sliders and hand-drawn
 rows, the symbol-only buttons of the Keywords panel and of the Keyboard Shortcuts dialog (that dialog
 is opened searched for "undo", so a new command does not change the count), and one unnamed frame
