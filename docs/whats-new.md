@@ -211,9 +211,10 @@
   desktop app).
 
 ### Every way to the samples leads to the editor
-- However the sample photos come into an empty library (a thumbnail, the welcome's Try Sample Photos button, Help ▸
-  Add Sample Photos, an agent), they open on a sample in Detail with the Edit panel, ready to edit; a thumbnail opens
-  the one clicked. A library that already has photos stays where it was.
+- However the sample photos come in while an empty library's welcome is showing (a thumbnail, the welcome's Try Sample
+  Photos button, Help ▸ Add Sample Photos, an agent), they open on a sample in Detail with the Edit panel, ready to
+  edit; a thumbnail opens the one clicked. A library that already has photos, or a Local folder or Recently Deleted on
+  screen, stays where it was.
 - The banner then walks the first edit through: "Drag any slider: the original never changes. Press Y to compare before
   and after." (the key Before/After Side by Side is bound to); once a slider is dragged, "That's your first edit. Press Y
   to see it beside the original."; while a Before / After layout shows it, "The original beside your edit: the file
