@@ -45,7 +45,7 @@ use performance::performance_tab;
 pub(crate) use performance::smart_folder_default;
 use slideshow::slideshow_tab;
 use widgets::legible_controls;
-pub(crate) use widgets::{check, choices, heading, hint, row};
+pub(crate) use widgets::{ask_first, check, choices, heading, hint, row};
 
 pub mod slide_layout;
 pub mod slide_overlays;
