@@ -30,6 +30,7 @@ fn app() -> (Headless, Asked, Arc<AtomicBool>) {
         move || b.store(true, Ordering::SeqCst)
     };
     let (f, g, d) = (hit(&blocked), hit(&blocked), hit(&blocked));
+    let (pt, st, dp, ps, ss) = (hit(&blocked), hit(&blocked), hit(&blocked), hit(&blocked), hit(&blocked));
     let services = Services {
         pick_folder: Some(Box::new(move || {
             f();
@@ -42,6 +43,26 @@ fn app() -> (Headless, Asked, Arc<AtomicBool>) {
         pick_denoise_model: Some(Box::new(move || {
             d();
             Vec::new()
+        })),
+        pick_print_templates: Some(Box::new(move || {
+            pt();
+            Vec::new()
+        })),
+        save_print_template: Some(Box::new(move |_: &str| {
+            st();
+            None
+        })),
+        pick_display_profile: Some(Box::new(move || {
+            dp();
+            Vec::new()
+        })),
+        pick_slideshow_templates: Some(Box::new(move || {
+            ps();
+            Vec::new()
+        })),
+        save_slideshow_template: Some(Box::new(move |_: &str| {
+            ss();
+            None
         })),
         ..Default::default()
     };
@@ -212,8 +233,8 @@ fn the_watched_folder_dialog_does_not_block_and_its_answer_is_watched() {
 /// click: one dialog of `kind` is up, nothing blocked, and a second press shows no second dialog.
 fn press(h: &mut Headless, asked: &Asked, blocked: &AtomicBool, field: Field, kind: PickKind) {
     let ctx = egui::Context::default();
-    crate::pick::choose_and_apply(&mut h.app, &ctx, field);
-    crate::pick::choose_and_apply(&mut h.app, &ctx, field);
+    crate::pick::choose_and_apply(&mut h.app, &ctx, field.clone());
+    crate::pick::choose_and_apply(&mut h.app, &ctx, field.clone());
     assert!(!blocked.load(Ordering::SeqCst), "{field:?} called the synchronous dialog");
     assert_eq!(asked.lock().unwrap().len(), 1, "{field:?} shows one dialog");
     assert_eq!(asked.lock().unwrap()[0].0.kind, kind);
@@ -270,4 +291,177 @@ fn a_field_without_a_background_dialog_still_answers_on_the_synchronous_service(
     app.services.pick_folder = Some(Box::new(|| Some("/sync/folder".into())));
     assert_eq!(crate::pick::choose(&mut app, Field::ExportFolder), Some("/sync/folder".into()));
     assert!(app.pending_picks.is_empty());
+}
+
+fn scratch(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("lc-bgdlg-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+fn open_print(h: &mut Headless) {
+    h.app.run("dialog.print", json!({})).unwrap();
+    h.settle(T);
+    assert!(matches!(h.app.ui.dialog, Some(Dialog::Print)), "the print dialog is open");
+}
+
+fn has(h: &Headless, id: &str) -> bool {
+    h.app.widgets.iter().any(|(w, _)| w == id)
+}
+
+#[test]
+fn print_template_export_does_not_block_and_its_answer_writes_the_file() {
+    let dir = scratch("print-export");
+    let (mut h, asked, blocked) = app();
+    open_print(&mut h);
+    h.app.run("print.template.save", json!({"name": "Sheet"})).unwrap();
+    h.settle(T);
+    assert_up(&mut h, &asked, &blocked, "button:printTemplateExport-0", PickKind::Save);
+    assert_eq!(asked.lock().unwrap()[0].0.file_name.as_deref(), Some("Sheet.lcprint"));
+    let file = dir.join("Sheet.lcprint");
+    assert!(!file.exists(), "nothing is written before the dialog closes");
+    answer(&mut h, &asked, 0, &file.to_string_lossy());
+    assert!(file.is_file(), "the answer was exported");
+    assert!(h.app.ui.toast.is_some());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn print_template_import_does_not_block_and_imports_every_answer() {
+    let dir = scratch("print-import");
+    let (mut h, asked, blocked) = app();
+    open_print(&mut h);
+    h.app.run("print.template.save", json!({"name": "Sheet"})).unwrap();
+    let file = dir.join("Sheet.lcprint");
+    h.app.run("print.template.export", json!({"name": "Sheet", "path": file.to_string_lossy()})).unwrap();
+    h.settle(T);
+    assert_up(&mut h, &asked, &blocked, "button:printTemplateImport", PickKind::Files);
+    assert_eq!(h.app.session.print_templates.len(), 1, "nothing is imported before the dialog closes");
+    let path = file.to_string_lossy().to_string();
+    asked.lock().unwrap()[0].1.send(vec![path.clone(), path]).unwrap();
+    h.step();
+    h.step();
+    assert_eq!(h.app.session.print_templates.len(), 3, "both chosen files were imported");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_print_profile_dialog_does_not_block_and_its_answer_is_the_jobs_profile() {
+    use lightcraft_engine::print_color::PrintProfile;
+    let dir = scratch("print-profile");
+    let icc = dir.join("Paper.icc");
+    std::fs::write(&icc, lightcraft_codecs::icc::write_named(lightcraft_codecs::NamedSpace::AdobeRgb)).unwrap();
+    let (mut h, asked, blocked) = app();
+    open_print(&mut h);
+    // the Print Job panel is at the bottom of the settings column: scroll down to it, as a person would
+    let r = h.request("ui.hoverWidget", json!({"id": "combo:printPaper"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        h.request("ui.scroll", json!({"dy": -600.0}), T);
+        h.settle(T);
+    }
+    click(&mut h, "combo:printProfile");
+    click(&mut h, "item:printProfile-other");
+    assert!(!blocked.load(Ordering::SeqCst), "Other… called the synchronous dialog on the UI thread");
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    assert_eq!(asked.lock().unwrap()[0].0.kind, PickKind::File);
+    assert_eq!(asked.lock().unwrap()[0].0.start, crate::pick::PickStart::MonitorProfiles);
+    answer(&mut h, &asked, 0, &icc.to_string_lossy());
+    assert!(
+        matches!(&h.app.session.print.job.color.profile, PrintProfile::Icc { path } if path == &icc),
+        "{:?}",
+        h.app.session.print.job.color.profile
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_monitor_profile_dialog_does_not_block_and_its_answer_is_the_profile() {
+    let (mut h, asked, blocked) = app();
+    h.app.ui.dialog = Some(Dialog::Settings { tab: "display".into() });
+    h.settle(T);
+    assert_up(&mut h, &asked, &blocked, "button:settingsDisplayProfile", PickKind::File);
+    assert_eq!(asked.lock().unwrap()[0].0.start, crate::pick::PickStart::MonitorProfiles);
+    assert!(h.app.ui.settings.display_profile.is_empty());
+    answer(&mut h, &asked, 0, "/profiles/screen.icc");
+    assert_eq!(h.app.ui.settings.display_profile, "/profiles/screen.icc");
+}
+
+#[test]
+fn slideshow_template_export_does_not_block_and_its_answer_writes_the_file() {
+    let dir = scratch("slide-export");
+    let (mut h, asked, blocked) = app();
+    h.app.session.slide_templates_dir = Some(dir.join("own"));
+    h.app.run("slideshow.templates.save", json!({"name": "Mine"})).unwrap();
+    h.app.ui.dialog = Some(Dialog::Settings { tab: "slideshow".into() });
+    h.settle(T);
+    let r = h.request("ui.clickWidget", json!({"id": "template:user:Mine", "button": "right"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    let shown: Vec<&str> = h.app.widgets.iter().map(|(w, _)| w.as_str()).filter(|w| w.contains("lideshowTemplate")).collect();
+    assert!(has(&h, "button:slideshowTemplateExport"), "the template's menu is open: {shown:?}");
+    // (the menu closes on the click, so a second click is not possible)
+    click(&mut h, "button:slideshowTemplateExport");
+    assert!(!blocked.load(Ordering::SeqCst), "Export… called the synchronous dialog on the UI thread");
+    assert_eq!(asked.lock().unwrap().len(), 1, "Export… shows one dialog");
+    assert_eq!(asked.lock().unwrap()[0].0.kind, PickKind::Save);
+    assert!(asked.lock().unwrap()[0].0.file_name.as_deref().is_some_and(|n| n.ends_with(".json")));
+    let file = dir.join("exported.json");
+    answer(&mut h, &asked, 0, &file.to_string_lossy());
+    assert!(file.is_file(), "the answer was exported");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn slideshow_template_import_does_not_block_and_imports_the_answer() {
+    let dir = scratch("slide-import");
+    let (mut h, asked, blocked) = app();
+    h.app.session.slide_templates_dir = Some(dir.join("own"));
+    let file = dir.join("in.json");
+    h.app.run("slideshow.templates.export", json!({"id": "builtin:gallery-wall", "path": file.to_string_lossy()})).unwrap();
+    h.app.ui.dialog = Some(Dialog::Settings { tab: "slideshow".into() });
+    h.settle(T);
+    assert_up(&mut h, &asked, &blocked, "button:slideshowTemplateImport", PickKind::Files);
+    let user = |_: &Headless| std::fs::read_dir(dir.join("own")).map(|d| d.count()).unwrap_or(0);
+    assert_eq!(user(&h), 0, "nothing is imported before the dialog closes");
+    answer(&mut h, &asked, 0, &file.to_string_lossy());
+    assert_eq!(user(&h), 1, "the answer was imported");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn the_soft_proof_profile_dialog_does_not_block_and_its_answer_is_the_proof() {
+    let dir = scratch("proof");
+    let icc = dir.join("Paper.icc");
+    std::fs::write(&icc, lightcraft_codecs::icc::write_named(lightcraft_codecs::NamedSpace::AdobeRgb)).unwrap();
+    let (mut h, asked, blocked) = app();
+    let r = h.request("ui.set", json!({"view": "detail"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    if h.app.ui.right != crate::state::RightPanel::Edit {
+        h.app.run("panel.edit", json!({})).unwrap();
+    }
+    h.app.ui.soft_proof = true;
+    h.settle(T);
+    assert!(has(&h, "combo:proofProfile"), "the Soft Proofing strip is on screen: right panel {:?}, view {:?}", h.app.ui.right, h.app.ui.view);
+    click(&mut h, "combo:proofProfile");
+    click(&mut h, "item:proofProfileOther");
+    assert!(!blocked.load(Ordering::SeqCst), "Other… called the synchronous dialog on the UI thread");
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    assert!(h.app.ui.proof_profile.is_none());
+    answer(&mut h, &asked, 0, &icc.to_string_lossy());
+    assert!(h.app.ui.proof_profile.is_some(), "the answer became the proof profile");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn without_a_background_dialog_a_single_file_field_takes_the_first_file_and_a_template_import_all() {
+    let services = Services {
+        pick_files: Some(Box::new(|| vec!["/logos/first.png".into(), "/logos/second.png".into()])),
+        pick_print_templates: Some(Box::new(|| vec!["/t/a.lcprint".into(), "/t/b.lcprint".into()])),
+        ..Default::default()
+    };
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), services);
+    assert_eq!(crate::pick::choose_all(&mut app, Field::SlidePlateImage), vec!["/logos/first.png".to_string()]);
+    assert_eq!(crate::pick::choose_all(&mut app, Field::PrintTemplateImport).len(), 2);
 }

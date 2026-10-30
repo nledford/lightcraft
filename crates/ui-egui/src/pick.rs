@@ -11,7 +11,7 @@
 //! services as before.
 
 mod field;
-pub use field::{Field, choose, choose_and_apply};
+pub use field::{Field, choose, choose_all, choose_and_apply};
 
 use crate::{LightcraftApp, Services};
 use serde_json::{Value, json};
@@ -40,23 +40,52 @@ pub struct PickRequest {
     pub filter: Option<(String, &'static [&'static str])>,
     /// [`PickKind::Save`]: the suggested file name.
     pub file_name: Option<String>,
+    /// Where the dialog opens.
+    pub start: PickStart,
+}
+
+/// Where a dialog opens, when the host knows a better place than its own default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PickStart {
+    /// The host's choice (usually the last folder used).
+    #[default]
+    Default,
+    /// The folder the system keeps monitor profiles in.
+    MonitorProfiles,
 }
 
 impl PickRequest {
     pub fn files(title: Option<String>, filter: impl Into<String>, extensions: &'static [&'static str]) -> Self {
-        PickRequest { kind: PickKind::Files, title, filter: Some((filter.into(), extensions)), file_name: None }
+        PickRequest { kind: PickKind::Files, title, filter: Some((filter.into(), extensions)), file_name: None, start: PickStart::Default }
     }
 
     pub fn file(title: impl Into<String>, filter: impl Into<String>, extensions: &'static [&'static str]) -> Self {
-        PickRequest { kind: PickKind::File, title: Some(title.into()), filter: Some((filter.into(), extensions)), file_name: None }
+        PickRequest {
+            kind: PickKind::File,
+            title: Some(title.into()),
+            filter: Some((filter.into(), extensions)),
+            file_name: None,
+            start: PickStart::Default,
+        }
     }
 
     pub fn folder(title: impl Into<String>) -> Self {
-        PickRequest { kind: PickKind::Folder, title: Some(title.into()), filter: None, file_name: None }
+        PickRequest { kind: PickKind::Folder, title: Some(title.into()), filter: None, file_name: None, start: PickStart::Default }
+    }
+
+    pub fn starting_in(mut self, start: PickStart) -> Self {
+        self.start = start;
+        self
     }
 
     pub fn save(title: impl Into<String>, filter: impl Into<String>, extensions: &'static [&'static str], file_name: impl Into<String>) -> Self {
-        PickRequest { kind: PickKind::Save, title: Some(title.into()), filter: Some((filter.into(), extensions)), file_name: Some(file_name.into()) }
+        PickRequest {
+            kind: PickKind::Save,
+            title: Some(title.into()),
+            filter: Some((filter.into(), extensions)),
+            file_name: Some(file_name.into()),
+            start: PickStart::Default,
+        }
     }
 }
 
@@ -73,7 +102,7 @@ pub type Picker = Box<dyn FnMut(PickRequest) -> Result<Receiver<Vec<String>>, St
 enum Then {
     /// The command runs again with the answer under `key`.
     Run { params: Value, key: &'static str, kind: PickKind },
-    /// The field takes the first path.
+    /// The field takes the chosen paths.
     Field(Field),
 }
 
@@ -164,7 +193,7 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
     let mut answered = Vec::new();
     let mut waiting = Vec::new();
     for p in std::mem::take(&mut app.pending_picks) {
-        if let Then::Field(f) = p.then
+        if let Then::Field(f) = &p.then
             && !f.is_open(app)
         {
             // its dialog was closed meanwhile: a later answer has nowhere to go
@@ -192,10 +221,10 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
                 }
             }
             Then::Field(f) => {
-                if let Some(path) = paths.into_iter().next()
-                    && f.is_open(app)
-                {
-                    field::apply(app, ctx, f, path);
+                if f.is_open(app) {
+                    for path in paths {
+                        field::apply(app, ctx, &f, path);
+                    }
                 }
             }
         }
