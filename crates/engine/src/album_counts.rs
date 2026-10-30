@@ -23,9 +23,9 @@ pub enum CountsAge {
     /// Of the catalog as it is now, and of this minute.
     Current,
     /// Of the catalog as it is now, but of an earlier minute: only a smart album whose rules ask about "the last N
-    /// days" (its own, or those of an album it tests) can have changed since.
+    /// days" (its own, or those of an album it tests), or a folder holding one, can have changed since.
     ClockBehind,
-    /// Of an earlier catalog, or none yet: every smart album's count is behind.
+    /// Of an earlier catalog, or none yet: every smart album's and folder's count is behind.
     Behind,
 }
 

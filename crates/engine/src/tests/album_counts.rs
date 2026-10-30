@@ -118,3 +118,33 @@ fn counts_of_albums_asking_about_the_last_hour_follow_the_session_clock() {
     assert_eq!(s.album_counts.scans, 2);
     lightcraft_catalog::rules::set_now(None);
 }
+
+/// A folder of albums is counted with the others, from the albums inside it, and is behind with them: when only the
+/// clock moved, a folder is behind only if an album inside it asks about "the last N days".
+#[test]
+fn a_folder_is_counted_with_the_albums_inside_it_and_is_pending_with_them() {
+    let mut s = library(&[5, 1, 1, 4]);
+    s.clock = Box::new(|| "2026-09-30T12:00:00".to_string());
+    let folder = |s: &mut Session, name: &str| s.execute("album.create", &json!({"name": name, "folder": true})).unwrap()["id"].as_u64().unwrap();
+    let (quiet, loud) = (folder(&mut s, "Quiet"), folder(&mut s, "Loud"));
+    let inner = s.execute("album.create", &json!({"name": "Inner", "folder": true, "parent": quiet})).unwrap()["id"].as_u64().unwrap();
+    s.execute("album.createSmart", &json!({"name": "Good", "rules": {"rating": 4}, "parent": inner})).unwrap();
+    let recent_rules = json!({"ruleSet": {"rules": [{"field": "captureDate", "op": "inLast", "value": {"n": 1, "unit": "hours"}}]}});
+    s.execute("album.createSmart", &json!({"name": "Recent", "rules": recent_rules, "parent": loud})).unwrap();
+    let tops = |s: &mut Session| -> Vec<(u64, bool)> {
+        let list = s.execute("albums.list", &json!({})).unwrap();
+        list.as_array().unwrap().iter().map(|a| (a["count"].as_u64().unwrap(), a["countPending"].as_bool().unwrap())).collect()
+    };
+    // counted here without a window: every folder's photos are those of the albums inside it
+    assert_eq!(tops(&mut s), [(2, false), (4, false)]);
+    assert_eq!(s.album_counts.scans, 1);
+    assert_eq!(s.catalog.album_count(lightcraft_catalog::AlbumId(quiet)), 2);
+
+    let offered = Arc::new(std::collections::HashMap::from([(lightcraft_catalog::AlbumId(quiet), 7), (lightcraft_catalog::AlbumId(loud), 8)]));
+    s.offer_album_counts(offered.clone(), CountsAge::ClockBehind);
+    assert_eq!(tops(&mut s), [(7, false), (8, true)]);
+    s.offer_album_counts(offered, CountsAge::Behind);
+    assert_eq!(tops(&mut s), [(7, true), (8, true)]);
+    assert_eq!(s.album_counts.scans, 1, "nothing counted for an offer");
+    lightcraft_catalog::rules::set_now(None);
+}

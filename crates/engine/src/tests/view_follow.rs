@@ -434,6 +434,13 @@ fn the_albums_counts_followed_through_edits_are_the_counts_made_from_every_photo
         let made = s.execute("album.createSmart", &json!({"name": "More", "rules": rules}));
         assert!(made.is_ok(), "{rules}: {made:?}");
     }
+    // and folders of albums, one inside another: their counts are made from the albums inside them, and followed too
+    let folder = s.execute("album.create", &json!({"name": "Trips", "folder": true})).unwrap()["id"].as_u64().unwrap();
+    let inner = s.execute("album.create", &json!({"name": "Rome", "folder": true, "parent": folder})).unwrap()["id"].as_u64().unwrap();
+    s.execute("album.createSmart", &json!({"name": "Well rated here", "parent": folder, "rules": {"rating": 3}})).unwrap();
+    s.execute("album.createSmart", &json!({"name": "Red here", "parent": inner, "rules": {"label": "red"}})).unwrap();
+    s.execute("library.select", &json!({"ids": ids.iter().take(12).map(|id| id.0).collect::<Vec<_>>()})).unwrap();
+    s.execute("album.create", &json!({"name": "Chosen here", "parent": inner, "addSelected": true})).unwrap();
     assert!(s.catalog.album(lightcraft_catalog::AlbumId(smart)).is_some_and(|a| a.is_smart()));
     let fresh = |s: &Session| -> Vec<(u64, usize)> {
         let mut v: Vec<(u64, usize)> = s.catalog.albums().map(|a| (a.id.0, s.catalog.album_count(a.id))).collect();

@@ -292,8 +292,8 @@ fn a_folder_with_rules_is_still_a_folder() {
     let holds = |id: PhotoId| c.album_contains(f, c.photo(id).unwrap());
     assert!(holds(a) && !holds(b));
     assert_eq!((shown(&c, f), c.album_photos(f), c.album_count(f)), (vec![a], vec![a], 1));
-    // the whole count leaves it out, as it does every folder
-    assert!(!crate::tally::AlbumTally::of(&c).counts().contains_key(&f));
+    // the whole count counts it from the albums inside it, as it does every folder (its rules are not asked)
+    assert_eq!(crate::tally::AlbumTally::of(&c).counts().get(&f), Some(&1));
 }
 
 /// A smart album limited to a folder, and a smart album inside that folder that tests it: a loop through the folder

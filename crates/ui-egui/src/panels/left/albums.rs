@@ -34,8 +34,8 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
                 open = true;
                 set_tree_open(ui, open_id, true);
             }
-            // a folder is a source: the photos of the albums inside it, each once (no count: it
-            // would be a pass over the library per folder, for a number the albums already give)
+            // a folder is a source: the photos of the albums inside it, each once (no count shown on its row, for a
+            // number the albums already give; `albums.list` counts it from theirs, kept with theirs)
             let sel = app.session.source == LibrarySource::Album(a.id);
             let resp = Row::new(&format!("folder:{}", a.id.0), Icon::Folder, &a.name)
                 .selected(sel)
