@@ -609,7 +609,9 @@ fn disk_folder_menu(app: &mut LightcraftApp, resp: &egui::Response, row: FolderR
 /// when it has none, is left out.
 fn folder_item_available(app: &LightcraftApp, item: FolderItem, node: Option<&FolderNode>) -> bool {
     match item {
-        FolderItem::Move | FolderItem::ImportHere => app.services.pick_folder.is_some(),
+        FolderItem::Move => app.services.pick_folder.is_some(),
+        // file.addFolder asks through the host's background dialog when it has one (`pick::ask`)
+        FolderItem::ImportHere => app.services.picker.is_some() || app.services.pick_folder.is_some(),
         FolderItem::Reveal => app.services.reveal.is_some(),
         FolderItem::LocateMissing | FolderItem::ColorLabel | FolderItem::RemoveFromLibrary | FolderItem::RemoveDisk => node.is_some(),
         _ => true,
