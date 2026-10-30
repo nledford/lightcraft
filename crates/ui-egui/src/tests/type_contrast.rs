@@ -103,18 +103,27 @@ fn inked(image: &egui::ColorImage, rect: Rect, colour: Color32, ground: Color32)
 /// The text on screen that cannot be read: what it says, its colour, what it is on and how far
 /// apart the two stand.
 fn unreadable(h: &Headless, t: &Tokens, within: Option<Rect>) -> Vec<String> {
-    let image = h.paint();
+    unreadable_in(&h.paint(), &h.view.shapes, t, within)
+}
+
+/// [`unreadable`] for a painted `image` and the `shapes` that made it.
+fn unreadable_in(image: &egui::ColorImage, shapes: &[egui::epaint::ClippedShape], t: &Tokens, within: Option<Rect>) -> Vec<String> {
     let mut out = BTreeMap::new();
-    fn texts(shape: &egui::Shape, clip: Rect, out: &mut Vec<(egui::epaint::TextShape, Rect)>) {
+    // (`window_at`: how many texts were drawn before the dialog window's own frame: they lie under it, covered)
+    fn texts(shape: &egui::Shape, clip: Rect, within: Option<Rect>, out: &mut Vec<(egui::epaint::TextShape, Rect)>, window_at: &mut Option<usize>) {
         match shape {
             egui::Shape::Text(text) => out.push((text.clone(), clip)),
-            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| texts(s, clip, out)),
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| texts(s, clip, within, out, window_at)),
+            egui::Shape::Rect(r) if within.is_some_and(|w| (r.rect.min - w.min).length() < 2.0 && (r.rect.max - w.max).length() < 2.0) => {
+                *window_at = Some(out.len());
+            }
             _ => {}
         }
     }
     let mut drawn = Vec::new();
-    h.view.shapes.iter().for_each(|s| texts(&s.shape, s.clip_rect, &mut drawn));
-    for (text, clip) in drawn {
+    let mut window_at = None;
+    shapes.iter().for_each(|s| texts(&s.shape, s.clip_rect, within, &mut drawn, &mut window_at));
+    for (text, clip) in drawn.into_iter().skip(window_at.unwrap_or(0)) {
         let said = text.galley.job.text.trim();
         // (a disabled control is drawn fainter as a whole; nothing to read in an empty string)
         if said.is_empty() || text.opacity_factor < 1.0 {
@@ -131,7 +140,7 @@ fn unreadable(h: &Headless, t: &Tokens, within: Option<Rect>) -> Vec<String> {
             continue;
         }
         // (a little around the letters: a dash's own rectangle is mostly dash)
-        let Some((on, share)) = ground(&image, rect.expand(2.0)) else { continue };
+        let Some((on, share)) = ground(image, rect.expand(2.0)) else { continue };
         // (over a picture no colour is most of the rectangle)
         if share < 0.3 {
             continue;
@@ -146,7 +155,7 @@ fn unreadable(h: &Headless, t: &Tokens, within: Option<Rect>) -> Vec<String> {
             }
             let shown = blend(colour, on);
             // (text under a window is drawn and then covered: none of its colour is left)
-            if !inked(&image, rect, shown, on) {
+            if !inked(image, rect, shown, on) {
                 continue;
             }
             let stands = contrast(shown, on);
@@ -380,4 +389,32 @@ fn the_temporary_session_banner_can_be_read_in_every_theme() {
         assert_readable(&h, kind, "the temporary-session banner", &mut bad);
     }
     report(bad);
+}
+
+/// Given text drawn before a dialog's own frame (it lies under the dialog, covered) and, where it lies,
+/// pixels of the dialog (a preview's bars) in the very colour the text was drawn in, when the screen is read,
+/// then that text is left out; and the same text drawn after the frame is still read and still fails.
+#[test]
+fn text_under_the_dialogs_own_frame_is_not_read() {
+    use egui::{pos2, vec2};
+    let h = demo(ThemeKind::Charcoal);
+    let t = Tokens::for_kind(ThemeKind::Charcoal);
+    let (ground, ink) = (Color32::from_gray(63), Color32::from_gray(150));
+    assert!(contrast(ink, ground) < 4.5, "the ink is too faint to read on the ground");
+    let galley = h.view.ctx.layer_painter(egui::LayerId::background()).layout_no_wrap("JPEG".into(), egui::FontId::proportional(12.0), ink);
+    let window = Rect::from_min_size(pos2(0.0, 0.0), vec2(120.0, 60.0));
+    let mut image = egui::ColorImage::new([120, 60], vec![ground; 120 * 60]);
+    // (a bar of the dialog, in the ink's colour, where the text lies)
+    for x in 20..60 {
+        image.pixels[25 * 120 + x] = ink;
+    }
+    let clipped = |shape| egui::epaint::ClippedShape { clip_rect: window, shape, transform_after_tessellation: Default::default() };
+    let frame = clipped(egui::Shape::rect_filled(window, 0.0, ground));
+    let text = clipped(egui::Shape::galley(pos2(20.0, 20.0), galley, ink));
+    // When the text was drawn before the frame, then it is covered, and not read
+    let covered = unreadable_in(&image, &[text.clone(), frame.clone()], &t, Some(window));
+    assert!(covered.is_empty(), "text under the frame is read: {covered:?}");
+    // And when it is drawn after the frame, it is on the dialog, read and found too faint
+    let shown = unreadable_in(&image, &[frame, text], &t, Some(window));
+    assert_eq!(shown.len(), 1, "text on the dialog is read: {shown:?}");
 }
