@@ -2353,6 +2353,7 @@
   "Dropped Files": "Перетягнуті файли",
   "Import dropped files without review": "Імпортувати перетягнуті файли без перегляду",
   "An import is running": "Імпорт уже виконується",
+  "A folder is already being chosen for an import": "Тека для імпорту вже вибирається",
   "An import is running. Drop photos when it has finished": "Імпорт уже виконується. Перетягніть фото, коли він завершиться",
   "Finish Lightroom catalog import before adding photos": "Завершіть імпорт каталогу Lightroom, перш ніж додавати фото",
   "No photo in this folder is in the library yet": "Жодного фото з цієї теки ще немає в бібліотеці",

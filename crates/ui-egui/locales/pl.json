@@ -2282,6 +2282,7 @@
   "Dropped Files": "Upuszczone pliki",
   "Import dropped files without review": "Importuj upuszczone pliki bez przeglądu",
   "An import is running": "Import jest w toku",
+  "A folder is already being chosen for an import": "Folder do importu jest już wybierany",
   "An import is running. Drop photos when it has finished": "Import jest w toku. Upuść zdjęcia, gdy się zakończy",
   "Finish Lightroom catalog import before adding photos": "Zakończ import katalogu Lightrooma, zanim dodasz zdjęcia",
   "No photo in this folder is in the library yet": "Żadne zdjęcie z tego folderu nie jest jeszcze w bibliotece",

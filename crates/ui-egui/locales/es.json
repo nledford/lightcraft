@@ -2357,6 +2357,7 @@
   "Dropped Files": "Archivos soltados",
   "Import dropped files without review": "Importar los archivos soltados sin revisión",
   "An import is running": "Hay una importación en curso",
+  "A folder is already being chosen for an import": "Ya se está eligiendo una carpeta para una importación",
   "An import is running. Drop photos when it has finished": "Hay una importación en curso. Suelta las fotos cuando termine",
   "Finish Lightroom catalog import before adding photos": "Termina la importación del catálogo de Lightroom antes de añadir fotos",
   "No photo in this folder is in the library yet": "Ninguna foto de esta carpeta está todavía en la biblioteca",

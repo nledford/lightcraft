@@ -2156,6 +2156,7 @@
   "Dropped Files": "拖放的檔案",
   "Import dropped files without review": "不經檢查直接匯入拖放的檔案",
   "An import is running": "正在匯入",
+  "A folder is already being chosen for an import": "已在為匯入選擇資料夾",
   "An import is running. Drop photos when it has finished": "正在匯入。匯入完成後再拖放照片",
   "Finish Lightroom catalog import before adding photos": "新增照片前，請先完成 Lightroom 目錄的匯入",
   "No photo in this folder is in the library yet": "此資料夾中還沒有照片在照片庫中",
