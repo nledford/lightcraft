@@ -372,8 +372,7 @@ impl Caches {
         now: &str,
         ctx: &egui::Context,
     ) -> std::sync::Arc<std::collections::HashMap<lightcraft_catalog::AlbumId, usize>> {
-        let relative = cat.albums().any(|a| a.smart.as_ref().is_some_and(|f| f.depends_on_now()));
-        let minute = if relative { now.get(..16).unwrap_or(now) } else { "" };
+        let (relative, minute) = Self::album_clock(cat, now);
         self.collect_album_recount(library);
         // (album ids start again in every library: another one's counts would be shown on this one's albums)
         if self.album_counts.as_ref().is_some_and(|c| c.library != library) {
@@ -396,6 +395,38 @@ impl Caches {
         }
         self.recount_albums(cat, library, minute, now, relative, ctx);
         self.album_counts.as_ref().map(|c| c.shown.clone()).unwrap_or_default()
+    }
+
+    /// Whether a smart album asks about "the last N days", and the minute the counts are of then (else empty).
+    fn album_clock<'a>(cat: &lightcraft_catalog::Catalog, now: &'a str) -> (bool, &'a str) {
+        let relative = cat.albums().any(|a| a.smart.as_ref().is_some_and(|f| f.depends_on_now()));
+        (relative, if relative { now.get(..16).unwrap_or(now) } else { "" })
+    }
+
+    /// [`Caches::album_counts`] for the `albums.list` command, with how far they are from the catalog and the clock as
+    /// they are now: the command answers at once from them (marking the albums that are behind), and never counts a
+    /// photo on the UI thread.
+    pub fn album_counts_for_list(
+        &mut self,
+        cat: &lightcraft_catalog::Catalog,
+        library: u64,
+        now: &str,
+        ctx: &egui::Context,
+    ) -> (std::sync::Arc<std::collections::HashMap<lightcraft_catalog::AlbumId, usize>>, lightcraft_engine::CountsAge) {
+        use lightcraft_engine::CountsAge;
+        let counts = self.album_counts(cat, library, now, ctx);
+        let (_, minute) = Self::album_clock(cat, now);
+        let age = match self.album_counts.as_ref() {
+            Some(c) if c.library == library && c.tally.revision() == cat.revision => {
+                if c.minute == minute {
+                    CountsAge::Current
+                } else {
+                    CountsAge::ClockBehind
+                }
+            }
+            _ => CountsAge::Behind,
+        };
+        (counts, age)
     }
 
     /// A count of every photo is running ([`Caches::album_counts`]).
