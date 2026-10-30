@@ -124,8 +124,8 @@ fn tabs_are_not_drawn_as_the_choices_under_them_are() {
     let image = h.paint();
     // Then a choice is a bordered button
     let choice = rect(&h, "button:settingsLanguage-4");
-    // (in the border colour made to stand out from the window)
-    let line = t.legible(t.button_border, t.chrome, 3.0);
+    // (in the border colour Settings makes to stand out from the window and from a theme card's fill: `legible_controls`)
+    let line = t.legible(t.legible(t.button_border, t.chrome, 3.0), t.inset, 3.6);
     let border: usize = edges(choice, 1.0).iter().map(|e| count(&image, *e, line)).sum();
     assert!(border as f32 > choice.width(), "a choice has a border ({border} px)");
     // And a tab that is not open is its name alone on the window: no border, no fill of its own
