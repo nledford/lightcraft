@@ -628,17 +628,7 @@ impl Journal {
             }
             rewritten = true;
         } else {
-            if good_end < log.len() {
-                report.torn_bytes = (log.len() - good_end) as u64;
-                log::warn!("catalog log: dropped a torn final record ({} bytes)", report.torn_bytes);
-                j.store.truncate(LOG, good_end as u64).map_err(io)?;
-                j.log_bytes = good_end as u64;
-            } else if needs_newline {
-                j.store.append(LOG, b"\n").map_err(io)?;
-                j.log_bytes = good_end as u64 + 1;
-            } else {
-                j.log_bytes = good_end as u64;
-            }
+            j.trim_log_tail(&log, good_end, needs_newline, &mut report)?;
         }
         if report.created {
             // tiny: written directly, not counted as a compaction
@@ -669,13 +659,41 @@ impl Journal {
                 j.behind_at = (j.seq, j.log_bytes);
             }
         }
-        if report.other_defaults && !rewritten {
+        if !rewritten {
+            j.restate_defaults(&catalog, &report)?;
+        }
+
+        catalog.revision = 0;
+        Ok((j, catalog, report))
+    }
+
+    /// Cut a torn final record off the log, or end an unterminated last record with a newline, and
+    /// note where the log now ends (`good_end`: just past the last good record).
+    fn trim_log_tail(&mut self, log: &[u8], good_end: usize, needs_newline: bool, report: &mut LoadReport) -> Result<()> {
+        if good_end < log.len() {
+            report.torn_bytes = (log.len() - good_end) as u64;
+            log::warn!("catalog log: dropped a torn final record ({} bytes)", report.torn_bytes);
+            self.store.truncate(LOG, good_end as u64).map_err(io)?;
+            self.log_bytes = good_end as u64;
+        } else if needs_newline {
+            self.store.append(LOG, b"\n").map_err(io)?;
+            self.log_bytes = good_end as u64 + 1;
+        } else {
+            self.log_bytes = good_end as u64;
+        }
+        Ok(())
+    }
+
+    /// A library that an open did not write anew is made to state this build's develop defaults
+    /// when its header's do not match: see the cases below.
+    fn restate_defaults(&mut self, catalog: &Catalog, report: &LoadReport) -> Result<()> {
+        if report.other_defaults {
             // The same format, other defaults: the library must state this build's before
             // anything is appended, since a compact record leaves out what equals the default the
             // header states for it. Nothing is kept for that: any build reads a library over the
             // defaults it states. If it can't be rewritten the library is refused.
-            j.snapshot(&catalog)?;
-        } else if report.defaults_added && !rewritten {
+            self.snapshot(catalog)?;
+        } else if report.defaults_added {
             // A setting this build has that the header doesn't state: restate it before a
             // compact record is appended. If that can't be done now (a full disk, a read-only
             // volume; or the upgrade just above failed, which keeps no copies behind, so the
@@ -683,20 +701,18 @@ impl Journal {
             // written whole until a snapshot succeeds (`header_incomplete`). A crash at any point
             // finds the old files whole, or a header that states every setting before any compact
             // record was written.
-            j.header_incomplete = true;
-            if j.behind.is_none() {
-                match j.snapshot(&catalog) {
+            self.header_incomplete = true;
+            if self.behind.is_none() {
+                match self.snapshot(catalog) {
                     Ok(()) => {}
-                    Err(e) if j.header_incomplete => {
+                    Err(e) if self.header_incomplete => {
                         log::warn!("catalog: can't restate the library's defaults ({e}); writing whole records until it can")
                     }
                     Err(e) => log::warn!("catalog: the library's defaults were restated, but its log could not be reset: {e}"),
                 }
             }
         }
-
-        catalog.revision = 0;
-        Ok((j, catalog, report))
+        Ok(())
     }
 
     /// Bring a library in format `from` to this build's: keep the files it was (`snap` and `log`,
