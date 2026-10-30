@@ -17,6 +17,7 @@ mod date_picker;
 mod dialog_fit;
 mod dialog_primary;
 mod dialog_settings;
+mod dialog_settings_contrast;
 mod dialog_settings_filter;
 mod dialog_settings_filter_words;
 mod dialog_tab;

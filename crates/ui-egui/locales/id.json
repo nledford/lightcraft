@@ -1397,7 +1397,6 @@
   "Photo Grid": "Grid foto",
   "Photo Grid (G)": "Grid foto (G)",
   "Photo Merge": "Gabung foto",
-  "Photo ▸ Edit In ▸ Edit in PhotoCraft (⇧⌘E, or right-click a photo) renders a copy with your edits, stacks it with the original and opens it in PhotoCraft. Save there and the copy updates here. As PSD, PhotoCraft saves straight back to it. Leave the location empty unless you use a portable copy.": "Foto → Edit di → Edit di PhotoCraft (⇧⌘E, atau klik kanan foto) merender salinan beserta hasil edit Anda, menumpuknya dengan foto asli, lalu membukanya di PhotoCraft. Simpan di sana, dan salinan di sini ikut diperbarui. Jika berformat PSD, PhotoCraft menyimpan langsung ke file tersebut. Kosongkan lokasi kecuali Anda menggunakan salinan portabel.",
   "Photo ▸ Edit in External Editor (⇧⌘E) renders a 16-bit TIFF copy, stacks it with the original and opens it here (an app name on macOS, a program path elsewhere).": "Foto → Edit di editor eksternal (⇧⌘E) membuat salinan TIFF 16-bit, menumpuknya dengan file asli, lalu membukanya dengan program yang diisi di sini (nama aplikasi di macOS, jalur program di sistem lain).",
   "PhotoCraft": "PhotoCraft",
   "Photos": "Foto",
@@ -2342,5 +2341,9 @@
   "Import dropped files without review": "Impor file yang dijatuhkan tanpa tinjauan",
   "Filter settings": "Filter pengaturan",
   "No setting matches what is typed.": "Tidak ada pengaturan yang cocok dengan yang diketik.",
-  "Try one word, or part of one: the names of tabs and sections, labels and explanations are all looked through.": "Coba satu kata atau sebagiannya: yang dicari adalah nama tab dan bagian, label, serta penjelasan."
+  "Try one word, or part of one: the names of tabs and sections, labels and explanations are all looked through.": "Coba satu kata atau sebagiannya: yang dicari adalah nama tab dan bagian, label, serta penjelasan.",
+  "Model installation failed": "Instalasi model gagal",
+  "The download failed": "Unduhan gagal",
+  "starting…": "memulai…",
+  "Photo > Edit In > Edit in PhotoCraft (⇧⌘E, or right-click a photo) renders a copy with your edits, stacks it with the original and opens it in PhotoCraft. Save there and the copy updates here. As PSD, PhotoCraft saves straight back to it. Leave the location empty unless you use a portable copy.": "Foto > Edit di > Edit di PhotoCraft (⇧⌘E, atau klik kanan foto) merender salinan beserta hasil edit Anda, menumpuknya dengan foto asli, lalu membukanya di PhotoCraft. Simpan di sana, dan salinan di sini ikut diperbarui. Jika berformat PSD, PhotoCraft menyimpan langsung ke file tersebut. Kosongkan lokasi kecuali Anda menggunakan salinan portabel."
 }
