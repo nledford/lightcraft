@@ -3,7 +3,7 @@
 ## 2026-10-28
 
 ### The grid's title, count and empty messages are read by screen readers
-- VoiceOver and other screen readers now read the photo grid's heading (for example "All Photos") and its photo count ("0 of 24 photos"), and the messages an empty view shows: "No photos match the active filters" with its reason, "No photos in this folder", and the same for the compare, survey, detail and people views.
+- VoiceOver and other screen readers now read the photo grid's heading (for example "All Photos") and its photo count ("0 of 24 photos"), and the messages an empty view shows: "No photos match the active filters" with its reason, "No photos in this folder", and the same for the compare, survey, detail, reference and people views and the right panel's "No photo selected".
 
 ## 2026-10-24
 
