@@ -359,7 +359,7 @@ pub(crate) fn selection_deleted(app: &LightcraftApp) -> bool {
 
 /// Items only some hosts have are left out of the others' menus (the web build's library backup);
 /// Restore and Delete Permanently replace Delete for photos in Recently Deleted.
-fn host_supports(app: &LightcraftApp, id: &str) -> bool {
+pub(crate) fn host_supports(app: &LightcraftApp, id: &str) -> bool {
     match id {
         "file.backupLibrary" => app.services.backup_library.is_some(),
         "file.restoreLibrary" => app.services.restore_library.is_some(),

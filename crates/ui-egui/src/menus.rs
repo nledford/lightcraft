@@ -117,5 +117,9 @@ pub fn menu_entries(app: &LightcraftApp) -> Vec<MenuEntry> {
             });
         }
     }
+    // Two Restore Library from Backup… commands, for hosts that exclude each other: the web build's zip
+    // (`file.restoreLibrary`, only where the host brings it) and a folder library's own backups
+    // (`library.restore`, only for a library that is a folder on disk). The one this host has is listed.
+    v.retain(|e| !matches!(e.id.as_str(), "file.restoreLibrary" | "library.restore") || menubar::host_supports(app, &e.id));
     v
 }
