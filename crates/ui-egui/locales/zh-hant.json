@@ -1916,7 +1916,6 @@
   "Skipped: files that can't be read": "已略過：無法讀取的檔案",
   "This folder isn't there: it was moved or renamed, or its disk isn't connected.": "此資料夾不存在：它已被移動或重新命名，或其磁碟未連接。",
   "Relink photos whose file was renamed or moved": "重新連結檔案被重新命名或移動的照片",
-  "A folder is already being synchronized": "已有資料夾正在同步",
   "Synchronizing…": "正在同步…",
   "Relinked": "已重新連結",
   "Removed": "已移除",
@@ -1925,8 +1924,6 @@
   "Stopped": "已停止",
   "Stopped by an error (see the log)": "因錯誤而停止（請見記錄）",
   "Not saved": "未儲存",
-  "A folder is being synchronized": "正在同步資料夾",
-  "Wait for the import to finish": "請等待匯入完成",
   "Appearance": "外觀",
   "Appearance Mode": "外觀模式",
   "Sync with System": "與系統同步",
@@ -2174,5 +2171,9 @@
   "Remove Folders from Library": "從照片庫移除資料夾",
   "That includes the photos in the folders inside them.": "其中也包括這些資料夾內各子資料夾中的照片。",
   "The photos stay in All Photos. Undo brings the albums back.": "照片仍保留在「所有照片」中。復原即可還原這些相簿。",
-  "Photos stay in All Photos. Deleting a folder also deletes its albums. You can undo this.": "照片仍保留在「所有照片」中。刪除資料夾也會刪除其中的相簿。可以復原。"
+  "Photos stay in All Photos. Deleting a folder also deletes its albums. You can undo this.": "照片仍保留在「所有照片」中。刪除資料夾也會刪除其中的相簿。可以復原。",
+  "Queued: it starts when the task ahead of it ends": "已加入佇列：前一個工作結束後開始",
+  "Another library was opened: nothing was done": "已開啟另一個圖庫：未執行任何操作",
+  "Photos of the folder changed while it was read: nothing was done": "讀取期間資料夾中的照片發生了變化：未執行任何操作",
+  "Starts next": "接下來開始"
 }
